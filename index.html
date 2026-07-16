@@ -448,6 +448,24 @@
   .inpRow input:focus{border-color:var(--blue-3);box-shadow:0 0 0 3px var(--blue-soft)}
   .qOpt.pick{border-color:var(--blue);background:var(--blue-soft)}
 
+  /* ================= SIMULATIONS & CERTIFICATES ================= */
+  #sim{position:fixed;inset:0;z-index:97;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
+  #cert{position:fixed;inset:0;z-index:140;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
+  #sim.open,#cert.open{transform:translateY(0);visibility:visible}
+  #certCanvas{width:100%;height:auto;border-radius:12px;box-shadow:0 20px 50px -20px rgba(0,0,0,.45);display:block}
+  .certWrap{max-width:820px;margin:0 auto;padding:20px 16px calc(50px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:16px}
+
+  /* ================= AI TUTOR SUITE ================= */
+  .aiGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:9px}
+  @media(min-width:640px){.aiGrid{grid-template-columns:repeat(3,1fr)}}
+  .aiChip{
+    display:flex;align-items:center;justify-content:center;text-align:center;padding:10px 8px;border-radius:10px;
+    background:var(--surface);border:1px solid var(--edge);color:var(--blue-2);font-size:11.5px;font-weight:600;
+    text-decoration:none;box-shadow:var(--card-sh);transition:border-color .15s,transform .15s;line-height:1.3;
+  }
+  .aiChip:active{transform:scale(.96)}
+  @media(hover:hover){.aiChip:hover{border-color:var(--blue-3);transform:translateY(-1px)}}
+
   /* ================= READER EXTRAS ================= */
   .actGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
   .actGrid .card{padding:13px 12px}
@@ -635,6 +653,33 @@
     <div class="barBtns"></div>
   </div>
   <div class="sheetInner" id="caseInner"></div>
+</div>
+
+<div id="sim" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeSim()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Exit
+    </button>
+    <div class="crumb" id="simCrumb">Simulation</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="qInner" id="simInner"></div>
+</div>
+
+<div id="cert" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeCert()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Back
+    </button>
+    <div class="crumb" id="certCrumb">Certificate</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="certWrap">
+    <canvas id="certCanvas"></canvas>
+    <div id="certActions"></div>
+  </div>
 </div>
 
 <div id="quiz" role="dialog" aria-modal="true">
@@ -1874,7 +1919,6 @@ inputs:[{k:"price",label:"Vehicle price ($)",def:38000},{k:"down",label:"Down pa
 out:v=>{const loan=v.price-v.down;const m=pmt(loan,v.rate,v.years);const total=m*12*v.years+v.down;return [["Monthly payment",$fmt(m,0),1],["Total cost of vehicle",$fmt(total)],["Interest paid",$fmt(total-v.price),1],["That interest invested at 8%/30yr",$fmt((total-v.price)*Math.pow(1.08,30))]]},
 formula:"Long terms hide high totals — judge the total cost, never the monthly payment"}
 ];
-const SIMS=[]; /* Phase 5 */
 
 /* ================= CASE STUDIES (Phase 3) =================
    Original teaching cases inspired by public business history. */
@@ -2330,6 +2374,220 @@ assign:"Write the two-paragraph 'CIM teaser' for the business you own or intend 
 /* verified via YouTube oEmbed */
 Object.assign(VIDEO_MAP,{"ac1": {"v": "56xscQ4viWE", "title": "The ACCOUNTING EQUATION For BEGINNERS", "ch": "Accounting Stuff"}, "ac2": {"v": "VhwZ9t2b3Zk", "title": "ACCOUNTING BASICS: Debits and Credits Explained", "ch": "Accounting Stuff"}, "ac3": {"v": "bzfKZav0n6Y", "title": "Create Chart of Accounts in 3 Simple Steps | Bookkeeping Tips | Episode 3", "ch": "Check This Out"}, "ac4": {"v": "GEZZftO_VrE", "title": "Cash vs Accrual Accounting Explained With A Story", "ch": "Leila Gharani"}, "ac5": {"v": "UQ2CM-n_ywA", "title": "Understanding Gross Profit and Net Profit | Contractor Cuts | Episode 53", "ch": "Contractor Cuts Clips"}, "ac6": {"v": "EGQ2U-fCj_0", "title": "Accounting 101: month-end close explained", "ch": "CrunchTheNumbers"}, "ac7": {"v": "xWdQi4MMkHs", "title": "How to Analyze The Income Statement like a CFO", "ch": "The Financial Controller"}, "ac8": {"v": "70X7-_oXQhU", "title": "Working Capital Explained Simply", "ch": "Brian Feroldi"}, "ac9": {"v": "DiVPAjgmnj0", "title": "The CASH FLOW STATEMENT for BEGINNERS", "ch": "Accounting Stuff"}, "ac10": {"v": "KSI_k-o--Ho", "title": "Financial Ratios for Small Businesses", "ch": "V-ignite"}, "s1": {"v": "VbQk-znqJCk", "title": "Pricing Psychology: How Brands Trick You To Spend More", "ch": "Max Klymenko"}, "s2": {"v": "_NIWQjjMvfw", "title": "Every Successful Sales Funnel NEEDS THIS!!!", "ch": "Jon Penberthy"}, "s3": {"v": "vz8OcBTz03w", "title": "Most Powerful Questions In Sales | Jeremy Miner", "ch": "Jeremy Miner"}, "s4": {"v": "500jEVIAeVk", "title": "How to Overcome Cost Objections | Jeremy Miner", "ch": "Jeremy Miner"}, "s5": {"v": "30D9NXDVNbw", "title": "Sales Hack - My Most Used Close", "ch": "Alex Hormozi"}, "s6": {"v": "paMJYO81bts", "title": "Pro Tips for Door to Door Sales", "ch": "Zac Dingee"}, "s7": {"v": "K19cp-nIhKo", "title": "Learn B2B Sales In the Least Amount of Time Possible (Tech Founder’s Guide)", "ch": "Tech Sales With Higher Levels"}, "s8": {"v": "mt9zhuT_Xb4", "title": "My Script For Booking Calls", "ch": "Alex Hormozi"}, "s9": {"v": "xK-G4UY9HHU", "title": "Sales Webinar: Metrics, Forecasting & Pipeline Management", "ch": "Valley Industrial Association"}, "s10": {"v": "2GeB8-kyx8w", "title": "How to Structure Compensation On a Sales Team", "ch": "Alex Hormozi"}, "aq1": {"v": "uY1iPCwJqk8", "title": "Turning $100K into $50 Million Through Business Acquisitions", "ch": "Walker Deibel"}, "aq2": {"v": "3mtS8rOAqoM", "title": "How to Find Businesses to Buy NO ONE ELSE Knows About (80 MINUTE Playbook)", "ch": "Codie Sanchez"}, "aq3": {"v": "XVhj8D0RAUw", "title": "How To Analyze M&A Broker CIMs for Business Buyers", "ch": "FinanceKid"}, "aq4": {"v": "iIK_1s6pkSg", "title": "What is the difference between EBITDA and SDE in a small business", "ch": "Jordan Kelliher"}, "aq5": {"v": "BnS7CNiCuz0", "title": "How to Write a Letter of Intent (LOI) for Your Business Purchase", "ch": "Owner Actions | Buy a Business with Us"}, "aq6": {"v": "YGDbbaYKlsc", "title": "Due Diligence: 3 Stages Every Business Buyer Must Know", "ch": "Walker Deibel"}, "aq7": {"v": "9Sl18GknuZE", "title": "Buying a Business with an SBA 7a Loan", "ch": "SBA Ray"}, "aq8": {"v": "CSTyykXMiGc", "title": "How Does the Closing Process Work for a Business Purchase?", "ch": "David C Barnett Small Business and Deal Making SMB"}, "aq9": {"v": "9S33SGBgkRU", "title": "First 100 Days: Survive & Thrive as a New Business Owner (February 2025)", "ch": "Acquisition Lab"}, "aq10": {"v": "g6WMYWBdtdA", "title": "Exit strategy ♟️  and exit planning  📈", "ch": "Nick Bradley"}});
 
+/* ================= SIMULATIONS (Phase 5) =================
+   Consequence sims: each step = situation + choices (s: 0/1/2 quality) + feedback. */
+const SIMS=[
+{id:"sim-buy",title:"Buy Your First Business",cat:"Acquisition",time:"~10 min",
+intro:"You have $80,000 saved, a 760 credit score, and the Acquisition School under your belt. Eleven months of searching just produced a real opportunity: a 22-year-old residential pest control company. Every choice you make moves the deal — and your future.",
+steps:[
+{text:"The broker's CIM claims $240k SDE on $610k revenue, asking $780k. Your 60-minute screen finds $55k of questionable add-backs ('one-time' truck repairs three years running, a brother-in-law on payroll who runs all scheduling). Your first move?",
+choices:[
+{t:"Offer the full $780k quickly before another buyer appears",s:0,fb:"You just paid for fiction. Recast SDE is ~$185k, so $780k is 4.2× — a platform multiple for an owner-operated job. Deal fever won this round."},
+{t:"Recast SDE yourself (~$185k), and let YOUR number drive the price conversation",s:2,fb:"Right. You price on provable, recast earnings — $185k at a fair 3× suggests ~$555k. You attach your add-back analysis so the broker argues with arithmetic, not with you."},
+{t:"Walk away — inflated add-backs mean a dishonest seller",s:1,fb:"Understandable but hasty. Nearly every CIM has optimistic add-backs; that's negotiation, not fraud. You almost killed a good business over normal broker packaging."}]},
+{text:"The seller, 64 and recently widowed, gets emotional at your $560k offer: 'This company is my life's work.' The broker hints another buyer is circling at $700k. What now?",
+choices:[
+{t:"Raise to $700k — you can't lose the deal now",s:0,fb:"The phantom 'other buyer' is the oldest play in brokerage. You bid against a ghost, and your DSCR at $700k is 1.05 — the bank will balk and your salary vanishes."},
+{t:"Hold your number but bridge with structure: $560k as $480k cash + $50k seller note + $30k earnout if retention holds 85%",s:2,fb:"Structure over stubbornness. The sticker reads closer to what pride needs, the note keeps him invested in transition, and the earnout prices his optimism in his own currency."},
+{t:"Tell the broker to call when the other buyer falls through",s:1,fb:"Bold, and sometimes right — but with a motivated, grieving seller, disappearing wastes the relationship equity you built. A structured bridge would have closed this."}]},
+{text:"Diligence, week 4: bank deposits match the P&L (good), but the customer list shows 31% of 'active recurring' accounts haven't been serviced in 14+ months, and the senior tech holds the state license.",
+choices:[
+{t:"Close anyway — you've spent $12k on diligence and four months of your life",s:0,fb:"Sunk-cost surrender. You just bought a book that's a third phantom, and the license walks out with a tech you haven't secured. This is how diligence money gets wasted: by ignoring what it finds."},
+{t:"Reprice with receipts: cut the offer to reflect real recurring revenue, and add a license-transition condition plus a stay bonus for the senior tech",s:2,fb:"Textbook. Retrading on documented findings is professional. The seller fumes for a week, checks with his own CPA, and accepts $505k with the tech signed to a 12-month stay agreement."},
+{t:"Demand the seller personally guarantee all 31% of stale accounts renew",s:1,fb:"Creative but unworkable — he can't control customers he stopped serving. The seller rejects it as designed-to-fail; you nearly lost a fixable deal to a clever-sounding term."}]},
+{text:"Financing: your bank ('we do SBA sometimes') has sat on the file for 5 weeks. A Preferred SBA Lender quotes Prime+2.5 with a 55-day close but wants a lien on your house. Decide.",
+choices:[
+{t:"Stay loyal to your bank — they know you",s:0,fb:"Committees don't know anyone. Week 9, they decline over 'industry concentration.' The seller's patience is gone and the deal nearly dies while you start over."},
+{t:"Move to the PLP lender, negotiate what's negotiable, and accept the personal guarantee with eyes open",s:2,fb:"The guarantee is standard for SBA acquisition debt — that's why every DSCR lesson mattered. You close in 51 days at 1.4× coverage after your salary. Leverage with teeth, used deliberately."},
+{t:"Abandon debt and offer the seller 100% seller financing instead",s:1,fb:"Worth asking — but at this size the seller needs cash for retirement, not a decade of your IOUs. He declines, and you've burned two weeks. The stack (cash + SBA + note) existed for a reason."}]},
+{text:"Closing day passed. Day 3 of ownership: a crew chief asks if you're 'changing everything,' two customers call asking if the company sold, and your notebook already has nine brilliant improvement ideas.",
+choices:[
+{t:"Announce your modernization plan — new name, new routes, new software — while energy is high",s:0,fb:"You just triggered the roll-up case study in miniature: the senior tech updates his resume, churn doubles by month three. The business you bought was trust, and you spent it in a week."},
+{t:"Freeze changes for 90 days, ride every route, run joint visits to top customers with the seller, and bank ideas in the LATER notebook",s:1,fb:"Nearly perfect — stability is the whole job right now. One addition would make it complete: saying it out loud. Uncommunicated stability still leaves people guessing."},
+{t:"Same as freezing changes — but announce the 90-day pledge explicitly to staff (in person) and customers (a continuity letter)",s:2,fb:"The full playbook: stability, DECLARED. 'Nothing changes for 90 days — same techs, same schedule, same phone number' converts your patience into their calm. Churn holds at 4%; the machine is yours."}]}],
+lessons:["Price on recast, provable earnings — structure bridges gaps, it never fixes overpaying","Diligence findings are for acting on, not filing away; retrade with receipts or walk","Shop preferred lenders early; the guarantee is the price of leverage — underwrite yourself honestly","The first 90 days you're buying the real asset: trust. Stabilize loudly, improve later"]},
+
+{id:"sim-cash",title:"Fix the Cash Crisis",cat:"Finance",time:"~8 min",
+intro:"You own a commercial cleaning company: $1.6M revenue, $140k 'profit' on paper — and $9,200 in the bank with Friday's $41k payroll five days away. Receivables: $212k, much of it 60+ days old. Welcome to the difference between profit and cash.",
+steps:[
+{text:"Five days to payroll, $31,800 short. First move?",
+choices:[
+{t:"Take the merchant cash advance ad promising 'funding in 24 hours'",s:0,fb:"The MCA wires $35k and quietly costs 70%+ APR with daily withdrawals that strangle the very cash flow you're trying to fix. This is how cleaning companies die — payroll was saved once, the business was mortgaged forever."},
+{t:"Call your three largest overdue accounts today and offer 2% off for payment by Thursday",s:2,fb:"The cheapest money in existence: $2,300 of discount unlocks $118k of YOUR OWN cash. Two of three pay — payroll clears with room to spare. Now fix the machine that made this normal."},
+{t:"Delay payroll a week and explain it honestly to the crew",s:1,fb:"Honest, but payroll delay is the loudest possible alarm bell — two supervisors start job hunting that afternoon, and word reaches a big client. You saved the week and damaged the year."}]},
+{text:"Payroll cleared. The autopsy: you invoice on the 30th, clients pay in 60-75 days, but wages go out weekly and supplies net-15. Every new contract makes it worse. The structural fix?",
+choices:[
+{t:"Stop taking new contracts until receivables catch up",s:1,fb:"It halts the bleeding by shrinking the business — treating growth as the disease when the payment-terms gap is. Competitors gladly absorb your pipeline while you convalesce."},
+{t:"Redesign the cycle: deposits on new contracts, progress billing on big jobs, net-30 with late fees, invoice the DAY work completes",s:2,fb:"You attacked the actual disease. New contracts now fund themselves; the collection gap shrinks from ~70 days to ~35. Growth flips from cash-consuming to cash-neutral."},
+{t:"Raise prices 10% to cover the financing cost of slow payers",s:0,fb:"You've now made yourself the most expensive AND still the most cash-starved cleaner in town. Price fixes margin problems; this is a timing problem. The crisis returns in 90 days, bigger."}]},
+{text:"Your biggest client (28% of revenue) pays in 75 days, disputes invoices routinely — and just requested a rate DECREASE at renewal. Handle it.",
+choices:[
+{t:"Accept the decrease — losing 28% of revenue would be catastrophic",s:0,fb:"You just agreed to finance your worst payer at a loss. Concentration plus slow-pay plus price pressure is a hostage situation, and you handed over more rope."},
+{t:"Counter with the full picture: keep rates, move to net-30 with autopay, or a 4% increase on current terms — while quietly accelerating your pipeline to dilute them below 15%",s:2,fb:"Negotiate AND diversify. They grumble into net-45 autopay (huge win), and two quarters of sales work later they're 16% of revenue. Their leverage — and your fragility — both shrink."},
+{t:"Fire the client to make a point about payment discipline",s:1,fb:"Emotionally magnificent, financially reckless at 28% concentration. Diversify FIRST, then renegotiate or exit from strength. You did it backwards and spent a year rebuilding."}]},
+{text:"Cash is stabilizing. Now build the early-warning system so this never sneaks up again.",
+choices:[
+{t:"Check the bank balance every morning — that's what nearly dying teaches",s:1,fb:"Better than nothing, but a balance is a snapshot, not a forecast. It tells you you're falling after you've left the roof."},
+{t:"Run a 13-week rolling cash flow forecast, reviewed every Monday, with receivables aging worked weekly",s:2,fb:"The operator's instrument panel. Week-ahead visibility means the next crunch appears eight weeks out as a curve on a spreadsheet — solvable with calls, not surgery — and stale invoices get chased at 35 days, not 75."},
+{t:"Keep a $50k credit line untouched as the safety net",s:1,fb:"The line is wise (arrange it NOW, while statements look decent) — but a net without a forecast just changes what you hit when you fall. Pair it with the 13-week discipline."}]},
+{text:"A year later: cash cushion equals six weeks of expenses, DSO is 34 days, and a competitor — profitable on paper, empty in the bank — offers you their client book cheap 'because payroll is Friday.' Full circle. You…",
+choices:[
+{t:"Decline — their mess isn't your problem",s:1,fb:"Safe, defensible… and a missed asymmetry. Their clients were fine; their TIMING was broken — the exact disease you now know how to cure."},
+{t:"Buy the book at a distressed price, on terms, and onboard those clients into YOUR billing cycle",s:2,fb:"The full circle: cash discipline isn't just survival, it's acquisition capacity. Their crisis prices the deal; your working-capital machine makes it instantly healthy. This is why the cushion exists."},
+{t:"Lend them $40k at interest to be helpful",s:0,fb:"You became an unsecured lender to a business that can't manage cash, at consumer-loan pricing, with a friendship attached. There are worse investments, but not many."}]}],
+lessons:["Profit is opinion, cash is fact — you can starve while 'earning'","Fix the working-capital cycle (deposits, terms, instant invoicing), not just the shortfall","The 13-week forecast turns crises into curves you see eight weeks away","Cash discipline compounds into opportunity: the liquid buyer prices everyone else's emergencies"]},
+
+{id:"sim-team",title:"Build the Sales Team",cat:"Sales",time:"~8 min",
+intro:"Your pest control company runs on your personal selling: you close 20 accounts a month and everything else nights and weekends. It's time to build a team that sells without you. Every hire, comp plan, and coaching call shapes the machine.",
+steps:[
+{text:"Two final candidates for your first rep: A) magnetic interviewer, 'natural born closer,' vague about past numbers. B) modest interviewer who asks good questions; in the role-play audition he's mediocre — until you coach him once, and his second attempt jumps dramatically.",
+choices:[
+{t:"Hire A — sales is charisma, and he sold YOU in the interview",s:0,fb:"He interviewed brilliantly because interviewing IS his skill. Four weeks in: heavy talk, thin pipeline, allergic to coaching. The audition data was there; the charm overrode it."},
+{t:"Hire B — the delta between his two role-plays is coachability, the best predictor you observed",s:2,fb:"Correct read. Slow first month, then compounding: he does the boring inputs, absorbs every correction, and by month four out-sells your best solo month. You hired the learning rate."},
+{t:"Hire both and let them compete",s:1,fb:"Cohort hiring is genuinely smart when planned — but you budgeted for one, so now training, territory, and your attention are split. B thrives anyway; A quits in week six, taking your onboarding hours with him."}]},
+{text:"Comp plan time. Your service has heavy first-year churn risk, and revenue collects monthly. Design the plan.",
+choices:[
+{t:"High commission on signed contracts, paid at signing — maximum motivation",s:0,fb:"Summer-sales disease: reps get paid on ink, so ink is what you get — over-promised customers who cancel by month three. You funded bonuses on churn."},
+{t:"Modest base + commission on COLLECTED revenue with a 90-day clawback, accelerators above target, a spiff for annual prepay",s:2,fb:"Comp is strategy in math. Reps now care about the RIGHT customers, the accelerator keeps your best hungry, and the prepay spiff feeds working capital. Cancels stay under 8%."},
+{t:"Pure salary to keep everyone comfortable and cooperative",s:1,fb:"Comfortable, cooperative… and calm. Too calm. Activity drifts down 30% by month two because the scoreboard doesn't pay. Salary suits long-cycle B2B; your door game needs skin."}]},
+{text:"Month 3: your rep's close rate is fine, but he's at 60% of target. The dashboard says doors knocked per day quietly fell from 65 to 38. Coach it.",
+choices:[
+{t:"'You're at 60% of target — I need more from you.' Motivation matters",s:0,fb:"You coached the outcome, which he can't directly control, instead of the input, which he can. He nods, feels vaguely ashamed, and changes nothing — because 'more' isn't an instruction."},
+{t:"Show him the numbers: close rate healthy, doors down 40% — then set an activity floor together and gamify the streak",s:2,fb:"Diagnose the stage, coach the stage. Turns out he'd been 'optimizing' by pre-judging houses. Doors return to 60+, and target follows within three weeks. Inputs are coachable; outcomes are just arithmetic."},
+{t:"Put him on a formal performance improvement plan to create urgency",s:1,fb:"A PIP for a coachable input problem is using a courtroom where a whiteboard would do. It creates fear, not doors — and your best-listening rep starts wondering if loyalty flows one way."}]},
+{text:"You're at three reps and drowning: still selling personally, managing ad hoc, no rhythm. The team needs a system. Install…",
+choices:[
+{t:"A daily 10-minute standup (yesterday's numbers, today's plan, one obstacle), weekly 1-on-1s on each rep's weakest stage, Friday role-play",s:2,fb:"Rhythm IS management. The standup kills surprises, the 1-on-1s aim coaching at the exact broken stage, and role-play — the practice everyone dreads — becomes the culture's edge. You sell less; the machine sells more."},
+{t:"A big annual bonus for the top rep — competition will self-organize the team",s:0,fb:"One winner, two demoralized reps, zero shared learning — your two juniors stop asking the senior for tips because helping costs him money. Culture eats comp plans, and this comp plan ate the culture."},
+{t:"Weekly hour-long pipeline review meetings with the full team",s:1,fb:"Better than chaos, but one weekly hour is where feedback goes to arrive late. Daily pulse + individual coaching beats a weekly committee — reps improve between meetings, not during them."}]},
+{text:"Month 9: the machine works — 55 accounts/month, you personally sell almost nothing. Your best rep asks to become sales manager of the team you'll need in the next city. Your call?",
+choices:[
+{t:"Promote him immediately — best seller, obvious choice",s:1,fb:"The classic gamble: you MIGHT get a great manager; you DEFINITELY lose your best seller. Without testing management skills first, you flipped a coin with two of your most valuable positions."},
+{t:"Create a bridge: he keeps selling at 70%, takes one junior to develop, runs Friday role-play — audition the manager before appointing one",s:2,fb:"Auditions predicted your best hire; they predict managers too. Three months later the junior he mentors hits target early — evidence, not hope. He earns the title, and the seat was never empty."},
+{t:"Decline — great sellers should sell, forever",s:0,fb:"You just told your most ambitious person his ceiling. He nods politely, and eight weeks later a competitor gives him the title you wouldn't. Growth paths are retention tools."}]}],
+lessons:["Hire the learning rate: audition + coach + re-audition beats interview charm","Pay on collected revenue with clawbacks — reps optimize exactly what you pay for","Coach inputs by stage (the dashboard tells you which); outcomes are downstream","Management rhythm (daily pulse, weekly 1-on-1, deliberate practice) is the product you build next"]},
+
+{id:"sim-recession",title:"Survive the Recession",cat:"Strategy",time:"~8 min",
+intro:"You own a car wash doing $75k/month with a $28k membership base. The economy just cracked: consumer spending is falling, two competitors have started discounting, and your lender sent a 'portfolio review' letter. The next four quarters decide everything.",
+steps:[
+{text:"Month one of the downturn: retail volume is off 18%. Your first instinct?",
+choices:[
+{t:"Match the competitors' 40%-off blitz before you lose everyone",s:0,fb:"You just repriced your brand at the bottom of the market's mood. Members quietly do the math — why pay $25/month when washes are $6? — and the discount you offered retail starts cannibalizing your annuity."},
+{t:"Hold price; pivot all marketing to membership conversion — 'lock in unlimited, recession-proof your clean car'",s:2,fb:"Recessions are when memberships SELL: certainty is the product. Retail dips but the member base grows 11% in a quarter, and revenue stabilizes on the annuity while discounters bleed."},
+{t:"Cut all marketing spend immediately to preserve cash",s:1,fb:"Cash discipline is right; going dark is not. Share shifts during downturns more than any other time — the operators still visible in month six inherit the discounters' burned-out customers."}]},
+{text:"The lender's portfolio review lands: they want updated financials and a meeting. Your DSCR has slipped from 1.6 to 1.25.",
+choices:[
+{t:"Delay the meeting — never volunteer bad numbers",s:0,fb:"Silence reads as distress. The bank moves you to the watch list, and your next equipment request meets a wall. Lenders punish surprises far harder than bad quarters."},
+{t:"Walk in early with a 13-week cash forecast, your membership-growth data, and a request: temporary interest-only for two quarters IF needed",s:2,fb:"You showed up like an operator: instruments, plan, and an ask framed before you need it. They grant the standby flexibility (you never use it) and your file gets a handwritten 'strong management' note."},
+{t:"Start moving deposits to a new bank quietly in case they call the loan",s:1,fb:"Diversifying banking isn't wrong — but doing it instead of communicating turns a routine review adversarial when they notice. Do both, in the opposite order."}]},
+{text:"Costs: you need $9k/month out of the budget. The candidates: (a) two of nine attendants, (b) your $3.2k/month ad spend, (c) deferring tunnel maintenance, (d) renegotiating chemical, insurance, and lease costs.",
+choices:[
+{t:"Defer maintenance — the tunnel runs fine and machines don't complain",s:0,fb:"The invisible cut with the loudest eventual bill: month five, the conveyor fails on a Saturday, costing $22k in repairs and lost peak revenue. Deferred maintenance is a payday loan from your own equipment."},
+{t:"Attack contracts first: rebid insurance, consolidate chemical purchasing, ask the landlord for two quarters of relief in exchange for a lease extension",s:2,fb:"$6,800/month found with zero damage to capability — vendors price loyalty in downturns, and the landlord prefers a longer lease to a vacant corner. Cut fat before muscle, always."},
+{t:"Lay off the two attendants — labor is the biggest line",s:1,fb:"Sometimes necessary, but you cut muscle while contract fat remained. Lines lengthen at peak, reviews mention it, and rehiring in the recovery costs more than the savings."}]},
+{text:"Month seven: the weakest competitor — the deepest discounter — is visibly dying. Their landlord calls you: 'Would you take over the site?'",
+choices:[
+{t:"Absolutely not — expanding in a recession is how businesses die",s:1,fb:"Caution is defensible, but you evaluated a category instead of a deal. The site had 30% more traffic than yours and the landlord was offering terms he'd never repeat in a good economy."},
+{t:"Evaluate it like an operator: traffic counts, takeover terms, conversion cost — and take it ONLY because your cushion and membership math clear it with room",s:2,fb:"Recessions transfer assets from the fragile to the prepared — at recession prices. Six months free rent, equipment at auction value, and your membership engine pointed at a better corner. The downturn just became your growth story."},
+{t:"Take it immediately — their loss is automatically your gain",s:0,fb:"You skipped the underwriting because the price felt like a gift. The site needed $180k of equipment you didn't budget, and 'cheap' consumed the exact cushion keeping site one safe."}]},
+{text:"The recovery arrives. Your discipline held: memberships grew, the second site is converting, competitors are gone or diminished. The lesson you institutionalize?",
+choices:[
+{t:"Return to normal — the storm passed, drop the wartime habits",s:0,fb:"The 13-week forecast gets abandoned, the cushion gets spent on a truck upgrade, and the next shock — there is always a next shock — finds you exactly as surprised as the last one found your competitors."},
+{t:"Keep the crisis instruments permanently: the forecast, the cushion target, the annual contract rebids, the membership-first engine",s:2,fb:"Wartime discipline, peacetime compounding. The habits that saved you in the trough are precisely the ones that make the boom years enormously profitable. Antifragility is a routine, not a mood."},
+{t:"Celebrate by expanding to three more sites while momentum is hot",s:1,fb:"Growth is earned — but three simultaneous sites on boom-year confidence is how the NEXT recession gets its transfer of assets. One integrated site at a time; the discipline that bought site two still applies."}]}],
+lessons:["In downturns, sell certainty (memberships/contracts) — never follow discounters to the bottom","Bring lenders instruments and plans BEFORE they ask; surprises are the real default","Cut contract fat before capability muscle; deferred maintenance is borrowed money","Recessions transfer assets to the prepared — keep the cushion and forecast forever"]},
+
+{id:"sim-price",title:"Price the Product",cat:"Marketing",time:"~7 min",
+intro:"You're launching a quarterly home pest-protection plan in a market where competitors charge $89-119 per quarter. Your true cost to deliver is $41 per visit. Pricing is the most powerful profit lever you own — pull it deliberately.",
+steps:[
+{text:"Set the launch price for your standard quarterly plan.",
+choices:[
+{t:"$79 — undercut everyone and win on volume",s:0,fb:"You anchored the market's cheapest position with the market's thinnest margin: $38/visit gross before fuel spikes or callbacks. Volume came — of the most price-sensitive, fastest-churning customers in town."},
+{t:"$109 with a sharper offer: guarantee ('see a pest between visits, we return free'), named plan, easy autopay",s:2,fb:"Priced into the premium band and JUSTIFIED it with risk reversal. Margin is $68/visit — funding better techs and real marketing — and the guarantee costs little because your service actually works."},
+{t:"$99 — safely match the middle of the market",s:1,fb:"The middle is where pricing goes to be ignored: no signal, no story, no margin edge. Survivable, forgettable — and you'll compete on everything except the one lever you didn't use."}]},
+{text:"Three months in: close rate on quotes is 61%. Most operators celebrate. What does the number tell YOU?",
+choices:[
+{t:"Celebrate — 61% means the offer is dialed in",s:1,fb:"It means the market is saying yes too easily. Above ~50-55% on outbound quotes, the classic diagnosis is underpricing — you're leaving the difference on every kitchen table you visit."},
+{t:"Test: raise price 10% for the next 60 days and watch close rate and total gross profit",s:2,fb:"The operator's move: price is a hypothesis, so run the experiment. Close rate dips 61→54%… and gross profit per hundred quotes rises 9%. Fewer, better customers at higher margin — the math most owners never dare to check."},
+{t:"Lower price 10% to push close rate even higher",s:0,fb:"You optimized the vanity metric. Close rate hits 70%, margin collapses, and your densest routes now serve the customers most likely to cancel over a $5 competitor coupon."}]},
+{text:"A national chain enters your zip codes at $69/quarter with heavy ads. Your renewal season starts next month.",
+choices:[
+{t:"Match $69 for all renewals before the cancellations start",s:0,fb:"You panicked before your customers did. Renewals were never really about price — same tech, named guarantee, local reviews — and you just cut 36% of revenue to answer a threat most customers hadn't noticed."},
+{t:"Hold price; arm renewals with the value story (your tech's name, response times, the guarantee's record) and add an annual-prepay option at 8% off",s:2,fb:"Retention ran 91%. The chain's $69 bought them the churn-prone bottom of the market; the prepay option pulled cash forward and locked your best households for a year."},
+{t:"Add a stripped-down $75 'basic' tier to compete without touching the main plan",s:1,fb:"Defensible flanker logic — but rushed. Basic tier cannibalized 15% of standard-plan customers who'd have happily renewed, and techs now juggle two service specs on the same street."}]},
+{text:"Commercial opportunity: a 12-restaurant group requests a bid. Your residential pricing math says $210/month per location. The buyer says budget is 'around $150.'",
+choices:[
+{t:"Bid $150 — twelve locations is worth the haircut",s:0,fb:"Commercial service (documentation, inspection-readiness, liability, priority callbacks) costs MORE to deliver than residential, not less. You won the contract and bought yourself a $60/location monthly loss with a 12× multiplier."},
+{t:"Bid $205 with the compliance story (inspection logs, audit trail, 4-hour response SLA) — and offer $190 IF they sign all twelve for 24 months",s:2,fb:"You priced the risk you're absorbing and traded the discount for commitment, not desperation. They signed at $190×24 months — volume discounts are earned with term and scale, never with hope."},
+{t:"Decline — commercial isn't worth the hassle",s:1,fb:"Walking from bad terms is strength; walking from the whole category is a reflex. A structured counter would have won a two-year anchor client at healthy margin — this was a negotiation, not a trap."}]},
+{text:"Year-end review: which pricing discipline do you make permanent?",
+choices:[
+{t:"Annual across-the-board increases matched to your cost inflation, communicated with the value story, grandfathering nobody",s:2,fb:"Pricing power is a muscle: small, annual, well-communicated increases (with the guarantee and service record doing the talking) compound like interest. Churn from a 4-6% increase on well-served customers: under 3%."},
+{t:"Freeze prices for loyalty — your best customers deserve it",s:1,fb:"Generous, and quietly corrosive: costs inflate 4% yearly, so a frozen price is a silent annual pay cut that surfaces years later as one giant, relationship-breaking correction."},
+{t:"Whatever competitors do, stay $10 under it",s:0,fb:"You just outsourced your P&L to the least rational discounter in the county. Their pricing mistakes are now automatically your pricing mistakes, minus ten dollars."}]}],
+lessons:["Price to value with risk reversal — cost-plus and me-too pricing waste the strongest lever","A too-high close rate is a pricing signal, not a trophy; test increases with real math","Never match panic discounts — defend renewals with the value story and term-based offers","Raise prices a little every year with the story attached; frozen prices are deferred crises"]},
+
+{id:"sim-manager",title:"Fire or Keep the Manager",cat:"Leadership",time:"~7 min",
+intro:"Dave has run operations at your pest company for four years — loyal, hardworking, there since the beginning. But the company has tripled, and lately: two good techs quit citing him, scheduling errors are up, and he resists every new system. Your call, step by step.",
+steps:[
+{text:"The pattern is undeniable. Your first move?",
+choices:[
+{t:"Fire him this week — the exits and errors speak for themselves",s:0,fb:"Speed without diagnosis. You never learned whether this was skill, will, or role-shape — and the crew watched four years of loyalty end in a Tuesday meeting. Fear, not standards, is the lesson they took."},
+{t:"Run the honest diagnosis first: is the problem skill (trainable), will (motivational), or the role outgrowing the person? Gather specifics before any conversation",s:2,fb:"Leadership 101: diagnose before treating. The file you build shows a pattern — Dave excels at field ops and drowns in the people-and-systems half the role grew into. That's a role-shape problem, and it changes everything about the fix."},
+{t:"Say nothing but quietly route new-system decisions around him",s:1,fb:"The passive workaround: kinder-feeling, crueler in effect. Dave notices his shrinking kingdom within weeks, morale sinks into ambiguity, and you've taught the org that problems get orbited, not addressed."}]},
+{text:"Time for the conversation. Frame it.",
+choices:[
+{t:"Radical candor: care personally, challenge directly — the specifics, the impact, and 'I want to figure out the right seat with you'",s:2,fb:"He's defensive for ten minutes, then quiet, then honest: he's been drowning and hiding it. The conversation you dreaded for months took forty minutes and produced the first real data you've had — his own account."},
+{t:"Soften everything: mention 'a few hiccups' and ask him to 'keep an eye on things'",s:0,fb:"Ruinous empathy, textbook case: he leaves the meeting believing things are basically fine. You spent your one clean shot at clarity on making yourself comfortable."},
+{t:"Put it all in a formal written warning first — documentation protects the company",s:1,fb:"Documentation matters (and comes next), but leading with paper before ever having the honest conversation converts a fixable human problem into an adversarial legal process. Talk, then write."}]},
+{text:"Dave's own account plus your file confirm it: brilliant at field operations and tech quality, overwhelmed by hiring, scheduling systems, and people development. Choose the path.",
+choices:[
+{t:"Restructure honestly: Dave becomes Field Quality Manager (training, standards, hardest jobs — his genius zone); you hire an ops manager for systems and people. Same respect, right seat",s:2,fb:"Right people, right seats. Dave — visibly relieved once the title sting fades — becomes the best QA lead you could hire. The new ops manager fixes scheduling in six weeks. Two problems, one honest redesign."},
+{t:"Keep him in the full role with a 90-day improvement plan covering everything",s:1,fb:"You just gave a drowning man a deadline to grow gills. PIPs work for will problems; this is a capability-shape problem — day 90 arrives with the same gaps plus three months of accumulated damage."},
+{t:"Terminate with severance — the role needs someone who can do all of it",s:1,fb:"Legitimate when no honest seat exists — but one did, and you paid to lose four years of irreplaceable field knowledge, then watched him take it to a competitor. The crew noticed loyalty's exchange rate, too."}]},
+{text:"Dave accepts the new seat, but asks — reasonably — how the change gets announced. The crew is watching. You…",
+choices:[
+{t:"Announce it as a demotion honestly — the team deserves the unvarnished truth",s:0,fb:"Honesty without dignity is just cruelty with a halo. Public framing as a demotion humiliates the man who said yes to the redesign — and teaches everyone else never to accept a seat change."},
+{t:"Frame it accurately AND with dignity: the company grew into two jobs, Dave chose the one he's best at, a new role is being hired for the other — announced by you and Dave together",s:2,fb:"True, dignified, and co-announced: the org hears 'we redesign roles honestly here' instead of 'watch your back.' Two techs separately tell you it made them trust the company more."},
+{t:"Don't announce anything — let people figure it out from the org chart",s:1,fb:"The vacuum fills with rumor inside a week: 'Dave got demoted, who's next?' Unmanaged narratives always find the darkest version of events."}]},
+{text:"Six months on: the structure works. The durable lesson you build into the company?",
+choices:[
+{t:"Loyalty means never restructuring anyone's role again",s:0,fb:"You've re-created the original disease as policy: seats frozen to people, growth constrained by yesterday's org chart. The NEXT Dave situation is now guaranteed — and undiscussable."},
+{t:"Quarterly seat reviews: does each role still fit its person as we grow? Plus the standing rule — feedback goes to the person, early, before patterns calcify",s:2,fb:"You institutionalized the cure: roles evolve openly, hard conversations happen at month one instead of year four, and 'right seat' becomes vocabulary instead of crisis. The Dave story becomes the culture's founding parable."},
+{t:"Hire only overqualified people so roles never outgrow anyone",s:1,fb:"Appealing arithmetic, unworkable reality: you can't staff a pest company entirely with future COOs, and overqualified people in static seats leave even faster than overwhelmed ones."}]}],
+lessons:["Diagnose before deciding: skill, will, or role-shape — each has a different cure","Care personally, challenge directly — softened feedback is a decision to keep the problem","Right person, wrong seat is fixable; announce redesigns with truth AND dignity","Institutionalize early feedback and seat reviews so the crisis version never recurs"]},
+
+{id:"sim-expand",title:"The Second Location",cat:"Operations",time:"~8 min",
+intro:"Your car wash prints money: $82k/month revenue, 1,150 members, a manager-run crew. The itch has arrived — a second site. Expansion is where operators become platforms… or learn expensive geography lessons.",
+steps:[
+{text:"Are you actually ready? The honest test is…",
+choices:[
+{t:"Cash: you have $300k available, so yes",s:1,fb:"Capital is necessary and wildly insufficient — money buys the site, not the systems. The graveyard of second locations is full of well-funded copies of businesses that secretly ran on their owner's presence."},
+{t:"The absence test: site one runs a full month — numbers, staffing, problems — without you setting foot in it",s:2,fb:"The only test that matters. Your first attempt fails revealingly (two 'quick questions' a day, one crisis visit); you spend eight weeks documenting SOPs and upgrading your manager's authority, THEN pass it. Now you're duplicating a system, not a person."},
+{t:"Demand: cars are turning away at peak on Saturdays",s:1,fb:"Real signal — of capacity, not capability. Peak overflow might justify site two… or just longer hours and a faster tunnel at site one for a tenth of the cost. Demand tells you the market's ready; it says nothing about you."}]},
+{text:"Two candidate sites: A) 22 minutes away, 34k daily traffic count, premium corner, big rent. B) 75 minutes away in a cheaper market, half the rent, broker calls it 'an untapped goldmine.'",
+choices:[
+{t:"Site B — lower rent means lower risk",s:0,fb:"Cheap rent bought expensive geography: 75 minutes means your ops muscle, shared staff, and brand halo all stay home. You now own two single sites instead of one two-site system — the leapfrog mistake from your own curriculum."},
+{t:"Site A — contiguous expansion: shared labor pool, manager oversight in one loop, marketing overlap, members who already drive past it",s:2,fb:"Density is the strategy. Cross-scheduling staff saves a full headcount, your ops manager covers both in a day, and 240 existing members live closer to site two than site one. The premium rent buys compounding, not just corners."},
+{t:"Neither — build in the same neighborhood as site one to dominate it completely",s:1,fb:"Density taken past the point of returns: site one's trade area can't feed two tunnels, so you'd mostly split your own volume. Contiguous means adjacent markets, not cannibalized ones."}]},
+{text:"Staffing the new site's leadership. Your options:",
+choices:[
+{t:"Promote your site-one assistant manager — six months before opening, training under your manager, on a branch P&L with profit share",s:2,fb:"The bench WAS the constraint (your curriculum said so) and you built it in advance. By opening day she's run site one solo for stretches, knows the playbook cold, and owns her numbers like an owner — because the comp plan makes her one."},
+{t:"Hire an experienced manager from a big chain — proven at scale",s:1,fb:"Outside talent can work, but he arrives fluent in a different company's system and needs the six months of enculturation you didn't schedule. Meanwhile your loyal assistant reads the message about ceilings here."},
+{t:"Run both sites yourself for the first year to guarantee standards",s:0,fb:"You just un-passed the absence test and doubled your prison. Six months of split-shift ownership later: quality wobbling at BOTH sites and a manager pipeline that never developed because you were busy being two people."}]},
+{text:"Opening playbook for site two:",
+choices:[
+{t:"Copy site one exactly — same tiers, same prices, same SOPs, same scorecard — and pre-sell founding memberships to your existing base for their 'other side of town'",s:2,fb:"A branch is a franchise you own: standardization is the entire economic point. The founding-member pre-sale converts 380 members' trust into day-one recurring revenue — site two opens at 60% of breakeven before its first retail car."},
+{t:"Let the new manager customize the concept for the new neighborhood",s:0,fb:"You franchised the one thing franchises never franchise: the standard. Two price books, two service specs, and every future decision now needs two answers. The multi-branch case study called this — same tiers, same scorecard, always."},
+{t:"Soft-open quietly and let quality build word of mouth",s:1,fb:"Humble, and slow: a membership business's launch physics reward a bang (pre-sales, grand opening, founder pricing) because the annuity compounds from day one. Quiet openings spot the discounters a six-month head start."}]},
+{text:"Site two hits month six at 85% of plan. A broker calls: a struggling wash in the next county over is available 'cheap.' Your move?",
+choices:[
+{t:"Strike — momentum is a strategy and the platform playbook is working",s:0,fb:"Site two isn't integrated (85% of plan, manager four months into the job) and 'next county' fails your own contiguity rule. This is exactly the moment roll-ups die of indigestion — the discipline that got you here just left the room."},
+{t:"Pass for now with a rule: no site three until site two runs at plan for two consecutive quarters without weekly firefighting — then evaluate the market, not just the deal",s:2,fb:"Platforms are built by sequencing, and you just proved you have one: systems, bench, density logic, AND the restraint to let integration finish. When site three comes — on your timeline — it opens with a manager trained at site two. That's the flywheel."},
+{t:"Buy it but run it hands-off as a passive investment",s:1,fb:"'Passive' and 'struggling turnaround two counties away' cannot coexist. It limps for a year consuming exactly the attention you swore it wouldn't, teaching the lesson at premium tuition."}]}],
+lessons:["Expand when the BUSINESS passes the absence test — capital and demand aren't readiness","Contiguous density compounds (staff, oversight, brand, members); leapfrogging fragments you","Build the manager bench before the site; branch P&L + profit share makes owners","Standardize ruthlessly, pre-sell the annuity, and let integration finish before the next deal"]}
+];
+
 /* ================= APP ENGINE ================= */
 const LS_KEY="businessVaultProgress_v1";
 const DAYS_KEY="businessVaultDays_v1";
@@ -2464,6 +2722,8 @@ const ICONS={
   sales:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>',
   acq:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="12" rx="2"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/><path d="M3 13h18"/><path d="M12 12v2.5"/></svg>',
   exam:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12z"/><path d="M8.2 13.9L7 21l5-2.6L17 21l-1.2-7.1"/></svg>',
+  sim:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v18"/><path d="M6 7c4-2.5 8 2.5 12 0V3c-4 2.5-8-2.5-12 0"/></svg>',
+  cert:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="6"/><path d="M8.5 14.5L7 22l5-2.6L17 22l-1.5-7.5"/><path d="M9.8 9l1.6 1.6L14.5 7.5"/></svg>',
   library:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
   book:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
   tool:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></svg>',
@@ -2507,6 +2767,7 @@ function buildSidebar(){
   h+='<button class="sb-item" id="sb-libbooks" onclick="openLibrary(\'books\')">'+ICONS.book+'Business Library<span class="n">'+BOOKS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libtools" onclick="openLibrary(\'tools\')">'+ICONS.tool+'Operator Tools<span class="n">'+TOOLS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libcases" onclick="openLibrary(\'cases\')">'+ICONS.scale+'Case Studies<span class="n">'+CASES.length+'</span></button>';
+  h+='<button class="sb-item" id="sb-libsims" onclick="openLibrary(\'sims\')">'+ICONS.sim+'Simulations<span class="n">'+SIMS.length+'</span></button>';
   document.getElementById("sbNav").innerHTML=h;
 }
 function setView(id){
@@ -2518,9 +2779,9 @@ function setView(id){
   ["home","courses","search","progress",...DATA.map(t=>t.id)].forEach(v=>{
     const el=document.getElementById("sb-"+v);if(el)el.classList.toggle("active",v===id);
   });
-  ["libbooks","libtools","libcases"].forEach((v,i)=>{
+  ["libbooks","libtools","libcases","libsims"].forEach((v,i)=>{
     const el=document.getElementById("sb-"+v);
-    if(el)el.classList.toggle("active",id==="library"&&libSel===["books","tools","cases"][i]);
+    if(el)el.classList.toggle("active",id==="library"&&libSel===["books","tools","cases","sims"][i]);
   });
   document.getElementById("pageTitle").textContent=TITLES[id]||"";
   window.scrollTo({top:0});
@@ -2551,6 +2812,21 @@ function renderHome(){
      '<div class="stat"><b class="c-green">'+Math.round(pct*100)+'%</b><span>Mastery</span></div>'+
      '<div class="stat"><b class="c-amber">'+streak()+'</b><span>Day Streak</span></div>'+
      '<div class="stat"><b>'+Object.keys(store.quiz).length+'</b><span>Quizzes Taken</span></div></div>';
+  /* today's study plan */
+  const dueN=Math.min(flashDue().length,10);
+  const weakL=weakLessons()[0];
+  const planItems=[
+    {n:1,t:(doneAll?"Review: ":"")+res.t,s:"~"+lessonMins(res)+" min · read + video",run:"openLesson('"+res.id+"')"},
+    {n:2,t:"Quiz yourself on it",s:"~3 min · locks in the mastery score",run:"openQuiz('"+res.id+"')"},
+  ];
+  if(dueN)planItems.push({n:planItems.length+1,t:dueN+" flashcards",s:"~"+Math.ceil(dueN/4)+" min · spaced repetition",run:"openFlash('due')"});
+  if(weakL)planItems.push({n:planItems.length+1,t:"Retake: "+weakL.t,s:"weak area · best "+store.quiz[weakL.id].best+"%",run:"openQuiz('"+weakL.id+"')"});
+  const planMins=lessonMins(res)+3+(dueN?Math.ceil(dueN/4):0)+(weakL?3:0);
+  h+='<div class="sectionHead"><i></i><h3>TODAY\'S STUDY PLAN</h3><span class="mono">~'+planMins+' min</span></div><div class="panel" style="padding:8px 6px"><div class="cards" style="gap:2px">';
+  planItems.forEach(p=>{
+    h+='<button class="card" style="box-shadow:none;border:none;padding:11px 12px" onclick="'+p.run+'"><span class="num">'+p.n+'</span><span class="ct"><b>'+esc(p.t)+'</b><span>'+p.s+'</span></span><span style="color:var(--blue-2)">→</span></button>';
+  });
+  h+='</div></div>';
   const daily=dailyLesson(),rec=nextIncomplete();
   const dueCards=flashDue().length;
   h+='<div class="sectionHead"><i></i><h3>TODAY AT THE UNIVERSITY</h3></div><div class="duoGrid">'+
@@ -2728,6 +3004,7 @@ function renderLibrary(){
      '<button class="seg'+(libSel==="books"?" on":"")+'" onclick="openLibrary(\'books\')">Books <span class="mono">'+BOOKS.length+'</span></button>'+
      '<button class="seg'+(libSel==="tools"?" on":"")+'" onclick="openLibrary(\'tools\')">Tools <span class="mono">'+TOOLS.length+'</span></button>'+
      '<button class="seg'+(libSel==="cases"?" on":"")+'" onclick="openLibrary(\'cases\')">Cases <span class="mono">'+CASES.length+'</span></button>'+
+     '<button class="seg'+(libSel==="sims"?" on":"")+'" onclick="openLibrary(\'sims\')">Sims <span class="mono">'+SIMS.length+'</span></button>'+
      '</div></div>';
   if(libSel==="books"){
     h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Original study notes on the operator canon — what each book teaches, its best lessons, and an exercise to apply it. No substitute for reading the real thing.</p>';
@@ -2745,10 +3022,15 @@ function renderLibrary(){
       TOOLS.filter(t=>t.cat===cat).forEach(t=>{h+=toolRow(t)});
       h+='</div>';
     });
-  }else{
+  }else if(libSel==="cases"){
     h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Decision training: read the situation, study the numbers, commit to a call — then compare against the instructor’s notes.</p>';
     h+='<div class="cards">';
     CASES.forEach((c,i)=>{h+=caseRow(c,i)});
+    h+='</div>';
+  }else{
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Run a business in fast-forward: five decisions, real consequences, a scored debrief. Retake anytime — the situations reward what the schools teach.</p>';
+    h+='<div class="cards">';
+    SIMS.forEach((s,i)=>{h+=simRow(s,i)});
     h+='</div>';
   }
   h+='<div class="footerNote">The Library · Business Vault</div>';
@@ -2933,6 +3215,164 @@ function caseReveal(){
   openCase(curCase);renderLibrary();renderProgress();renderHome();
 }
 function closeCase(){caseEl.classList.remove("open");syncScrollLock()}
+
+/* ---- Simulations ---- */
+const simEl=document.getElementById("sim");
+let sim=null;
+function simState(id){return store.sims[id]||{}}
+function simRow(s,i){
+  const st=simState(s.id);
+  return '<button class="card'+(st.best!==undefined?" done":"")+'" onclick="openSim(\''+s.id+'\')">'+
+    '<span class="num">'+ICONS.sim+'</span>'+
+    '<span class="ct"><b>'+esc(s.title)+'</b><span>'+s.cat+' · '+s.time+' · 5 decisions</span></span>'+
+    (st.best!==undefined?'<span class="mins" style="color:var(--green)">best '+st.best+'%</span>':'')+
+    '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
+}
+function openSim(id){
+  const def=SIMS.find(x=>x.id===id);if(!def)return;
+  sim={def,i:0,score:0,picks:[],phase:"intro"};
+  document.getElementById("simCrumb").textContent="Simulation · "+def.cat;
+  renderSim();
+  simEl.scrollTop=0;simEl.classList.add("open");syncScrollLock();
+}
+function renderSim(){
+  const d=sim.def;
+  let h='';
+  if(sim.phase==="intro"){
+    const st=simState(d.id);
+    h='<span class="lessonChip">'+d.cat+' Simulation</span>'+
+      '<h2>'+esc(d.title)+'</h2>'+
+      '<div class="lessonMeta"><span class="metaChip">'+d.time+'</span><span class="metaChip">5 decisions</span>'+
+      (st.best!==undefined?'<span class="metaChip" style="color:var(--green)">Best '+st.best+'%</span>':'')+'</div>'+
+      '<div class="lbody"><p>'+d.intro+'</p>'+
+      '<button class="btn full" onclick="simStart()">Start Simulation</button></div>';
+  }else if(sim.phase==="step"||sim.phase==="fb"){
+    const step=d.steps[sim.i];
+    h='<div class="qProg">'+d.steps.map((x,j)=>'<i class="'+(j<sim.i?(sim.picks[j].s===2?"ok":sim.picks[j].s===1?"on":"bad"):j===sim.i?"on":"")+'"></i>').join("")+'</div>';
+    h+='<div class="qCard"><div class="qKick">Decision '+(sim.i+1)+' of '+d.steps.length+'</div><h3 style="font-size:15.5px;font-weight:500;line-height:1.65">'+esc(step.text)+'</h3></div>';
+    if(sim.phase==="step"){
+      step.choices.forEach((c,j)=>{
+        h+='<button class="qOpt" onclick="simPick('+j+')"><span class="qL">'+String.fromCharCode(65+j)+'</span><span>'+esc(c.t)+'</span></button>';
+      });
+    }else{
+      const pick=sim.picks[sim.i];
+      const c=step.choices[pick.j];
+      h+='<div class="qOpt '+(pick.s===2?"ok":pick.s===1?"pick":"bad")+'" style="cursor:default"><span class="qL">'+String.fromCharCode(65+pick.j)+'</span><span>'+esc(c.t)+'</span></div>';
+      h+='<div class="example" style="margin-top:12px"><b style="display:block;margin-bottom:5px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:'+(pick.s===2?"var(--green)":pick.s===1?"var(--blue-2)":"var(--red)")+'">'+(pick.s===2?"Strong call":pick.s===1?"Workable — but costly":"That one hurt")+'</b>'+esc(c.fb)+'</div>';
+      h+='<button class="btn full" style="margin-top:14px" onclick="simNext()">'+(sim.i<d.steps.length-1?"Continue →":"See the Debrief")+'</button>';
+    }
+  }else{ /* end */
+    const max=d.steps.length*2;
+    const pct=Math.round(sim.score/max*100);
+    const prev=simState(d.id);
+    store.sims[d.id]={best:Math.max(pct,prev.best||0),runs:(prev.runs||0)+1};
+    saveStore();
+    const verdict=pct>=90?"Operator-grade judgment. You ran this like a veteran.":pct>=70?"Solid instincts — review the misses below; they're the expensive ones.":pct>=50?"You survived, with scar tissue. The debrief is your curriculum.":"Costly run — perfect. Losses in here are free. Read the debrief, run it again.";
+    h='<div class="qEnd"><div class="bigRing">'+ringSVG(132,58,pct/100,7)+'<b>'+pct+'%</b></div>'+
+      '<div><div style="font-family:var(--font-d);font-weight:600;font-size:18px;letter-spacing:.03em">SIMULATION COMPLETE</div>'+
+      '<div style="font-size:13px;color:var(--steel-2);margin-top:5px;max-width:360px">'+verdict+'</div></div></div>';
+    h+='<div class="lsec"><i></i><h4>Your Decisions</h4></div><ul class="takeaways">'+
+      sim.picks.map((p,j)=>'<li><i style="'+(p.s===2?"background:var(--green-soft);color:var(--green)":p.s===0?"background:rgba(226,86,79,.12);color:var(--red)":"")+'">'+(j+1)+'</i>'+esc(d.steps[j].choices[p.j].t)+'</li>').join("")+'</ul>';
+    h+='<div class="lsec"><i></i><h4>Lessons Learned</h4></div><ul class="takeaways">'+d.lessons.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>';
+    h+='<div class="pnRow" style="margin-top:20px"><button class="btn ghost" onclick="openSim(\''+d.id+'\')">Try Again</button><button class="btn" onclick="closeSim()">Done</button></div>';
+    renderLibrary();renderProgress();
+  }
+  document.getElementById("simInner").innerHTML=h;
+  simEl.scrollTop=0;
+}
+function simStart(){sim.phase="step";renderSim()}
+function simPick(j){
+  const s=sim.def.steps[sim.i].choices[j].s;
+  sim.picks[sim.i]={j,s};sim.score+=s;sim.phase="fb";renderSim();
+}
+function simNext(){
+  sim.i++;
+  sim.phase=sim.i<sim.def.steps.length?"step":"end";
+  renderSim();
+}
+function closeSim(){simEl.classList.remove("open");syncScrollLock()}
+
+/* ---- Certificates ---- */
+const certEl=document.getElementById("cert");
+function certStatus(tr){
+  const ls=tr.levels.flatMap(l=>l.modules.flatMap(m=>m.lessons));
+  const lessonsOK=ls.every(l=>done.has(l.id));
+  const examsOK=tr.levels.every(lv=>{const e=store.exams[tr.id+":"+lv.id];return e&&e.passed});
+  return {lessonsOK,examsOK,eligible:lessonsOK&&examsOK,
+    missing:(lessonsOK?"":(ls.filter(l=>!done.has(l.id)).length+" lessons left"))+(lessonsOK||examsOK?"":" · ")+(examsOK?"":(tr.levels.filter(lv=>{const e=store.exams[tr.id+":"+lv.id];return !(e&&e.passed)}).length+" exams to pass"))};
+}
+function gradName(){
+  let n=localStorage.getItem("bvName_v1");
+  if(!n){
+    n=prompt("Name to print on your certificates:","");
+    if(n&&n.trim())localStorage.setItem("bvName_v1",n.trim());else return null;
+  }
+  return localStorage.getItem("bvName_v1");
+}
+function openCert(trId){
+  const diploma=trId==="diploma";
+  const tr=diploma?null:DATA.find(t=>t.id===trId);
+  if(!diploma&&!certStatus(tr).eligible){toast("Finish every lesson and pass every level exam first");return}
+  if(diploma&&!DATA.every(t=>certStatus(t).eligible)){toast("Earn all "+DATA.length+" school certificates first");return}
+  const name=gradName();if(!name){toast("Certificate needs a name");return}
+  document.getElementById("certCrumb").textContent=diploma?"University Diploma":tr.name;
+  const cv=document.getElementById("certCanvas");
+  drawCert(cv,name,diploma?"the complete curriculum of Business Vault University":("the "+tr.name+" — every lesson and level examination"),diploma?"UNIVERSITY DIPLOMA":"CERTIFICATE OF COMPLETION");
+  document.getElementById("certActions").innerHTML=
+    '<button class="btn full" onclick="downloadCert(\''+(diploma?"BVU-Diploma":"BVU-"+trId)+'\')">Download Certificate</button>'+
+    '<div class="noteHint" style="text-align:center">Long-press the image to share it, or download and print</div>';
+  certEl.scrollTop=0;certEl.classList.add("open");syncScrollLock();
+}
+function drawCert(cv,name,body,heading){
+  const W=1600,H=1132;cv.width=W;cv.height=H;
+  const x=cv.getContext("2d");
+  x.fillStyle="#0f1b2d";x.fillRect(0,0,W,H);
+  x.fillStyle="#f7f4ec";x.fillRect(28,28,W-56,H-56);
+  x.strokeStyle="#0f1b2d";x.lineWidth=3;x.strokeRect(64,64,W-128,H-128);
+  x.strokeStyle="#c9a961";x.lineWidth=1.5;x.strokeRect(76,76,W-152,H-152);
+  x.textAlign="center";x.fillStyle="#0f1b2d";
+  x.font="700 34px Oswald, sans-serif";x.letterSpacing="14px";
+  x.fillText("B U S I N E S S   V A U L T   U N I V E R S I T Y",W/2,190);
+  x.letterSpacing="0px";
+  x.fillStyle="#c9a961";x.font="600 26px 'JetBrains Mono', monospace";
+  x.fillText("— "+heading+" —",W/2,258);
+  x.fillStyle="#48566e";x.font="400 26px Inter, sans-serif";
+  x.fillText("This certifies that",W/2,370);
+  x.fillStyle="#0f1b2d";x.font="700 84px 'Playfair Display', Georgia, serif";
+  x.fillText(name,W/2,490);
+  x.strokeStyle="#c9a961";x.lineWidth=2;
+  x.beginPath();x.moveTo(W/2-360,522);x.lineTo(W/2+360,522);x.stroke();
+  x.fillStyle="#48566e";x.font="400 27px Inter, sans-serif";
+  x.fillText("has successfully completed",W/2,600);
+  x.fillStyle="#0f1b2d";x.font="600 34px Inter, sans-serif";
+  const words=body.split(" ");let line="",lines=[];
+  words.forEach(w=>{if((line+w).length>52){lines.push(line);line=w+" "}else line+=w+" "});
+  lines.push(line);
+  lines.forEach((l,i)=>x.fillText(l.trim(),W/2,660+i*48));
+  const d=new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"});
+  x.fillStyle="#7e8aa0";x.font="400 24px 'JetBrains Mono', monospace";
+  x.fillText(d,W/2,860);
+  /* seal */
+  const sx=W/2,sy=968;
+  x.beginPath();x.arc(sx,sy,64,0,7);x.fillStyle="#0f1b2d";x.fill();
+  x.beginPath();x.arc(sx,sy,64,0,7);x.strokeStyle="#c9a961";x.lineWidth=3;x.stroke();
+  x.beginPath();x.arc(sx,sy,52,0,7);x.strokeStyle="rgba(201,169,97,.5)";x.lineWidth=1;x.stroke();
+  x.fillStyle="#c9a961";x.font="700 44px 'Playfair Display', Georgia, serif";
+  x.fillText("BV",sx,sy+15);
+  x.fillStyle="#7e8aa0";x.font="400 19px Inter, sans-serif";
+  x.textAlign="left";x.fillText("Built for mastery · ceojohnmartin.github.io/business-vault",108,H-100);
+  x.textAlign="right";x.fillText("The Office of the Provost",W-108,H-100);
+}
+function downloadCert(fname){
+  const cv=document.getElementById("certCanvas");
+  try{
+    const a=document.createElement("a");
+    a.href=cv.toDataURL("image/png");a.download=fname+".png";
+    document.body.appendChild(a);a.click();a.remove();
+    toast("Certificate downloaded");
+  }catch(e){toast("Long-press the certificate to save it")}
+}
+function closeCert(){certEl.classList.remove("open");syncScrollLock()}
 
 /* ================= QUIZ ENGINE =================
    Custom lesson.quiz [{q,opts[],ci}] is used when present (Phase 4+);
@@ -3133,6 +3573,10 @@ function badgeDefs(){
     {ic:"📖",n:"Bookworm",d:"Finish 5 books from the Library",e:BOOKS.filter(b=>(store.books[b.id]||{}).status==="finished").length>=5},
     {ic:"🎓",n:"Examined",d:"Pass 3 level exams",e:Object.values(store.exams).filter(x=>x.passed).length>=3},
     {ic:"📝",n:"Doer",d:"Complete 5 lesson assignments",e:Object.keys(store.assignments).length>=5},
+    {ic:"🕹️",n:"Simulator",d:"Complete 3 simulations",e:Object.keys(store.sims).length>=3},
+    {ic:"♟️",n:"Decision Master",d:"Score 90%+ on every simulation",e:SIMS.length>0&&SIMS.every(s=>(store.sims[s.id]||{}).best>=90)},
+    {ic:"📜",n:"Certified",d:"Earn your first school certificate",e:DATA.some(t=>certStatus(t).eligible)},
+    {ic:"🏛️",n:"Graduate",d:"Earn every school certificate — the full diploma",e:DATA.every(t=>certStatus(t).eligible)},
     {ic:"🧮",n:"Toolsmith",d:"Save 3 calculations in Operator Tools",e:Object.values(store.tools).reduce((a,t)=>a+((t.saved||[]).length),0)>=3},
     {ic:"⚖️",n:"Case Cracker",d:"Complete 3 case studies",e:CASES.filter(c=>(store.cases[c.id]||{}).done).length>=3}
   ];
@@ -3172,7 +3616,18 @@ function renderProgress(){
      '<button class="mini" onclick="'+(weak.length?'openLesson(\''+weak[0].id+'\')':'openQuiz(\''+resumeLesson().id+'\')')+'"><span class="m-k">'+ICONS.quiz+'Weak Areas</span><b>'+(weak.length?weak.length+' topic'+(weak.length>1?'s':'')+' below 70%':'No weak areas — take more quizzes')+'</b><span>'+(weak.length?'Reread and retake to lift your mastery':'Quiz scores under 70% will appear here')+'</span></button>'+
      '<button class="mini" onclick="setView(\'courses\')"><span class="m-k">'+ICONS.exam+'Level Exams</span><b>'+examsPassed+' of '+totalLevels+' levels certified</b><span>Pass each level\'s 10-question exam at 80%+</span></button>'+
      '<button class="mini" onclick="setView(\'courses\')"><span class="m-k">'+ICONS.spark+'Assignments</span><b>'+assignsDone+' completed</b><span>Real-world exercises at the end of lessons</span></button>'+
+     '<button class="mini" onclick="openLibrary(\'sims\')"><span class="m-k">'+ICONS.sim+'Simulations</span><b>'+Object.keys(store.sims).length+' of '+SIMS.length+' completed</b><span>Run businesses in fast-forward · scored debriefs</span></button>'+
      '</div>';
+  h+='<div class="sectionHead"><i></i><h3>CERTIFICATES</h3><span class="mono">'+DATA.filter(t=>certStatus(t).eligible).length+' / '+DATA.length+'</span></div><div class="badges">';
+  DATA.forEach(tr=>{
+    const cs=certStatus(tr);
+    h+='<div class="badge'+(cs.eligible?"":" locked")+'" style="cursor:pointer" onclick="'+(cs.eligible?'openCert(\''+tr.id+'\')':'toast(\''+esc(cs.missing).replace(/'/g,"\\'")+'\')')+'">'+
+       '<span class="b-ic">📜</span><b>'+tr.name+'</b><span>'+(cs.eligible?"Earned — tap to view & download":cs.missing)+'</span></div>';
+  });
+  const allCert=DATA.every(t=>certStatus(t).eligible);
+  h+='<div class="badge'+(allCert?"":" locked")+'" style="cursor:pointer" onclick="'+(allCert?'openCert(\'diploma\')':'toast(\'Earn all '+DATA.length+' school certificates first\')')+'">'+
+     '<span class="b-ic">🏛️</span><b>University Diploma</b><span>'+(allCert?"Earned — tap to view & download":"Complete every school to graduate")+'</span></div>';
+  h+='</div>';
   if(weak.length){
     h+='<div class="sectionHead"><i></i><h3>REVIEW QUEUE</h3></div><div class="cards">';
     weak.slice(0,5).forEach((le,i)=>{h+=cardHTML(le,i+1,"Best score "+store.quiz[le.id].best+"% · "+le.track.name)});
@@ -3195,6 +3650,7 @@ function renderProgress(){
   h+='</div>';
   h+='<div class="sectionHead"><i></i><h3>MANAGE</h3></div><div class="actRow">'+
      '<button class="btn ghost" onclick="exportProgress()">Export Progress</button>'+
+     '<button class="btn ghost" onclick="exportNotes()">Export My Notes</button>'+
      '<button class="btn danger" onclick="resetProgress()">Reset Progress</button></div>';
   h+='<div class="footerNote">Progress is saved on this device</div>';
   document.getElementById("view-progress").innerHTML=h;
@@ -3206,6 +3662,19 @@ function exportProgress(){
   a.href=URL.createObjectURL(blob);a.download="business-vault-progress.json";
   document.body.appendChild(a);a.click();a.remove();
   toast("Progress exported");
+}
+function exportNotes(){
+  let out="MY BUSINESS VAULT UNIVERSITY NOTES\nExported "+new Date().toLocaleDateString()+"\n\n";
+  let any=false;
+  Object.entries(store.notes).forEach(([id,n])=>{const le=byId[id];if(le&&n){any=true;out+="═ LESSON: "+le.t+" ("+le.track.name+")\n"+n+"\n\n"}});
+  BOOKS.forEach(b=>{const n=(store.books[b.id]||{}).notes;if(n){any=true;out+="═ BOOK: "+b.title+"\n"+n+"\n\n"}});
+  CASES.forEach(c=>{const n=(store.cases[c.id]||{}).notes;if(n){any=true;out+="═ CASE: "+c.title+"\n"+n+"\n\n"}});
+  if(!any){toast("No notes yet — write some in any lesson");return}
+  const blob=new Blob([out],{type:"text/plain"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="bvu-notes.txt";
+  document.body.appendChild(a);a.click();a.remove();
+  toast("Notes exported");
 }
 function resetProgress(){
   if(!confirm("Reset all lessons, quiz scores, flashcards, notes and bookmarks? Your theme and streak are kept. This cannot be undone."))return;
@@ -3222,6 +3691,25 @@ function tutorURL(le){
 }
 /* optional deep-structure sections (Phase 4 content plugs in here) */
 function optSection(title,html){return html?'<div class="lsec"><i></i><h4>'+title+'</h4></div>'+html:''}
+/* AI tutor button suite */
+const AI_MOVES=[
+ ["Explain Simpler","Explain this lesson in the simplest possible terms, step by step, checking my understanding as you go."],
+ ["Explain Like I'm 5","Explain this lesson like I'm five years old, with a fun analogy, then step it up to adult level."],
+ ["Give a Real Example","Give me three real-world examples of this concept in action — one small business, one big company, one home-services business."],
+ ["Make It Practical","Turn this lesson into 3 concrete actions I can take in my business this week. Be specific."],
+ ["Step-by-Step","Teach me this topic step by step from zero, one small piece at a time, waiting for me to confirm before moving on."],
+ ["Test My Understanding","Test my understanding with progressively harder questions. Start easy, get brutal. Grade me at the end."],
+ ["Create Study Plan","Create a 7-day study plan to fully master this topic: daily reading, practice exercises, and self-tests."],
+ ["Business Plan From This","Help me apply this lesson to a business plan: walk me through building the relevant section, asking me questions as we go."],
+ ["SOP From This","Turn this lesson into a written SOP (standard operating procedure) I could hand to an employee. Ask me about my business first."],
+ ["Checklist From This","Turn this lesson into a practical checklist I can actually use. Make every item concrete and checkable."],
+ ["Financial Model From This","Help me build a simple financial model applying this lesson — walk me through it cell by cell as if in a spreadsheet."],
+ ["Role-Play It","Run a realistic role-play where I apply this lesson — you play the other side (customer, seller, banker, or employee). Debrief me after."]
+];
+function aiURL(le,instruction){
+  const p="Context: I'm a business student using my Business Vault University app. Today's lesson: \""+le.t+"\" ("+le.module.name+", "+le.level.name+", "+le.track.name+"). Key terms: "+(le.terms||[]).map(t=>t[0]).join(", ")+". "+instruction;
+  return "https://claude.ai/new?q="+encodeURIComponent(p);
+}
 function openLesson(id){
   currentId=id;
   lastLesson=id;localStorage.setItem(LAST_KEY,id);
@@ -3260,6 +3748,7 @@ function openLesson(id){
     '<span class="num" style="background:var(--blue-face);color:#fff">'+ICONS.spark+'</span>'+
     '<span class="ct"><b>AI Tutor — quiz me on this lesson</b><span>Opens Claude with a professor prompt: 5 quiz questions, explanations, and a role-play simulation</span></span>'+
     '<span style="color:var(--blue-2)">→</span></a>'+
+    '<div class="aiGrid tutorCard">'+AI_MOVES.map(m=>'<a class="aiChip" href="'+aiURL(le,m[1])+'" target="_blank" rel="noopener">'+esc(m[0])+'</a>').join("")+'</div>'+
     (hasTerms?'<div class="actGrid">'+
       '<button class="card" onclick="openQuiz(\''+id+'\')"><span class="num">'+ICONS.quiz+'</span><span class="ct"><b>Take Quiz</b><span>'+(q?"Best "+q.best+"% · "+q.n+" attempt"+(q.n>1?"s":""):"5 questions · builds mastery")+'</span></span></button>'+
       '<button class="card" onclick="openFlash(\'lesson\',\''+id+'\')"><span class="num">'+ICONS.cards+'</span><span class="ct"><b>Flashcards</b><span>'+(le.terms||[]).length+' key terms</span></span></button>'+
@@ -3353,7 +3842,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","book","tool","case"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","book","tool","case","sim","cert"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -3373,6 +3862,7 @@ function palActions(){
     {k:"Action",t:"Review Flashcards",s:flashDue().length+" cards to master",run:()=>openFlash("due")},
     {k:"Action",t:"Quick Quiz",s:resumeLesson().t,run:()=>openQuiz(resumeLesson().id)},
     {k:"Action",t:"Book of the Day",s:dailyPick(BOOKS).title,run:()=>openBook(dailyPick(BOOKS).id)},
+    {k:"Action",t:"Run a Simulation",s:SIMS.length+" scored scenarios",run:()=>openLibrary("sims")},
     {k:"Action",t:"Toggle Light / Dark",s:"Switch appearance",run:()=>toggleAppearance()},
     {k:"Action",t:"Theme Gallery",s:"16 premium themes",run:()=>openThemes()}
   ];
@@ -3432,6 +3922,8 @@ document.addEventListener("keydown",e=>{
     else if(quizEl.classList.contains("open"))closeQuiz();
     else if(flashEl.classList.contains("open"))closeFlash();
     else if(sheetEl.classList.contains("open"))closeLesson();
+    else if(certEl.classList.contains("open"))closeCert();
+    else if(simEl.classList.contains("open"))closeSim();
     else if(bookEl.classList.contains("open"))closeBook();
     else if(toolEl.classList.contains("open"))closeTool();
     else if(caseEl.classList.contains("open"))closeCase();

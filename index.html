@@ -6380,7 +6380,7 @@ function renderProgress(){
   h+='</div>';
   const lastBk=localStorage.getItem("bvLastBackup_v1");
   h+='<div class="sectionHead"><i></i><h3>BACKUP & RESTORE</h3></div>'+
-     '<div class="example" style="margin-bottom:10px">Your progress lives only on this device. Back it up to a file every so often — you can restore it on any phone or computer, or after clearing your browser.'+(lastBk?' <b>Last backup: '+esc(lastBk)+'</b>':' <b style="color:var(--red)">No backup yet.</b>')+'</div>'+
+     '<div class="example" style="margin-bottom:10px">Your progress lives only on this device. Back it up every so often — on iPhone, tap Back Up and choose <b>Save to Files</b> from the share menu. You can restore on any phone or computer.'+(lastBk?' <b>Last backup: '+esc(lastBk)+'</b>':' <b style="color:var(--red)">No backup yet.</b>')+'</div>'+
      '<div class="actRow">'+
      '<button class="btn" onclick="backupAll()">⬇ Back Up Everything</button>'+
      '<button class="btn ghost" onclick="document.getElementById(\'restoreFile\').click()">⬆ Restore From Backup</button></div>'+
@@ -6393,18 +6393,33 @@ function renderProgress(){
 }
 /* ---- full backup & restore ---- */
 const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1"];
-function backupAll(){
+async function backupAll(){
   const keys={};
   BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)keys[k]=v});
-  const data={app:"Business Vault University",kind:"bvu-backup",v:2,exported:new Date().toISOString(),lessonsDone:done.size,keys};
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const a=document.createElement("a");
   const d=new Date();
-  a.href=URL.createObjectURL(blob);a.download="bvu-backup-"+d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+".json";
+  const name="bvu-backup-"+d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")+".json";
+  const json=JSON.stringify({app:"Business Vault University",kind:"bvu-backup",v:2,exported:d.toISOString(),lessonsDone:done.size,keys},null,2);
+  const markDone=()=>{localStorage.setItem("bvLastBackup_v1",d.toLocaleDateString());renderProgress()};
+  /* phones: native share sheet (Save to Files / iCloud / AirDrop) beats letting
+     the browser hand the file to whatever app claims .json */
+  try{
+    const file=new File([json],name,{type:"application/json"});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:"BVU Backup"});
+      toast("Backup done — 'Save to Files' keeps it safe ✓");
+      markDone();
+      return;
+    }
+  }catch(e){
+    if(e&&e.name==="AbortError"){toast("Backup cancelled");return}
+  }
+  /* desktop / fallback: plain download */
+  const blob=new Blob([json],{type:"application/octet-stream"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=name;
   document.body.appendChild(a);a.click();a.remove();
-  localStorage.setItem("bvLastBackup_v1",d.toLocaleDateString());
-  toast("Backup saved — keep it somewhere safe ✓");
-  renderProgress();
+  toast("Backup downloaded — keep it somewhere safe ✓");
+  markDone();
 }
 function restoreAll(input){
   const f=input.files&&input.files[0];if(!f)return;

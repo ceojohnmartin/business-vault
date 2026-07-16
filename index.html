@@ -426,6 +426,23 @@
   .fBtns .btn{flex:1}
   .fHint{text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--steel);letter-spacing:.1em;margin-bottom:12px}
 
+  /* ================= LIBRARY SHEETS ================= */
+  #book,#tool,#case{position:fixed;inset:0;z-index:96;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
+  #book.open,#tool.open,#case.open{transform:translateY(0);visibility:visible}
+  .finRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--edge);font-size:13.5px}
+  .finRow:last-child{border-bottom:none}
+  .finRow span{color:var(--steel-2)}
+  .finRow b{font-family:var(--mono);font-size:13.5px;text-align:right}
+  .finRow.strong b{color:var(--blue-2);font-size:15px}
+  .inpRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0}
+  .inpRow label{font-size:13px;color:var(--steel-2);flex:1}
+  .inpRow input{
+    width:130px;padding:9px 11px;font-size:14px;font-family:var(--mono);text-align:right;
+    border:1px solid var(--edge);border-radius:9px;background:var(--surface-2);color:var(--text);outline:none;-webkit-appearance:none;
+  }
+  .inpRow input:focus{border-color:var(--blue-3);box-shadow:0 0 0 3px var(--blue-soft)}
+  .qOpt.pick{border-color:var(--blue);background:var(--blue-soft)}
+
   /* ================= READER EXTRAS ================= */
   .actGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
   .actGrid .card{padding:13px 12px}
@@ -577,6 +594,42 @@
     <input id="themeSearch" type="search" placeholder="Search themes — luxury, minimal, dark…" autocomplete="off"></div>
     <div class="tgrid" id="tgrid"></div>
   </div>
+</div>
+
+<div id="book" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeBook()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Library
+    </button>
+    <div class="crumb" id="bookCrumb"></div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="sheetInner" id="bookInner"></div>
+</div>
+
+<div id="tool" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeTool()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Tools
+    </button>
+    <div class="crumb" id="toolCrumb"></div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="sheetInner" id="toolInner"></div>
+</div>
+
+<div id="case" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeCase()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Cases
+    </button>
+    <div class="crumb" id="caseCrumb"></div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="sheetInner" id="caseInner"></div>
 </div>
 
 <div id="quiz" role="dialog" aria-modal="true">
@@ -1241,6 +1294,698 @@ keys:["Multi-branch is an operating system test: SOPs, scorecards, and P&L-ownin
 
 const VIDEO_MAP={"f1":{"v":"CBYhVcO4WgI","title":"Lecture 1 - How to Start a Startup (Sam Altman, Dustin Moskovitz)","ch":""},"f2":{"v":"bNpx7gpSqbY","title":"The single biggest reason why start-ups succeed | Bill Gross | TED","ch":""},"f3":{"v":"kmOj1usAmKM","title":"Revenue vs. Gross Income/Profit/Earnings vs. Net Income/Profit/Earnings (Bottom Line) in One Minute","ch":"One Minute Economics"},"f4":{"v":"4WfN3Aupoqo","title":"Cash Flow Masterclass for Business Owners (Before It's Too Late)","ch":"BizMoney Explained"},"f5":{"v":"5fLRqU0ZRns","title":"Breaking Down the P&L with Kevin Cope | Breaking down the Income Statement","ch":"Acumen Learning"},"f6":{"v":"CMv1zlZhb4Q","title":"The BALANCE SHEET for BEGINNERS (Full Example)","ch":"Accounting Stuff"},"f7":{"v":"hMBN6yTIDb0","title":"Cash Flow Statement Basics Explained","ch":"Leila Gharani"},"f8":{"v":"yYX4bvQSqbo","title":"ACCOUNTING BASICS: a Guide to (Almost) Everything","ch":""},"f9":{"v":"SCpWeCLfqo4","title":"How To Choose The Best Business Structure (LLC vs S-Corp vs C-Corp)","ch":"Sherman - My CPA Coach"},"f10":{"v":"Ru5PqUfN89E","title":"How to Calculate a Break Even Point (Guide)","ch":"HubSpot Marketing"},"c1":{"v":"keCwRdbwNQY","title":"Best marketing strategy ever! Steve Jobs Think different / Crazy ones speech (with real subtitles)","ch":""},"c2":{"v":"f7j3JSBD6so","title":"5-Minute Google Ads Tutorial - Everything You Need to Know In Under 5 Minutes (2025)","ch":"Ivan Mana"},"c3":{"v":"jQjOD579jhI","title":"The Digital Marketing Funnel Explained: Turn Strangers into Customers","ch":"Explained Hub"},"c4":{"v":"1WTD-V2F_N8","title":"How to create a stand-out SOCIAL MEDIA STRATEGY for your small business + how to film & edit videos","ch":"Chantal Leonhardt"},"c8":{"v":"MT4Ig2uqjTc","title":"Eric Migicovsky - How to Talk to Users","ch":""},"a11":{"v":"guZa7mQV1l0","title":"Never Split the Difference | Chris Voss | Talks at Google","ch":""},"a12":{"v":"qp0HIF3SfI4","title":"How Great Leaders Inspire Action | Simon Sinek | TED","ch":""},"a13":{"v":"0lJKucu6HJc","title":"Sam Altman - How to Succeed with a Startup","ch":""},"m10":{"v":"PHe0bXAIuk0","title":"How The Economic Machine Works by Ray Dalio","ch":""},"c5":{"v":"Y4XNa81ii7Y","title":"How to Optimize Your Google Business Profile for Local Search | Complete Local SEO Guide","ch":"The Digital Marketing Professor"},"c6":{"v":"j9sgzTbR2cE","title":"Why People Buy And The Science Behind It","ch":"SLAM! Agency"},"c9":{"v":"EpPd1kX4tBw","title":"How to write SOPs (so your business runs without you)","ch":"Ross Harkness"},"c10":{"v":"rWH_B8SLaCI","title":"How to Hire and Pay Employees in a Small Business","ch":"Ginny Silver - California Small Business Coach"},"c12":{"v":"Ls2wgmHG39s","title":"Small Business Legal Essentials | Contracts, IP Law & Business Basics","ch":"SBC Consulting"},"c13":{"v":"nOrN47bmZ40","title":"Job-order Cost System Explained","ch":"Edspira"},"c14":{"v":"qc0MhgdG-0g","title":"What is a Tax Write-Off and Tax Deduction for Small Businesses?","ch":"Karlton Dennis"},"a1":{"v":"354QSdHGmpk","title":"Unit Economics Metrics Explained | CAC, LTV, Contribution Margin & More","ch":"Marketing with Shadowasta"},"a2":{"v":"eHi875QuVcA","title":"How to Calculate Customer Lifetime Value | The #1 Most Important Metric for Startups","ch":"Eric Andrews"},"a3":{"v":"ATUztd4IemI","title":"How to Calculate Churn Rate | Case Study","ch":"Eric Andrews Clips"},"a4":{"v":"WLBY03YpiL0","title":"EBITDA vs  Net Income vs  Operating Profit vs. Gross Income - Understanding Profit Measurements","ch":"Corporate Finance Academy"},"a5":{"v":"1AUBZbbk53g","title":"How to Build a 3-Statement Financial Model From Scratch (Expert Guide + Free Template)","ch":"Josh Aharonoff (Your CFO Guy)"},"a6":{"v":"mPiWWnJsVGw","title":"Digital Marketing Metrics & KPI's Explained (With Examples)","ch":"Elevate Digital"},"a7":{"v":"fH_gQmiVZgU","title":"Introduction to Debt and Equity Financing","ch":"Alanis Business Academy"},"a8":{"v":"brFD1fFAYhQ","title":"EBITDA Multiples and Valuation Ranges: How Companies are Valued","ch":"Arthur Petropoulos"},"a9":{"v":"NwFQObgKpIM","title":"13 Week Cash Flow Model","ch":"Corporate Finance Academy"},"a10":{"v":"ZzvPj-ovscc","title":"How to Get Business Credit for Your LLC in 2024","ch":"Karlton Dennis"},"m1":{"v":"WBHzCDgEtVQ","title":"Mergers and Acquisitions Explained: A Crash Course on M&A","ch":"Brett Cenkus"},"m2":{"v":"gJNuoUYTAiE","title":"How to Get SBA Financing to Buy Your First Business","ch":"Beau Eckstein, Business Ownership Coach"},"m3":{"v":"o5kPhEBTVV4","title":"Sell your business right — prepare essentials, position strategically, maximise exit profit","ch":"BenchmarkBusinessAdvisory"},"m4":{"v":"EYBKoz68FUg","title":"How Franchising Works : Mcdonalds Franchise Example","ch":"Tariq Johnson"},"m5":{"v":"bCqHSl8hTrM","title":"Acquisition Roll-up Strategy 101","ch":"Walker Deibel"},"m6":{"v":"Bd_11I4FY_U","title":"How to Start a Holding LLC Company in 2026 [Step-by-Step]","ch":"LYFE Accounting"},"m7":{"v":"M6B2R0bn5Vs","title":"Final Big Beautiful Bill: 4 Tax Strategies for Business Owners & Real Estate Investors","ch":"Mark J Kohler"},"m8":{"v":"NoK6kKkvc-U","title":"The Ultimate Guide to SBA Loans (Real Estate and Buyouts)","ch":"Sage Real Estate"},"m9":{"v":"jcDq9bju9ds","title":"Family Business Succession Planning: How to Plan Your Exit Strategy and Save on Taxes!","ch":"Confidence Wealth Management"},"e1":{"v":"x-hYzRncxTc","title":"What Is Opportunity Cost?","ch":"Marginal Revolution University"},"e2":{"v":"OHCpUcerz1Q","title":"Economic Moat (Competitive Advantage): Warren Buffett’s Principles of Stock Market Investing","ch":"Bull Investor"},"e3":{"v":"Dfp23xSqpdk","title":"Porter's 5 Forces EXPLAINED | B2U | Business To You","ch":"Business To You"},"e4":{"v":"N-lN5xORIwc","title":"Net Present Value (NPV) explained","ch":"The Finance Storyteller"},"e5":{"v":"tU9rn2eUL5E","title":"Warren Buffett on Capital allocation (2001)","ch":"Investment Knowledge"},"e6":{"v":"5GXx5c53c5s","title":"Startup Funding Explained: Series A vs Seed - Startups 101","ch":"Slidebean and The Startup Club by Slidebean"},"e7":{"v":"QaoVWtLX038","title":"Validate your business idea: THE LEAN STARTUP by Eric Ries","ch":"Productivity Game"},"e8":{"v":"HVkfEXgH8QM","title":"How to Find Product-Market-Fit as Fast as Possible (CEO Explains)","ch":"jayhoovy"},"e10":{"v":"PS1oKPZdJdE","title":"How To Build High Performing SaaS Sales Pipelines","ch":"Rob Walling"},"x1":{"v":"o1aRJeDe8j8","title":"What is Behavioral Economics? - Psychology Explained","ch":"Simplified In Short "},"x2":{"v":"ywyQ_eNNCJU","title":"Charlie Munger: Mental Models for the Rest of Your Life","ch":"The Swedish Investor"},"x3":{"v":"iPj77CnewR0","title":"AI for Small Business: Connecting AI to Your Existing Software Stack","ch":"Skill:RE - Enabling Enterprise AI"},"x4":{"v":"Mj42FVG8LdA","title":"How to Measure Marketing Attribution | IHC Attribution","ch":"Haensel AMS"},"x5":{"v":"EUo4G1lw-w8","title":"Intellectual Property Law Explained | Copyrights, Trademarks, Trade Secrets, & Patents","ch":"All Up In Yo' Business with Attorney Aiden Durham"},"x6":{"v":"geoe-6NBy10","title":"Imports, Exports, and Exchange Rates: Crash Course Economics #15","ch":"CrashCourse"},"x7":{"v":"962eYqe--Yc","title":"4 Tips To IMPROVE Your Public Speaking - How to CAPTIVATE an Audience","ch":"Motivation2Study"},"x8":{"v":"0QOAymz9Sa8","title":"Why asset allocation matters: 4 steps to a successful investment portfolio","ch":"Julius Baer"},"w1":{"v":"u4MYxhGbEVQ","title":"Site Selection and Design: Speed Limits","ch":"Professional Carwashing & Detailing"},"w2":{"v":"YC63LTSSOlw","title":"Express vs. Full Service Car Washes: Which One Makes More Money?","ch":"The Business Broker King"},"w3":{"v":"_xgDPfAd3Ds","title":"SONNY'S Car Wash Equipment - Log Chain Over Under Conveyor","ch":"Sonny's The Car Wash Factory"},"w5":{"v":"XmHPkLOZnoo","title":"The Economics of Owning a Car Wash","ch":"Profit Breakdown"},"w6":{"v":"7tJdG-uDUGE","title":"Water reclamation systems WRP Car Wash WRP 16000","ch":"Karcher Malaysia"},"w7":{"v":"Nd8M7hCbeeA","title":"Fast5Express Car Wash Employee Orientation video","ch":"Coastline Productions"},"w8":{"v":"MQo9rz-ETbU","title":"Unlocking the power of ground leasing real estate with Reuven Birnkrant","ch":"Professional Carwashing & Detailing"},"w9":{"v":"cCSaxz6jnGQ","title":"How to Finance Your Car Wash Business - Leading SBA Expert Details Considerations","ch":"Sonny's The Car Wash Factory"},"w10":{"v":"PhMbz0Sga1I","title":"Are Markets Becoming Saturated?","ch":"Professional Carwashing & Detailing"},"w12":{"v":"OhzzRwVLe6c","title":"Maximizing a Wash's Valuation","ch":"Professional Carwashing & Detailing"},"p1":{"v":"hzgmC3s4P0U","title":"Secrets To Mastering Door To Door Sales (Full Masterclass)","ch":"Jeremy Miner"},"p2":{"v":"KrIjJPgKj5s","title":"The Profitability Problem Every Pest Control Owner Misses","ch":"Pest Radio"},"p3":{"v":"xkdTFFQREgw","title":"Should You Do Quarterly or Monthly Pest Control","ch":"GILLEN Pest Control"},"p5":{"v":"xSXmQDoXClw","title":"How to Get Pest Control Contactor License in Texas","ch":"MyShoeCovers"},"p6":{"v":"ZQsY0WPvx64","title":"How To Set Prices For Pest Control","ch":"Jonas Olson"},"p7":{"v":"R8JuVs9nrcQ","title":"Slow Season Strategy: How to Protect Cashflow and Grow in 2026","ch":"ACRE Partner"},"p8":{"v":"Wg3mLHdko6E","title":"How to Reduce Customer Cancellations and Boost Retention Rates: Episode 184","ch":"Bug Bux"},"p9":{"v":"JOi_9ByK3JE","title":"How to Sell More Pest Control in 2025 (and Hit 1,000+ Accounts)","ch":"D2D Experts"},"p10":{"v":"j02ilBxes64","title":"How Much is Your Pest Control Business Worth in 2026? (EBITDA Multiples & KPI Guide)","ch":"TheDealSheet"},"p11":{"v":"DXCmViFxnas","title":"How We Scaled a Pest Control Company to 7-Figures in 24 Months","ch":"AMZ METRIX"},"c11":{"v":"sF6AMj3H0jg","title":"Pricing strategy an introduction Explained","ch":"Leaders Talk - ThinkEduca"},"m11":{"v":"3mtS8rOAqoM","title":"How to Find Businesses to Buy NO ONE ELSE Knows About (80 MINUTE Playbook)","ch":"Codie Sanchez"},"e9":{"v":"j8pxmNrdJvw","title":"Copywriting Tips For Beginners: How To Write Ad Copy","ch":"Alex Cattoni"},"w11":{"v":"x79GlLgEl54","title":"Boosting Unlimited Car Wash Memberships","ch":"SLAM Carwash Marketing"},"p4":{"v":"-gRoDWqo5sk","title":"New: Route Optimization","ch":"PestScan | Pest Control Software"},"c7":{"v":"50xcXYGKvPk","title":"Stop Missing Out on Sales By Using These Closing Techniques","ch":"Brian Tracy"},"w4":{"v":"M5S0b0HwvuA","title":"Episode 9: How to Triple Your Car Wash's Membership Conversions (use this 3-phase system)","ch":"OptSpot"}};
 
+/* ================= MONEY & WEALTH SCHOOL (Phase 3) ================= */
+DATA.push({id:"money",name:"Money & Wealth",tag:"Personal Finance School",intro:"Master your own money before you master a company's. Two levels — from your first real budget to a personal balance sheet built for buying businesses. Educational content, not individualized financial, tax, or investment advice: confirm big moves with a licensed professional.",levels:[
+{id:"M1",name:"Money Foundations",tagline:"Level 1",desc:"Cash flow, budgeting, credit, debt, and taxes — full command of your personal P&L",modules:[
+{name:"Cash Management",lessons:[
+{id:"mw1",t:"Run Your Life Like a P&L",q:"personal finance basics income expenses cash flow beginner",
+p:["Everything the Business A–Z track taught you about a company's income statement applies to you personally: you have revenue (paychecks, side income), cost of goods sold (the non-negotiables that keep you alive — housing, food, transport), operating expenses (everything else you choose to spend), and a bottom line (what's left each month). Most people never calculate their personal net income, which is why most people are shocked to discover they earn six figures over a few years and keep none of it. The single most powerful move in personal finance is treating yourself as a business: know your monthly revenue, know your monthly burn, and know your margin — the percentage of income you keep. A business with a 0% margin is failing no matter how big its revenue; so is a household.",
+"Your personal margin is also your freedom metric. A 20% margin means every five years of work buys you one year of not needing to work. A 50% margin means every year of work buys a year of freedom — that's the arithmetic behind every early-retirement story you've ever heard, and it's also the arithmetic behind every future business owner's first acquisition: down payments come from margin. Start this week: pull your last three months of bank and card statements, sort every dollar into revenue, essentials, and choices, and compute your margin. Do it monthly forever, the way a CFO closes the books. What gets measured gets managed — the rest of this school is just ways to widen that margin and deploy it."],
+terms:[["Personal margin","The percentage of your income you keep after all spending — your household's profit margin."],["Burn rate","Total monthly spending; how fast you consume cash."],["Fixed vs. variable expenses","Costs that stay constant (rent) versus costs that flex with choices (dining out)."],["Net income (personal)","Income minus all expenses for the month — your bottom line."],["Monthly close","A set ritual of reviewing income, spending, and margin at month-end, like a CFO."]],
+ex:"Two nurses each earn $75,000. Nurse A never tracks anything and finishes each year with a bigger truck payment. Nurse B closes her books monthly, holds a 30% margin, and after four years has $90,000 — enough for an SBA down payment on a $350,000 pest control route. Same job, same pay. The margin, not the income, decided who became an owner.",
+keys:["You are a business: income statement thinking applies to your household exactly.","Margin (what you keep) matters more than income (what you make).","Track three months of statements, then close your books monthly.","Every path to ownership starts with personal margin — down payments are saved, not wished for."]},
+{id:"mw2",t:"Budgeting Systems That Actually Work",q:"how to budget beginners 50 30 20 zero based budgeting",
+p:["A budget is not a punishment — it's a pre-decision. Instead of wondering where money went, you decide where it goes before the month starts. Three proven systems, pick one: The 50/30/20 rule (50% of take-home to needs, 30% to wants, 20% to saving and debt payoff) is the simplest and best for beginners — three buckets, no spreadsheets. Zero-based budgeting assigns every single dollar a job until income minus assignments equals zero; it's the most powerful and the most work, and it's how well-run companies budget too. Pay-yourself-first flips the order: automatic transfers move your savings percentage out the moment a paycheck lands, and you're free to spend the rest guiltlessly — the system that survives human nature best, because it requires zero ongoing discipline.",
+"Whichever system you choose, automate the skeleton: savings auto-transfer on payday, bills on autopay, one 'spending' account for the flexible stuff. The budget then runs itself and you only manage the exceptions — which is exactly how good operators run companies (systems handle the routine; attention goes to the anomalies). Two traps to avoid: budgets that are so strict they snap (leave real money for fun or you'll abandon the whole system by March), and 'budgeting' apps you check obsessively while changing nothing. The point is not tracking. The point is that your margin from lesson one is decided in advance and defended by automation."],
+terms:[["50/30/20 rule","Take-home split: 50% needs, 30% wants, 20% savings and extra debt payments."],["Zero-based budget","Every dollar of income is assigned a job until nothing is unallocated."],["Pay yourself first","Savings move automatically on payday before any spending happens."],["Sinking fund","Small monthly set-asides for known irregular costs — car repairs, holidays, insurance premiums."],["Autopay skeleton","The automated structure of transfers and bill payments that runs a budget without willpower."]],
+ex:"A door-to-door sales rep with wildly variable commissions sets up pay-yourself-first: 25% of every deposit auto-sweeps to savings the day it lands, rent and utilities on autopay from a bills account, and the remainder is his to spend freely. In slow months he feels it in his spending account, never in his savings. After 18 months he has $31,000 saved without ever having 'budgeted' a single evening.",
+keys:["A budget is pre-deciding where money goes, not tracking where it went.","Pick one system: 50/30/20 (simplest), zero-based (most control), pay-yourself-first (most durable).","Automate savings and bills so the budget runs without willpower.","Budgets that allow no fun get abandoned — build in room to live."]},
+{id:"mw3",t:"Spending: Plugging the Silent Leaks",q:"how to stop overspending money psychology impulse buying",
+p:["Companies audit expenses line by line because small leaks compound into big losses — a $40/month unused software seat is $480 a year, and ten of them is a salary. Your personal spending works identically. The big three leaks: subscriptions you forgot (audit twice a year — most households find $50-150/month of zombie charges), convenience premiums (delivery fees, marked-up food — fine deliberately, deadly as a default habit), and the upgrade treadmill (each raise triggering a nicer car, phone, apartment — covered fully in the lifestyle inflation lesson). None of these are moral failures; they're systems failures. You don't fix them with guilt, you fix them with friction: delete stored cards from shopping apps, unsubscribe from marketing emails, impose a 48-hour rule on any purchase over a set threshold.",
+"Learn the difference between price and cost. A $200 pair of boots resoled for a decade costs $20 a year; $60 boots replaced annually cost $60 a year — the 'cheap' option is triple the cost. Businesses call this total cost of ownership, and it applies to everything you buy: appliances, vehicles, tools, even credit (a low monthly payment on a long loan is a high total cost — the car lesson every dealership hopes you never learn). And flip the lens for big wins: the average household's top three lines are housing, transportation, and food, usually 60-70% of all spending. A 10% win on housing beats a hundred skipped lattes. Negotiate rent at renewal, buy the reliable used car, cook five nights a week — optimize the boulders, not the pebbles."],
+terms:[["Zombie subscription","A recurring charge for something you no longer use — found only by auditing statements."],["48-hour rule","A self-imposed cooling-off period before any non-essential purchase above a set amount."],["Total cost of ownership","What something costs over its whole life — price plus upkeep, financing, and replacement."],["Convenience premium","The extra you pay for speed and ease — fine chosen deliberately, expensive as a habit."],["Big three","Housing, transportation, and food — typically 60-70% of household spending and the highest-leverage savings targets."]],
+ex:"A young couple hunting for $200 in monthly savings almost cancels everything fun in their budget. A statement audit instead finds $85 of forgotten subscriptions, and a 20-minute rent negotiation at renewal (armed with comparable listings) saves another $75. They keep the streaming service they actually love and hit the target without feeling poorer — the boulders paid for the pebbles.",
+keys:["Small recurring leaks compound — audit subscriptions twice a year like an expense review.","Use friction (48-hour rule, no stored cards), not guilt, to control impulse spending.","Judge purchases by total cost of ownership, not sticker price or monthly payment.","Optimize the big three (housing, transport, food) before micro-managing lattes."]},
+{id:"mw4",t:"Saving & the Emergency Fund",q:"emergency fund how much to save high yield savings account",
+p:["Before investing a single dollar, build the buffer that keeps you from becoming a forced seller of your own life. An emergency fund is 3-6 months of essential expenses (not income — the essentials number from your P&L lesson) held somewhere boring, liquid, and separate: a high-yield savings account, not your checking (too tempting), not stocks (the emergency and the market crash will arrive together — 2020 taught everyone this). Employees with stable jobs can live at the 3-month end; commission earners, business owners, and single-income households belong at 6 or more, because their income and their emergencies are correlated. This fund's job is not growth. Its yield is measured in avoided catastrophes: the car repair that doesn't go on a 27% credit card, the job loss that doesn't force a panicked fire-sale of investments, the ability to walk away from a bad employer or a bad deal.",
+"Build it in stages so it doesn't feel impossible: first $1,000 fast (sell something, one hard month), then one month of essentials, then automate the rest over a year. Park it in a high-yield account where it earns real interest, and give it rules: it spends only on true emergencies (unexpected, necessary, urgent — a sale on flights is zero for three), and every withdrawal triggers an automatic refill plan. Once it's full, stop — beyond six months of essentials, extra cash should move up the ladder into investments, because the fund's purpose is protection, and protection has a price cap. Business owners will recognize this whole lesson: it's working capital and the 13-week cash cushion, wearing personal clothes."],
+terms:[["Emergency fund","3-6 months of essential expenses in liquid savings — your personal working capital buffer."],["High-yield savings account","FDIC-insured savings paying meaningful interest — the standard home for emergency cash."],["Liquidity","How fast an asset converts to spendable cash without losing value."],["Forced seller","Someone who must sell assets at a bad time because they lack cash — the fate the fund prevents."],["Correlated risk","When your income and your emergencies arrive together (job loss in a recession) — reason for a bigger buffer."]],
+ex:"Two techs at the same pest control company face the same transmission failure, $2,800. Tech A puts it on a card at 27% and pays $3,700 over two years. Tech B pays cash from her fund and refills it in four months, interest-free. Next year the company cuts routes: Tech B job-hunts calmly for two months and lands a better route; Tech A, broke and desperate, takes the first offer at lower pay. The fund didn't earn interest — it earned options.",
+keys:["3-6 months of essential expenses, liquid and separate, before serious investing.","Match the buffer to income risk: variable income and single earners need the bigger end.","Stage it: $1,000 → one month → full, automated — then cap it and invest the rest.","The fund's return is avoided catastrophe and preserved options, not yield."]}
+]},
+{name:"Credit, Debt & Taxes",lessons:[
+{id:"mw5",t:"Credit Scores & Credit Cards",q:"credit score explained how to build credit responsibly",
+p:["Your credit score is a lender's shorthand for one question: does this person pay what they owe, on time? FICO scores (300-850) weigh five factors: payment history (35% — one 30-day late mark can cost 100 points and lingers for years), utilization (30% — the share of your card limits currently borrowed; keep it under 30%, ideally under 10%), length of history (15% — never close your oldest card), new credit (10% — each application dings you a few points briefly), and mix (10%). The score matters far beyond cards: it prices your mortgage, your car loan, your insurance in many states, sometimes your apartment application — and when you eventually buy a business, lenders will pull the owner's personal credit before they read a single financial statement. A 750+ score is a business asset. Build it the boring way: one or two cards, small recurring charge, autopay in full, forever.",
+"Credit cards themselves are power tools — genuinely useful in trained hands, maiming in untrained ones. The rules of trained hands: pay the statement balance in full every month without exception (carrying a balance at 22-29% APR is how banks turn your $1,000 of spending into their $1,300), treat the limit as irrelevant (your budget is the limit), and let rewards be a bonus, never a motive (nobody ever got rich on 2% back; plenty went broke chasing it). If you currently carry card debt, that's not a character flaw — it's a 25% guaranteed-loss investment you should attack with everything, which is the next lesson. And one myth to kill: you do not need to carry a balance to build credit. Paying in full builds the same score and costs zero interest."],
+terms:[["FICO score","The dominant credit score (300-850), weighing payment history, utilization, age, new credit, and mix."],["Utilization","Balances divided by credit limits — keep under 30% (under 10% is better) for score health."],["Statement balance","What you owe at cycle close — pay this in full monthly to avoid all interest."],["APR","Annual percentage rate — the yearly cost of carrying a balance, typically 20-29% on cards."],["Autopay in full","The set-and-forget setting that makes late payments and interest structurally impossible."]],
+ex:"Before an SBA lender will finance a route-business acquisition, they pull the buyer's personal credit. Buyer A has a 640 (two old late payments, 60% utilization): the deal gets extra scrutiny, a co-signer demand, and a worse rate. Buyer B has a 780 built on five years of autopay-in-full: the same deal sails through underwriting. The score was built years before the opportunity appeared — that's the point.",
+keys:["Payment history and utilization drive ~65% of your score — autopay in full and keep utilization under 30%.","Your personal credit prices your future mortgage, car, and business loan — treat 750+ as an asset.","Never carry a balance for 'credit building' — paying in full builds the same score free.","Card debt is a 20-29% emergency: if you have it, killing it outranks almost every other money move."]},
+{id:"mw6",t:"Debt: Good, Bad, and How to Kill It",q:"debt payoff avalanche vs snowball method explained",
+p:["Debt is a tool that moves money through time — and like any tool, it's judged by what you build with it. Productive debt buys assets that pay you: the SBA loan on a cash-flowing business (the entire acquisition track runs on it), the reasonable mortgage on a home you'd rent for more, the equipment loan where the machine out-earns its payment. Destructive debt buys depreciating things or vanished experiences at high rates: credit card balances, payday loans, the 84-month truck loan. The dividing line is simple: does the thing you bought generate more than the interest costs? A 10% business loan on a 25% cash-on-cash acquisition is wealth-building. A 24% card rate on last year's vacation is wealth-burning. Learn to read your own debts with a lender's eye: list every balance, rate, and minimum — most people have never once seen their full debt picture on one page.",
+"Killing bad debt has two proven algorithms. The avalanche: minimums on everything, every spare dollar at the highest rate first — mathematically optimal, saves the most interest. The snowball: every spare dollar at the smallest balance first — mathematically imperfect, psychologically superior, because each account you kill frees its minimum payment and hands you a win that keeps you in the fight (research on debt payoff consistently finds completion matters more than optimization). Pick avalanche if you're a spreadsheet person, snowball if you've started and quit before, and never carry high-rate debt while 'investing' — paying off a 24% card is a guaranteed 24% return, which no market reliably offers. Two accelerants: negotiate (card companies reduce rates for customers who ask, and hardship programs exist), and consolidate only with a real plan — moving debt to a lower rate while continuing to overspend just refills the original cards."],
+terms:[["Productive vs. destructive debt","Debt that buys cash-flowing assets versus debt on depreciating purchases at high rates."],["Debt avalanche","Attack the highest interest rate first — minimizes total interest paid."],["Debt snowball","Attack the smallest balance first — maximizes momentum and completion rates."],["Debt-to-income ratio (DTI)","Monthly debt payments divided by gross monthly income — lenders' key affordability gauge."],["Consolidation","Combining debts into one lower-rate loan — useful only if the overspending that created them stops."]],
+ex:"An operator carries $18,000 across four cards (19-27%) plus a $9,000 truck loan at 6%. Avalanche math says the 27% card first; she chooses snowball for momentum, kills a $1,100 balance in month one, and rolls its $45 minimum forward. Every card is gone in 22 months. The truck loan at 6% she deliberately keeps — the spare cash now out-earns it in her business. Reading each debt by its rate, not its emotional weight, is the skill.",
+keys:["Judge debt by what it bought: does the asset out-earn the interest?","List every balance, rate, and minimum on one page — you can't fight what you can't see.","Avalanche saves the most interest; snowball finishes more often — pick the one you'll sustain.","Paying off a 24% card is a guaranteed 24% return; do it before investing (keep cheap productive debt)."]},
+{id:"mw7",t:"Personal Taxes Without Fear",q:"how income tax brackets work deductions credits explained",
+p:["Taxes are most people's single largest lifetime expense, and most people refuse to spend two hours understanding them. Start with the myth that costs the most: 'a raise can push me into a higher bracket and I'll take home less.' False — the US system is marginal, meaning each bracket's rate applies only to the dollars inside that bracket. Moving from the 22% to the 24% bracket taxes only the dollars above the line at 24%; every dollar below keeps its old rate. Next distinction: deductions reduce the income you're taxed on (a $1,000 deduction in the 22% bracket saves $220), while credits reduce the tax bill dollar-for-dollar (a $1,000 credit saves $1,000 — credits are worth more). Most households simply take the standard deduction; itemizing only wins when mortgage interest, state taxes, and charity exceed it. Know your effective rate — total tax divided by total income — which is always far below your bracket, and is the honest number for planning.",
+"The legal levers worth knowing: pre-tax retirement contributions (401(k), traditional IRA) delete income from this year's taxable line — a dollar contributed in the 22% bracket costs you 78 cents of take-home; HSAs are triple-exempt (deductible in, growing untaxed, tax-free out for medical) — the most tax-advantaged account in the entire code; and for the self-employed and side-hustlers, legitimate business expenses reduce business income before tax ever touches it — mileage, equipment, home office — with the golden rule being real, documented, and defensible (the Business A–Z tax lesson's write-off discipline applies personally). Withholding is just prepayment: a big refund means you gave the government a free loan all year, a big bill means you'll owe penalties — aim for roughly even. This is education, not tax advice: brackets and rules shift yearly, and one hour with a CPA the year your income gets complicated (side business, big gains, first rental) pays for itself many times over."],
+terms:[["Marginal tax bracket","The rate applied only to dollars inside that bracket — raises never reduce take-home pay."],["Effective tax rate","Total tax divided by total income — your true overall rate, well below your top bracket."],["Deduction vs. credit","Deductions shrink taxable income; credits shrink the tax bill dollar-for-dollar."],["Standard deduction","The flat amount everyone may subtract instead of itemizing — the default for most households."],["HSA (Health Savings Account)","Triple tax-advantaged account: deductible going in, tax-free growth, tax-free out for medical costs."]],
+ex:"A pest tech earning $62,000 panics about a $4,000 raise 'pushing him into the next bracket.' His CPA shows the math: only the top slice is taxed at the higher rate; the raise nets him about $3,000 after all taxes. Then she moves $3,000 of it into his 401(k) and an HSA — his taxable income barely rises, his take-home stays almost identical, and $3,000 is now compounding for him instead of vanishing. Two hours of tax literacy, thousands in lifetime difference.",
+keys:["Brackets are marginal — a raise never lowers your take-home; the myth costs people real money.","Credits beat deductions dollar-for-dollar; most people correctly take the standard deduction.","Pre-tax accounts (401(k), HSA) are the biggest legal levers for W-2 earners; documented business expenses for the self-employed.","Know your effective rate, aim withholding near even, and buy a CPA hour when life gets complicated — this lesson is education, not advice."]}
+]}
+]},
+{id:"M2",name:"Wealth Building",tagline:"Level 2",desc:"Investing, compounding, protection, and the pivot from saver to owner",modules:[
+{name:"Investing & Compounding",lessons:[
+{id:"mw8",t:"Investing Foundations: Risk, Return & Time",q:"investing for beginners risk return diversification explained",
+p:["Investing is buying assets — things that pay you or grow while you sleep. Saving protects money; investing multiplies it; confusing the two directions is the classic error (savings in the market get crushed at the worst time; investments in a savings account get eaten by inflation, which quietly takes 2-3% of purchasing power every year — the guaranteed loss of doing nothing). Every investment is priced by one eternal trade: risk versus return. Treasury bonds pay little because they almost cannot fail; small-cap stocks pay more over decades because they can and do crater along the way. Anyone promising high returns with no risk is describing a fraud — that sentence, fully believed, immunizes you against every scheme you will ever be pitched. Your true edge as an ordinary investor isn't stock-picking genius; it's time horizon. Money needed within five years doesn't belong in stocks. Money untouched for twenty years barely notices crashes — every major index decline in history has been recovered and exceeded, but only for those who stayed.",
+"Diversification is the one free lunch in finance: owning many assets that don't fail together removes the risk of any single disaster without reducing expected return. One stock can go to zero; a fund holding five thousand cannot, short of the end of commerce itself. The behavioral half matters more than the math: the market's long-run ~10% average annual return (about 7% after inflation) was earned only by investors who didn't sell in the crashes — and the average investor famously underperforms the very funds they hold, because they buy euphoric tops and sell panicked bottoms. Automate contributions monthly (dollar-cost averaging makes volatility your friend — the same dollars buy more shares when prices fall), ignore financial television, and treat your future business acquisition as part of the same portfolio thinking: index funds are the passive engine, and the operator skills from this university are your highest-return asset class of all."],
+terms:[["Asset","Something that pays you or appreciates — stocks, bonds, real estate, businesses."],["Risk-return trade-off","Higher expected returns always carry higher volatility or failure risk — no exceptions, only frauds."],["Diversification","Spreading money across assets that don't fail together — the only free lunch in investing."],["Time horizon","When you'll need the money — the single biggest factor in what you should own."],["Dollar-cost averaging","Investing a fixed amount on a schedule, automatically buying more shares when prices are low."]],
+ex:"In March 2020 two coworkers each held $50,000 in index funds as markets fell 34% in five weeks. One sold everything 'until things calm down' and re-entered a year later — locking in the loss and missing the rebound; he ended down about $15,000. The other kept her automatic $500 monthly buys running through the bottom; those crash-priced shares became the best purchases of her life. Same fund, same crash — temperament was the strategy.",
+keys:["Savings protect, investments multiply — and inflation guarantees a slow loss on idle cash.","Risk and return are inseparable; 'high return, no risk' always means fraud.","Diversify broadly and match investments to time horizon: nothing needed within ~5 years belongs in stocks.","Behavior beats brilliance: automate monthly buys and never sell into a panic."]},
+{id:"mw9",t:"Compound Interest & Index Funds",q:"compound interest index funds explained wealth building",
+p:["Compounding is growth on top of growth, and its power hides in its back half. $500 a month at 8% is roughly $75,000 after ten years — but $745,000 after thirty, and about $1.7 million after forty. The last decade adds more than the first three combined, which is why the two levers that matter most are start date and staying in — not brilliance, not timing. Every year of delay in your twenties costs six figures at the end; the rule of 72 (72 divided by the return rate ≈ years to double) makes the mechanics visceral: at 8%, money doubles every nine years, so a dollar invested at 25 doubles roughly four times by 61 — sixteenfold — while the same dollar invested at 43 doubles twice. Compounding also runs in reverse: the 24% credit card compounds against you harder than any index compounds for you, which is why Level 1's debt lessons came first.",
+"The vehicle that lets ordinary people actually capture market compounding is the index fund: one purchase that buys a sliver of every company in a market (the S&P 500, or the entire world), at near-zero cost, with no manager to pay or trust. The evidence is brutal and boringly consistent: over 15-year periods, roughly 90% of professional, highly paid active fund managers fail to beat the plain index — and you cannot know in advance which ten percent will. Fees compound exactly like returns, in reverse: a 1% annual fee sounds trivial and quietly consumes about a quarter of your final wealth over 40 years versus a 0.05% index fund. So the strategy that beats almost everyone is embarrassingly simple: automate monthly buys of a broad, low-cost index fund, reinvest the dividends, raise the amount with every raise, and let the decades do the work your emotions would ruin. Boring is the feature. (Educational, not investment advice — your allocations are your own.)",],
+terms:[["Compound growth","Returns earned on prior returns — exponential, with the gains loaded at the end."],["Rule of 72","72 ÷ annual return ≈ years for money to double (8% → ~9 years)."],["Index fund","A fund that passively owns an entire market at minimal cost instead of picking stocks."],["Expense ratio","A fund's annual fee — 1% quietly consumes ~25% of final wealth over 40 years vs. ~0.05%."],["Dividend reinvestment","Automatically using payouts to buy more shares — the compounding flywheel's fuel."]],
+ex:"Twins inherit $10,000 at 22. One invests it in a total-market index fund and adds nothing more; at 8% it's roughly $290,000 by 67. The other waits 'until things settle down' and invests the same $10,000 at 40 — reaching about $80,000. Identical money, identical fund, identical retirement date. The eighteen-year head start — four extra doublings — was worth more than $200,000. Start date is the strategy.",
+keys:["Compounding back-loads its gains — start date and staying in beat brilliance and timing.","Rule of 72: at 8%, money doubles every ~9 years; every doubling you delay is paid at the end.","~90% of paid professionals lose to the plain index over 15 years; fees compound against you like returns compound for you.","Automate broad low-cost index buys, reinvest dividends, increase with raises — boring wins."]},
+{id:"mw10",t:"Retirement Accounts & Tax-Advantaged Investing",q:"401k IRA Roth explained beginners retirement accounts",
+p:["Retirement accounts aren't investments — they're tax wrappers around your investments, and choosing wrappers well is worth six figures over a career. The traditional 401(k)/IRA deal: contribute pre-tax now (saving your marginal rate), pay income tax when you withdraw in retirement — a bet that your tax rate will be lower later. The Roth deal is the mirror: pay tax now, and every dollar of decades of growth comes out completely tax-free — a bet your rate is lower today, which is usually true early in your career. The order of operations almost everyone should follow: first, contribute enough to your 401(k) to capture the full employer match (a 50-100% instant, guaranteed return — refusing it is declining free salary); second, kill high-interest debt; third, max an HSA if eligible (the triple-tax-free unicorn from the tax lesson — deductible in, tax-free growth, tax-free out for medical, and after 65 it behaves like a traditional IRA); fourth, Roth IRA; fifth, back to the 401(k) toward its max; and only then taxable brokerage accounts.",
+"Inside the wrappers, everything from the index fund lesson applies — broad, low-cost funds; many 401(k)s offer target-date funds that handle diversification and gradually de-risk as retirement nears, a perfectly good one-decision default. Mind the details that bite: 401(k) matches often vest over years (leaving early can forfeit them), early withdrawals generally cost a 10% penalty plus taxes (retirement money is one-way glass until 59½, with narrow exceptions), and when you change jobs, roll the old 401(k) into an IRA or the new plan — millions of orphaned accounts leak fees in forgotten plans. For future business buyers, funded retirement accounts serve a quieter role too: lenders read them as evidence of discipline and as a personal safety net that makes your loan less risky. Contribution limits and rules change yearly and phase out at higher incomes — confirm current numbers, and treat this as education, not individualized advice."],
+terms:[["Tax wrapper","An account type (401(k), IRA, Roth, HSA) that changes how investments inside it are taxed."],["Employer match","Free salary paid into your 401(k) when you contribute — a guaranteed 50-100% instant return."],["Roth vs. traditional","Pay tax now and withdraw free (Roth) vs. deduct now and pay tax later (traditional)."],["Target-date fund","A one-decision fund that diversifies and automatically de-risks as its target year approaches."],["Vesting","The schedule by which employer contributions become permanently yours."]],
+ex:"A 26-year-old car wash assistant manager earning $52,000 follows the order of operations: 5% into the 401(k) captures the full match ($1,300 of free money yearly), then a Roth IRA takes $300/month. At 8%, the Roth alone — taxed once at her current low rate — is on track to hold roughly $700,000 tax-free at 65. Her coworker 'can't afford' the 401(k) contribution and forfeits the match: he declines $1,300 of salary every year for thirty years, roughly $160,000 of compounded free money.",
+keys:["Accounts are tax wrappers, not investments — the wrapper choice is worth six figures.","Never skip the employer match: it's a guaranteed 50-100% return and part of your pay.","Order of operations: match → kill high-interest debt → HSA → Roth IRA → max 401(k) → taxable.","Rules, limits, and phase-outs change yearly — verify current numbers; education, not advice."]}
+]},
+{name:"Protection & Assets",lessons:[
+{id:"mw11",t:"Insurance: Buying Certainty",q:"what insurance do I actually need term life explained",
+p:["Insurance is the business of selling certainty: you pay a small known cost to delete a catastrophic unknown one. The operator's rule for what to insure is simple — insure the losses you cannot absorb, self-insure the ones you can. A totaled $8,000 car with $30,000 in savings is an annoyance; a liability judgment, a house fire, or the death of a family breadwinner is a life-ending balance sheet event. So the essential stack: health insurance (medical bills remain a leading cause of American bankruptcy — never go uncovered), auto liability well above state minimums (the mandated minimums won't survive one serious accident), homeowners or renters (renters insurance costs roughly $15-25/month and most renters wrongly skip it), term life if anyone depends on your income (10-12× income, 20-30 year term), and disability — the most under-bought policy in America, despite your earning power being your single largest asset and a disabling injury being far likelier during working years than death.",
+"Now the other half: what not to buy. Whole life and universal life bundle expensive insurance with a mediocre investment and pay the salesperson enormous commissions — 'buy term and invest the difference' wins the math for nearly everyone (business uses like key-person coverage and estate planning are the exceptions, and they arrive much later in your wealth). Skip extended warranties on cheap electronics, insurance on rental cars your credit card already covers, and any policy protecting a loss you could pay from your emergency fund. Then work the deductible lever: raising deductibles to the maximum your fund can absorb cuts premiums meaningfully — you're self-insuring the small stuff, which is exactly what your Level 1 buffer is for. Finally, once your net worth grows past the low six figures, a $1-2M umbrella policy costs a few hundred dollars a year and shields everything you're building from one bad moment. Review the whole stack annually and at every life event; coverage that fit at 25 rarely fits at 35."],
+terms:[["Self-insure","Deliberately absorbing small risks yourself because your emergency fund can pay them."],["Term life insurance","Pure death-benefit coverage for a set period — cheap certainty for dependents, no investment bundled."],["Disability insurance","Replaces income if you can't work — protects your largest asset, your earning power."],["Deductible lever","Raising deductibles to what your fund absorbs, cutting premiums by self-insuring small losses."],["Umbrella policy","Cheap extra liability coverage ($1-2M) above auto/home limits protecting your whole net worth."]],
+ex:"A 34-year-old pest control owner with a spouse, two kids, and a growing business buys a $1M 25-year term policy for about $40/month and long-term disability at 2% of income — then declines the whole-life pitch that cost eight times more for a fifth of the coverage. Two years later a rotator cuff injury takes him off ladders for seven months; disability checks cover the household while his ops manager runs routes. The 'boring' policies kept the business, the house, and the plan intact.",
+keys:["Insure only what would wreck you: health, serious liability, income (life + disability), home.","Buy term life and invest the difference — bundled insurance-investments serve the salesperson.","Raise deductibles to your emergency fund's level; skip warranties and small-loss policies.","Add a cheap umbrella policy as net worth grows; re-shop the stack at every life event."]},
+{id:"mw12",t:"Real Estate & Your Home",q:"rent vs buy house hacking real estate wealth beginners",
+p:["Housing is where most households build their first real equity — and where most also overspend catastrophically, so this lesson cuts both ways. Rent versus buy is math, not morality: renting is not 'throwing money away' (it buys shelter plus flexibility, with zero exposure to roofs, taxes, and 6% selling costs), and owning is a leveraged, illiquid, concentrated asset with high transaction costs that typically only beats renting if you stay 5+ years. Run the real comparison: total ownership cost (mortgage interest, taxes, insurance, maintenance at ~1-2% of home value yearly, opportunity cost of the down payment) against rent for an equivalent home. When you do buy, the classic guardrails: total housing below ~28% of gross income, 30-year fixed rate (predictability is worth more than the rate discount of adjustable loans), and buy less house than the bank approves — lenders approve payments that leave no margin, and your margin is the whole wealth plan from lesson one.",
+"Owning where you live is forced saving; owning where others live is a business — the landlord's income statement: rent minus mortgage, taxes, insurance, maintenance, vacancy, and management equals cash flow, and the returns stack four ways (cash flow, principal paydown by the tenant, appreciation, and tax advantages like depreciation). The lowest-risk on-ramp is house hacking: buy a duplex-to-fourplex with an owner-occupied low-down-payment loan (FHA-style, ~3.5% down), live in one unit, and let the neighbors' rent pay most or all of your mortgage — you learn landlording with training wheels while someone else buys your equity. The same deal-discipline as the acquisition track applies: run the numbers on paper before you fall in love, screen tenants like hires, keep reserves for the roof and the vacancy, and remember the 1% rough screen (monthly rent near 1% of purchase price merits a closer look — rarer in hot markets, a filter not a law). Real estate rewards patience and math; it punishes house-rich, cash-poor romantics. Deeper deal analysis lives in the Real Estate school when it opens — this is the personal-wealth foundation."],
+terms:[["Rent vs. buy math","Comparing full ownership cost (interest, taxes, upkeep, opportunity cost) to equivalent rent — not a morality tale."],["House hacking","Living in one unit of a small multifamily bought with a low-down owner-occupied loan while rents cover the mortgage."],["Cash flow (rental)","Rent minus all expenses including vacancy, maintenance, and management — the landlord's bottom line."],["Principal paydown","The slice of each mortgage payment that becomes your equity — paid by tenants in a rental."],["1% screen","Rough filter: monthly rent ≈ 1% of purchase price suggests a deal worth deeper analysis."]],
+ex:"A 27-year-old car wash shift lead buys a $310,000 duplex with 3.5% down instead of a $280,000 single-family. She lives in one unit; the other rents for $1,450 against a $1,950 all-in payment. Effectively paying $500 to live where rent would cost $1,300, she banks the difference for three years, then moves out, rents both units, and repeats. At 30 she owns two doors, cash flow, and a landlord's education — her single-family friends own a payment.",
+keys:["Renting buys flexibility; owning wins with 5+ year horizons — run total cost, not slogans.","Buy less house than approved: under ~28% of gross, 30-year fixed, margin preserved.","Rentals pay four ways (cash flow, paydown, appreciation, tax) — but only when bought with math, not emotion.","House hacking is the lowest-risk entry: your tenants fund your first equity while you learn."]}
+]},
+{name:"Wealth Habits",lessons:[
+{id:"mw13",t:"Lifestyle Inflation: The Silent Wealth Killer",q:"lifestyle inflation explained millionaire next door habits",
+p:["Here is the pattern that keeps high earners poor: every raise triggers an upgrade — car, apartment, wardrobe, restaurants — so spending rises in lockstep with income and the margin never widens. It's why the data behind The Millionaire Next Door still shocks people: most actual millionaires drive used cars and live in modest neighborhoods, while many six-figure professionals in luxury zip codes are one missed paycheck from crisis. Wealth is the gap between income and spending, compounded over time — income alone predicts almost nothing. Lifestyle inflation is doubly vicious because it compounds in reverse: each upgrade becomes the new baseline your happiness adapts to within months (hedonic adaptation), so you carry permanently higher costs with zero permanent joy — and needing more to live means needing more to retire, more to feel safe, more before you can risk starting or buying a business.",
+"You don't beat it with monkish deprivation — you beat it with a rule made in advance: split every raise. When income jumps, direct 50% (or more) of the increase to automatic savings and investments before you ever feel it in checking, and genuinely enjoy the rest guilt-free. Your lifestyle still improves — slower than your income — and the margin widens with every step of your career, which is the entire wealth game in one sentence. Guard the peak years hardest: commission windfalls, bonuses, and boom seasons feel permanent and never are (ask any D2D closer after summer, or any car wash owner after a drought year) — set a baseline lifestyle you can hold in the lean months and bank the spikes. And audit your status purchases honestly: the truck, the watch, the neighborhood — bought for you, or for an audience that isn't paying your bills? The wealthy-looking and the wealthy are usually different people. Choose which one you're becoming."],
+terms:[["Lifestyle inflation","Spending that rises automatically with income, keeping the wealth-building margin flat forever."],["Hedonic adaptation","The psychological reset that makes every upgrade feel normal within months — permanent cost, temporary joy."],["Split-the-raise rule","Pre-committing 50%+ of every income increase to automatic investing before it reaches checking."],["Baseline lifestyle","The spending level you hold through variable income — funded by lean months, not peaks."],["Stealth wealth","High net worth with modest consumption — the statistically dominant millionaire profile."]],
+ex:"Two D2D sales reps each clear $140,000 in a monster summer. Rep A leases a $1,100/month truck, upgrades apartments, and by February is borrowing against next summer. Rep B holds his $4,000/month baseline, banks the spike, and finishes the year with $60,000 invested. Three summers later Rep B buys a small pest route with cash flow that pays him in January; Rep A needs another hot summer just to stay even. Same income — opposite trajectories.",
+keys:["Wealth = the income-spending gap compounded; income alone predicts nothing.","Upgrades become invisible baselines within months — permanent cost, temporary happiness.","Split every raise in advance: half to automatic investing, half to a better life.","Variable earners: set a lean-month baseline and bank every spike — peaks always feel permanent and never are."]},
+{id:"mw14",t:"Your Personal Balance Sheet & the Owner Pivot",q:"net worth tracking personal balance sheet financial independence",
+p:["Level 1 gave you a personal income statement; this capstone gives you the balance sheet — and with it, the full CFO view of your own life. List assets (cash, investments, retirement accounts, home equity, business equity) minus liabilities (cards, loans, mortgage): net worth. Track it quarterly, and watch its composition, not just its size: early on it's mostly cash and a car; as the school's lessons compound it shifts toward productive assets — index funds, equity, eventually a business. That composition shift is the scoreboard of everything you've learned here. Pair it with your freedom number: annual essential spending × 25 (the practical inverse of a ~4% sustainable withdrawal rate) tells you roughly what invested wealth makes work optional. Notice the lever most people miss: the number is built on spending, not income — every $100/month of permanent lifestyle trimmed doesn't just save money, it cuts $30,000 off the wealth you need. Lesson thirteen and this one are the same lesson wearing different clothes.",
+"Now the pivot this whole university has been building toward: savers reach the freedom number in thirty-five years; owners can compress the timeline, because businesses are assets you can buy with other people's money and improve with your own skill. The $200,000 route business bought with $30,000 down that cash-flows $60,000 a year is a return no index fund offers — because it pays you for the operator knowledge the other tracks taught, not just for your capital. That's not a reason to skip the boring foundation; it's the reason the foundation matters: the emergency fund keeps a rough quarter from killing the deal, the 750 credit score gets the SBA loan approved, the personal margin funded the down payment, the insurance stack protects the downside, and the index funds diversify you away from your own company's risk. Your personal balance sheet is the launchpad; the acquisition track is the rocket. Update the net worth sheet quarterly, keep widening the margin, and when the numbers on your personal statements look like a lender's dream — start reading the Acquisition lessons like an operator, because you'll be ready to become one."],
+terms:[["Net worth","Assets minus liabilities — the single number tracking your whole financial life."],["Asset composition","What your net worth is made of — the shift from cash toward productive assets is the real scoreboard."],["Freedom number","Annual essential spending × 25 — roughly the invested wealth at which work becomes optional."],["4% guideline","The sustainable-withdrawal rule of thumb behind the ×25 math (a planning tool, not a guarantee)."],["Owner pivot","Deploying personal financial strength (margin, credit, reserves) to acquire cash-flowing businesses."]],
+ex:"After four years of this school's habits, an operations manager's balance sheet reads: $18,000 emergency fund, $64,000 index funds, $41,000 retirement, 765 credit score, zero card debt — net worth $123,000 and climbing $2,400 monthly. A lender sees a dream borrower; she sees a launchpad. She puts $35,000 down on a $380,000 pest control company via SBA loan. Its $85,000 cash flow triples her savings rate — the personal foundation didn't delay her ownership dream; it's what made the bank say yes.",
+keys:["Net worth = assets − liabilities; track quarterly and watch composition shift toward productive assets.","Freedom number ≈ essential spending × 25 — cutting permanent spending shrinks the target itself.","Personal financial strength is acquisition readiness: margin, credit, reserves, and protection make lenders say yes.","Savers reach freedom in decades; owners compress it — this school funds the foundation, the Acquisition track lights the rocket."]}
+]}
+]}
+]});
+
+/* verified via YouTube oEmbed */
+Object.assign(VIDEO_MAP,{"mw1": {"v": "QThz1B8SHmc", "title": "How To Manage Your Money Like The 1%", "ch": "Mark Tilbury"}, "mw2": {"v": "eNtWq0NJPO4", "title": "How to Budget Money: The 50/30/20 Rule", "ch": "My Finance Empire"}, "mw3": {"v": "7aTBJJhwZlg", "title": "How to Stop Overspending - 5 Tips for Compulsive Buying Disorder", "ch": "Dr. Brad Klontz"}, "mw4": {"v": "ye8u7SYWlPk", "title": "Emergency Funds: How Much To Save & How To Get Started", "ch": "NerdWallet"}, "mw5": {"v": "WVXMfTLCkFg", "title": "How To Raise Your Credit Score", "ch": "Kevin O'Leary"}, "mw6": {"v": "5YGjJS4MSxk", "title": "Debt Snowball vs Debt Avalanche: Which is Better?", "ch": "The Money Guy Show"}, "mw7": {"v": "VJhsjUPDulw", "title": "How tax brackets actually work", "ch": "Vox"}, "mw8": {"v": "Jd8Xv1v51vU", "title": "Millionaire Explains: How to Invest for Beginners in 2026", "ch": "Mark Tilbury"}, "mw9": {"v": "FgQoqStpYs8", "title": "The Power of Compound Interest", "ch": "Mark Tilbury"}, "mw10": {"v": "pZNnueqfj_A", "title": "FINANCIAL ADVISOR Explains: Retirement Plans for Beginners (401k, IRA, Roth 401k/IRA, 403b) 2024", "ch": "Humphrey Yang"}, "mw11": {"v": "0AzmYGNNRpc", "title": "How Much Term Insurance Do I Need?", "ch": "The Ramsey Show Highlights"}, "mw12": {"v": "PREK0tEazlE", "title": "What Is House Hacking? (Beginner Real Estate Investing Strategy)", "ch": "Karlton Dennis"}, "mw13": {"v": "d2hWYj-5AVU", "title": "Why High Earners Feel Broke (Lifestyle Inflation Explained)", "ch": "Millionaire Mindset"}, "mw14": {"v": "eWar40eq680", "title": "The Fastest Way to Calculate Your Financial Independence Number", "ch": "Paris Cluff - Financial Coach"}});
+
+/* ================= BUSINESS LIBRARY (Phase 3) =================
+   Original summaries and learning notes — no copyrighted text reproduced. */
+const BOOKS=[
+{id:"personal-mba",title:"The Personal MBA",author:"Josh Kaufman",cat:"Foundations",diff:"Beginner",
+why:"The single best map of all business knowledge in one volume — it shows you the whole territory this university teaches, school by school.",
+teaches:"Every business is five interlocking systems: value creation, marketing, sales, value delivery, and finance. Kaufman compresses hundreds of core concepts (mental models, not formulas) into plain language a total beginner can absorb.",
+best:["Every business lives or dies by the same five processes — diagnose problems by finding which one is broken.","You don't need permission or credentials to learn business; you need vocabulary and reps.","Most MBA knowledge is mental models — collect them deliberately."],
+rel:["f1","f2","x2"],
+assign:"Read the five-part framework first, then one part per week for five weeks.",
+ex:"Take a business you know (your employer, a local car wash) and write one paragraph on how it handles each of the five systems. Which is weakest?"},
+{id:"emyth",title:"The E-Myth Revisited",author:"Michael E. Gerber",cat:"Operations",diff:"Beginner",
+why:"Explains the single most common small-business death: a skilled technician who buys a job instead of building a system. Required before you ever hire.",
+teaches:"The fatal assumption is that knowing the craft means you can run a business doing it. You must work ON the business, not just IN it — building documented systems (like a franchise prototype) that ordinary people can run extraordinarily well.",
+best:["Entrepreneur, manager, technician — all three live in you and want different things.","If your business needs you every hour, you own a job, not a company.","Document every process as if you'd franchise it tomorrow."],
+rel:["c9","p11","w7"],
+assign:"Read in one week — it's a short parable. Mark every scene that feels like your own week.",
+ex:"Write the SOP for one task only you currently do, then hand it to someone else and refine it until they succeed without you."},
+{id:"the-goal",title:"The Goal",author:"Eliyahu M. Goldratt",cat:"Operations",diff:"Intermediate",
+why:"The classic novel of operations: one factory, one dying business, and the Theory of Constraints that saves it. You'll never look at a queue the same way.",
+teaches:"Every system has exactly one bottleneck that sets total throughput. Improving anything else is an illusion of progress. Find the constraint, exploit it, subordinate everything to it, elevate it, repeat.",
+best:["An hour lost at the bottleneck is an hour lost for the whole system; an hour saved elsewhere is a mirage.","Measure throughput, inventory, and operating expense — not local efficiency.","Balance flow, not capacity."],
+rel:["c13","w3","p4"],
+assign:"Read as a novel over two weeks; keep a note of each of the five focusing steps as the story reveals them.",
+ex:"Map your business (or your day) as a pipeline and identify the single constraint. Spend one week improving only that step, then measure the difference."},
+{id:"poor-charlie",title:"Poor Charlie's Almanack",author:"Charles T. Munger",cat:"Foundations",diff:"Advanced",
+why:"Munger's multidisciplinary mental models are the operating system of great judgment — the thinking layer beneath every other book in this library.",
+teaches:"Worldly wisdom: a latticework of models from psychology, economics, math, and biology that combine to explain how people and markets actually behave. Includes the definitive catalog of human misjudgment.",
+best:["Invert, always invert — solve problems backward by asking what guarantees failure.","Incentives are the strongest force in the world; never think about behavior without them.","Big errors come from many small biases stacking (lollapalooza effects)."],
+rel:["x2","x1","e5"],
+assign:"Read the Psychology of Human Misjudgment talk first, then one talk per week.",
+ex:"List the last bad decision you made and identify which three biases from Munger's catalog were operating. Write the inversion: what would have guaranteed the disaster?"},
+{id:"psych-money",title:"The Psychology of Money",author:"Morgan Housel",cat:"Money & Wealth",diff:"Beginner",
+why:"Money outcomes are driven by behavior, not IQ — this is the behavior manual, and the perfect companion to the Money & Wealth school.",
+teaches:"Nineteen short essays on how luck, ego, greed, and time actually shape wealth. Getting wealthy and staying wealthy are different skills; enough is a decision; compounding rewards temperament above talent.",
+best:["Wealth is what you don't see — assets, not purchases.","Reasonable beats rational: the plan you can stick to wins.","Freedom — controlling your time — is the highest dividend money pays."],
+rel:["mw13","mw8","mw1"],
+assign:"One essay per evening for three weeks.",
+ex:"Write your own 'money autobiography': what your family taught you about money and how it still drives your decisions today."},
+{id:"fin-intel",title:"Financial Intelligence",author:"Karen Berman & Joe Knight",cat:"Finance & Accounting",diff:"Intermediate",
+why:"The best bridge from 'I can read a P&L' to 'I can question one.' Written for operators, not accountants.",
+teaches:"Financial statements are full of estimates and assumptions, not facts. Learn what the numbers really measure, where the soft spots hide (revenue recognition, depreciation, accruals), and how to compute the ratios that reveal health.",
+best:["Profit is an opinion; cash is a fact.","Every financial statement embeds assumptions — find them before you trust it.","Ratios (margins, turns, returns) are the language of financial analysis."],
+rel:["f5","f6","f7","a4"],
+assign:"Read one part per week for five weeks, with a real company's statements open beside you.",
+ex:"Pull the last two years of statements from any business (or your own) and write three questions the numbers raise but don't answer."},
+{id:"acct-simple",title:"Accounting Made Simple",author:"Mike Piper",cat:"Finance & Accounting",diff:"Beginner",
+why:"One hundred pages that demystify the whole double-entry machine — read it before the Accounting School and everything else clicks faster.",
+teaches:"The accounting equation (assets = liabilities + equity), how debits and credits actually work, and how the income statement, balance sheet, and cash flow statement connect into one system.",
+best:["Every transaction touches at least two accounts — that's the whole trick.","The three statements are one story told three ways.","GAAP exists to make companies comparable, not to confuse you."],
+rel:["f5","f6","f8"],
+assign:"Read cover to cover in one sitting or two — it's deliberately tiny.",
+ex:"Record ten of your own personal transactions as journal entries (coffee, paycheck, rent) to feel debits and credits in your hands."},
+{id:"valuation-mck",title:"Valuation",author:"McKinsey & Company (Koller, Goedhart, Wessels)",cat:"Finance & Accounting",diff:"Advanced",
+why:"The professional standard for how companies are actually valued — the deep end of the pool once the Finance school's DCF lesson makes sense.",
+teaches:"Value is driven by return on invested capital, growth, and free cash flow — everything else is commentary. Full DCF craft: forecasting, continuing value, cost of capital, and the traps in multiples.",
+best:["Value = cash flows, discounted; accounting earnings are the shadow, not the object.","ROIC above cost of capital is where value is created; growth without it destroys value.","Multiples are shorthand for DCF assumptions — know which assumptions yours imply."],
+rel:["e4","a8","m1"],
+assign:"Work through Part One (foundations) carefully; treat the rest as a reference shelf.",
+ex:"Build a five-line DCF for a $500k-revenue car wash: cash flow, growth, discount rate, terminal value. Change one assumption at a time and watch the value swing."},
+{id:"ib-rosenbaum",title:"Investment Banking",author:"Joshua Rosenbaum & Joshua Pearl",cat:"Finance & Accounting",diff:"Advanced",
+why:"The street's training manual for comps, precedent transactions, DCF, and LBO models — how the professionals across the table from you were taught.",
+teaches:"Step-by-step mechanics of the four core valuation methodologies, plus how M&A and leveraged buyout processes actually run — from teaser to close.",
+best:["Comparable companies and precedent transactions bracket value; DCF explains it.","An LBO is a valuation floor: what a financial buyer can pay and still hit returns.","Process discipline (data rooms, IOIs, LOIs) is half of deal-making."],
+rel:["m1","a8","m8"],
+assign:"Read the valuation chapters alongside the Acquisition school; skim the process chapters until you're in a live deal.",
+ex:"Value the same imaginary pest control company three ways — revenue multiple, EBITDA multiple, and five-year DCF — and explain why the three numbers differ."},
+{id:"intelligent-investor",title:"The Intelligent Investor",author:"Benjamin Graham",cat:"Money & Wealth",diff:"Intermediate",
+why:"The foundational text of value investing — Buffett calls chapters 8 and 20 the best things ever written about investing.",
+teaches:"Mr. Market is a manic business partner whose mood swings are your opportunity, not your instruction. Margin of safety — paying meaningfully less than value — is the central concept of sound investing.",
+best:["Price is what you pay, value is what you get — they diverge constantly.","The investor's chief problem, and worst enemy, is himself.","Margin of safety turns unknowable futures into survivable ones."],
+rel:["mw8","mw9","e2"],
+assign:"Read chapters 8 and 20 first (twice), then the rest as interest pulls you.",
+ex:"Write Mr. Market's diary for one month of a stock you follow: what mood was he in each week, and what did the business itself actually change?"},
+{id:"competitive-strategy",title:"Competitive Strategy",author:"Michael E. Porter",cat:"Strategy",diff:"Advanced",
+why:"The book that created modern strategy analysis — the Five Forces from the Executive track come from here.",
+teaches:"Industry structure determines profitability: rivalry, new entrants, substitutes, buyer power, supplier power. Three generic strategies — cost leadership, differentiation, focus — and why being stuck in the middle fails.",
+best:["Profits are decided by industry structure before your effort is counted.","Strategy means choosing what NOT to do.","Straddling two generic strategies usually delivers neither."],
+rel:["e3","e2","p10"],
+assign:"Read the Five Forces and generic strategies chapters closely; treat industry chapters as reference.",
+ex:"Run a full Five Forces analysis on the pest control industry in your city. Which force most threatens margins, and what would blunt it?"},
+{id:"7powers",title:"7 Powers",author:"Hamilton Helmer",cat:"Strategy",diff:"Advanced",
+why:"The sharpest modern answer to 'what is a moat, really?' — seven specific structures that let profits persist against competition.",
+teaches:"Scale economies, network economies, counter-positioning, switching costs, branding, cornered resources, and process power — each defined by its benefit and its barrier, plus when in a company's life each can be built.",
+best:["Power = a benefit to you plus a barrier that stops competitors from copying it.","Strategy is the pursuit of power; operational excellence alone always gets competed away.","Different powers are available at different company stages — timing matters."],
+rel:["e2","e8","w4"],
+assign:"One power per day for a week; the book is compact and dense.",
+ex:"For your business (or target acquisition), test all seven powers: which one could you genuinely build within three years, and what's the barrier?"},
+{id:"good-strategy",title:"Good Strategy Bad Strategy",author:"Richard Rumelt",cat:"Strategy",diff:"Intermediate",
+why:"The best filter ever written for detecting fake strategy — the fluff, buzzwords, and goal-lists that pass for plans in most companies.",
+teaches:"Real strategy has a kernel: an honest diagnosis of the challenge, a guiding policy for dealing with it, and coherent actions that reinforce each other. Bad strategy is goals without diagnosis and slogans without choices.",
+best:["A goal is not a strategy; 'grow 20%' is a wish.","Diagnosis first: name the actual obstacle before prescribing.","Good strategy concentrates force where it can produce decisive results."],
+rel:["e3","x2","a13"],
+assign:"Read part one fully; sample the case chapters as needed.",
+ex:"Write a one-page kernel (diagnosis, guiding policy, three coherent actions) for growing a business you know — no buzzwords allowed."},
+{id:"blue-ocean",title:"Blue Ocean Strategy",author:"W. Chan Kim & Renée Mauborgne",cat:"Strategy",diff:"Intermediate",
+why:"A structured method for escaping bloody price competition by creating uncontested market space.",
+teaches:"Value innovation: simultaneously raising buyer value and cutting cost by reconstructing industry factors. The strategy canvas and the eliminate-reduce-raise-create grid make differentiation systematic rather than lucky.",
+best:["Compete where nobody is: make the competition irrelevant instead of beating it.","Chart your industry's factors and dare to eliminate ones everyone assumes.","Great offers raise value AND lower cost — it's not a trade-off."],
+rel:["c11","e8","w2"],
+assign:"Read the first half (tools); skim the implementation half.",
+ex:"Draw a strategy canvas for local car washes: price, speed, membership, experience. Design a curve that eliminates one factor entirely and creates one nobody offers."},
+{id:"outsiders",title:"The Outsiders",author:"William N. Thorndike",cat:"Acquisitions & Capital",diff:"Intermediate",
+why:"Eight CEOs who crushed the market by treating capital allocation — not operations — as the CEO's real job. The Executive track's capital allocation lesson, in eight biographies.",
+teaches:"Cash flow per share beats reported earnings; buybacks, acquisitions, and dividends are tools to be priced against each other; decentralized operations with centralized capital decisions is a repeatable formula.",
+best:["The CEO's job is deploying capital at the highest return — everything else can be delegated.","Denominator management: shrinking shares outstanding compounds like magic.","Independent thinking beats institutional imperative every time."],
+rel:["e5","m6","m5"],
+assign:"One CEO chapter per sitting; take notes on each one's signature move.",
+ex:"You run a holding company with $1M of free cash: rank paying down debt, buying a competitor, a dividend, and reinvesting — and defend your ranking in five sentences."},
+{id:"lean-startup",title:"The Lean Startup",author:"Eric Ries",cat:"Entrepreneurship",diff:"Beginner",
+why:"The standard playbook for launching under uncertainty — test cheaply before you build expensively.",
+teaches:"Build-measure-learn loops, minimum viable products, validated learning, and the pivot: treat every startup as a series of experiments on strangers with money, not a construction project from a business plan.",
+best:["An MVP's job is learning, not revenue or polish.","Vanity metrics soothe; actionable metrics decide.","A pivot is a structured strategy change grounded in what you learned — not flailing."],
+rel:["e7","c8","e8"],
+assign:"Read parts one and two carefully; part three matters once you have traction.",
+ex:"Design a $100, one-week MVP test for a business idea you've had — define in advance the number that means 'proceed' and the number that means 'kill.'"},
+{id:"zero-to-one",title:"Zero to One",author:"Peter Thiel",cat:"Entrepreneurship",diff:"Intermediate",
+why:"The contrarian counterweight to lean thinking: real fortunes come from creating new things and escaping competition entirely.",
+teaches:"Competition is for losers — aim for monopoly through proprietary technology, network effects, scale economies, and brand. Start by dominating a small market completely, then expand concentrically.",
+best:["What valuable company is nobody building? — the founding question.","Monopoly (earned through value) is the goal; perfect competition means zero profit.","Small markets first: dominate 100% of something tiny before 1% of something huge."],
+rel:["e8","e2","e6"],
+assign:"One evening per chapter; argue with it in the margins — it's meant to provoke.",
+ex:"Answer Thiel's interview question in writing: what important truth about business do very few people agree with you on?"},
+{id:"crossing-chasm",title:"Crossing the Chasm",author:"Geoffrey A. Moore",cat:"Marketing & Sales",diff:"Intermediate",
+why:"Explains why products that delight early adopters die before the mainstream — and the beachhead strategy that gets across.",
+teaches:"The technology adoption curve has a chasm between visionaries and pragmatists who buy for different reasons. Cross it by dominating one niche completely (whole product, references, word of mouth) before expanding.",
+best:["Early adopters buy change; the mainstream buys safety and references.","Pick a beachhead niche you can win 100% of — the D-Day strategy.","The whole product (support, integrations, services) is what pragmatists actually buy."],
+rel:["e8","c3","c6"],
+assign:"Read the first half for the theory; the second half when you're positioning a real product.",
+ex:"Your new pest-control software has 20 enthusiast customers but no growth. Define the single beachhead segment you'd own first, and the whole product it requires."},
+{id:"mom-test",title:"The Mom Test",author:"Rob Fitzpatrick",cat:"Entrepreneurship",diff:"Beginner",
+why:"The essential companion to customer conversations: how to ask questions even your mom can't lie to you about.",
+teaches:"People lie to be nice — so never pitch, never ask hypotheticals, and never mention your idea. Ask about their life, their past behavior, and what they've already paid or tried; compliments are a failure signal.",
+best:["Talk about their life, not your idea.","Past behavior is evidence; future promises ('I'd totally buy that') are noise.","Bad meetings end in compliments; good ones end in commitments — time, intro, or money."],
+rel:["c8","e7","p1"],
+assign:"Two hours, one sitting — then immediately book three real conversations.",
+ex:"Interview three potential customers about a problem you want to solve, using only past-behavior questions. Log every compliment as the warning it is."},
+{id:"inspired",title:"Inspired",author:"Marty Cagan",cat:"Entrepreneurship",diff:"Intermediate",
+why:"The definitive book on how great tech companies decide what to build — product management as practiced at the top tier.",
+teaches:"Empowered product teams solve problems, not deliver features. Continuous discovery (prototypes tested on real users weekly) kills bad ideas cheaply; the four big risks are value, usability, feasibility, and viability.",
+best:["Fall in love with the problem, not your solution.","Discovery and delivery run in parallel forever — you never stop testing.","Teams of missionaries beat teams of mercenaries."],
+rel:["e8","c8","x3"],
+assign:"Read parts on product teams and discovery closely; org-design parts when you're scaling.",
+ex:"Take any feature idea and write its four-risk assessment: will they buy it, can they use it, can we build it, does it work for our business?"},
+{id:"influence",title:"Influence",author:"Robert B. Cialdini",cat:"Marketing & Sales",diff:"Beginner",
+why:"The scientific catalog of why people say yes — foundational for marketing, sales, negotiation, and defending yourself from all three.",
+teaches:"Seven levers: reciprocity, commitment/consistency, social proof, authority, liking, scarcity, unity. Each is an automatic compliance trigger that works even when people know about it.",
+best:["Reciprocity: give first, and the obligation does your selling.","Social proof is strongest under uncertainty — show people like them acting.","Scarcity works on losses: we want most what we're about to lose."],
+rel:["c6","p1","c7"],
+assign:"One principle per day for a week; collect a real-world example of each as you go.",
+ex:"Redesign a door-to-door pitch using three principles deliberately (e.g., social proof: 'your neighbors at #12…'). Track the close-rate difference for a week."},
+{id:"positioning",title:"Positioning",author:"Al Ries & Jack Trout",cat:"Marketing & Sales",diff:"Beginner",
+why:"The battle is for a word in the prospect's mind — the oldest and still most-violated law of marketing.",
+teaches:"Minds are limited and hate confusion: own one position, be first in a category (or invent a category you can be first in), and never stretch a brand across meanings. Repositioning attacks the leader's weakness.",
+best:["Marketing is a battle of perceptions, not products.","If you can't be first, create a new category where you are.","Line extension dilutes: one brand, one meaning."],
+rel:["c1","c6","c11"],
+assign:"A weekend read; dated examples, timeless mechanics.",
+ex:"Write the one word your business should own in customers' minds, then audit your website and trucks: does everything scream that word, or seven others?"},
+{id:"sci-advertising",title:"Scientific Advertising",author:"Claude C. Hopkins",cat:"Marketing & Sales",diff:"Intermediate",
+why:"Written in 1923 and still the foundation of every direct-response and performance marketer alive — advertising as testable salesmanship.",
+teaches:"Advertising exists only to sell, and everything is measurable: coupons (today: links and codes) reveal exactly what works. Specific claims beat superlatives; free samples and risk reversal beat persuasion.",
+best:["Advertising is salesmanship in print — judge it by cost per sale, nothing else.","Test everything against a control; opinion is not data.","Specifics ('7,384 washes') outsell generalities ('the best') every time."],
+rel:["e9","c2","x4"],
+assign:"It's short and free (public domain) — read twice, once now and once after your first ad campaign.",
+ex:"Write two versions of one ad — a vague one and a specifics-and-offer one — run both with $50, and compare cost per lead."},
+{id:"breakthrough-adv",title:"Breakthrough Advertising",author:"Eugene M. Schwartz",cat:"Marketing & Sales",diff:"Advanced",
+why:"The deepest book ever written on copy — channeling existing market desire instead of trying to create it.",
+teaches:"Demand can't be created, only focused. The five stages of market awareness (from most-aware to unaware) dictate the headline; the market's sophistication level dictates the claim. Copy strength comes from the state of the prospect, not the pen.",
+best:["You don't create desire — you aim the desire that already exists.","Match the headline to the prospect's awareness stage; mismatch kills response.","As markets mature, claims must escalate or shift to mechanism and identity."],
+rel:["e9","c6","c3"],
+assign:"Study chapters on awareness and sophistication; this is a course, not a beach read.",
+ex:"Write five headlines for the same pest-control offer — one for each awareness stage, from 'ants in your kitchen right now' to 'homeowners who've never thought about prevention.'"},
+{id:"spin-selling",title:"SPIN Selling",author:"Neil Rackham",cat:"Marketing & Sales",diff:"Intermediate",
+why:"The largest research study ever done on selling (35,000 sales calls) — and it demolished most sales folklore for bigger-ticket sales.",
+teaches:"In larger sales, questions beat pitches: Situation, Problem, Implication, and Need-payoff questions walk the buyer to articulating the value themselves. Closing tricks that work on small sales actively hurt big ones.",
+best:["The seller who makes the buyer say the benefits wins.","Implication questions turn small annoyances into expensive problems worth solving.","Advances (concrete next steps) — not continuations — measure whether a call succeeded."],
+rel:["p1","c7","e10"],
+assign:"Read the core model chapters; skim the research appendices.",
+ex:"Script a SPIN question set for selling a commercial pest contract to a restaurant owner, and role-play it with the AI tutor until the implications bite."},
+{id:"never-split",title:"Never Split the Difference",author:"Chris Voss",cat:"Marketing & Sales",diff:"Beginner",
+why:"An FBI hostage negotiator's field manual — tactical empathy beats rational argument in every negotiation you'll ever have.",
+teaches:"Labeling emotions, mirroring, calibrated 'how' questions, and the power of 'no': negotiation is emotional discovery, not splitting numbers. 'That's right' is the breakthrough; 'you're right' is a brush-off.",
+best:["Label fears before facts: 'It seems like you're worried the crew won't show.'","Calibrated questions ('How am I supposed to do that?') make the other side solve your problem.","Anchor extreme, use odd numbers, and never fear silence."],
+rel:["a11","m2","m3"],
+assign:"One technique per chapter — practice each on a real (low-stakes) conversation the same week.",
+ex:"Negotiate your next supplier renewal using labels + one calibrated question, and write down what changed versus your usual approach."},
+{id:"100m-offers",title:"$100M Offers",author:"Alex Hormozi",cat:"Marketing & Sales",diff:"Beginner",
+why:"The modern manual for making offers so good people feel stupid saying no — pricing and packaging as the growth lever.",
+teaches:"The value equation: dream outcome × perceived likelihood, divided by time delay × effort. Stack bonuses, add guarantees, name the offer, and charge premium prices to fund premium delivery.",
+best:["Charge more: price is the only lever that raises profit AND perceived value together.","Sell the vacation, not the flight — outcomes, not process.","Risk reversal (bold guarantees) moves more buyers than discounts ever will."],
+rel:["c11","c6","w4"],
+assign:"Fast read; do the offer-building exercises as you go, don't just nod.",
+ex:"Rebuild your core service as a Grand Slam Offer: outcome-named package, three bonuses, one bold guarantee, and a price 30% higher than today's."},
+{id:"100m-leads",title:"$100M Leads",author:"Alex Hormozi",cat:"Marketing & Sales",diff:"Intermediate",
+why:"The sequel: once the offer works, this is the full playbook for getting strangers to see it — the four channels and how to scale each.",
+teaches:"Warm outreach, content, cold outreach, and paid ads — run on the core four, then scale with lead magnets, affiliates, and referrals. Volume with tracking beats cleverness; the goal is engaged leads, not impressions.",
+best:["A lead magnet solves a narrow problem free and reveals the paid problem.","Do 100 of anything (calls, posts, ads) before judging the channel.","Advertise until acquisition cost breaks even with gross profit — then spend more."],
+rel:["c2","c3","c5"],
+assign:"Read once fully, then re-read the chapter for whichever channel you're actively scaling.",
+ex:"Build one lead magnet for a home-services business (e.g., 'Termite risk checklist for your zip code') and run the smallest possible paid test to it."},
+{id:"scaling-up",title:"Scaling Up",author:"Verne Harnish",cat:"Operations",diff:"Intermediate",
+why:"The operating system for growing past 10 employees: people, strategy, execution, cash — with the actual worksheets.",
+teaches:"The One-Page Strategic Plan, meeting rhythms (daily huddle to annual planning), KPI dashboards, and cash conversion cycle math. Growth breaks companies that lack rhythm and clarity.",
+best:["Routine sets you free: the meeting rhythm IS management.","Everyone should know the #1 priority this quarter — one, not seven.","Growth eats cash: know your cash conversion cycle to the day."],
+rel:["a9","c9","p11"],
+assign:"Read People and Execution first; implement one tool per month, not all at once.",
+ex:"Run a two-week experiment: 10-minute daily huddle (yesterday's number, today's priority, stuck-points) with whoever you manage — even a crew of two."},
+{id:"high-output",title:"High Output Management",author:"Andrew S. Grove",cat:"Leadership & People",diff:"Intermediate",
+why:"Intel's legendary CEO wrote the manager's manual: your output = the output of your team plus everyone your influence touches.",
+teaches:"Managerial leverage: meetings, one-on-ones, decisions, and training ranked by output per hour. Task-relevant maturity decides how closely to manage anyone. Production principles apply to all work.",
+best:["A manager's output is her organization's output — nothing else counts.","One-on-ones are the highest-leverage hour: the subordinate's meeting, their agenda.","Delegate by task-relevant maturity, not by trust feelings."],
+rel:["c10","a12","p11"],
+assign:"Read slowly with a notebook — every chapter yields one practice to adopt.",
+ex:"Institute weekly 30-minute one-on-ones with each direct report for a month; let them own the agenda, you own the questions."},
+{id:"traction-eos",title:"Traction",author:"Gino Wickman",cat:"Operations",diff:"Beginner",
+why:"The EOS system: the most widely adopted small-business operating system in America — vision, people, data, issues, process, traction.",
+teaches:"Six components of a healthy business, run through simple tools: the Vision/Traction Organizer, Rocks (90-day priorities), scorecards, Level 10 meetings, and the accountability chart that ends 'who owns this?' forever.",
+best:["Right people, right seats — the accountability chart precedes the org chart.","Rocks: 3-7 priorities per quarter; everything else waits.","Solve issues weekly forever (Identify, Discuss, Solve) instead of admiring them."],
+rel:["c9","c10","p11"],
+assign:"Read in a week; adopt the accountability chart and weekly meeting first.",
+ex:"Draw the accountability chart for a business you know — every major function, exactly one owner. Mark every seat where the same overworked name appears twice."},
+{id:"mwm-okr",title:"Measure What Matters",author:"John Doerr",cat:"Leadership & People",diff:"Intermediate",
+why:"OKRs — the goal system behind Google's execution — explained by the investor who carried them from Intel.",
+teaches:"Objectives (inspiring, qualitative) paired with Key Results (measurable, time-boxed) align a whole company transparently. Stretch goals, quarterly rhythm, and CFRs (conversations, feedback, recognition) replace annual reviews.",
+best:["Ideas are easy; execution is everything — OKRs are execution scaffolding.","Key results are numbers or they're hopes.","Transparency aligns: everyone sees everyone's goals, including the CEO's."],
+rel:["a6","a13","c10"],
+assign:"Read the framework chapters; skim the case studies that don't match your size.",
+ex:"Write one quarter of OKRs for a car wash: one objective, three measurable key results. Grade them honestly at quarter's end."},
+{id:"toyota-way",title:"The Toyota Way",author:"Jeffrey K. Liker",cat:"Operations",diff:"Advanced",
+why:"The fourteen principles behind the most studied production system on earth — continuous improvement as culture, not slogan.",
+teaches:"Long-term philosophy over short-term profit, one-piece flow that exposes problems, pull systems, standardized work as the baseline for kaizen, genchi genbutsu (go and see), and respect for people as the engine of it all.",
+best:["Problems surfacing is good news: flow is designed to expose them.","Standardize first — you can't improve a process that's different every time.","Go and see for yourself; reports lie, floors don't."],
+rel:["c13","c9","w3"],
+assign:"Read principles 1-8 closely (process); 9-14 (people/culture) as you grow a team.",
+ex:"Spend one hour physically watching a process you own (a wash tunnel, a service route, your own morning). List ten wastes you've never noticed from your desk."},
+{id:"buy-then-build",title:"Buy Then Build",author:"Walker Deibel",cat:"Acquisitions & Capital",diff:"Intermediate",
+why:"The book that launched a thousand searchers: skip the startup death-valley by buying an existing profit engine and building on it.",
+teaches:"Acquisition entrepreneurship end-to-end: why existing cash flow beats startup risk, defining your search (size, sector, geography), valuing on SDE/EBITDA, SBA leverage, and the first 90 days as the new owner.",
+best:["Startups search for a business model; acquisitions buy one that's already proven.","Buy the boring: unsexy industries with recurring revenue are where the deals live.","You're buying the future you'll build, priced on the seller's past."],
+rel:["m2","m11","m1"],
+assign:"Read alongside the Acquisition school — it's the narrative version of those lessons.",
+ex:"Write your acquisition thesis in five lines: industry, size range, geography, what you bring, and why sellers would choose you."},
+{id:"hbr-buy-small",title:"HBR Guide to Buying a Small Business",author:"Richard S. Ruback & Royce Yudkoff",cat:"Acquisitions & Capital",diff:"Intermediate",
+why:"The Harvard course on search funds and small acquisitions in book form — the disciplined, numbers-first counterpart to Buy Then Build.",
+teaches:"Enduringly profitable small firms (recurring customers, stable margins) are the target; the full process from funded search through diligence, negotiation, financing structures, and the transition year.",
+best:["Buy enduring profitability, not turnarounds, for your first deal.","The search is a full-time job with a funnel — treat it like sales.","Diligence confirms the story the numbers tell; if it doesn't, walk."],
+rel:["m2","m3","m8"],
+assign:"Read after Buy Then Build; use its checklists during a real search.",
+ex:"Build a 20-company target list in one niche (e.g., pest control within 100 miles) with revenue estimates and owner ages — the raw material of a search."},
+{id:"pe-gompers",title:"Private Equity",author:"Paul Gompers & Victoria Ivashina",cat:"Acquisitions & Capital",diff:"Advanced",
+why:"The HBS casebook on how professional buyout firms actually evaluate, structure, and exit deals — the institutions your roll-up will someday sell to.",
+teaches:"Fund structure and incentives (2-and-20, carry, LP/GP dynamics), deal screening, leverage models, value-creation plans, and exits — through real cases with real numbers.",
+best:["PE returns come from three levers: leverage, multiple expansion, and operational improvement — know which your deal relies on.","Incentive structure explains fund behavior; read the carry before the pitch.","Every PE deal is underwritten to an exit — buyers think backward from the sale."],
+rel:["m5","e5","m1"],
+assign:"Work selected cases with a calculator, not a highlighter; this is a course text.",
+ex:"Model a simple LBO of a $2M EBITDA pest platform at 5× with 60% debt: if EBITDA grows to $3M and the multiple holds, what's the equity return?"},
+{id:"king-capital",title:"King of Capital",author:"David Carey & John E. Morris",cat:"Acquisitions & Capital",diff:"Intermediate",
+why:"The history of Blackstone — how the buyout industry grew from upstart dealmakers to owners of everything, told through booms, busts, and personalities.",
+teaches:"How leverage cycles work in practice: cheap debt inflates deals, crashes reset them, and survivors institutionalize. The evolution from corporate raiders to 'friendly' PE, and what LPs, banks, and sellers each want.",
+best:["Debt markets, not genius, set the tempo of the deal world.","Reputation compounds: access to deals is the durable edge.","Diversification saved Blackstone repeatedly — single-strategy firms died in each bust."],
+rel:["m5","m10","e5"],
+assign:"Read as a story; keep a timeline of each boom-bust cycle and its cause.",
+ex:"Write one page: how would a credit crunch tomorrow change the price and terms of the small business you'd like to buy?"},
+{id:"hard-things",title:"The Hard Thing About Hard Things",author:"Ben Horowitz",cat:"Leadership & People",diff:"Intermediate",
+why:"The truest book about the CEO job: layoffs, demotions, firing friends, and managing your own psychology when there's no playbook.",
+teaches:"Wartime vs. peacetime leadership, why you must tell it straight, how to demote a loyal friend, when to sell, and the loneliness nobody warns founders about. Management as practiced at 3 a.m.",
+best:["There is no formula for the hard things — courage plus honesty is the fallback.","Take care of the people, the products, and the profits — in that order.","The struggle is normal; every great CEO you admire lived it."],
+rel:["a12","a13","m3"],
+assign:"Read when things are good, so it's in you when they aren't.",
+ex:"Draft the layoff speech you hope never to give for a 10-person company — honest cause, clean terms, dignity intact. You'll understand the book after writing it."},
+{id:"no-rules",title:"No Rules Rules",author:"Reed Hastings & Erin Meyer",cat:"Leadership & People",diff:"Intermediate",
+why:"Netflix's culture engine: talent density plus candor plus freedom — the highest-performance culture experiment ever documented.",
+teaches:"Pay top of market and keep only keepers (the keeper test), radical candor with positive intent, then remove controls (vacation policy, expense approvals) because context beats control for creative work.",
+best:["Adequate performance gets a generous severance — a team, not a family.","Feedback: aim to assist, actionable; receivers appreciate and may discard.","Lead with context, not control — but only after talent density is high."],
+rel:["c10","a12","x7"],
+assign:"Read the sequence in order — the practices only work stacked in that order.",
+ex:"Apply the keeper test honestly to your team (or your own role): who would you fight to keep? What does your answer demand you do?"},
+{id:"radical-candor",title:"Radical Candor",author:"Kim Scott",cat:"Leadership & People",diff:"Beginner",
+why:"The feedback framework every new manager needs: care personally AND challenge directly — most bosses fail at one or both.",
+teaches:"The 2×2: radical candor vs. ruinous empathy (nice but useless), obnoxious aggression, and manipulative insincerity. How to give praise that's specific, criticism that's kind, and build a culture where truth flows up.",
+best:["Ruinous empathy — withholding hard truths to be 'nice' — is the most common management failure.","Criticize in private, praise in public, both immediately and specifically.","Ask for criticism first; you can't demand candor you won't receive."],
+rel:["c10","a12","p8"],
+assign:"Part one for the framework; part two's tools as situations arise.",
+ex:"Deliver one piece of radically candid feedback this week that you've been sitting on — care personally, challenge directly, then write down what happened."},
+{id:"who-smart",title:"Who",author:"Geoff Smart & Randy Street",cat:"Leadership & People",diff:"Intermediate",
+why:"The A-method for hiring: your #1 management problem is who, not what — and gut-feel interviews are barely better than coin flips.",
+teaches:"Scorecards define the outcomes a role must deliver; source continuously; the four structured interviews (screening, Topgrading career history, focused, reference) reveal patterns; sell the winner through the five F's.",
+best:["Write the scorecard before you meet anyone: outcomes, not duties.","Past performance patterns predict future performance — walk their whole career chronologically.","A-players hire A-players; B-players hire C-players. Your first hires set the ceiling."],
+rel:["c10","p9","w7"],
+assign:"Read before your next hire, not after the mis-hire.",
+ex:"Write a scorecard for a route technician: mission, five measurable outcomes, and the competencies your best current tech actually shows."},
+{id:"effective-exec",title:"The Effective Executive",author:"Peter F. Drucker",cat:"Leadership & People",diff:"Intermediate",
+why:"Drucker's timeless answer to the only question that matters: how do knowledge workers get the right things done?",
+teaches:"Effectiveness is a learnable habit set: know where your time actually goes, focus on outward contribution, build on strengths, do first things first (one at a time), and make decisions on principle with built-in feedback.",
+best:["Efficiency is doing things right; effectiveness is doing the right things.","Time is the scarcest resource — record it, prune it, consolidate it.","Feed opportunities, starve problems."],
+rel:["x2","a13","e5"],
+assign:"One chapter per week, applied — this book rewards slow reading.",
+ex:"Track your time in 30-minute blocks for three days, then answer Drucker's question: what am I doing that need not be done at all?"},
+{id:"millionaire-next-door",title:"The Millionaire Next Door",author:"Thomas J. Stanley & William D. Danko",cat:"Money & Wealth",diff:"Beginner",
+why:"The research that shattered the wealth illusion: most millionaires are frugal small-business owners next door, not the flashy spenders on your feed.",
+teaches:"PAWs vs. UAWs (prodigious vs. under-accumulators of wealth), the expected net worth formula (age × income ÷ 10), why high-consumption professions stay broke, and how economic outpatient care weakens heirs.",
+best:["Big hat, no cattle: consumption and wealth are usually opposites.","Play great defense: frugality built more fortunes than income did.","Most millionaires own boring businesses — welding shops, pest control, paving."],
+rel:["mw13","mw14","mw1"],
+assign:"Read the first half for the data; the rest for the case studies.",
+ex:"Compute your expected net worth (age × pre-tax income ÷ 10). Are you a PAW or UAW — and what one habit moves you toward PAW this year?"},
+{id:"ymoyl",title:"Your Money or Your Life",author:"Vicki Robin & Joe Dominguez",cat:"Money & Wealth",diff:"Beginner",
+why:"The book that reframed money forever: you're not spending dollars, you're spending hours of your life — the philosophical spine of financial independence.",
+teaches:"Compute your real hourly wage (after commute, clothes, decompression), price every purchase in life-hours, track every cent, and walk the nine steps toward the crossover point where investment income covers expenses.",
+best:["Money is life energy: that $200 gadget costs you a day of your life — worth it?","The fulfillment curve: past 'enough,' more spending buys less happiness.","The crossover point — investment income exceeding expenses — is retirement's real definition."],
+rel:["mw14","mw3","mw13"],
+assign:"Do steps 1-3 (real wage, tracking, life-energy pricing) before reading further.",
+ex:"Calculate your true hourly wage, then re-price your last five discretionary purchases in hours of your life. Keep or regret each one?"},
+{id:"iwt",title:"I Will Teach You to Be Rich",author:"Ramit Sethi",cat:"Money & Wealth",diff:"Beginner",
+why:"The most actionable personal-finance system in print: six weeks of setup, then your money runs itself — perfect companion to the Money school's automation lessons.",
+teaches:"The exact sequence: optimize cards, negotiate fees and rates, open high-yield savings and index investments, automate the whole flow on payday, and practice conscious spending — lavish on what you love, ruthless on what you don't.",
+best:["Automation beats willpower — build the money flow once, forever.","The 85% solution: good enough and done crushes perfect and planned.","Spend extravagantly on the things you love, cut mercilessly everywhere else."],
+rel:["mw2","mw5","mw10"],
+assign:"One chapter per week, doing each week's tasks — it's a program, not a book.",
+ex:"Draw your automation map: paycheck → fixed costs, investments, savings, guilt-free spending — with percentages and actual account names. Then build it."},
+{id:"simple-path",title:"The Simple Path to Wealth",author:"JL Collins",cat:"Money & Wealth",diff:"Beginner",
+why:"The gentlest, clearest case for index investing ever written — started as letters to the author's daughter, ended as the FI movement's bible.",
+teaches:"F-you money buys freedom; the market always recovers (though never smoothly); one broad index fund plus time beats nearly everything; avoid advisors who eat 1%; the 4% guideline for when work is optional.",
+best:["The market's crashes are features you must ride through, not bugs you can dodge.","Simplicity is the sophistication: one total-market fund is a complete strategy.","Spend less than you earn, invest the surplus, avoid debt — the entire path."],
+rel:["mw9","mw8","mw14"],
+assign:"Read straight through; give a copy to someone you love who's intimidated by investing.",
+ex:"Write your own one-page investing policy: fund(s), contribution amount, rebalance rule, and — most important — what you will do in the next 40% crash."},
+{id:"same-as-ever",title:"Same as Ever",author:"Morgan Housel",cat:"Foundations",diff:"Beginner",
+why:"The companion to Psychology of Money: 23 short essays on what never changes — the permanent human behaviors every business is built on.",
+teaches:"Predicting change is impossible; betting on constants (greed, fear, envy, stories beating statistics, risk being what you don't see) is the durable edge. Calm plants the seeds of crazy; the best story wins.",
+best:["Bet on what stays the same — Bezos' logic: nobody will ever want slower shipping.","Expectations, not outcomes, set happiness — manage both in business and life.","Compounding's enemy is interruption; survival is the strategy."],
+rel:["x1","x2","mw13"],
+assign:"One essay per evening — perfect between heavier course readings.",
+ex:"List three things about your customers that will be true in 20 years, and check your current strategy: how much of it is built on those constants?"}
+];
+
+/* ================= OPERATOR TOOLS (Phase 3) =================
+   Generic calculator engine: inputs -> out(v) returns [label,value,strong?] rows.
+   All results are estimates for education, not professional advice. */
+function $fmt(n,dec){if(!isFinite(n))return "—";return "$"+Number(n).toLocaleString("en-US",{maximumFractionDigits:dec===undefined?0:dec,minimumFractionDigits:dec===undefined?0:dec})}
+function pfmt(n,dec){if(!isFinite(n))return "—";return Number(n).toLocaleString("en-US",{maximumFractionDigits:dec===undefined?1:dec})+"%"}
+function nfmt(n,dec){if(!isFinite(n))return "—";return Number(n).toLocaleString("en-US",{maximumFractionDigits:dec===undefined?1:dec})}
+function pmt(principal,annualRate,years){const r=annualRate/100/12,n=years*12;if(r===0)return principal/n;return principal*r/(1-Math.pow(1+r,-n))}
+function irrSolve(outlay,cf,years){let lo=0,hi=1;const npv=r=>{let s=-outlay;for(let t=1;t<=years;t++)s+=cf/Math.pow(1+r,t);return s};if(npv(0)<0)return NaN;for(let i=0;i<80;i++){const mid=(lo+hi)/2;npv(mid)>0?lo=mid:hi=mid}return lo*100}
+
+const TOOLS=[
+/* ---- Financial statements & cash ---- */
+{id:"pnl",name:"Quick P&L Builder",cat:"Statements & Cash",desc:"Turn raw numbers into a profit & loss statement with margins.",
+inputs:[{k:"rev",label:"Monthly revenue ($)",def:50000},{k:"cogs",label:"Cost of goods/service delivery ($)",def:18000},{k:"labor",label:"Labor & payroll ($)",def:14000},{k:"opex",label:"Other operating expenses ($)",def:9000}],
+out:v=>{const gp=v.rev-v.cogs,op=gp-v.labor-v.opex;return [["Gross profit",$fmt(gp)],["Gross margin",pfmt(v.rev?gp/v.rev*100:0)],["Operating profit (EBITDA proxy)",$fmt(op),1],["Operating margin",pfmt(v.rev?op/v.rev*100:0)],["Annualized profit",$fmt(op*12)]]},
+formula:"Gross profit = Revenue − COGS · Operating profit = Gross profit − Labor − Opex"},
+{id:"cashfc",name:"Cash Flow Forecast",cat:"Statements & Cash",desc:"Project your cash position and runway month by month.",
+inputs:[{k:"cash",label:"Cash on hand ($)",def:25000},{k:"inflow",label:"Monthly cash in ($)",def:42000},{k:"outflow",label:"Monthly cash out ($)",def:47000},{k:"months",label:"Months to project",def:6}],
+out:v=>{const net=v.inflow-v.outflow;const end=v.cash+net*v.months;const runway=net<0?v.cash/-net:Infinity;return [["Monthly net cash flow",$fmt(net),1],["Cash in "+v.months+" months",$fmt(end)],["Runway",net<0?nfmt(runway)+" months":"∞ (cash-positive)",1],["Weekly burn (if negative)",net<0?$fmt(-net*12/52):"—"]]},
+formula:"Runway = Cash ÷ monthly net burn — the 13-week cash habit: track this weekly"},
+{id:"breakeven",name:"Break-Even Calculator",cat:"Statements & Cash",desc:"Units and revenue needed before profit begins.",
+inputs:[{k:"fixed",label:"Fixed costs per month ($)",def:12000},{k:"price",label:"Price per unit/job ($)",def:150},{k:"varc",label:"Variable cost per unit/job ($)",def:60}],
+out:v=>{const cm=v.price-v.varc;const units=cm>0?v.fixed/cm:NaN;return [["Contribution margin per unit",$fmt(cm,2)],["Contribution margin %",pfmt(v.price?cm/v.price*100:0)],["Break-even units / month",nfmt(units,1),1],["Break-even revenue / month",$fmt(units*v.price)],["Per working day (22)",nfmt(units/22,1)+" units"]]},
+formula:"Break-even units = Fixed costs ÷ (Price − Variable cost)"},
+{id:"grossmargin",name:"Gross Margin Calculator",cat:"Statements & Cash",desc:"Margin, markup, and what a price change does.",
+inputs:[{k:"price",label:"Selling price ($)",def:120},{k:"cost",label:"Direct cost ($)",def:45}],
+out:v=>{const gm=v.price-v.cost;return [["Gross profit per sale",$fmt(gm,2)],["Gross margin",pfmt(v.price?gm/v.price*100:0),1],["Markup on cost",pfmt(v.cost?gm/v.cost*100:0)],["Sales for $10k gross profit",nfmt(gm>0?10000/gm:NaN,0)]]},
+formula:"Margin = (Price − Cost) ÷ Price · Markup = (Price − Cost) ÷ Cost — don't confuse them"},
+{id:"ebitda",name:"EBITDA & SDE Calculator",cat:"Statements & Cash",desc:"Normalize earnings the way buyers and lenders read them.",
+inputs:[{k:"ni",label:"Net income ($/yr)",def:85000},{k:"int",label:"Interest ($/yr)",def:12000},{k:"tax",label:"Taxes ($/yr)",def:18000},{k:"da",label:"Depreciation + amortization ($/yr)",def:15000},{k:"osal",label:"Owner salary + personal addbacks ($/yr)",def:70000}],
+out:v=>{const e=v.ni+v.int+v.tax+v.da;return [["EBITDA",$fmt(e),1],["SDE (EBITDA + owner addbacks)",$fmt(e+v.osal),1],["EBITDA at 3× multiple",$fmt(e*3)],["SDE at 2.5× multiple",$fmt((e+v.osal)*2.5)]]},
+formula:"EBITDA = Net income + Interest + Taxes + D&A · SDE adds the owner's salary and perks back"},
+/* ---- Unit economics ---- */
+{id:"cac",name:"CAC Calculator",cat:"Unit Economics",desc:"What a new customer really costs to acquire.",
+inputs:[{k:"spend",label:"Marketing + sales spend / month ($)",def:6000},{k:"cust",label:"New customers / month",def:40}],
+out:v=>{const cac=v.cust?v.spend/v.cust:NaN;return [["Customer acquisition cost",$fmt(cac,2),1],["At 500 customers this cost",$fmt(cac*500)],["CAC if conversions rise 25%",$fmt(v.cust?v.spend/(v.cust*1.25):NaN,2)]]},
+formula:"CAC = Total acquisition spend ÷ New customers acquired"},
+{id:"ltv",name:"LTV Calculator",cat:"Unit Economics",desc:"Lifetime gross profit per customer — and the LTV:CAC health check.",
+inputs:[{k:"arpu",label:"Revenue per customer / month ($)",def:55},{k:"gm",label:"Gross margin (%)",def:60},{k:"churn",label:"Monthly churn (%)",def:3},{k:"cac",label:"CAC ($)",def:150}],
+out:v=>{const life=v.churn>0?1/(v.churn/100):Infinity;const ltv=v.arpu*(v.gm/100)*life;return [["Avg customer lifetime",nfmt(life,1)+" months"],["Lifetime value (gross profit)",$fmt(ltv),1],["LTV : CAC ratio",nfmt(v.cac?ltv/v.cac:NaN,1)+" : 1",1],["Verdict",v.cac&&ltv/v.cac>=3?"Healthy (≥3:1)":"Below the 3:1 benchmark"]]},
+formula:"Lifetime = 1 ÷ churn · LTV = monthly gross profit × lifetime · target LTV ≥ 3× CAC"},
+{id:"churn",name:"Churn Impact Calculator",cat:"Unit Economics",desc:"See what retention is silently worth.",
+inputs:[{k:"cust",label:"Current customers",def:400},{k:"fee",label:"Revenue per customer / month ($)",def:45},{k:"churn",label:"Monthly churn (%)",def:4},{k:"churn2",label:"Improved churn (%)",def:2.5}],
+out:v=>{const l1=1/(v.churn/100),l2=1/(v.churn2/100);const lost=v.cust*(v.churn/100)*v.fee*12;return [["Customers lost / year now",nfmt(v.cust*(1-Math.pow(1-v.churn/100,12)),0)],["Revenue lost to churn / year",$fmt(v.cust*v.churn/100*v.fee*12)],["Avg lifetime now → improved",nfmt(l1,0)+" → "+nfmt(l2,0)+" months",1],["Lifetime revenue gain per customer",$fmt((l2-l1)*v.fee),1]]},
+formula:"Each point of churn cut multiplies customer lifetime — retention is the cheapest growth"},
+{id:"pricing",name:"Pricing & Margin Planner",cat:"Unit Economics",desc:"Price from cost and target margin — and see the profit swing.",
+inputs:[{k:"cost",label:"Cost to deliver ($)",def:80},{k:"margin",label:"Target gross margin (%)",def:55},{k:"vol",label:"Units / month",def:120}],
+out:v=>{const price=v.margin<100?v.cost/(1-v.margin/100):NaN;const gp=(price-v.cost)*v.vol;return [["Required price",$fmt(price,2),1],["Gross profit / month",$fmt(gp)],["Price at +10% margin",$fmt(v.margin+10<100?v.cost/(1-(v.margin+10)/100):NaN,2)],["Profit if you raise price 10%",$fmt(((price*1.1)-v.cost)*v.vol)]]},
+formula:"Price = Cost ÷ (1 − target margin) — never markup-up from cost by feel"},
+{id:"roi",name:"ROI Calculator",cat:"Unit Economics",desc:"Return on any investment, annualized.",
+inputs:[{k:"invest",label:"Amount invested ($)",def:20000},{k:"ret",label:"Total returned ($)",def:26000},{k:"years",label:"Years held",def:2}],
+out:v=>{const gain=v.ret-v.invest;const roi=v.invest?gain/v.invest*100:NaN;const ann=(Math.pow(v.ret/v.invest,1/v.years)-1)*100;return [["Total gain",$fmt(gain)],["Total ROI",pfmt(roi),1],["Annualized return",pfmt(ann),1]]},
+formula:"ROI = Gain ÷ Invested · Annualized = (End ÷ Start)^(1/years) − 1"},
+{id:"npv",name:"NPV Calculator",cat:"Unit Economics",desc:"What future cash flows are worth in today's dollars.",
+inputs:[{k:"outlay",label:"Investment today ($)",def:100000},{k:"cf",label:"Cash flow per year ($)",def:30000},{k:"years",label:"Years of cash flow",def:5},{k:"rate",label:"Discount rate (%)",def:12}],
+out:v=>{let pv=0;for(let t=1;t<=v.years;t++)pv+=v.cf/Math.pow(1+v.rate/100,t);const npv=pv-v.outlay;return [["Present value of cash flows",$fmt(pv)],["Net present value",$fmt(npv),1],["Verdict",npv>0?"Creates value at "+v.rate+"% hurdle":"Destroys value at this hurdle rate"]]},
+formula:"NPV = Σ CFt ÷ (1+r)^t − Investment · positive NPV = the deal beats your hurdle"},
+{id:"irr",name:"IRR Calculator",cat:"Unit Economics",desc:"The percentage return a deal's cash flows actually earn.",
+inputs:[{k:"outlay",label:"Investment today ($)",def:100000},{k:"cf",label:"Cash flow per year ($)",def:28000},{k:"years",label:"Years",def:5}],
+out:v=>{const irr=irrSolve(v.outlay,v.cf,v.years);const total=v.cf*v.years;return [["IRR",pfmt(irr),1],["Total cash returned",$fmt(total)],["Multiple on investment",nfmt(v.outlay?total/v.outlay:NaN,2)+"×"],["Payback period",nfmt(v.cf?v.outlay/v.cf:NaN,1)+" years"]]},
+formula:"IRR = the discount rate where NPV equals zero — compare it to your cost of capital"},
+{id:"compound",name:"Compound Interest",cat:"Money & Wealth",desc:"The eighth wonder, in numbers.",
+inputs:[{k:"start",label:"Starting amount ($)",def:10000},{k:"monthly",label:"Monthly contribution ($)",def:500},{k:"rate",label:"Annual return (%)",def:8},{k:"years",label:"Years",def:30}],
+out:v=>{const r=v.rate/100/12,n=v.years*12;const fvStart=v.start*Math.pow(1+r,n);const fvC=r>0?v.monthly*((Math.pow(1+r,n)-1)/r):v.monthly*n;const total=fvStart+fvC;const put=v.start+v.monthly*n;return [["Future value",$fmt(total),1],["Total contributed",$fmt(put)],["Growth (money your money made)",$fmt(total-put),1],["Doubling time (Rule of 72)",nfmt(v.rate?72/v.rate:NaN,1)+" years"]]},
+formula:"FV = P(1+r)^n + PMT×((1+r)^n − 1)/r · Rule of 72: 72 ÷ rate ≈ years to double"},
+/* ---- Deals & acquisition ---- */
+{id:"valuation",name:"Business Valuation (Multiples)",cat:"Deals & Acquisition",desc:"Price a small business the way the market does.",
+inputs:[{k:"sde",label:"SDE or EBITDA ($/yr)",def:150000},{k:"lo",label:"Low multiple",def:2.5},{k:"hi",label:"High multiple",def:3.5},{k:"inv",label:"Inventory/extras included ($)",def:0}],
+out:v=>{return [["Low valuation",$fmt(v.sde*v.lo+v.inv)],["High valuation",$fmt(v.sde*v.hi+v.inv)],["Midpoint",$fmt(v.sde*(v.lo+v.hi)/2+v.inv),1],["Rule of thumb","Recurring revenue, clean books, and a manager in place push toward the high end"]]},
+formula:"Value = Earnings × Multiple — the multiple is earned by quality (recurring %, systems, retention)"},
+{id:"sba",name:"SBA Acquisition Analyzer",cat:"Deals & Acquisition",desc:"Down payment, loan payment, DSCR, and cash-on-cash for a deal.",
+inputs:[{k:"price",label:"Purchase price ($)",def:400000},{k:"down",label:"Down payment (%)",def:10},{k:"rate",label:"Interest rate (%)",def:10.5},{k:"years",label:"Term (years)",def:10},{k:"cf",label:"Business cash flow / SDE ($/yr)",def:130000},{k:"sal",label:"Your salary needs ($/yr)",def:60000}],
+out:v=>{const downD=v.price*v.down/100;const loan=v.price-downD;const pay=pmt(loan,v.rate,v.years)*12;const avail=v.cf-v.sal;const dscr=pay?avail/pay:NaN;const coc=downD?(avail-pay)/downD*100:NaN;return [["Down payment",$fmt(downD)],["Annual debt service",$fmt(pay),1],["DSCR (after your salary)",nfmt(dscr,2),1],["Cash-on-cash return",pfmt(coc)],["Verdict",dscr>=1.25?"Clears the typical 1.25 lender bar":"Below 1.25 — lenders will balk"]]},
+formula:"DSCR = (Cash flow − your salary) ÷ Debt service · lenders want ≥1.25"},
+{id:"dscr",name:"DSCR Calculator",cat:"Deals & Acquisition",desc:"The number every lender checks first.",
+inputs:[{k:"noi",label:"Cash flow available for debt ($/yr)",def:120000},{k:"debt",label:"Total debt payments ($/yr)",def:80000}],
+out:v=>{const d=v.debt?v.noi/v.debt:NaN;return [["DSCR",nfmt(d,2),1],["Cushion above payments",$fmt(v.noi-v.debt)],["Verdict",d>=1.5?"Strong":d>=1.25?"Bankable":"Too thin — restructure or renegotiate"]]},
+formula:"DSCR = Cash available ÷ Debt service · 1.0 = every dollar spoken for"},
+{id:"loan",name:"Loan Payment Calculator",cat:"Deals & Acquisition",desc:"Any amortizing loan — seller notes, equipment, working capital.",
+inputs:[{k:"amount",label:"Loan amount ($)",def:100000},{k:"rate",label:"Annual rate (%)",def:8},{k:"years",label:"Term (years)",def:7}],
+out:v=>{const m=pmt(v.amount,v.rate,v.years);return [["Monthly payment",$fmt(m,2),1],["Annual payment",$fmt(m*12)],["Total paid",$fmt(m*12*v.years)],["Total interest",$fmt(m*12*v.years-v.amount),1]]},
+formula:"Standard amortization: payment = P·r ÷ (1 − (1+r)^−n)"},
+/* ---- Operations ---- */
+{id:"payroll",name:"True Payroll Cost",cat:"Operations",desc:"What an employee really costs beyond the wage.",
+inputs:[{k:"wage",label:"Hourly wage ($)",def:22},{k:"hours",label:"Hours / week",def:40},{k:"burden",label:"Payroll burden (taxes, comp, benefits %)",def:22}],
+out:v=>{const annual=v.wage*v.hours*52;const loaded=annual*(1+v.burden/100);return [["Base annual pay",$fmt(annual)],["Fully loaded cost",$fmt(loaded),1],["Loaded hourly cost",$fmt(loaded/(v.hours*52),2),1],["Revenue needed at 30% labor target",$fmt(loaded/0.3)]]},
+formula:"Loaded cost = wages × (1 + burden%) · burden runs 20-30% for most small businesses"},
+{id:"commission",name:"Commission Planner",cat:"Operations",desc:"Design a comp plan that pays for itself.",
+inputs:[{k:"price",label:"Average sale ($)",def:600},{k:"rate",label:"Commission (%)",def:12},{k:"sales",label:"Sales / rep / month",def:25},{k:"gm",label:"Gross margin before commission (%)",def:55}],
+out:v=>{const comm=v.price*v.rate/100;const monthly=comm*v.sales;const gmAfter=v.gm-v.rate;return [["Commission per sale",$fmt(comm,2)],["Rep monthly earnings",$fmt(monthly),1],["Margin after commission",pfmt(gmAfter),1],["Company gross profit / rep",$fmt(v.price*v.sales*gmAfter/100)]]},
+formula:"Commission should come out of gross margin with room left — pay on collected revenue, not booked"},
+{id:"adbudget",name:"Ad Budget Planner",cat:"Operations",desc:"Work backward from a revenue goal to a marketing budget.",
+inputs:[{k:"goal",label:"New revenue goal / month ($)",def:20000},{k:"aov",label:"Average sale value ($)",def:400},{k:"close",label:"Lead-to-sale rate (%)",def:25},{k:"cpl",label:"Cost per lead ($)",def:35}],
+out:v=>{const sales=v.aov?v.goal/v.aov:NaN;const leads=v.close?sales/(v.close/100):NaN;const budget=leads*v.cpl;return [["Sales needed",nfmt(sales,0)],["Leads needed",nfmt(leads,0),1],["Ad budget required",$fmt(budget),1],["Marketing % of new revenue",pfmt(v.goal?budget/v.goal*100:NaN)]]},
+formula:"Budget = (Goal ÷ AOV ÷ close rate) × CPL — know all four numbers or you're guessing"},
+{id:"route",name:"Route Density Calculator",cat:"Operations",desc:"The home-services profit lever: stops per day, not miles per day.",
+inputs:[{k:"stops",label:"Stops / tech / day",def:12},{k:"ticket",label:"Revenue per stop ($)",def:65},{k:"days",label:"Working days / month",def:21},{k:"cost",label:"Cost per tech-day (loaded + truck) ($)",def:320}],
+out:v=>{const rev=v.stops*v.ticket*v.days;const cost=v.cost*v.days;return [["Revenue / tech / month",$fmt(rev),1],["Tech + truck cost / month",$fmt(cost)],["Margin per tech",$fmt(rev-cost),1],["Each extra stop/day is worth",$fmt(v.ticket*v.days*12)+" / yr"]]},
+formula:"Density (stops/day) beats price raises — drive time is unbilled payroll"},
+{id:"carwash",name:"Car Wash Unit Economics",cat:"Operations",desc:"Volume + memberships → monthly profit for an express wash.",
+inputs:[{k:"cars",label:"Retail cars / day",def:120},{k:"ticket",label:"Average retail ticket ($)",def:12},{k:"members",label:"Members",def:900},{k:"mfee",label:"Membership fee / month ($)",def:25},{k:"varc",label:"Variable cost / car ($)",def:2.2},{k:"fixed",label:"Fixed costs / month ($)",def:45000}],
+out:v=>{const retail=v.cars*v.ticket*30;const memb=v.members*v.mfee;const totalCars=v.cars*30+v.members*3;const varTotal=totalCars*v.varc;const profit=retail+memb-varTotal-v.fixed;return [["Retail revenue / month",$fmt(retail)],["Membership revenue / month",$fmt(memb),1],["Membership share of revenue",pfmt((retail+memb)?memb/(retail+memb)*100:0)],["Operating profit / month",$fmt(profit),1],["At a 10× multiple this site is worth",$fmt(profit*12*10)]]},
+formula:"Members are the moat: predictable revenue smooths weather and funds the machine"},
+{id:"pestroute",name:"Pest Control Route Economics",cat:"Operations",desc:"Recurring accounts → route revenue, churn drag, and route value.",
+inputs:[{k:"accts",label:"Recurring accounts",def:450},{k:"fee",label:"Average monthly fee ($)",def:48},{k:"churn",label:"Annual churn (%)",def:15},{k:"margin",label:"Operating margin (%)",def:35}],
+out:v=>{const rev=v.accts*v.fee*12;const lost=rev*v.churn/100;const profit=rev*v.margin/100;return [["Annual recurring revenue",$fmt(rev),1],["Lost to churn each year",$fmt(lost)],["Accounts to replace / year",nfmt(v.accts*v.churn/100,0)],["Operating profit",$fmt(profit),1],["Book value at 1.2× recurring",$fmt(rev*1.2)]]},
+formula:"Recurring revenue × retention is the whole game — buyers pay for the book, not the trucks"},
+/* ---- Personal money ---- */
+{id:"budget",name:"50/30/20 Budget",cat:"Money & Wealth",desc:"The three-bucket budget from the Money school.",
+inputs:[{k:"income",label:"Monthly take-home ($)",def:4800}],
+out:v=>{return [["Needs (50%)",$fmt(v.income*.5),1],["Wants (30%)",$fmt(v.income*.3)],["Savings & debt payoff (20%)",$fmt(v.income*.2),1],["Saved per year at 20%",$fmt(v.income*.2*12)]]},
+formula:"50% needs · 30% wants · 20% future you — adjust ratios up the savings curve as income grows"},
+{id:"networth",name:"Net Worth Calculator",cat:"Money & Wealth",desc:"Your personal balance sheet in one number.",
+inputs:[{k:"cash",label:"Cash & savings ($)",def:12000},{k:"invest",label:"Investments & retirement ($)",def:38000},{k:"home",label:"Home & property value ($)",def:0},{k:"other",label:"Vehicles & other assets ($)",def:15000},{k:"debt",label:"All debts ($)",def:22000}],
+out:v=>{const assets=v.cash+v.invest+v.home+v.other;const nw=assets-v.debt;return [["Total assets",$fmt(assets)],["Total liabilities",$fmt(v.debt)],["Net worth",$fmt(nw),1],["Productive asset share",pfmt(assets?(v.invest)/assets*100:0)]]},
+formula:"Net worth = assets − liabilities · track quarterly; watch composition shift toward productive assets"},
+{id:"efund",name:"Emergency Fund Sizer",cat:"Money & Wealth",desc:"Your buffer target and the path to it.",
+inputs:[{k:"essential",label:"Essential expenses / month ($)",def:3200},{k:"months",label:"Months of cover (3-6)",def:6},{k:"saved",label:"Already saved ($)",def:4000},{k:"monthly",label:"Monthly savings ($)",def:400}],
+out:v=>{const target=v.essential*v.months;const gap=Math.max(target-v.saved,0);return [["Target fund",$fmt(target),1],["Gap remaining",$fmt(gap)],["Months to full at current pace",nfmt(v.monthly?gap/v.monthly:NaN,1),1],["First milestone ($1k + 1 month)",$fmt(1000+v.essential)]]},
+formula:"Target = essential monthly spend × months of cover · variable income → aim for 6"},
+{id:"debtpayoff",name:"Debt Payoff Calculator",cat:"Money & Wealth",desc:"Months to freedom and the interest you'll pay.",
+inputs:[{k:"balance",label:"Balance ($)",def:8000},{k:"apr",label:"APR (%)",def:24},{k:"payment",label:"Monthly payment ($)",def:350}],
+out:v=>{const r=v.apr/100/12;if(v.payment<=v.balance*r)return[["Verdict","Payment doesn't cover interest — balance grows forever",1]];const n=Math.log(v.payment/(v.payment-v.balance*r))/Math.log(1+r);const total=v.payment*n;return [["Months to debt-free",nfmt(n,1),1],["Total paid",$fmt(total)],["Interest paid",$fmt(total-v.balance),1],["Months saved with +$100/mo",nfmt(n-(Math.log((v.payment+100)/((v.payment+100)-v.balance*r))/Math.log(1+r)),1)]]},
+formula:"Every extra dollar goes 100% at principal — killing a 24% card is a 24% guaranteed return"},
+{id:"ccinterest",name:"Credit Card Minimum Trap",cat:"Money & Wealth",desc:"What minimum payments actually cost.",
+inputs:[{k:"balance",label:"Balance ($)",def:5000},{k:"apr",label:"APR (%)",def:27},{k:"minpct",label:"Minimum payment (% of balance)",def:2.5}],
+out:v=>{const r=v.apr/100/12;let b=v.balance,months=0,interest=0;while(b>1&&months<600){const pay=Math.max(b*v.minpct/100,25);const i=b*r;interest+=i;b=b+i-pay;months++}return [["Years paying minimums",nfmt(months/12,1),1],["Total interest paid",$fmt(interest),1],["You'd repay in total",$fmt(v.balance+interest)],["Multiple of what you borrowed",nfmt((v.balance+interest)/v.balance,2)+"×"]]},
+formula:"Minimums are designed to maximize interest — the issuer's best customer pays forever"},
+{id:"mortgage",name:"Mortgage Calculator",cat:"Money & Wealth",desc:"Payment, interest, and the 28% guardrail.",
+inputs:[{k:"price",label:"Home price ($)",def:320000},{k:"down",label:"Down payment (%)",def:10},{k:"rate",label:"Rate (%)",def:6.8},{k:"years",label:"Term (years)",def:30},{k:"income",label:"Gross monthly income ($)",def:7000}],
+out:v=>{const loan=v.price*(1-v.down/100);const m=pmt(loan,v.rate,v.years);const withTI=m*1.25;return [["Monthly P&I",$fmt(m,0),1],["Est. with taxes+insurance (~25% more)",$fmt(withTI,0)],["% of gross income",pfmt(v.income?withTI/v.income*100:NaN),1],["Guardrail",v.income&&withTI/v.income<=0.28?"Within the 28% rule":"Above 28% — buy less house than the bank approves"],["Lifetime interest",$fmt(m*12*v.years-loan)]]},
+formula:"Keep total housing ≤ ~28% of gross income · the bank's approval is not a recommendation"},
+{id:"autoloan",name:"Auto Loan Calculator",cat:"Money & Wealth",desc:"The real cost of the truck.",
+inputs:[{k:"price",label:"Vehicle price ($)",def:38000},{k:"down",label:"Down payment ($)",def:4000},{k:"rate",label:"Rate (%)",def:7.5},{k:"years",label:"Term (years)",def:6}],
+out:v=>{const loan=v.price-v.down;const m=pmt(loan,v.rate,v.years);const total=m*12*v.years+v.down;return [["Monthly payment",$fmt(m,0),1],["Total cost of vehicle",$fmt(total)],["Interest paid",$fmt(total-v.price),1],["That interest invested at 8%/30yr",$fmt((total-v.price)*Math.pow(1.08,30))]]},
+formula:"Long terms hide high totals — judge the total cost, never the monthly payment"}
+];
+const SIMS=[]; /* Phase 5 */
+
+/* ================= CASE STUDIES (Phase 3) =================
+   Original teaching cases inspired by public business history. */
+const CASES=[
+{id:"apple-brand",title:"The Premium Trap Escape",inspired:"Inspired by Apple's brand strategy",cat:"Marketing & Brand",
+situation:"1997: a computer maker is 90 days from bankruptcy. It sells 40+ confusing product lines through big-box retailers, competes on specs against commodity PC makers with lower costs, and its brand — once beloved — now signals overpriced and dying.",
+fin:[["Cash runway","~90 days"],["Product lines","40+ → ?"],["Gross margin","19% and falling"],["Competitor margins","Dell ~21% on half the price"]],
+problem:"How do you compete against rivals who will always beat you on price and specs?",
+constraints:["No cash for a price war","Retail partners control the customer experience","Engineering resources spread across dozens of products"],
+options:[{t:"Cut prices to match Dell and fight for market share"},{t:"License the operating system to other manufacturers for royalty revenue"},{t:"Cut to 4 products, refuse to compete on price, and rebuild the brand around identity"},{t:"Sell the company to a larger tech firm while there's still something to sell"}],
+suggested:2,
+analysis:"The historical answer was option 3. The insight: when you cannot win the game, change the scoring. Fewer products concentrated engineering into excellence; refusing the spec war reframed the purchase as identity ('Think Different') rather than arithmetic; premium pricing funded premium products, which justified the premium — a loop. Price wars (option 1) are won by the lowest-cost producer, which it wasn't. Licensing (option 2) had already been tried and cannibalized the only differentiated asset.",
+instructor:"Students usually pick the price cut — it feels responsive. Notice how the winning move looks like retreat: fewer products, fewer customers, higher prices. Strategy is sacrifice (Porter's lesson): the four-quadrant product grid killed 90% of the roadmap, and that concentration — not marketing spend — was the brand turnaround. Brand is the memory of many good decisions, compounding.",
+lessons:["When you can't win on price, compete on a dimension rivals can't copy","Focus is a strategy: fewer, better products beat broad, mediocre lines","Premium brands are built by consistency between promise, product, and price"],
+rel:["c1","e2","c11"]},
+{id:"costco-model",title:"The Membership Machine",inspired:"Inspired by Costco's membership model",cat:"Business Models",
+situation:"A warehouse retailer sells goods at razor-thin 11% gross margins — roughly a third of competitors' — caps markups by policy, pays workers well above retail average, and still produces excellent shareholder returns year after year.",
+fin:[["Gross margin","~11-13% (vs ~25-30% peers)"],["Membership fee income","~2% of revenue"],["Share of operating profit from fees","~70%"],["Renewal rate","~90%+"]],
+problem:"Where does the profit actually come from, and what must management protect at all costs?",
+constraints:["Raising markups would boost short-term profit immediately","Wall Street pressures for margin expansion every quarter","Wage costs visibly above industry norms"],
+options:[{t:"Raise product margins 3 points — customers would barely notice"},{t:"Protect rock-bottom prices; treat the membership fee as the profit engine and prices as marketing"},{t:"Cut labor costs to industry norms to widen margins"},{t:"Expand aggressively into e-commerce discounting to grow revenue"}],
+suggested:1,
+analysis:"Option 2 is the actual model. The genius: the fee, not the goods, is the profit — so prices can sit at levels competitors cannot follow without destroying their own P&L. Low prices drive renewals (the real annuity); high wages cut theft and turnover, protecting the low-cost engine. 'Barely noticeable' margin increases (option 1) would erode the price trust that makes the fee feel obviously worth paying — trading the annuity for a one-time bump.",
+instructor:"The deep lesson is unit-of-profit thinking: ask 'what do we actually sell?' Costco sells membership; the warehouse is the benefit. Map this to home services: the pest control monthly plan is the membership; the treatments are the warehouse. Once you see which number is the annuity, you know which number you must never optimize away.",
+lessons:["Identify your real profit unit — it's often not the thing on the shelf","Recurring revenue with high renewal beats fat one-time margins","Some costs (wages, prices) are investments in the moat, not expenses to cut"],
+rel:["w4","p3","e2"]},
+{id:"berkshire-capital",title:"The Capital Allocator",inspired:"Inspired by Berkshire Hathaway's capital allocation",cat:"Capital & Investing",
+situation:"You control a holding company whose subsidiaries reliably throw off cash. This year $500M arrives. The textile subsidiary that started it all is aging and needs $200M of new equipment just to stay competitive in a brutally commoditized industry.",
+fin:[["Free cash this year","$500M"],["Textile reinvestment 'needed'","$200M"],["Textile returns on capital","~4% and falling"],["Insurance float available","Growing, ~3% cost"],["Candidate acquisition (consumer brand)","~20% ROIC, asking 12× earnings"]],
+problem:"Where does the $500M go?",
+constraints:["The textile mill employs the original workforce — emotional and reputational weight","The consumer brand looks 'expensive' by book-value standards","Doing nothing feels irresponsible"],
+options:[{t:"Modernize the mill — defend the legacy business"},{t:"Split evenly across all subsidiaries proportional to size"},{t:"Starve the low-return business and buy the high-return brand, even at a 'full' price"},{t:"Hold cash and wait for a market crash"}],
+suggested:2,
+analysis:"Option 3 is the Berkshire playbook. Capital allocation's iron law: money flows to the highest return on incremental capital, regardless of history or sentiment. $200M at 4% is value destruction dressed as loyalty — the mill eventually closed anyway, after decades of proof. A wonderful business at a fair price beats a fair business at a wonderful price because the ROIC compounds; the 'expensive' brand at 20% ROIC doubles invested capital every ~4 years while the mill needs 18.",
+instructor:"Note the emotional gravity of option 1 — every operator feels it about their first business, first truck, first route. The equal-split (option 2) is how most companies actually allocate, which is why most conglomerates underperform: it's peanut-butter politics, not capital allocation. The CEO's job (per The Outsiders in the Library) is being a rational allocator when everyone else is sentimental.",
+lessons:["Capital goes to the highest incremental return — history and sentiment get no vote","Quality at a fair price compounds; cheapness with low returns decays","Peanut-butter budgeting (spreading evenly) is the default failure mode of multi-unit companies"],
+rel:["e5","m6","e4"]},
+{id:"toyota-andon",title:"Stop the Line",inspired:"Inspired by the Toyota Production System",cat:"Operations",
+situation:"You run a high-volume production operation. A new hire discovers a small defect mid-shift. Stopping the line costs thousands per minute and embarrasses his team lead. Management culture at your last company punished anyone who slowed output.",
+fin:[["Line downtime cost","$8,000/minute"],["Defect escape cost (recall/warranty)","$400 per unit shipped"],["Units between discovery and shift end","~1,900"],["Rework cost if caught now","$6 per unit"]],
+problem:"Do you empower a first-week employee to stop a multi-million-dollar line — and what happens culturally after he pulls the cord?",
+constraints:["Quarterly output targets are already tight","Supervisors' bonuses tie to line uptime","The defect might be minor — or might not"],
+options:[{t:"Only supervisors may stop the line; the new hire flags it and keeps working"},{t:"Anyone can stop the line, and management thanks whoever pulls the cord — publicly"},{t:"Log defects for the end-of-week quality review to avoid downtime"},{t:"Speed a quality inspector to that station while the line keeps running"}],
+suggested:1,
+analysis:"Option 2 is the andon cord — the most counterintuitive practice in manufacturing history. The math: 1,900 escaped units × $400 dwarfs minutes of downtime; catching defects at the source is always the cheapest point. But the deeper design is cultural: thanking the cord-puller makes problems visible, and visible problems get fixed permanently (root cause), while punished problems go underground and ship to customers. Options 1, 3, and 4 all optimize this shift at the cost of every future shift.",
+instructor:"Have students compute both costs before revealing — the arithmetic converts more people than the philosophy. Then translate: in a pest company, the 'andon cord' is the tech who reports his own missed service; in a car wash, the attendant who stops the tunnel over a strange noise. If your people hide problems, you built the incentive that hides them. Bonuses tied to uptime (a local metric) versus quality (a system metric) is Goldratt's lesson wearing a Toyota uniform.",
+lessons:["Catch defects at the source — it's the cheapest point in the entire system","Culture is what you thank and what you punish, not what you post on walls","Local metrics (uptime, output) quietly fight system metrics (quality, throughput)"],
+rel:["c13","c9","p8"]},
+{id:"mcd-realestate",title:"The Real Business Under the Burgers",inspired:"Inspired by McDonald's franchise system",cat:"Business Models",
+situation:"1950s: a milkshake-machine salesman turned franchisor is barely profitable. Franchisees pay small royalties, quality varies wildly, and the company has no leverage to enforce standards. A CFO proposes something odd: stop focusing on burger royalties entirely.",
+fin:[["Royalty rate","1.9% of sales — thin"],["Company profit","Near zero"],["Franchisee compliance","Weak — no enforcement lever"],["Proposal","Buy/lease the land and buildings, sublease to franchisees"]],
+problem:"How does a franchisor with no capital and no leverage build a durable, enforceable, profitable system?",
+constraints:["Almost no cash on hand — real estate requires debt","Franchisees resist any new costs","Competitors franchise faster with looser standards"],
+options:[{t:"Raise the royalty rate to industry-high levels"},{t:"Become the landlord: control the real estate under every store and earn rent + royalties"},{t:"Sell company-owned stores only — forget franchising"},{t:"License the brand loosely and maximize unit count"}],
+suggested:1,
+analysis:"Option 2 — the Franchise Realty insight — built the empire. Rent gave predictable, margin-rich income that dwarfed royalties; property appreciation compounded silently; and the lease became the enforcement lever no contract could match: violate standards, lose your location. The company famously became a real estate business that sells burgers. Raising royalties (option 1) would have squeezed franchisees without adding control; loose licensing (option 4) is how competitors of the era destroyed their own brands.",
+instructor:"The transferable question: what's the chokepoint asset in your industry — the thing that, controlled, makes everyone else's success flow through you? In car washes it's often literally the same answer (corner real estate on high-traffic arterials). Also note the risk honestly: the model loaded the company with property debt — control via assets costs balance sheet. Pair with the ground-lease lesson in the Car Wash track.",
+lessons:["The visible product and the real economic engine are often different layers","Owning the chokepoint asset (location, route, contract) beats policing behavior","Enforcement built into structure outperforms enforcement written into contracts"],
+rel:["m4","w8","w1"]},
+{id:"carwash-acq",title:"The Underpriced Tunnel",inspired:"A local car wash acquisition",cat:"Acquisitions",
+situation:"A 68-year-old owner is selling his express tunnel wash after 22 years. Asking $1.6M. Volume is steady but flat; he never installed a membership program ('gimmicks'); equipment is dated but maintained; two competitors opened within 4 miles last year, both membership-first brands.",
+fin:[["Asking price","$1.6M"],["Revenue","$640k/yr, flat 3 years"],["EBITDA","$185k (29% margin)"],["Implied multiple","8.6× EBITDA"],["Comparable sales","6-8× for non-membership sites"],["Membership sites trade at","9-12×"]],
+problem:"Is this deal attractive at the ask, and what's your play?",
+constraints:["SBA loan pre-approval caps you at $1.4M purchase","New competitors are actively converting the market to memberships","Equipment refresh will need ~$150k within 3 years"],
+options:[{t:"Pay the ask — good sites rarely list, and the location is strong"},{t:"Walk away — flat revenue plus new competition equals decline"},{t:"Offer ~$1.15M off the current numbers, and underwrite your own membership conversion as upside you don't pay for"},{t:"Offer the full ask contingent on seller financing 50% at low interest"}],
+suggested:2,
+analysis:"Option 3 is the operator's play. Rule one of buying: pay for the business as it runs today, not the business you plan to build — the membership upside is your work and your risk, so it's your return. At $1.15M (≈6.2×), the deal clears DSCR with room for the equipment refresh; at $1.6M it's priced as if the conversion already happened. The competitive threat actually helps the buyer: it justifies the discount to a data-resistant seller, and the site's retail flow is the raw material memberships are made from. Option 4 (full price, half seller-financed) still overpays — financing structure never fixes valuation.",
+instructor:"Watch students confuse price and structure — creative terms on a bad price is still a bad deal. Second teaching point: the seller's 22-year 'no gimmicks' stance is the opportunity wearing a disguise; buy-then-build deals live exactly where a proven asset meets one obvious, un-executed improvement you know how to run. Run the SBA Acquisition Analyzer in Tools with both prices to feel the difference.",
+lessons:["Pay for the present; keep the upside you'll build for yourself","Financing structure can't rescue a wrong price","The best small acquisitions pair a proven asset with one obvious unbuilt lever"],
+rel:["w12","w4","m2"]},
+{id:"pest-rollup",title:"The Roll-Up That Almost Rolled Over",inspired:"A pest control roll-up",cat:"Acquisitions",
+situation:"You've acquired four small pest control companies in 18 months (about 2,800 accounts combined) using SBA and seller notes. Each still runs its own software, pricing, chemicals, and habits. Techs from acquired firms are quitting; churn on acquired books is running double your organic rate; and your fifth LOI is signed.",
+fin:[["Combined recurring revenue","$1.9M"],["Debt service","$31k/month"],["Churn: organic book","11%/yr"],["Churn: acquired books","23%/yr"],["Integration status","Four systems, four price lists"],["LOI #5","$450k book, closing in 60 days"]],
+problem:"Do you close deal five or stop and integrate — and what does the churn tell you?",
+constraints:["Walking from the LOI costs the deposit and a broker relationship","Debt service leaves little slack if churn keeps climbing","Your ops manager is spending 100% of her time firefighting"],
+options:[{t:"Close deal five — momentum and scale are the strategy"},{t:"Pause acquisitions 6-12 months; integrate onto one system, one price book, one culture; fix churn first"},{t:"Close deal five but hire an integration manager to work in parallel"},{t:"Sell the two worst-performing acquired books to reduce debt"}],
+suggested:1,
+analysis:"Option 2, and the churn number is the whole case: acquired customers at 23% churn are leaving because the thing they bought — their familiar tech, their old company's way — keeps changing chaotically. A roll-up's value is built in integration, not acquisition; buying is the easy, fun 10%. At double churn, deal five's book will leak out the bottom as fast as it's paid for at the top — you'd be buying water for a bucket you haven't patched. Option 3 sounds mature but keeps the leadership team's attention split during the highest-risk period; most failed roll-ups have exactly that biography.",
+instructor:"The seduction here is momentum — brokers, sellers, and ego all push toward the next close. Make students price the churn: 23% vs 11% on $1.9M recurring is ~$228k/year of extra leakage, which is most of the debt service. The platform multiple (from the Pest Control track's exit lesson) is earned by integrated systems and retention cohorts, not by account count. Roll-ups die of indigestion, not starvation.",
+lessons:["Acquisition is 10% of a roll-up; integration is where value is created or destroyed","Churn on acquired books is the report card of your integration","Pausing growth to fix the machine is often the highest-ROI 'deal' available"],
+rel:["p10","p11","m5"]},
+{id:"restaurant-turn",title:"Ninety Days to Save a Restaurant",inspired:"A failing restaurant turnaround",cat:"Turnarounds",
+situation:"A family restaurant is losing $9k/month. The menu has 68 items; food waste is high; two of eleven staff do most of the work; the dining room is half-empty on weekdays but the kitchen is chaos on weekends. The owner has 5 months of cash left and is emotionally attached to dishes his late father created.",
+fin:[["Monthly loss","−$9k"],["Cash remaining","~$45k"],["Menu items","68"],["Food cost","41% (healthy: 28-32%)"],["Weekend covers","Turning tables away"],["Weekday covers","~35% capacity"]],
+problem:"Sequence a 90-day turnaround with $45k of runway. What goes first?",
+constraints:["No capital for renovation or marketing blitzes","Family dishes are politically explosive to cut","Any staff cuts hit real people in a small town"],
+options:[{t:"Launch aggressive weekday promotions to fill the empty dining room"},{t:"Cut the menu to ~20 items first — attack food cost, waste, and kitchen chaos before anything else"},{t:"Raise all prices 15% to cover the losses"},{t:"Close weekdays entirely and operate weekends only"}],
+suggested:1,
+analysis:"Option 2 is the classic first move because it attacks four problems with one decision: food cost (fewer ingredients, less waste, better purchasing), kitchen speed (weekend chaos), quality (practice concentrates), and — critically — it costs nothing. Marketing an unprofitable operation (option 1) scales losses; across-the-board price hikes (option 3) on a struggling restaurant risks the remaining traffic. The menu keeps the three best-selling family dishes — turnarounds need the owner functional, and total war over sentiment burns runway. Weekday closure (option 4) is a real lever but second: fix unit economics, then match hours to demand.",
+instructor:"The meta-lesson is sequencing under a cash clock: cost and cash moves before growth moves, always — you must survive to benefit from marketing. The 68-item menu is small-business scope creep in its purest form; students should connect it to focus lessons everywhere in this university. And note the political design: keeping three family dishes isn't weakness, it's change management.",
+lessons:["In a cash crisis: cost and cash levers first, growth levers second","Menu/product sprawl is a silent margin killer — focus is free money","Turnarounds are 50% arithmetic, 50% managing the humans through it"],
+rel:["f10","c11","f4"]},
+{id:"cash-crisis",title:"Profitable and Broke",inspired:"A cash flow crisis",cat:"Finance",
+situation:"A commercial plumbing contractor lands its biggest year ever — $2.8M booked, P&L shows $210k profit. Yet the account is empty: payroll is Friday, $38k short. Big general contractors pay in 60-90 days; the company pays suppliers in 15 and payroll weekly. Growth is making it worse every month.",
+fin:[["Booked revenue","$2.8M (record)"],["P&L profit","$210k"],["Accounts receivable","$395k (much at 60-90 days)"],["Cash","$11k"],["Payroll Friday","$49k"],["Supplier terms","Net 15 · Customer terms: Net 60-90"]],
+problem:"Make payroll Friday, then fix the machine so this never recurs.",
+constraints:["Factoring quotes are expensive (3-4%/month)","The biggest customer is also the slowest payer — and can't be antagonized carelessly","More growth means more cash consumed, not less"],
+options:[{t:"Take the factoring deal on the $395k of receivables"},{t:"Emergency: call the two biggest late invoices offering 2% for payment this week; then fix structurally — deposits, progress billing, net-30, and a credit line sized to the gap"},{t:"Stop taking new jobs until receivables catch up"},{t:"Take a merchant cash advance today"}],
+suggested:1,
+analysis:"Option 2 pairs the emergency move with the cure. A 2% early-pay discount on $100k costs $2k — versus factoring's compounding 3-4% monthly or an MCA's effective 60-100% APR (option 4 is how contractors die). The structural fix attacks the real disease: the working capital cycle. Deposits and progress billing move cash collection into the job instead of after it; net-30 with late fees resets norms; the credit line bridges the remaining timing gap — arranged now, while the P&L looks great, not mid-crisis. Halting growth (option 3) treats the symptom by shrinking the patient.",
+instructor:"This is the university's most important finance lesson in case form: profit is an opinion, cash is a fact. Have students compute the cash conversion cycle before and after: collecting at 75 days while paying at 15 means every revenue dollar must be financed for ~60 days — growth multiplies the gap. That's why 'we grew ourselves to death' is a real epitaph. Connect to the 13-week cash flow habit and the Cash Flow Forecast tool.",
+lessons:["Profitable companies die of cash timing — the P&L won't warn you","Fix the cycle (deposits, progress billing, terms), not just the shortfall","Arrange credit before you need it; desperation financing compounds the crisis"],
+rel:["f4","f7","a9"]},
+{id:"founder-trapped",title:"The Owner Who Couldn't Leave",inspired:"A founder trapped inside his own business",cat:"Leadership & Systems",
+situation:"A marketing agency owner bills $1.2M/yr with eight employees, but every client relationship, every proposal, every final review runs through him personally. He hasn't taken a full week off in six years. Two senior employees just quit — exit interviews cite 'no autonomy.' A buyer approached last month and, after one meeting, cut their indicative offer 40% — 'the business is you.'",
+fin:[["Revenue","$1.2M/yr"],["Owner hours","70+/week"],["Owner-touched deliverables","100%"],["Indicative offer","Cut 40% after diligence meeting"],["Senior staff turnover","2 in 90 days"]],
+problem:"The business has no value without its bottleneck — and the bottleneck is burning out. What's the 12-month plan?",
+constraints:["Clients explicitly expect the owner on their account","Delegating will produce visible quality dips at first","Revenue can't crater during the transition — payroll is real"],
+options:[{t:"Hire a COO to run operations while the owner keeps all client work"},{t:"Systematize and delegate in stages: document the owner's judgment as SOPs and rubrics, promote account leads, move the owner to review-only, then to exceptions-only — accepting a temporary quality dip"},{t:"Raise prices 30% to shrink the client list to what the owner can handle"},{t:"Take the discounted offer and exit now"}],
+suggested:1,
+analysis:"Option 2 is the E-Myth prescription, and the only one that builds transferable value. The trap's mechanics: the owner's standards live in his head, so autonomy is impossible, so good people leave, so more lands on him — a loop that tightens. Documenting judgment (review rubrics, quality checklists, decision rules) converts personal excellence into organizational capability; staged withdrawal (review-only → exceptions-only) manages the quality dip that scares owners into never starting. A COO (option 1) can't fix it — operations isn't the bottleneck, the owner's monopoly on judgment is. Price hikes (option 3) shrink the prison; they don't unlock it.",
+instructor:"The 40% offer cut is the market pricing key-person risk in cold cash — use it as the case's emotional anchor. The subtle teaching: the two resignations and the discount are the same fact observed from inside and outside. Every operator student should answer honestly: if you vanished for 30 days, what breaks first? That answer is your real org chart.",
+lessons:["A business that requires its owner is a job with employees — and buyers price it that way","Document judgment, not just tasks: rubrics and decision rules create real autonomy","Exit value is built years before exit, in systems that run without you"],
+rel:["c9","m3","p11"]}
+];
+
 /* ================= APP ENGINE ================= */
 const LS_KEY="businessVaultProgress_v1";
 const DAYS_KEY="businessVaultDays_v1";
@@ -1259,13 +2004,8 @@ let store=STORE_DEFAULT;
 try{store=Object.assign({},STORE_DEFAULT,JSON.parse(localStorage.getItem(STORE_KEY)||"{}"))}catch(e){store=STORE_DEFAULT}
 function saveStore(){localStorage.setItem(STORE_KEY,JSON.stringify(store))}
 
-/* ================= CONTENT REGISTRIES =================
-   Populated in Phase 3+. Schemas:
-   BOOKS: {id,title,author,cat,diff,why,teaches[],best[],modules[],assignment,exercise}
-   TOOLS: {id,name,cat,desc,inputs[{k,label,def}],calc(vals)=>rows[],formula,explain}
-   CASES: {id,title,inspired,situation,financials[],problem,constraints[],options[],decision,analysis,notes,answer,lessons[]}
-   SIMS:  {id,title,intro,start,nodes:{id:{text,choices[{t,to,fx}]}}} */
-const BOOKS=[],TOOLS=[],CASES=[],SIMS=[];
+/* content registries (BOOKS/TOOLS/CASES/SIMS) are defined in the content
+   sections above; user state for them lives in store.books/tools/cases/sims */
 
 /* streak */
 function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
@@ -1295,7 +2035,9 @@ function lessonMins(le){
 }
 const DIFF=["Beginner","Intermediate","Advanced","Operator","Executive","Mastery"];
 function difficulty(le){
-  if(le.track.id==="biz"){const i=le.track.levels.findIndex(l=>l.id===le.level.id);return DIFF[Math.min(Math.max(i,0),5)]}
+  const i=le.track.levels.findIndex(l=>l.id===le.level.id);
+  if(le.track.id==="biz")return DIFF[Math.min(Math.max(i,0),5)];
+  if(le.track.id==="money")return i<=0?"Beginner":"Intermediate";
   return "Operator";
 }
 
@@ -1370,16 +2112,22 @@ const ICONS={
   spark:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 4.6L18 8l-4.2 1.4L12 14l-1.8-4.6L6 8l4.2-1.4z"/><path d="M19 14l.9 2.3L22 17l-2.1.7L19 20l-.9-2.3L16 17l2.1-.7z"/></svg>',
   quiz:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.8 2.8 0 1 1 3.9 2.6c-.7.3-1.1.8-1.1 1.5v.5"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>',
   cards:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="15" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v13"/></svg>',
-  bookmark:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
+  bookmark:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>',
+  money:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 6.5v11"/><path d="M15 8.8c-.6-1-1.7-1.5-3-1.5-1.8 0-3 .9-3 2.3 0 3 6 1.7 6 4.7 0 1.4-1.3 2.3-3 2.3-1.4 0-2.6-.6-3.2-1.7"/></svg>',
+  library:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  book:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>',
+  tool:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></svg>',
+  scale:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7l7-4 7 4"/><path d="M5 7l-3 7a3.5 3.5 0 0 0 6 0L5 7z"/><path d="M19 7l-3 7a3.5 3.5 0 0 0 6 0l-3-7z"/></svg>'
 };
-const VIEWS=["home","courses","biz","wash","pest","search","progress"];
+const VIEWS=["home","courses",...DATA.map(t=>t.id),"library","search","progress"];
 const TABS=[
   {id:"home",label:"Home",ic:"home"},
   {id:"courses",label:"Courses",ic:"courses"},
+  {id:"library",label:"Library",ic:"library"},
   {id:"search",label:"Search",ic:"search"},
   {id:"progress",label:"Progress",ic:"progress"}
 ];
-const TITLES={home:"Dashboard",courses:"The Schools",biz:"Business A–Z",wash:"Car Wash School",pest:"Pest Control School",search:"Search",progress:"Progress & Mastery"};
+const TITLES={home:"Dashboard",courses:"The Schools",biz:"Business A–Z",wash:"Car Wash School",pest:"Pest Control School",money:"Money & Wealth School",library:"The Library",search:"Search",progress:"Progress & Mastery"};
 let activeView="home";
 const levelSel={};DATA.forEach(tr=>levelSel[tr.id]=0);
 
@@ -1405,15 +2153,24 @@ function buildSidebar(){
     const s=trackStats(tr);
     h+='<button class="sb-item" id="sb-'+tr.id+'" onclick="setView(\''+tr.id+'\')">'+ICONS[tr.id]+tr.name+'<span class="n">'+s.done+'/'+s.total+'</span></button>';
   });
+  h+='<div class="sb-sec">Resources</div>';
+  h+='<button class="sb-item" id="sb-libbooks" onclick="openLibrary(\'books\')">'+ICONS.book+'Business Library<span class="n">'+BOOKS.length+'</span></button>';
+  h+='<button class="sb-item" id="sb-libtools" onclick="openLibrary(\'tools\')">'+ICONS.tool+'Operator Tools<span class="n">'+TOOLS.length+'</span></button>';
+  h+='<button class="sb-item" id="sb-libcases" onclick="openLibrary(\'cases\')">'+ICONS.scale+'Case Studies<span class="n">'+CASES.length+'</span></button>';
   document.getElementById("sbNav").innerHTML=h;
 }
 function setView(id){
   activeView=id;
-  const tabFor={home:"home",courses:"courses",biz:"courses",wash:"courses",pest:"courses",search:"search",progress:"progress"};
+  const tabFor={home:"home",courses:"courses",library:"library",search:"search",progress:"progress"};
+  DATA.forEach(tr=>tabFor[tr.id]="courses");
   VIEWS.forEach(v=>document.getElementById("view-"+v).classList.toggle("active",v===id));
   TABS.forEach(n=>document.getElementById("tab-"+n.id).classList.toggle("active",tabFor[id]===n.id));
-  ["home","courses","search","progress","biz","wash","pest"].forEach(v=>{
+  ["home","courses","search","progress",...DATA.map(t=>t.id)].forEach(v=>{
     const el=document.getElementById("sb-"+v);if(el)el.classList.toggle("active",v===id);
+  });
+  ["libbooks","libtools","libcases"].forEach((v,i)=>{
+    const el=document.getElementById("sb-"+v);
+    if(el)el.classList.toggle("active",id==="library"&&libSel===["books","tools","cases"][i]);
   });
   document.getElementById("pageTitle").textContent=TITLES[id]||"";
   window.scrollTo({top:0});
@@ -1451,6 +2208,13 @@ function renderHome(){
      '<button class="mini" onclick="openLesson(\''+rec.id+'\')"><span class="m-k">'+ICONS.spark+'Recommended Next</span><b>'+esc(rec.t)+'</b><span>'+rec.track.name+' · '+rec.level.name+' · ~'+lessonMins(rec)+' min</span></button>'+
      '<button class="mini" onclick="openFlash(\'due\')"><span class="m-k">'+ICONS.cards+'Flashcard Review</span><b>Drill the key terms</b><span>'+(dueCards?dueCards+' cards to master · spaced repetition':'All '+allTerms.length+' terms mastered 🎉')+'</span></button>'+
      '<button class="mini" onclick="openQuiz(\''+res.id+'\')"><span class="m-k">'+ICONS.quiz+'Quick Quiz</span><b>Test yourself: '+esc(res.t)+'</b><span>5 questions · counts toward your mastery score</span></button>'+
+     '</div>';
+  const dB=dailyPick(BOOKS),dT=dailyPick(TOOLS),dC=dailyPick(CASES);
+  h+='<div class="sectionHead"><i></i><h3>DAILY PICKS</h3></div><div class="duoGrid">'+
+     '<button class="mini" onclick="openBook(\''+dB.id+'\')"><span class="m-k">'+ICONS.book+'Book of the Day</span><b>'+esc(dB.title)+'</b><span>'+esc(dB.author)+' · '+dB.cat+' · '+dB.diff+'</span></button>'+
+     '<button class="mini" onclick="openTool(\''+dT.id+'\')"><span class="m-k">'+ICONS.tool+'Tool of the Day</span><b>'+esc(dT.name)+'</b><span>'+esc(dT.desc)+'</span></button>'+
+     '<button class="mini" onclick="openCase(\''+dC.id+'\')"><span class="m-k">'+ICONS.scale+'Case of the Day</span><b>'+esc(dC.title)+'</b><span>'+esc(dC.inspired)+'</span></button>'+
+     '<button class="mini" onclick="openLibrary(\'books\')"><span class="m-k">'+ICONS.library+'The Library</span><b>'+BOOKS.length+' books · '+TOOLS.length+' tools · '+CASES.length+' cases</b><span>Summaries, calculators, and decision training</span></button>'+
      '</div>';
   const weak=weakLessons();
   if(weak.length){
@@ -1503,7 +2267,7 @@ function renderCourses(){
   DATA.forEach(tr=>{h+=courseCard(tr)});
   h+='<div class="course soon" style="cursor:default" onclick="void 0">'+
      '<span class="c-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg></span>'+
-     '<span class="c-t"><b>More Schools In Session Soon</b><span>Money & Wealth · Accounting School · Sales School · Acquisition School and more — the university is expanding.</span></span></div>';
+     '<span class="c-t"><b>More Schools In Session Soon</b><span>Accounting School · Sales School · Acquisition School · Real Estate School and more — the university is expanding.</span></span></div>';
   h+='<div class="footerNote">Business Vault · Private University</div>';
   document.getElementById("view-courses").innerHTML=h;
 }
@@ -1548,17 +2312,271 @@ function renderSearchShell(){
     '<div class="sectionHead"><i></i><h3>SEARCH THE VAULT</h3></div>'+
     '<div class="searchBox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'+
     '<input id="searchInput" type="search" placeholder="EBITDA, funnels, route density, DCF…" autocomplete="off"></div>'+
-    '<div class="rhead" id="rhead">Search all '+allLessons.length+' lessons, '+allTerms.length+' glossary terms, and your notes.</div>'+
-    '<div class="cards" id="rcards"></div>';
+    '<div class="rhead" id="rhead">Search '+allLessons.length+' lessons, '+BOOKS.length+' books, '+TOOLS.length+' tools, '+CASES.length+' cases, '+allTerms.length+' terms, and your notes.</div>'+
+    '<div id="rcards"></div>';
+  const idle="Search "+allLessons.length+" lessons, "+BOOKS.length+" books, "+TOOLS.length+" tools, "+CASES.length+" cases, "+allTerms.length+" terms, and your notes.";
   document.getElementById("searchInput").addEventListener("input",e=>{
     const q=e.target.value.trim().toLowerCase();
     const rc=document.getElementById("rcards"),rh=document.getElementById("rhead");
-    if(q.length<2){rc.innerHTML="";rh.textContent="Search all "+allLessons.length+" lessons, "+allTerms.length+" glossary terms, and your notes.";return}
-    const hits=allLessons.filter(l=>q.split(/\s+/).every(w=>lessonHay(l).includes(w)));
-    rh.textContent=hits.length?hits.length+" lesson"+(hits.length>1?"s":"")+" found":"No lessons match — try a broader term.";
-    rc.innerHTML=hits.slice(0,40).map((l,i)=>cardHTML(l,i+1,l.track.name+" · "+l.level.tagline+" · "+l.module.name)).join("");
+    if(q.length<2){rc.innerHTML="";rh.textContent=idle;return}
+    const words=q.split(/\s+/);
+    const match=s=>words.every(w=>s.toLowerCase().includes(w));
+    const hits=allLessons.filter(l=>match(lessonHay(l)));
+    const bHits=BOOKS.filter(b=>match(b.title+" "+b.author+" "+b.cat+" "+b.why+" "+b.teaches+" "+((store.books[b.id]||{}).notes||"")));
+    const tHits=TOOLS.filter(t=>match(t.name+" "+t.cat+" "+t.desc+" "+t.formula));
+    const cHits=CASES.filter(c=>match(c.title+" "+c.inspired+" "+c.cat+" "+c.situation+" "+c.problem));
+    const total=hits.length+bHits.length+tHits.length+cHits.length;
+    rh.textContent=total?total+" result"+(total>1?"s":"")+" found":"No matches — try a broader term.";
+    let h="";
+    if(hits.length)h+='<div class="moduleName">Lessons</div><div class="cards">'+hits.slice(0,25).map((l,i)=>cardHTML(l,i+1,l.track.name+" · "+l.level.tagline+" · "+l.module.name)).join("")+'</div>';
+    if(bHits.length)h+='<div class="moduleName">Books</div><div class="cards">'+bHits.slice(0,10).map((b,i)=>bookRow(b,i)).join("")+'</div>';
+    if(tHits.length)h+='<div class="moduleName">Tools</div><div class="cards">'+tHits.slice(0,10).map(t=>toolRow(t)).join("")+'</div>';
+    if(cHits.length)h+='<div class="moduleName">Case Studies</div><div class="cards">'+cHits.slice(0,10).map((c,i)=>caseRow(c,i)).join("")+'</div>';
+    rc.innerHTML=h;
   });
 }
+
+/* ================= LIBRARY (Books · Tools · Cases) ================= */
+let libSel="books";
+function dailyPick(arr){const seed=parseInt(todayStr().replace(/-/g,""),10);return arr[(seed*7+arr.length)%arr.length]}
+function openLibrary(seg){libSel=seg||libSel;renderLibrary();setView("library")}
+function bookState(id){return store.books[id]||{}}
+function bookRow(b,i){
+  const st=bookState(b.id);
+  const status=st.status==="finished"?"✓ Finished":st.status==="started"?"Reading":b.diff;
+  return '<button class="card'+(st.status==="finished"?" done":"")+'" onclick="openBook(\''+b.id+'\')">'+
+    '<span class="num">'+ICONS.book+'</span>'+
+    '<span class="ct"><b>'+esc(b.title)+'</b><span>'+esc(b.author)+' · '+b.cat+'</span></span>'+
+    '<span class="mins'+(st.status?'" style="color:var(--green)':'')+'">'+status+'</span></button>';
+}
+function toolRow(t){
+  const saved=(store.tools[t.id]&&store.tools[t.id].saved||[]).length;
+  return '<button class="card" onclick="openTool(\''+t.id+'\')">'+
+    '<span class="num">'+ICONS.tool+'</span>'+
+    '<span class="ct"><b>'+esc(t.name)+'</b><span>'+esc(t.desc)+'</span></span>'+
+    (saved?'<span class="mins" style="color:var(--green)">'+saved+' saved</span>':'')+'</button>';
+}
+function caseRow(c,i){
+  const st=store.cases[c.id]||{};
+  return '<button class="card'+(st.done?" done":"")+'" onclick="openCase(\''+c.id+'\')">'+
+    '<span class="num">'+(i+1)+'</span>'+
+    '<span class="ct"><b>'+esc(c.title)+'</b><span>'+esc(c.inspired)+' · '+c.cat+'</span></span>'+
+    '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
+}
+function renderLibrary(){
+  const finished=BOOKS.filter(b=>bookState(b.id).status==="finished").length;
+  const casesDone=CASES.filter(c=>(store.cases[c.id]||{}).done).length;
+  let h='<div class="sectionHead"><i></i><h3>THE LIBRARY</h3><span class="mono">'+
+    (libSel==="books"?finished+' / '+BOOKS.length+' read':libSel==="tools"?TOOLS.length+' calculators':casesDone+' / '+CASES.length+' solved')+'</span></div>';
+  h+='<div class="segWrap"><div class="seg-group">'+
+     '<button class="seg'+(libSel==="books"?" on":"")+'" onclick="openLibrary(\'books\')">Books <span class="mono">'+BOOKS.length+'</span></button>'+
+     '<button class="seg'+(libSel==="tools"?" on":"")+'" onclick="openLibrary(\'tools\')">Tools <span class="mono">'+TOOLS.length+'</span></button>'+
+     '<button class="seg'+(libSel==="cases"?" on":"")+'" onclick="openLibrary(\'cases\')">Cases <span class="mono">'+CASES.length+'</span></button>'+
+     '</div></div>';
+  if(libSel==="books"){
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Original study notes on the operator canon — what each book teaches, its best lessons, and an exercise to apply it. No substitute for reading the real thing.</p>';
+    const cats=[...new Set(BOOKS.map(b=>b.cat))];
+    cats.forEach(cat=>{
+      h+='<div class="moduleName">'+cat+'</div><div class="cards">';
+      BOOKS.filter(b=>b.cat===cat).forEach((b,i)=>{h+=bookRow(b,i)});
+      h+='</div>';
+    });
+  }else if(libSel==="tools"){
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Operator calculators — live results as you type. Estimates for education, not professional advice.</p>';
+    const cats=[...new Set(TOOLS.map(t=>t.cat))];
+    cats.forEach(cat=>{
+      h+='<div class="moduleName">'+cat+'</div><div class="cards">';
+      TOOLS.filter(t=>t.cat===cat).forEach(t=>{h+=toolRow(t)});
+      h+='</div>';
+    });
+  }else{
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Decision training: read the situation, study the numbers, commit to a call — then compare against the instructor’s notes.</p>';
+    h+='<div class="cards">';
+    CASES.forEach((c,i)=>{h+=caseRow(c,i)});
+    h+='</div>';
+  }
+  h+='<div class="footerNote">The Library · Business Vault</div>';
+  document.getElementById("view-library").innerHTML=h;
+}
+
+/* ---- Book sheet ---- */
+const bookEl=document.getElementById("book");
+let curBook=null;
+function openBook(id){
+  curBook=id;
+  const b=BOOKS.find(x=>x.id===id);if(!b)return;
+  const st=bookState(id);
+  document.getElementById("bookCrumb").textContent=b.cat+" · "+b.diff;
+  const rel=(b.rel||[]).map(lid=>byId[lid]).filter(Boolean);
+  document.getElementById("bookInner").innerHTML=
+    '<span class="lessonChip">'+b.cat+'</span>'+
+    '<h2>'+esc(b.title)+'</h2>'+
+    '<div class="lessonMeta"><span class="metaChip">'+esc(b.author)+'</span><span class="metaChip">'+b.diff+'</span>'+
+    (st.status?'<span class="metaChip" style="color:var(--green)">'+(st.status==="finished"?"✓ Finished":"Currently reading")+'</span>':'')+'</div>'+
+    '<div class="actGrid">'+
+      '<button class="card" onclick="cycleBookStatus()"><span class="num">'+ICONS.book+'</span><span class="ct"><b>'+(st.status==="finished"?"Mark Unread":st.status==="started"?"Mark Finished":"Mark Book Started")+'</b><span>'+(st.status==="finished"?"Reset reading status":st.status==="started"?"Add it to your finished shelf":"Track your reading")+'</span></span></button>'+
+      '<a class="card" href="https://www.google.com/search?q='+encodeURIComponent(b.title+" "+b.author+" book")+'" target="_blank" rel="noopener"><span class="num">→</span><span class="ct"><b>Get the Book</b><span>Find a copy — the notes here are a map, not the territory</span></span></a>'+
+    '</div>'+
+    '<div class="lbody">'+
+    '<div class="lsec"><i></i><h4>Why It Matters</h4></div><div class="example">'+b.why+'</div>'+
+    '<div class="lsec"><i></i><h4>What It Teaches</h4></div><p>'+b.teaches+'</p>'+
+    '<div class="lsec"><i></i><h4>Best Lessons</h4></div><ul class="takeaways">'+b.best.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>'+
+    (rel.length?'<div class="lsec"><i></i><h4>Related Lessons</h4></div><div class="cards">'+rel.map((l,i)=>cardHTML(l,i+1,l.track.name+" · "+l.module.name)).join("")+'</div>':'')+
+    '<div class="lsec"><i></i><h4>Reading Assignment</h4></div><div class="example">'+b.assign+'</div>'+
+    '<div class="lsec"><i></i><h4>Application Exercise</h4></div><div class="example">'+b.ex+'</div>'+
+    '<div class="lsec"><i></i><h4>My Reading Notes</h4></div>'+
+    '<textarea class="noteBox" id="bookNoteBox" placeholder="Key ideas, quotes to remember, how you’ll apply this book…">'+esc(st.notes||"")+'</textarea>'+
+    '<div class="noteHint">Saved automatically on this device</div>'+
+    '</div>';
+  const nb=document.getElementById("bookNoteBox");
+  let t=null;
+  nb.addEventListener("input",()=>{clearTimeout(t);t=setTimeout(()=>{
+    store.books[id]=Object.assign({},bookState(id),{notes:nb.value});saveStore();
+  },400)});
+  bookEl.scrollTop=0;bookEl.classList.add("open");syncScrollLock();
+}
+function cycleBookStatus(){
+  const st=bookState(curBook);
+  const next=st.status==="finished"?undefined:st.status==="started"?"finished":"started";
+  store.books[curBook]=Object.assign({},st,{status:next});
+  if(!next)delete store.books[curBook].status;
+  saveStore();
+  toast(next==="finished"?"📚 Book finished!":next==="started"?"Marked as reading":"Status cleared");
+  openBook(curBook);renderLibrary();renderProgress();
+}
+function closeBook(){bookEl.classList.remove("open");syncScrollLock();renderLibrary();renderHome()}
+
+/* ---- Tool sheet ---- */
+const toolEl=document.getElementById("tool");
+let curTool=null;
+function toolVals(t){
+  const v={};
+  t.inputs.forEach(inp=>{
+    const el=document.getElementById("ti-"+inp.k);
+    v[inp.k]=el?parseFloat(el.value)||0:inp.def;
+  });
+  return v;
+}
+function openTool(id){
+  curTool=id;
+  const t=TOOLS.find(x=>x.id===id);if(!t)return;
+  document.getElementById("toolCrumb").textContent=t.cat;
+  document.getElementById("toolInner").innerHTML=
+    '<span class="lessonChip">'+t.cat+'</span>'+
+    '<h2>'+esc(t.name)+'</h2>'+
+    '<div class="lessonMeta"><span class="metaChip">'+esc(t.desc)+'</span></div>'+
+    '<div class="qCard"><div class="qKick">Inputs</div>'+
+    t.inputs.map(inp=>'<div class="inpRow"><label for="ti-'+inp.k+'">'+esc(inp.label)+'</label><input id="ti-'+inp.k+'" type="number" inputmode="decimal" step="any" value="'+inp.def+'"></div>').join("")+
+    '</div>'+
+    '<div class="qCard"><div class="qKick">Results</div><div id="toolOut"></div></div>'+
+    '<div class="example mono" style="font-size:12px">'+esc(t.formula)+'</div>'+
+    '<div class="actGrid">'+
+      '<button class="card" onclick="saveCalc()"><span class="num">💾</span><span class="ct"><b>Save Calculation</b><span>Keep this scenario for comparison</span></span></button>'+
+      '<button class="card" onclick="resetTool()"><span class="num">↺</span><span class="ct"><b>Reset</b><span>Back to defaults</span></span></button>'+
+    '</div>'+
+    '<a class="card" style="margin-top:9px" id="explainLink" href="#" target="_blank" rel="noopener">'+
+    '<span class="num" style="background:var(--blue-face);color:#fff">'+ICONS.spark+'</span>'+
+    '<span class="ct"><b>Explain This Result — AI Tutor</b><span>Opens Claude with your numbers for a plain-English breakdown</span></span>'+
+    '<span style="color:var(--blue-2)">→</span></a>'+
+    '<div id="savedCalcs"></div>';
+  t.inputs.forEach(inp=>{
+    document.getElementById("ti-"+inp.k).addEventListener("input",()=>runTool());
+  });
+  runTool();renderSavedCalcs();
+  toolEl.scrollTop=0;toolEl.classList.add("open");syncScrollLock();
+}
+function runTool(){
+  const t=TOOLS.find(x=>x.id===curTool);if(!t)return;
+  const v=toolVals(t);
+  const rows=t.out(v);
+  document.getElementById("toolOut").innerHTML=rows.map(r=>
+    '<div class="finRow'+(r[2]?" strong":"")+'"><span>'+esc(r[0])+'</span><b>'+esc(String(r[1]))+'</b></div>').join("");
+  const p="Explain these "+t.name+" results in plain English for a beginner business owner, and tell me what to do about them. Inputs: "+t.inputs.map(i=>i.label+" = "+v[i.k]).join(", ")+". Results: "+rows.map(r=>r[0]+" = "+r[1]).join(", ")+".";
+  const link=document.getElementById("explainLink");
+  if(link)link.href="https://claude.ai/new?q="+encodeURIComponent(p);
+}
+function saveCalc(){
+  const t=TOOLS.find(x=>x.id===curTool);if(!t)return;
+  const v=toolVals(t);
+  const rows=t.out(v).map(r=>[r[0],String(r[1])]);
+  const slot=store.tools[curTool]=store.tools[curTool]||{saved:[]};
+  slot.saved.unshift({v,rows,ts:todayStr()});
+  slot.saved=slot.saved.slice(0,5);
+  saveStore();renderSavedCalcs();toast("Calculation saved");
+}
+function renderSavedCalcs(){
+  const slot=store.tools[curTool];
+  const el=document.getElementById("savedCalcs");if(!el)return;
+  if(!slot||!slot.saved.length){el.innerHTML="";return}
+  el.innerHTML='<div class="lsec"><i></i><h4>Saved Scenarios</h4></div>'+
+    slot.saved.map((s,i)=>'<div class="qCard" style="padding:13px 15px;margin-bottom:9px"><div class="qKick">'+s.ts+'</div>'+
+    s.rows.filter(r=>r[1]!=="—").slice(0,3).map(r=>'<div class="finRow"><span>'+esc(r[0])+'</span><b>'+esc(r[1])+'</b></div>').join("")+
+    '</div>').join("");
+}
+function resetTool(){openTool(curTool)}
+function closeTool(){toolEl.classList.remove("open");syncScrollLock()}
+
+/* ---- Case sheet ---- */
+const caseEl=document.getElementById("case");
+let curCase=null;
+function openCase(id){
+  curCase=id;
+  const c=CASES.find(x=>x.id===id);if(!c)return;
+  const st=store.cases[id]||{};
+  document.getElementById("caseCrumb").textContent="Case Study · "+c.cat;
+  const rel=(c.rel||[]).map(lid=>byId[lid]).filter(Boolean);
+  let h='<span class="lessonChip">'+c.cat+'</span>'+
+    '<h2>'+esc(c.title)+'</h2>'+
+    '<div class="lessonMeta"><span class="metaChip">'+esc(c.inspired)+'</span>'+(st.done?'<span class="metaChip" style="color:var(--green)">✓ Completed</span>':'')+'</div>'+
+    '<div class="lbody">'+
+    '<div class="lsec"><i></i><h4>The Situation</h4></div><p>'+c.situation+'</p>'+
+    '<div class="lsec"><i></i><h4>The Financials</h4></div><div class="qCard" style="margin-bottom:0">'+
+    c.fin.map(r=>'<div class="finRow"><span>'+esc(r[0])+'</span><b>'+esc(r[1])+'</b></div>').join("")+'</div>'+
+    '<div class="lsec"><i></i><h4>The Problem</h4></div><div class="example">'+c.problem+'</div>'+
+    '<div class="lsec"><i></i><h4>Constraints</h4></div><ul class="takeaways">'+c.constraints.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>'+
+    '<div class="lsec"><i></i><h4>Your Decision</h4></div>';
+  c.options.forEach((o,i)=>{
+    const picked=st.choice===i;
+    const revealed=st.revealed;
+    const cls=revealed?(i===c.suggested?" ok":(picked?" bad":"")):(picked?" pick":"");
+    h+='<button class="qOpt'+cls+'" onclick="casePick('+i+')"><span class="qL">'+String.fromCharCode(65+i)+'</span><span>'+esc(o.t)+(revealed&&i===c.suggested?' <b style="color:var(--green)">· suggested</b>':'')+'</span></button>';
+  });
+  if(!st.revealed){
+    h+='<button class="btn full" style="margin-top:6px" '+(st.choice===undefined?'disabled':'')+' onclick="caseReveal()">'+(st.choice===undefined?"Choose an option first":"Commit & Reveal the Answer")+'</button>';
+  }else{
+    h+='<div class="lsec"><i></i><h4>Suggested Answer</h4></div><p>'+c.analysis+'</p>'+
+    '<div class="lsec"><i></i><h4>Instructor Notes</h4></div><div class="example">'+c.instructor+'</div>'+
+    '<div class="lsec"><i></i><h4>Lessons Learned</h4></div><ul class="takeaways">'+c.lessons.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>'+
+    (rel.length?'<div class="lsec"><i></i><h4>Related Lessons</h4></div><div class="cards">'+rel.map((l,i)=>cardHTML(l,i+1,l.track.name+" · "+l.module.name)).join("")+'</div>':'');
+  }
+  h+='<div class="lsec"><i></i><h4>My Case Notes</h4></div>'+
+    '<textarea class="noteBox" id="caseNoteBox" placeholder="Your analysis: what would you do, and why?">'+esc(st.notes||"")+'</textarea>'+
+    '<div class="noteHint">Saved automatically · write your analysis BEFORE revealing for the full effect</div>'+
+    '</div>';
+  document.getElementById("caseInner").innerHTML=h;
+  const nb=document.getElementById("caseNoteBox");
+  let t=null;
+  nb.addEventListener("input",()=>{clearTimeout(t);t=setTimeout(()=>{
+    store.cases[id]=Object.assign({},store.cases[id]||{},{notes:nb.value});saveStore();
+  },400)});
+  if(!caseEl.classList.contains("open")){caseEl.scrollTop=0}
+  caseEl.classList.add("open");syncScrollLock();
+}
+function casePick(i){
+  const st=store.cases[curCase]||{};
+  if(st.revealed)return;
+  store.cases[curCase]=Object.assign({},st,{choice:i});
+  saveStore();openCase(curCase);
+}
+function caseReveal(){
+  const st=store.cases[curCase]||{};
+  store.cases[curCase]=Object.assign({},st,{revealed:true,done:true});
+  saveStore();
+  const c=CASES.find(x=>x.id===curCase);
+  toast(st.choice===c.suggested?"✓ You matched the suggested call":"Compare your reasoning with the notes");
+  openCase(curCase);renderLibrary();renderProgress();renderHome();
+}
+function closeCase(){caseEl.classList.remove("open");syncScrollLock()}
 
 /* ================= QUIZ ENGINE =================
    Custom lesson.quiz [{q,opts[],ci}] is used when present (Phase 4+);
@@ -1719,7 +2737,10 @@ function badgeDefs(){
     {ic:"🏆",n:"Dean's List",d:"Complete 50 lessons",e:done.size>=50},
     {ic:"🧠",n:"Quiz Taker",d:"Pass your first quiz (70%+)",e:bests.some(b=>b>=70)},
     {ic:"🏅",n:"Quiz Ace",d:"Score 100% on 5 quizzes",e:bests.filter(b=>b===100).length>=5},
-    {ic:"🃏",n:"Card Shark",d:"Master 50 flashcards",e:flashMastered()>=50}
+    {ic:"🃏",n:"Card Shark",d:"Master 50 flashcards",e:flashMastered()>=50},
+    {ic:"📖",n:"Bookworm",d:"Finish 5 books from the Library",e:BOOKS.filter(b=>(store.books[b.id]||{}).status==="finished").length>=5},
+    {ic:"🧮",n:"Toolsmith",d:"Save 3 calculations in Operator Tools",e:Object.values(store.tools).reduce((a,t)=>a+((t.saved||[]).length),0)>=3},
+    {ic:"⚖️",n:"Case Cracker",d:"Complete 3 case studies",e:CASES.filter(c=>(store.cases[c.id]||{}).done).length>=3}
   ];
   DATA[0].levels.forEach(lv=>{
     const ls=lv.modules.flatMap(m=>m.lessons);
@@ -1920,7 +2941,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","book","tool","case"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -1934,8 +2955,12 @@ function palActions(){
     {k:"Page",t:"Progress & Mastery",s:"Rings, badges, streak",run:()=>setView("progress")},
     {k:"Action",t:"Continue Learning",s:resumeLesson().t,run:()=>openLesson(resumeLesson().id)},
     {k:"Action",t:"Daily Lesson",s:dailyLesson().t,run:()=>openLesson(dailyLesson().id)},
+    {k:"Page",t:"Business Library",s:BOOKS.length+" books with study notes",run:()=>openLibrary("books")},
+    {k:"Page",t:"Operator Tools",s:TOOLS.length+" calculators",run:()=>openLibrary("tools")},
+    {k:"Page",t:"Case Studies",s:CASES.length+" decision cases",run:()=>openLibrary("cases")},
     {k:"Action",t:"Review Flashcards",s:flashDue().length+" cards to master",run:()=>openFlash("due")},
     {k:"Action",t:"Quick Quiz",s:resumeLesson().t,run:()=>openQuiz(resumeLesson().id)},
+    {k:"Action",t:"Book of the Day",s:dailyPick(BOOKS).title,run:()=>openBook(dailyPick(BOOKS).id)},
     {k:"Action",t:"Toggle Light / Dark",s:"Switch appearance",run:()=>toggleAppearance()},
     {k:"Action",t:"Theme Gallery",s:"16 premium themes",run:()=>openThemes()}
   ];
@@ -1995,6 +3020,9 @@ document.addEventListener("keydown",e=>{
     else if(quizEl.classList.contains("open"))closeQuiz();
     else if(flashEl.classList.contains("open"))closeFlash();
     else if(sheetEl.classList.contains("open"))closeLesson();
+    else if(bookEl.classList.contains("open"))closeBook();
+    else if(toolEl.classList.contains("open"))closeTool();
+    else if(caseEl.classList.contains("open"))closeCase();
     else if(document.getElementById("themes").classList.contains("open"))closeThemes();
     return;
   }
@@ -2019,7 +3047,7 @@ function renderHeader(){
   document.querySelectorAll(".streakN").forEach(el=>el.textContent=streak());
 }
 function renderAll(){
-  renderHeader();buildSidebar();renderHome();renderCourses();renderProgress();
+  renderHeader();buildSidebar();renderHome();renderCourses();renderProgress();renderLibrary();
   DATA.forEach(tr=>renderTrack(tr));
   setView(activeView);
 }

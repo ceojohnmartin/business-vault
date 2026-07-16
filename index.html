@@ -9,7 +9,7 @@
 <title>The Business Vault</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#eef3fb;--surface:#ffffff;--surface-2:#f7faff;--hover:#e9f0fb;--raise:#f0f5fc;
@@ -26,15 +26,22 @@
     --oswald:'Oswald',system-ui,sans-serif;
     --inter:'Inter',system-ui,sans-serif;
     --mono:'JetBrains Mono',ui-monospace,monospace;
+    --font-d:var(--oswald);
+    --on-accent:#ffffff;
+    --body-grad:radial-gradient(900px 500px at 90% -12%,rgba(47,111,237,.08),transparent 60%),radial-gradient(700px 420px at -6% -4%,rgba(91,155,245,.06),transparent 55%),linear-gradient(180deg,#f5f9ff,#e9f1fb);
+    --glass:rgba(255,255,255,.85);
+    --seg-bg:rgba(233,240,251,.9);
+    --brand-face:linear-gradient(150deg,#e8f1ff,#cfe1fb);
+    --video-bg:#0f1b2d;
+    --hero-glow:rgba(47,111,237,.12);
+    --r-lg:18px;--r-card:14px;--r-btn:11px;
   }
+  html.theming, html.theming *{transition:background .35s ease,background-color .35s ease,color .35s ease,border-color .35s ease,box-shadow .35s ease!important}
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html{scroll-behavior:smooth}
   body{
     font-family:var(--inter);color:var(--text);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
-    background:
-      radial-gradient(900px 500px at 90% -12%,rgba(47,111,237,.08),transparent 60%),
-      radial-gradient(700px 420px at -6% -4%,rgba(91,155,245,.06),transparent 55%),
-      linear-gradient(180deg,#f5f9ff,#e9f1fb);
+    background:var(--body-grad);
     background-attachment:fixed;min-height:100vh;
   }
   button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
@@ -44,15 +51,15 @@
   .top{
     position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:11px;
     padding:calc(12px + env(safe-area-inset-top)) 18px 12px;
-    background:rgba(255,255,255,.82);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);
+    background:var(--glass);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);
     border-bottom:1px solid var(--edge);
   }
   .brandmark{
     width:36px;height:36px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;
-    background:linear-gradient(150deg,#e8f1ff,#cfe1fb);border:1px solid var(--blue-3);color:var(--blue-2);
+    background:var(--brand-face);border:1px solid var(--blue-3);color:var(--blue-2);
     box-shadow:0 0 14px rgba(47,111,237,.18),inset 0 1px 0 rgba(255,255,255,.6);
   }
-  .brandname{font-family:var(--oswald);font-weight:700;font-size:16px;letter-spacing:.18em;color:var(--text)}
+  .brandname{font-family:var(--font-d);font-weight:700;font-size:16px;letter-spacing:.18em;color:var(--text)}
   .brandname small{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.34em;color:var(--steel);font-weight:500;margin-top:1px}
   .top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
   .streak{display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:9px;background:var(--surface);border:1px solid var(--edge);font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--amber)}
@@ -62,20 +69,20 @@
   .view.active{display:flex}
   @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
   /* ================= PANELS / CARDS ================= */
-  .panel{background:var(--surface);border:1px solid var(--edge);border-radius:16px;padding:18px;box-shadow:var(--card-sh)}
+  .panel{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:18px;box-shadow:var(--card-sh)}
   .chipBadge{
     display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:100px;
     background:var(--blue-soft);border:1px solid var(--blue-3);color:var(--blue-2);
     font-size:12.5px;font-weight:600;width:fit-content;
   }
-  .hero{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--edge);border-radius:18px;padding:22px 20px;box-shadow:var(--card-sh)}
-  .hero::after{content:"";position:absolute;right:-70px;top:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,rgba(47,111,237,.12),transparent 65%);pointer-events:none}
-  .hero h1{font-family:var(--oswald);font-weight:700;font-size:clamp(28px,7.4vw,40px);line-height:1.08;letter-spacing:.01em;margin:13px 0 9px;text-transform:none}
+  .hero{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:22px 20px;box-shadow:var(--card-sh)}
+  .hero::after{content:"";position:absolute;right:-70px;top:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,var(--hero-glow),transparent 65%);pointer-events:none}
+  .hero h1{font-family:var(--font-d);font-weight:700;font-size:clamp(28px,7.4vw,40px);line-height:1.08;letter-spacing:.01em;margin:13px 0 9px;text-transform:none}
   .hero p{color:var(--steel-2);font-size:14.5px;line-height:1.6;max-width:480px}
   .hero-cta{display:flex;align-items:center;gap:12px;margin-top:17px;flex-wrap:wrap}
   .btn{
-    display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:11px;
-    background:var(--blue-face);color:#fff;font-weight:700;font-size:14px;border:1px solid var(--blue-2);
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:var(--r-btn);
+    background:var(--blue-face);color:var(--on-accent);font-weight:700;font-size:14px;border:1px solid var(--blue-2);
     box-shadow:0 8px 22px -10px var(--blue-glow),inset 0 1px 0 rgba(255,255,255,.3);
     transition:transform .12s ease,filter .12s ease;white-space:nowrap;
   }
@@ -87,14 +94,14 @@
   /* stat tiles */
   .statGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
   @media(max-width:560px){.statGrid{grid-template-columns:repeat(2,1fr)}}
-  .stat{background:var(--surface);border:1px solid var(--edge);border-radius:14px;padding:14px 8px;text-align:center;box-shadow:var(--card-sh)}
+  .stat{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:14px 8px;text-align:center;box-shadow:var(--card-sh)}
   .stat b{display:block;font-family:var(--mono);font-size:26px;font-weight:700;line-height:1.1;color:var(--text)}
   .stat b.c-blue{color:var(--blue)}.stat b.c-green{color:var(--green)}.stat b.c-red{color:var(--red)}.stat b.c-amber{color:var(--amber)}
   .stat span{display:block;font-size:11.5px;color:var(--steel);margin-top:4px;font-weight:500}
   /* section head — "| Title" style */
   .sectionHead{display:flex;align-items:center;gap:9px;margin:6px 2px -4px}
   .sectionHead i{width:4px;height:17px;border-radius:3px;background:var(--blue-line);flex-shrink:0}
-  .sectionHead h3{font-family:var(--oswald);font-weight:600;font-size:16px;letter-spacing:.05em}
+  .sectionHead h3{font-family:var(--font-d);font-weight:600;font-size:16px;letter-spacing:.05em}
   .sectionHead .mono{margin-left:auto;font-size:11px;color:var(--steel);font-weight:500}
   /* track progress rows */
   .snap{display:flex;flex-direction:column;gap:12px}
@@ -106,19 +113,19 @@
   /* segmented level pills */
   .segWrap{position:sticky;top:calc(61px + env(safe-area-inset-top));z-index:20;padding:2px 0}
   .seg-group{
-    display:flex;gap:4px;padding:4px;border-radius:13px;overflow-x:auto;scrollbar-width:none;
-    background:rgba(233,240,251,.9);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--edge);
+    display:flex;gap:4px;padding:4px;border-radius:var(--r-card);overflow-x:auto;scrollbar-width:none;
+    background:var(--seg-bg);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--edge);
   }
   .seg-group::-webkit-scrollbar{display:none}
   .seg{flex:1 0 auto;padding:9px 14px;border-radius:9px;font-size:12.5px;color:var(--steel-2);font-weight:600;white-space:nowrap;transition:color .16s ease,background .18s cubic-bezier(.22,1,.36,1),box-shadow .18s ease;text-align:center}
   .seg.on{background:var(--surface);color:var(--blue-2);box-shadow:0 2px 8px -2px var(--shadow),inset 0 0 0 1px var(--edge)}
   .seg .mono{font-size:10px;margin-left:5px;opacity:.75}
   /* level meta card */
-  .levelMeta{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--edge);border-radius:15px;padding:14px 16px;box-shadow:var(--card-sh)}
+  .levelMeta{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:14px 16px;box-shadow:var(--card-sh)}
   .levelMeta .lm-ring{position:relative;width:48px;height:48px;flex-shrink:0}
   .levelMeta .lm-ring svg{transform:rotate(-90deg)}
   .levelMeta .lm-ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--blue-2)}
-  .levelMeta .lm-t b{display:block;font-family:var(--oswald);font-weight:600;font-size:16.5px;letter-spacing:.02em}
+  .levelMeta .lm-t b{display:block;font-family:var(--font-d);font-weight:600;font-size:16.5px;letter-spacing:.02em}
   .levelMeta .lm-t span{display:block;font-size:12px;color:var(--steel);margin-top:2px}
   .ring-track{fill:none;stroke:var(--hover);stroke-width:5}
   .ring-fill{fill:none;stroke:url(#blueGrad);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.22,1,.36,1)}
@@ -129,7 +136,7 @@
   .cards{display:flex;flex-direction:column;gap:9px}
   .card{
     display:flex;align-items:center;gap:13px;text-align:left;width:100%;
-    background:var(--surface);border:1px solid var(--edge);border-radius:14px;padding:14px 15px;
+    background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:14px 15px;
     box-shadow:var(--card-sh);color:var(--text);
     transition:transform .25s cubic-bezier(.22,1,.36,1),border-color .2s,box-shadow .2s;
   }
@@ -156,7 +163,7 @@
   .searchBox{position:relative}
   .searchBox svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--steel);pointer-events:none}
   .searchBox input{
-    width:100%;padding:15px 16px 15px 45px;font-size:16px;border-radius:13px;border:1px solid var(--edge);
+    width:100%;padding:15px 16px 15px 45px;font-size:16px;border-radius:var(--r-card);border:1px solid var(--edge);
     background:var(--surface);color:var(--text);outline:none;box-shadow:var(--card-sh);
     transition:border-color .2s,box-shadow .2s;-webkit-appearance:none;
   }
@@ -167,7 +174,7 @@
   /* ================= BOTTOM TAB BAR ================= */
   .tabbar{
     position:fixed;bottom:0;left:0;right:0;z-index:60;display:flex;justify-content:space-around;align-items:center;
-    background:rgba(255,255,255,.88);border-top:1px solid var(--edge);
+    background:var(--glass);border-top:1px solid var(--edge);
     padding:7px 6px calc(9px + env(safe-area-inset-bottom));
     backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);
     box-shadow:0 -6px 20px -14px var(--shadow);
@@ -180,7 +187,7 @@
   #sheet{
     position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;
     transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;
-    background-image:radial-gradient(800px 400px at 90% -10%,rgba(47,111,237,.07),transparent 60%);
+    background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%);
   }
   #sheet.open{transform:translateY(0);visibility:visible}
   .sheetBar{
@@ -194,16 +201,20 @@
   .sheetBar .crumb{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-weight:600;text-align:right}
   .sheetInner{max-width:720px;margin:0 auto;padding:24px 18px calc(60px + env(safe-area-inset-bottom))}
   .lessonChip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:100px;background:var(--blue-soft);border:1px solid var(--blue-3);color:var(--blue-2);font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-  .sheetInner h2{font-family:var(--oswald);font-weight:700;font-size:clamp(24px,6vw,32px);line-height:1.14;letter-spacing:.005em;margin:12px 0 6px}
+  .sheetInner h2{font-family:var(--font-d);font-weight:700;font-size:clamp(24px,6vw,32px);line-height:1.14;letter-spacing:.005em;margin:12px 0 6px}
   .lessonMeta{color:var(--steel);font-size:13px;margin-bottom:18px}
-  .videoBox{border-radius:16px;overflow:hidden;border:1px solid var(--edge);background:var(--surface);box-shadow:var(--card-sh)}
-  .videoBox .frame{position:relative;padding-top:56.25%;background:#0f1b2d}
+  .videoBox{border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--edge);background:var(--surface);box-shadow:var(--card-sh)}
+  .videoBox .frame{position:relative;padding-top:56.25%;background:var(--video-bg)}
   .videoBox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
   .ytBtn{display:flex;align-items:center;gap:15px;padding:19px;text-decoration:none;color:var(--text)}
   .ytBtn .play{
-    width:52px;height:52px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;
+    width:52px;height:52px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;color:var(--on-accent);
     background:var(--blue-face);box-shadow:0 8px 22px -8px var(--blue-glow);transition:transform .25s;
   }
+  .vcap{display:flex;align-items:center;gap:7px;padding:11px 14px;border-top:1px solid var(--edge);font-size:12px;color:var(--steel-2);background:var(--surface)}
+  .vcap b{color:var(--text);font-weight:600}
+  .iconBtn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--edge);color:var(--steel-2);flex-shrink:0}
+  .iconBtn:active{transform:scale(.93)}
   .ytBtn:active .play{transform:scale(.92)}
   .ytBtn b{display:block;font-size:15px;font-weight:700;margin-bottom:2px}
   .ytBtn span{font-size:12.5px;color:var(--steel-2);line-height:1.45;display:block}
@@ -212,15 +223,15 @@
   .lbody{margin-top:8px}
   .lsec{display:flex;align-items:center;gap:9px;margin:26px 0 13px}
   .lsec i{width:4px;height:15px;border-radius:3px;background:var(--blue-line);flex-shrink:0}
-  .lsec h4{font-family:var(--oswald);font-weight:600;font-size:14px;letter-spacing:.09em;text-transform:uppercase}
-  .lbody p{font-size:15.5px;line-height:1.75;color:var(--light);margin-bottom:14px;background:var(--surface);border:1px solid var(--edge);border-radius:14px;padding:15px 17px;box-shadow:var(--card-sh)}
+  .lsec h4{font-family:var(--font-d);font-weight:600;font-size:14px;letter-spacing:.09em;text-transform:uppercase}
+  .lbody p{font-size:15.5px;line-height:1.75;color:var(--light);margin-bottom:14px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:15px 17px;box-shadow:var(--card-sh)}
   .terms{display:flex;flex-direction:column;gap:9px}
-  .term{background:var(--surface);border:1px solid var(--edge);border-radius:13px;padding:12px 15px;box-shadow:var(--card-sh)}
+  .term{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:12px 15px;box-shadow:var(--card-sh)}
   .term b{color:var(--blue-2);font-size:13.5px;font-weight:700}
   .term span{display:block;font-size:13px;color:var(--steel-2);line-height:1.55;margin-top:3px}
-  .example{background:linear-gradient(100deg,var(--blue-soft),rgba(47,111,237,.03) 70%),var(--surface);border:1px solid var(--blue-3);border-left:4px solid var(--blue);border-radius:13px;padding:15px 17px;font-size:14px;line-height:1.7;color:var(--light);box-shadow:var(--card-sh)}
+  .example{background:linear-gradient(100deg,var(--blue-soft),transparent 70%),var(--surface);border:1px solid var(--blue-3);border-left:4px solid var(--blue);border-radius:var(--r-card);padding:15px 17px;font-size:14px;line-height:1.7;color:var(--light);box-shadow:var(--card-sh)}
   .takeaways{list-style:none;display:flex;flex-direction:column;gap:9px}
-  .takeaways li{display:flex;gap:12px;font-size:14px;line-height:1.6;color:var(--light);background:var(--surface);border:1px solid var(--edge);border-radius:13px;padding:13px 15px;box-shadow:var(--card-sh)}
+  .takeaways li{display:flex;gap:12px;font-size:14px;line-height:1.6;color:var(--light);background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:13px 15px;box-shadow:var(--card-sh)}
   .takeaways li i{
     font-style:normal;flex-shrink:0;width:23px;height:23px;border-radius:50%;margin-top:1px;
     background:var(--blue-soft);color:var(--blue-2);font-family:var(--mono);font-size:11px;font-weight:700;
@@ -228,6 +239,26 @@
   }
   .completeBtn{margin-top:28px}
   .footerNote{text-align:center;font-family:var(--mono);color:var(--steel);font-size:10px;letter-spacing:.2em;text-transform:uppercase;padding:14px 0 4px}
+  /* ============ THEME GALLERY ============ */
+  #themes{position:fixed;inset:0;z-index:120;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
+  #themes.open{transform:translateY(0);visibility:visible}
+  .tInner{max-width:760px;margin:0 auto;padding:18px 16px calc(50px + env(safe-area-inset-bottom))}
+  .tgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:14px}
+  @media(min-width:640px){.tgrid{grid-template-columns:repeat(3,1fr)}}
+  .tcard{position:relative;text-align:left;background:var(--surface);border:1.5px solid var(--edge);border-radius:var(--r-card);padding:9px;box-shadow:var(--card-sh);transition:transform .2s,border-color .2s;cursor:pointer}
+  .tcard:active{transform:scale(.97)}
+  .tcard.on{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft),var(--card-sh)}
+  .tprev{height:86px;border-radius:calc(var(--r-card) - 4px);padding:9px;display:flex;flex-direction:column;gap:6px;overflow:hidden;border:1px solid rgba(0,0,0,.06)}
+  .tprev .tp-bar{height:8px;border-radius:4px;width:62%}
+  .tprev .tp-card{flex:1;border-radius:7px;padding:6px 8px;display:flex;flex-direction:column;gap:5px;justify-content:center}
+  .tprev .tp-line{height:5px;border-radius:3px;width:80%;opacity:.55}
+  .tprev .tp-line.s{width:52%;opacity:.3}
+  .tprev .tp-btn{height:14px;border-radius:7px;width:46%}
+  .tname{font-size:12.5px;font-weight:700;margin:9px 2px 1px;display:flex;align-items:center;gap:5px}
+  .ttags{font-size:10px;color:var(--steel);margin:0 2px}
+  .tstar{position:absolute;top:14px;right:14px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.85);color:#b9b9c2;border:1px solid rgba(0,0,0,.08)}
+  .tstar.on{color:#f59e0b}
+  .tcheck{color:var(--blue-2)}
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -245,6 +276,9 @@
   </div>
   <div class="brandname">BUSINESS VAULT<small>PRIVATE UNIVERSITY</small></div>
   <div class="top-right">
+    <button class="iconBtn" onclick="openThemes()" aria-label="Theme gallery">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 0 0 20c1.2 0 2-.9 2-2 0-.6-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 22 10.6 8.9 8.9 0 0 0 12 2z"/><circle cx="7.5" cy="10.5" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16.5" cy="10.5" r="1.3"/></svg>
+    </button>
     <div class="streak" id="streakChip" title="Day streak">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 0.7s.8 3.2-1.6 6.4C9.6 10.2 7 11.7 7 15a5.5 5.5 0 0 0 11 0c0-1.6-.6-2.9-1.4-4.1-.6 1-1.6 1.9-2.6 2.1.6-1.9 1-4.9-.5-7.5-1-1.9-3-4.8 0-4.8z" transform="translate(-1.5 2) scale(0.95)"/></svg>
       <span id="streakN">1</span>
@@ -256,6 +290,23 @@
 <main id="views"></main>
 
 <nav class="tabbar" id="tabbar"></nav>
+
+<div id="themes" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeThemes()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Done
+    </button>
+    <div class="crumb">Theme Gallery</div>
+  </div>
+  <div class="tInner">
+    <div class="sectionHead"><i></i><h3>CHOOSE YOUR LOOK</h3><span class="mono" id="tcount"></span></div>
+    <p style="font-size:12.5px;color:var(--steel-2);margin:10px 2px 12px;line-height:1.55">Tap any theme to apply it instantly. Star your favorites — your choice is saved automatically on this device.</p>
+    <div class="searchBox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="themeSearch" type="search" placeholder="Search themes — luxury, minimal, dark…" autocomplete="off"></div>
+    <div class="tgrid" id="tgrid"></div>
+  </div>
+</div>
 
 <div id="sheet" role="dialog" aria-modal="true">
   <div class="sheetBar">
@@ -884,6 +935,8 @@ keys:["Multi-branch is an operating system test: SOPs, scorecards, and P&L-ownin
 ]}
 ];
 
+const VIDEO_MAP={"f1":{"v":"CBYhVcO4WgI","title":"Lecture 1 - How to Start a Startup (Sam Altman, Dustin Moskovitz)","ch":""},"f2":{"v":"bNpx7gpSqbY","title":"The single biggest reason why start-ups succeed | Bill Gross | TED","ch":""},"f3":{"v":"kmOj1usAmKM","title":"Revenue vs. Gross Income/Profit/Earnings vs. Net Income/Profit/Earnings (Bottom Line) in One Minute","ch":"One Minute Economics"},"f4":{"v":"4WfN3Aupoqo","title":"Cash Flow Masterclass for Business Owners (Before It's Too Late)","ch":"BizMoney Explained"},"f5":{"v":"5fLRqU0ZRns","title":"Breaking Down the P&L with Kevin Cope | Breaking down the Income Statement","ch":"Acumen Learning"},"f6":{"v":"CMv1zlZhb4Q","title":"The BALANCE SHEET for BEGINNERS (Full Example)","ch":"Accounting Stuff"},"f7":{"v":"hMBN6yTIDb0","title":"Cash Flow Statement Basics Explained","ch":"Leila Gharani"},"f8":{"v":"yYX4bvQSqbo","title":"ACCOUNTING BASICS: a Guide to (Almost) Everything","ch":""},"f9":{"v":"SCpWeCLfqo4","title":"How To Choose The Best Business Structure (LLC vs S-Corp vs C-Corp)","ch":"Sherman - My CPA Coach"},"f10":{"v":"Ru5PqUfN89E","title":"How to Calculate a Break Even Point (Guide)","ch":"HubSpot Marketing"},"c1":{"v":"keCwRdbwNQY","title":"Best marketing strategy ever! Steve Jobs Think different / Crazy ones speech (with real subtitles)","ch":""},"c2":{"v":"f7j3JSBD6so","title":"5-Minute Google Ads Tutorial - Everything You Need to Know In Under 5 Minutes (2025)","ch":"Ivan Mana"},"c3":{"v":"jQjOD579jhI","title":"The Digital Marketing Funnel Explained: Turn Strangers into Customers","ch":"Explained Hub"},"c4":{"v":"1WTD-V2F_N8","title":"How to create a stand-out SOCIAL MEDIA STRATEGY for your small business + how to film & edit videos","ch":"Chantal Leonhardt"},"c8":{"v":"MT4Ig2uqjTc","title":"Eric Migicovsky - How to Talk to Users","ch":""},"a11":{"v":"guZa7mQV1l0","title":"Never Split the Difference | Chris Voss | Talks at Google","ch":""},"a12":{"v":"qp0HIF3SfI4","title":"How Great Leaders Inspire Action | Simon Sinek | TED","ch":""},"a13":{"v":"0lJKucu6HJc","title":"Sam Altman - How to Succeed with a Startup","ch":""},"m10":{"v":"PHe0bXAIuk0","title":"How The Economic Machine Works by Ray Dalio","ch":""},"c5":{"v":"Y4XNa81ii7Y","title":"How to Optimize Your Google Business Profile for Local Search | Complete Local SEO Guide","ch":"The Digital Marketing Professor"},"c6":{"v":"j9sgzTbR2cE","title":"Why People Buy And The Science Behind It","ch":"SLAM! Agency"},"c9":{"v":"EpPd1kX4tBw","title":"How to write SOPs (so your business runs without you)","ch":"Ross Harkness"},"c10":{"v":"rWH_B8SLaCI","title":"How to Hire and Pay Employees in a Small Business","ch":"Ginny Silver - California Small Business Coach"},"c12":{"v":"Ls2wgmHG39s","title":"Small Business Legal Essentials | Contracts, IP Law & Business Basics","ch":"SBC Consulting"},"c13":{"v":"nOrN47bmZ40","title":"Job-order Cost System Explained","ch":"Edspira"},"c14":{"v":"qc0MhgdG-0g","title":"What is a Tax Write-Off and Tax Deduction for Small Businesses?","ch":"Karlton Dennis"},"a1":{"v":"354QSdHGmpk","title":"Unit Economics Metrics Explained | CAC, LTV, Contribution Margin & More","ch":"Marketing with Shadowasta"},"a2":{"v":"eHi875QuVcA","title":"How to Calculate Customer Lifetime Value | The #1 Most Important Metric for Startups","ch":"Eric Andrews"},"a3":{"v":"ATUztd4IemI","title":"How to Calculate Churn Rate | Case Study","ch":"Eric Andrews Clips"},"a4":{"v":"WLBY03YpiL0","title":"EBITDA vs  Net Income vs  Operating Profit vs. Gross Income - Understanding Profit Measurements","ch":"Corporate Finance Academy"},"a5":{"v":"1AUBZbbk53g","title":"How to Build a 3-Statement Financial Model From Scratch (Expert Guide + Free Template)","ch":"Josh Aharonoff (Your CFO Guy)"},"a6":{"v":"mPiWWnJsVGw","title":"Digital Marketing Metrics & KPI's Explained (With Examples)","ch":"Elevate Digital"},"a7":{"v":"fH_gQmiVZgU","title":"Introduction to Debt and Equity Financing","ch":"Alanis Business Academy"},"a8":{"v":"brFD1fFAYhQ","title":"EBITDA Multiples and Valuation Ranges: How Companies are Valued","ch":"Arthur Petropoulos"},"a9":{"v":"NwFQObgKpIM","title":"13 Week Cash Flow Model","ch":"Corporate Finance Academy"},"a10":{"v":"ZzvPj-ovscc","title":"How to Get Business Credit for Your LLC in 2024","ch":"Karlton Dennis"},"m1":{"v":"WBHzCDgEtVQ","title":"Mergers and Acquisitions Explained: A Crash Course on M&A","ch":"Brett Cenkus"},"m2":{"v":"gJNuoUYTAiE","title":"How to Get SBA Financing to Buy Your First Business","ch":"Beau Eckstein, Business Ownership Coach"},"m3":{"v":"o5kPhEBTVV4","title":"Sell your business right — prepare essentials, position strategically, maximise exit profit","ch":"BenchmarkBusinessAdvisory"},"m4":{"v":"EYBKoz68FUg","title":"How Franchising Works : Mcdonalds Franchise Example","ch":"Tariq Johnson"},"m5":{"v":"bCqHSl8hTrM","title":"Acquisition Roll-up Strategy 101","ch":"Walker Deibel"},"m6":{"v":"Bd_11I4FY_U","title":"How to Start a Holding LLC Company in 2026 [Step-by-Step]","ch":"LYFE Accounting"},"m7":{"v":"M6B2R0bn5Vs","title":"Final Big Beautiful Bill: 4 Tax Strategies for Business Owners & Real Estate Investors","ch":"Mark J Kohler"},"m8":{"v":"NoK6kKkvc-U","title":"The Ultimate Guide to SBA Loans (Real Estate and Buyouts)","ch":"Sage Real Estate"},"m9":{"v":"jcDq9bju9ds","title":"Family Business Succession Planning: How to Plan Your Exit Strategy and Save on Taxes!","ch":"Confidence Wealth Management"},"e1":{"v":"x-hYzRncxTc","title":"What Is Opportunity Cost?","ch":"Marginal Revolution University"},"e2":{"v":"OHCpUcerz1Q","title":"Economic Moat (Competitive Advantage): Warren Buffett’s Principles of Stock Market Investing","ch":"Bull Investor"},"e3":{"v":"Dfp23xSqpdk","title":"Porter's 5 Forces EXPLAINED | B2U | Business To You","ch":"Business To You"},"e4":{"v":"N-lN5xORIwc","title":"Net Present Value (NPV) explained","ch":"The Finance Storyteller"},"e5":{"v":"tU9rn2eUL5E","title":"Warren Buffett on Capital allocation (2001)","ch":"Investment Knowledge"},"e6":{"v":"5GXx5c53c5s","title":"Startup Funding Explained: Series A vs Seed - Startups 101","ch":"Slidebean and The Startup Club by Slidebean"},"e7":{"v":"QaoVWtLX038","title":"Validate your business idea: THE LEAN STARTUP by Eric Ries","ch":"Productivity Game"},"e8":{"v":"HVkfEXgH8QM","title":"How to Find Product-Market-Fit as Fast as Possible (CEO Explains)","ch":"jayhoovy"},"e10":{"v":"PS1oKPZdJdE","title":"How To Build High Performing SaaS Sales Pipelines","ch":"Rob Walling"},"x1":{"v":"o1aRJeDe8j8","title":"What is Behavioral Economics? - Psychology Explained","ch":"Simplified In Short "},"x2":{"v":"ywyQ_eNNCJU","title":"Charlie Munger: Mental Models for the Rest of Your Life","ch":"The Swedish Investor"},"x3":{"v":"iPj77CnewR0","title":"AI for Small Business: Connecting AI to Your Existing Software Stack","ch":"Skill:RE - Enabling Enterprise AI"},"x4":{"v":"Mj42FVG8LdA","title":"How to Measure Marketing Attribution | IHC Attribution","ch":"Haensel AMS"},"x5":{"v":"EUo4G1lw-w8","title":"Intellectual Property Law Explained | Copyrights, Trademarks, Trade Secrets, & Patents","ch":"All Up In Yo' Business with Attorney Aiden Durham"},"x6":{"v":"geoe-6NBy10","title":"Imports, Exports, and Exchange Rates: Crash Course Economics #15","ch":"CrashCourse"},"x7":{"v":"962eYqe--Yc","title":"4 Tips To IMPROVE Your Public Speaking - How to CAPTIVATE an Audience","ch":"Motivation2Study"},"x8":{"v":"0QOAymz9Sa8","title":"Why asset allocation matters: 4 steps to a successful investment portfolio","ch":"Julius Baer"},"w1":{"v":"u4MYxhGbEVQ","title":"Site Selection and Design: Speed Limits","ch":"Professional Carwashing & Detailing"},"w2":{"v":"YC63LTSSOlw","title":"Express vs. Full Service Car Washes: Which One Makes More Money?","ch":"The Business Broker King"},"w3":{"v":"_xgDPfAd3Ds","title":"SONNY'S Car Wash Equipment - Log Chain Over Under Conveyor","ch":"Sonny's The Car Wash Factory"},"w5":{"v":"XmHPkLOZnoo","title":"The Economics of Owning a Car Wash","ch":"Profit Breakdown"},"w6":{"v":"7tJdG-uDUGE","title":"Water reclamation systems WRP Car Wash WRP 16000","ch":"Karcher Malaysia"},"w7":{"v":"Nd8M7hCbeeA","title":"Fast5Express Car Wash Employee Orientation video","ch":"Coastline Productions"},"w8":{"v":"MQo9rz-ETbU","title":"Unlocking the power of ground leasing real estate with Reuven Birnkrant","ch":"Professional Carwashing & Detailing"},"w9":{"v":"cCSaxz6jnGQ","title":"How to Finance Your Car Wash Business - Leading SBA Expert Details Considerations","ch":"Sonny's The Car Wash Factory"},"w10":{"v":"PhMbz0Sga1I","title":"Are Markets Becoming Saturated?","ch":"Professional Carwashing & Detailing"},"w12":{"v":"OhzzRwVLe6c","title":"Maximizing a Wash's Valuation","ch":"Professional Carwashing & Detailing"},"p1":{"v":"hzgmC3s4P0U","title":"Secrets To Mastering Door To Door Sales (Full Masterclass)","ch":"Jeremy Miner"},"p2":{"v":"KrIjJPgKj5s","title":"The Profitability Problem Every Pest Control Owner Misses","ch":"Pest Radio"},"p3":{"v":"xkdTFFQREgw","title":"Should You Do Quarterly or Monthly Pest Control","ch":"GILLEN Pest Control"},"p5":{"v":"xSXmQDoXClw","title":"How to Get Pest Control Contactor License in Texas","ch":"MyShoeCovers"},"p6":{"v":"ZQsY0WPvx64","title":"How To Set Prices For Pest Control","ch":"Jonas Olson"},"p7":{"v":"R8JuVs9nrcQ","title":"Slow Season Strategy: How to Protect Cashflow and Grow in 2026","ch":"ACRE Partner"},"p8":{"v":"Wg3mLHdko6E","title":"How to Reduce Customer Cancellations and Boost Retention Rates: Episode 184","ch":"Bug Bux"},"p9":{"v":"JOi_9ByK3JE","title":"How to Sell More Pest Control in 2025 (and Hit 1,000+ Accounts)","ch":"D2D Experts"},"p10":{"v":"j02ilBxes64","title":"How Much is Your Pest Control Business Worth in 2026? (EBITDA Multiples & KPI Guide)","ch":"TheDealSheet"},"p11":{"v":"DXCmViFxnas","title":"How We Scaled a Pest Control Company to 7-Figures in 24 Months","ch":"AMZ METRIX"},"c11":{"v":"sF6AMj3H0jg","title":"Pricing strategy an introduction Explained","ch":"Leaders Talk - ThinkEduca"},"m11":{"v":"3mtS8rOAqoM","title":"How to Find Businesses to Buy NO ONE ELSE Knows About (80 MINUTE Playbook)","ch":"Codie Sanchez"},"e9":{"v":"j8pxmNrdJvw","title":"Copywriting Tips For Beginners: How To Write Ad Copy","ch":"Alex Cattoni"},"w11":{"v":"x79GlLgEl54","title":"Boosting Unlimited Car Wash Memberships","ch":"SLAM Carwash Marketing"},"p4":{"v":"-gRoDWqo5sk","title":"New: Route Optimization","ch":"PestScan | Pest Control Software"},"c7":{"v":"50xcXYGKvPk","title":"Stop Missing Out on Sales By Using These Closing Techniques","ch":"Brian Tracy"},"w4":{"v":"M5S0b0HwvuA","title":"Episode 9: How to Triple Your Car Wash's Membership Conversions (use this 3-phase system)","ch":"OptSpot"}};
+
 /* ================= APP ENGINE ================= */
 const LS_KEY="businessVaultProgress_v1";
 const DAYS_KEY="businessVaultDays_v1";
@@ -1069,13 +1122,15 @@ function openLesson(id){
   const sheet=document.getElementById("sheet");
   document.getElementById("sheetCrumb").textContent=le.track.name+" · "+le.level.tagline;
   const searchURL="https://www.youtube.com/results?search_query="+encodeURIComponent(le.q);
+  const vm=(typeof VIDEO_MAP!=="undefined"&&VIDEO_MAP[le.id])||(le.v?{v:le.v,title:"",ch:""}:null);
   let video;
-  if(le.v){
-    video='<div class="videoBox"><div class="frame"><iframe src="https://www.youtube-nocookie.com/embed/'+le.v+'" title="'+esc(le.t)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div></div>'+
+  if(vm){
+    video='<div class="videoBox"><div class="frame"><iframe src="https://www.youtube-nocookie.com/embed/'+vm.v+'" title="'+esc(vm.title||le.t)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>'+
+      (vm.title?'<div class="vcap"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0"><path d="M8 5v14l11-7z"/></svg><span><b>'+esc(vm.title)+'</b>'+(vm.ch?' · '+esc(vm.ch):'')+'</span></div>':'')+'</div>'+
       '<a class="moreVids" href="'+searchURL+'" target="_blank" rel="noopener">More videos on this topic → <u>YouTube</u></a>';
   }else{
     video='<div class="videoBox"><a class="ytBtn" href="'+searchURL+'" target="_blank" rel="noopener">'+
-      '<span class="play"><svg width="19" height="19" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span>'+
+      '<span class="play"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>'+
       '<span><b>Watch on YouTube</b><span>Opens a curated search of the best videos on this exact topic — pick a top result from a channel you trust.</span></span></a></div>';
   }
   const isDone=done.has(id);
@@ -1125,6 +1180,217 @@ function renderAll(){
 renderSearchShell();
 renderAll();
 setView("home");
+
+/* ================= THEME ENGINE ================= */
+const FONT_OSWALD="'Oswald',system-ui,sans-serif";
+const FONT_SERIF="'Playfair Display',Georgia,serif";
+const FONT_SANS="'Inter',system-ui,sans-serif";
+const FONT_MONO="'JetBrains Mono',ui-monospace,monospace";
+
+const DARK_BASE={text:"#f2f3f6",steel:"#82858e",steel2:"#b6b9c2",light:"#dcdee4",
+  green:"#34d399",greenSoft:"rgba(52,211,153,.14)",amber:"#fbbf24",red:"#f87171",
+  shadow:"rgba(0,0,0,.55)",videoBg:"#000000",
+  cardSh:"inset 0 1px 0 rgba(255,255,255,.04),0 14px 30px -18px rgba(0,0,0,.7)",
+  rLg:"18px",rCard:"14px",rBtn:"11px",fontD:FONT_OSWALD};
+const LIGHT_BASE={green:"#16a34a",greenSoft:"rgba(22,163,74,.12)",amber:"#f59e0b",red:"#e2564f",
+  videoBg:"#101623",rLg:"18px",rCard:"14px",rBtn:"11px",fontD:FONT_OSWALD};
+
+function mk(base,o){return Object.assign({},base,o)}
+const THEMES=[
+{id:"azure",name:"Recruiting Vault",tags:"signature light blue azure default",t:mk(LIGHT_BASE,{
+  bg:"#eef3fb",surface:"#ffffff",surface2:"#f7faff",hover:"#e9f0fb",raise:"#f0f5fc",edge:"#dde7f5",edge2:"#c6d6ee",
+  text:"#0f1b2d",steel:"#7e8aa0",steel2:"#48566e",light:"#22324a",
+  acc:"#2f6fed",acc2:"#1d4fd0",acc3:"#86abf4",soft:"rgba(47,111,237,.10)",glow:"rgba(47,111,237,.32)",
+  line:"linear-gradient(90deg,#3b82f6,#1d4fd0)",face:"linear-gradient(135deg,#5b9bf5,#2f6fed 55%,#1d4fd0)",on:"#ffffff",
+  shadow:"rgba(30,58,120,.12)",cardSh:"0 1px 2px rgba(30,58,120,.05),0 10px 26px -16px rgba(30,58,120,.22)",
+  bodyGrad:"radial-gradient(900px 500px at 90% -12%,rgba(47,111,237,.08),transparent 60%),radial-gradient(700px 420px at -6% -4%,rgba(91,155,245,.06),transparent 55%),linear-gradient(180deg,#f5f9ff,#e9f1fb)",
+  glass:"rgba(255,255,255,.85)",segBg:"rgba(233,240,251,.9)",brandFace:"linear-gradient(150deg,#e8f1ff,#cfe1fb)",
+  videoBg:"#0f1b2d",heroGlow:"rgba(47,111,237,.12)"})},
+{id:"apple",name:"Apple Executive",tags:"apple dark glass luxury premium minimal ios",t:mk(DARK_BASE,{
+  bg:"#08080a",surface:"#141419",surface2:"#101014",hover:"#1c1c22",raise:"#191920",edge:"#26262d",edge2:"#35353d",
+  text:"#f5f5f7",steel:"#7d7d86",steel2:"#aeaeb6",light:"#dededf",
+  acc:"#0a84ff",acc2:"#64b1ff",acc3:"#3d7dc4",soft:"rgba(10,132,255,.16)",glow:"rgba(10,132,255,.45)",
+  line:"linear-gradient(90deg,#64b1ff,#0a84ff)",face:"linear-gradient(135deg,#5eb1ff,#0a84ff 55%,#0060df)",on:"#ffffff",
+  bodyGrad:"radial-gradient(800px 460px at 85% -10%,rgba(10,132,255,.12),transparent 60%),linear-gradient(180deg,#0c0c0f,#050506)",
+  glass:"rgba(14,14,18,.72)",segBg:"rgba(28,28,34,.85)",brandFace:"linear-gradient(150deg,#1b2836,#101822)",
+  heroGlow:"rgba(10,132,255,.20)",rLg:"22px",rCard:"17px",rBtn:"13px",fontD:FONT_SANS})},
+{id:"linear",name:"Linear",tags:"dark charcoal purple saas startup developer productivity",t:mk(DARK_BASE,{
+  bg:"#0e0e12",surface:"#16161c",surface2:"#121217",hover:"#1d1d25",raise:"#1a1a21",edge:"#26262f",edge2:"#34343f",
+  acc:"#7c5cfa",acc2:"#a78bfa",acc3:"#5d48c0",soft:"rgba(124,92,250,.16)",glow:"rgba(124,92,250,.45)",
+  line:"linear-gradient(90deg,#a78bfa,#7c5cfa)",face:"linear-gradient(135deg,#9a7bff,#7c5cfa 55%,#6344e0)",on:"#ffffff",
+  bodyGrad:"radial-gradient(700px 400px at 90% -10%,rgba(124,92,250,.10),transparent 60%),linear-gradient(180deg,#101014,#0b0b0e)",
+  glass:"rgba(14,14,18,.8)",segBg:"rgba(24,24,30,.9)",brandFace:"linear-gradient(150deg,#241d3d,#171226)",
+  heroGlow:"rgba(124,92,250,.20)",rLg:"12px",rCard:"10px",rBtn:"8px",fontD:FONT_SANS})},
+{id:"stripe",name:"Stripe",tags:"light fintech gradients trustworthy modern professional",t:mk(LIGHT_BASE,{
+  bg:"#f6f9fc",surface:"#ffffff",surface2:"#fbfdff",hover:"#eef3f9",raise:"#f2f6fb",edge:"#e6ebf1",edge2:"#d5dde8",
+  text:"#0a2540",steel:"#8898aa",steel2:"#425466",light:"#243b53",
+  acc:"#635bff",acc2:"#5148d6",acc3:"#a9a5ff",soft:"rgba(99,91,255,.10)",glow:"rgba(99,91,255,.35)",
+  line:"linear-gradient(90deg,#00d4ff,#635bff)",face:"linear-gradient(135deg,#8b85ff,#635bff 55%,#4f46e5)",on:"#ffffff",
+  shadow:"rgba(50,50,93,.12)",cardSh:"0 2px 5px -1px rgba(50,50,93,.12),0 1px 3px -1px rgba(0,0,0,.12)",
+  bodyGrad:"radial-gradient(800px 420px at 92% -10%,rgba(0,212,255,.10),transparent 55%),radial-gradient(700px 420px at -5% -5%,rgba(99,91,255,.08),transparent 55%),linear-gradient(180deg,#f8fbff,#eef3f9)",
+  glass:"rgba(255,255,255,.86)",segBg:"rgba(238,243,249,.92)",brandFace:"linear-gradient(150deg,#eef0ff,#dcdaff)",
+  videoBg:"#0a2540",heroGlow:"rgba(99,91,255,.13)",fontD:FONT_SANS})},
+{id:"tesla",name:"Tesla",tags:"dark black red luxury futuristic engineering minimal",t:mk(DARK_BASE,{
+  bg:"#000000",surface:"#101010",surface2:"#0a0a0a",hover:"#1a1a1a",raise:"#161616",edge:"#262626",edge2:"#383838",
+  text:"#ffffff",steel:"#7f7f7f",steel2:"#b3b3b3",light:"#e2e2e2",
+  acc:"#e82127",acc2:"#ff5a5f",acc3:"#a3181d",soft:"rgba(232,33,39,.15)",glow:"rgba(232,33,39,.45)",
+  line:"linear-gradient(90deg,#ff5a5f,#e82127)",face:"linear-gradient(135deg,#ff5a5f,#e82127 55%,#b81a1f)",on:"#ffffff",
+  bodyGrad:"linear-gradient(180deg,#050505,#000000)",
+  glass:"rgba(0,0,0,.75)",segBg:"rgba(20,20,20,.9)",brandFace:"linear-gradient(150deg,#2a1213,#170a0b)",
+  heroGlow:"rgba(232,33,39,.18)",rLg:"12px",rCard:"10px",rBtn:"8px"})},
+{id:"masterclass",name:"MasterClass",tags:"dark gold cinematic luxury elite exclusive premium",t:mk(DARK_BASE,{
+  bg:"#0d0d0f",surface:"#16161a",surface2:"#111115",hover:"#1e1e24",raise:"#1a1a20",edge:"#2a2a31",edge2:"#3b3b44",
+  text:"#f3f1ec",steel:"#8a8781",steel2:"#b8b4ac",light:"#ddd9d1",
+  acc:"#c9a961",acc2:"#e3c98f",acc3:"#96793e",soft:"rgba(201,169,97,.14)",glow:"rgba(201,169,97,.40)",
+  line:"linear-gradient(90deg,#e3c98f,#b98f45)",face:"linear-gradient(135deg,#e3c98f,#c9a961 55%,#a07f3c)",on:"#191307",
+  bodyGrad:"radial-gradient(800px 440px at 88% -10%,rgba(201,169,97,.10),transparent 60%),linear-gradient(180deg,#101013,#0a0a0c)",
+  glass:"rgba(13,13,15,.78)",segBg:"rgba(26,26,31,.9)",brandFace:"linear-gradient(150deg,#2c2415,#1a1509)",
+  heroGlow:"rgba(201,169,97,.18)",fontD:FONT_SERIF})},
+{id:"harvard",name:"Harvard Executive",tags:"light burgundy navy serif prestige academia authority classic",t:mk(LIGHT_BASE,{
+  bg:"#faf9f7",surface:"#ffffff",surface2:"#fcfbf9",hover:"#f1efeb",raise:"#f5f3ef",edge:"#e8e4dd",edge2:"#d6d0c5",
+  text:"#1c1a17",steel:"#8d867c",steel2:"#514c44",light:"#2e2b26",
+  acc:"#a51c30",acc2:"#7e1523",acc3:"#d18a95",soft:"rgba(165,28,48,.09)",glow:"rgba(165,28,48,.30)",
+  line:"linear-gradient(90deg,#c0293f,#7e1523)",face:"linear-gradient(135deg,#c0293f,#a51c30 55%,#7e1523)",on:"#ffffff",
+  shadow:"rgba(60,40,30,.12)",cardSh:"0 1px 2px rgba(60,40,30,.05),0 10px 26px -16px rgba(60,40,30,.20)",
+  bodyGrad:"linear-gradient(180deg,#fbfaf8,#f2efe9)",
+  glass:"rgba(250,249,247,.86)",segBg:"rgba(241,239,235,.92)",brandFace:"linear-gradient(150deg,#f7e9eb,#eed3d7)",
+  videoBg:"#1e3a5f",heroGlow:"rgba(165,28,48,.10)",fontD:FONT_SERIF})},
+{id:"mckinsey",name:"McKinsey Consulting",tags:"light navy emerald consulting analytics executive fortune data",t:mk(LIGHT_BASE,{
+  bg:"#f7f9fa",surface:"#ffffff",surface2:"#fafcfd",hover:"#edf2f5",raise:"#f2f6f8",edge:"#dfe6ec",edge2:"#c9d5de",
+  text:"#051c2c",steel:"#8496a4",steel2:"#3e5463",light:"#16303f",
+  acc:"#2251ff",acc2:"#1939b7",acc3:"#8fa8ff",soft:"rgba(34,81,255,.09)",glow:"rgba(34,81,255,.30)",
+  line:"linear-gradient(90deg,#2251ff,#0f8a62)",face:"linear-gradient(135deg,#4a6fff,#2251ff 55%,#1939b7)",on:"#ffffff",
+  green:"#0f8a62",greenSoft:"rgba(15,138,98,.12)",
+  shadow:"rgba(5,28,44,.12)",cardSh:"0 1px 2px rgba(5,28,44,.05),0 8px 22px -14px rgba(5,28,44,.20)",
+  bodyGrad:"linear-gradient(180deg,#f9fbfc,#eef3f6)",
+  glass:"rgba(255,255,255,.88)",segBg:"rgba(237,242,245,.92)",brandFace:"linear-gradient(150deg,#e7edff,#d2ddff)",
+  videoBg:"#051c2c",heroGlow:"rgba(34,81,255,.10)",rLg:"12px",rCard:"10px",rBtn:"8px",fontD:FONT_SANS})},
+{id:"bloomberg",name:"Bloomberg Terminal",tags:"dark orange finance trading terminal data power dense markets",t:mk(DARK_BASE,{
+  bg:"#0a0a0c",surface:"#131316",surface2:"#0e0e11",hover:"#1b1b1f",raise:"#17171b",edge:"#28282e",edge2:"#3a3a42",
+  text:"#f4f4f0",steel:"#84847e",steel2:"#b8b8b0",light:"#dcdcd4",
+  acc:"#fb8b1e",acc2:"#ffb066",acc3:"#c26a12",soft:"rgba(251,139,30,.15)",glow:"rgba(251,139,30,.45)",
+  line:"linear-gradient(90deg,#ffb066,#fb8b1e)",face:"linear-gradient(135deg,#ffa63d,#fb8b1e 55%,#d96c00)",on:"#1c1002",
+  green:"#34d058",red:"#f85149",
+  bodyGrad:"linear-gradient(180deg,#0d0d10,#070708)",
+  glass:"rgba(10,10,12,.82)",segBg:"rgba(22,22,26,.9)",brandFace:"linear-gradient(150deg,#2c1e0d,#1a1206)",
+  heroGlow:"rgba(251,139,30,.16)",rLg:"10px",rCard:"8px",rBtn:"7px",fontD:FONT_MONO})},
+{id:"cyberpunk",name:"Cyberpunk Neon",tags:"dark neon glow cyan pink purple futuristic ai gaming",t:mk(DARK_BASE,{
+  bg:"#06001a",surface:"#120a2b",surface2:"#0c0620",hover:"#1a1038",raise:"#160d31",edge:"#2c1b55",edge2:"#3f2a75",
+  text:"#eef0ff",steel:"#8a86b8",steel2:"#bdb9e2",light:"#dcdaf2",
+  acc:"#00e5ff",acc2:"#7df9ff",acc3:"#8b5cf6",soft:"rgba(0,229,255,.13)",glow:"rgba(0,229,255,.5)",
+  line:"linear-gradient(90deg,#00e5ff,#ff2ec4)",face:"linear-gradient(135deg,#00e5ff,#7c3aed 60%,#ff2ec4)",on:"#ffffff",
+  amber:"#ffd60a",
+  cardSh:"0 0 22px -8px rgba(0,229,255,.28),0 14px 30px -18px rgba(0,0,0,.8)",
+  bodyGrad:"radial-gradient(700px 420px at 90% -8%,rgba(255,46,196,.16),transparent 60%),radial-gradient(700px 460px at -5% 5%,rgba(0,229,255,.12),transparent 55%),linear-gradient(180deg,#0a0022,#03000e)",
+  glass:"rgba(9,2,30,.75)",segBg:"rgba(22,13,49,.9)",brandFace:"linear-gradient(150deg,#1b1145,#120a30)",
+  heroGlow:"rgba(124,58,237,.35)"})},
+{id:"scandi",name:"Scandinavian Minimal",tags:"light warm beige wood calm peaceful minimal elegant",t:mk(LIGHT_BASE,{
+  bg:"#faf7f2",surface:"#fffdf9",surface2:"#fbf8f3",hover:"#f2ede4",raise:"#f6f1e9",edge:"#ece5d8",edge2:"#dcd2c0",
+  text:"#33302b",steel:"#a39a8c",steel2:"#6b6459",light:"#45413a",
+  acc:"#b08b5a",acc2:"#8f6d3f",acc3:"#d3b990",soft:"rgba(176,139,90,.11)",glow:"rgba(176,139,90,.30)",
+  line:"linear-gradient(90deg,#c7a377,#8f6d3f)",face:"linear-gradient(135deg,#c7a377,#b08b5a 55%,#8f6d3f)",on:"#ffffff",
+  shadow:"rgba(80,65,45,.10)",cardSh:"0 1px 2px rgba(80,65,45,.04),0 10px 24px -16px rgba(80,65,45,.18)",
+  bodyGrad:"linear-gradient(180deg,#fbf8f4,#f3eee6)",
+  glass:"rgba(250,247,242,.86)",segBg:"rgba(242,237,228,.92)",brandFace:"linear-gradient(150deg,#f5ecdd,#ead9bf)",
+  videoBg:"#33302b",heroGlow:"rgba(176,139,90,.12)",rLg:"20px",rCard:"16px",rBtn:"12px",fontD:FONT_SANS})},
+{id:"blackgold",name:"Luxury Black & Gold",tags:"dark gold luxury rolex marble premium wealth exclusive",t:mk(DARK_BASE,{
+  bg:"#0a0908",surface:"#14120f",surface2:"#0f0e0b",hover:"#1c1915",raise:"#181511",edge:"#2b261e",edge2:"#3e372b",
+  text:"#f4f1ea",steel:"#8b857a",steel2:"#bab3a5",light:"#ddd7cb",
+  acc:"#d4af37",acc2:"#ecd27a",acc3:"#a8842a",soft:"rgba(212,175,55,.13)",glow:"rgba(212,175,55,.42)",
+  line:"linear-gradient(90deg,#ecd27a,#a8842a)",face:"linear-gradient(135deg,#f0d98a,#d4af37 55%,#a8842a)",on:"#1a1305",
+  bodyGrad:"radial-gradient(800px 440px at 88% -10%,rgba(212,175,55,.10),transparent 60%),linear-gradient(180deg,#0d0c0a,#070606)",
+  glass:"rgba(10,9,8,.8)",segBg:"rgba(24,21,17,.9)",brandFace:"linear-gradient(150deg,#2e2612,#1c1709)",
+  heroGlow:"rgba(212,175,55,.18)",fontD:FONT_SERIF})},
+{id:"ocean",name:"Deep Ocean",tags:"dark navy aqua teal calm professional trustworthy modern",t:mk(DARK_BASE,{
+  bg:"#081a2c",surface:"#0e2740",surface2:"#0a2033",hover:"#133155",raise:"#102c4a",edge:"#1d3a5a",edge2:"#2c4e73",
+  text:"#eaf3fb",steel:"#7fa0bb",steel2:"#b3cbde",light:"#d7e6f2",
+  acc:"#2dd4bf",acc2:"#7ce8d8",acc3:"#1a9e8c",soft:"rgba(45,212,191,.13)",glow:"rgba(45,212,191,.42)",
+  line:"linear-gradient(90deg,#7ce8d8,#149e8c)",face:"linear-gradient(135deg,#3ee6cf,#2dd4bf 55%,#149e8c)",on:"#04241f",
+  bodyGrad:"radial-gradient(800px 460px at 88% -10%,rgba(45,212,191,.12),transparent 60%),linear-gradient(180deg,#0a2138,#061523)",
+  glass:"rgba(8,26,44,.78)",segBg:"rgba(16,44,74,.88)",brandFace:"linear-gradient(150deg,#0f3a3a,#0a2828)",
+  heroGlow:"rgba(45,212,191,.18)"})},
+{id:"emeraldx",name:"Emerald Executive",tags:"dark emerald green gold wealth growth success luxury",t:mk(DARK_BASE,{
+  bg:"#06130d",surface:"#0c2016",surface2:"#091a12",hover:"#123024",raise:"#0f291e",edge:"#1c3a2b",edge2:"#2c523f",
+  text:"#eef7f1",steel:"#7da391",steel2:"#b2cfc0",light:"#d8ebe0",
+  acc:"#10b981",acc2:"#5ce0b0",acc3:"#0b8a5f",soft:"rgba(16,185,129,.13)",glow:"rgba(16,185,129,.42)",
+  line:"linear-gradient(90deg,#5ce0b0,#0b8a5f)",face:"linear-gradient(135deg,#34d399,#10b981 55%,#0b8a5f)",on:"#04241a",
+  amber:"#d4af37",
+  bodyGrad:"radial-gradient(800px 460px at 88% -10%,rgba(16,185,129,.12),transparent 60%),linear-gradient(180deg,#081a12,#050f0a)",
+  glass:"rgba(6,19,13,.8)",segBg:"rgba(14,36,26,.9)",brandFace:"linear-gradient(150deg,#12352a,#0b241b)",
+  heroGlow:"rgba(16,185,129,.20)",fontD:FONT_SERIF})},
+{id:"white",name:"Pure White Minimal",tags:"light white notion minimal focus simplicity clean productivity",t:mk(LIGHT_BASE,{
+  bg:"#ffffff",surface:"#ffffff",surface2:"#fbfbfb",hover:"#f4f4f4",raise:"#f7f7f7",edge:"#ececec",edge2:"#dadada",
+  text:"#111111",steel:"#9b9b9b",steel2:"#555555",light:"#2b2b2b",
+  acc:"#111111",acc2:"#000000",acc3:"#bbbbbb",soft:"rgba(0,0,0,.05)",glow:"rgba(0,0,0,.18)",
+  line:"linear-gradient(90deg,#444,#111)",face:"linear-gradient(135deg,#3a3a3a,#111111)",on:"#ffffff",
+  shadow:"rgba(0,0,0,.08)",cardSh:"0 1px 2px rgba(0,0,0,.04)",
+  bodyGrad:"linear-gradient(180deg,#ffffff,#fafafa)",
+  glass:"rgba(255,255,255,.88)",segBg:"rgba(244,244,244,.94)",brandFace:"linear-gradient(150deg,#f2f2f2,#e4e4e4)",
+  videoBg:"#111111",heroGlow:"rgba(0,0,0,.05)",rLg:"12px",rCard:"10px",rBtn:"8px",fontD:FONT_SANS})},
+{id:"spaceai",name:"Space Black AI",tags:"dark cyan purple ai glow future openai premium space",t:mk(DARK_BASE,{
+  bg:"#08080f",surface:"#101018",surface2:"#0c0c13",hover:"#171722",raise:"#13131c",edge:"#22222e",edge2:"#32323f",
+  text:"#f0f2f8",steel:"#82869a",steel2:"#b4b8c8",light:"#d9dce6",
+  acc:"#22d3ee",acc2:"#7dd3fc",acc3:"#8b5cf6",soft:"rgba(34,211,238,.13)",glow:"rgba(34,211,238,.42)",
+  line:"linear-gradient(90deg,#22d3ee,#8b5cf6)",face:"linear-gradient(135deg,#22d3ee,#6366f1 55%,#8b5cf6)",on:"#ffffff",
+  bodyGrad:"radial-gradient(760px 440px at 90% -10%,rgba(139,92,246,.15),transparent 60%),radial-gradient(700px 420px at -5% 0%,rgba(34,211,238,.09),transparent 55%),linear-gradient(180deg,#0a0a13,#05050a)",
+  glass:"rgba(8,8,15,.78)",segBg:"rgba(19,19,28,.9)",brandFace:"linear-gradient(150deg,#14203a,#0d1526)",
+  heroGlow:"rgba(99,102,241,.28)",fontD:FONT_SANS})}
+];
+
+const VARMAP={bg:"--bg",surface:"--surface",surface2:"--surface-2",hover:"--hover",raise:"--raise",
+  edge:"--edge",edge2:"--edge-2",text:"--text",steel:"--steel",steel2:"--steel-2",light:"--light",
+  acc:"--blue",acc2:"--blue-2",acc3:"--blue-3",soft:"--blue-soft",glow:"--blue-glow",
+  line:"--blue-line",face:"--blue-face",on:"--on-accent",
+  green:"--green",greenSoft:"--green-soft",amber:"--amber",red:"--red",
+  shadow:"--shadow",cardSh:"--card-sh",bodyGrad:"--body-grad",glass:"--glass",segBg:"--seg-bg",
+  brandFace:"--brand-face",videoBg:"--video-bg",heroGlow:"--hero-glow",
+  rLg:"--r-lg",rCard:"--r-card",rBtn:"--r-btn",fontD:"--font-d"};
+
+const THEME_KEY="bvTheme_v1",FAV_KEY="bvThemeFavs_v1";
+let curTheme=localStorage.getItem(THEME_KEY)||"azure";
+let favs=new Set(JSON.parse(localStorage.getItem(FAV_KEY)||"[]"));
+
+function applyTheme(id,animate){
+  const th=THEMES.find(t=>t.id===id)||THEMES[0];
+  curTheme=th.id;localStorage.setItem(THEME_KEY,curTheme);
+  const root=document.documentElement;
+  if(animate){root.classList.add("theming");setTimeout(()=>root.classList.remove("theming"),500)}
+  for(const k in VARMAP)if(th.t[k]!==undefined)root.style.setProperty(VARMAP[k],th.t[k]);
+  const mc=document.querySelector('meta[name="theme-color"]');if(mc)mc.setAttribute("content",th.t.bg);
+  renderThemes();
+}
+function toggleFav(e,id){
+  e.stopPropagation();
+  if(favs.has(id))favs.delete(id);else favs.add(id);
+  localStorage.setItem(FAV_KEY,JSON.stringify([...favs]));
+  renderThemes();
+}
+function themeCard(th){
+  const t=th.t,on=th.id===curTheme,fav=favs.has(th.id);
+  return '<div class="tcard'+(on?" on":"")+'" onclick="applyTheme(\''+th.id+'\',true)">'+
+    '<div class="tprev" style="background:'+t.bg+'">'+
+      '<div class="tp-bar" style="background:'+t.face+'"></div>'+
+      '<div class="tp-card" style="background:'+t.surface+';border:1px solid '+t.edge+'">'+
+        '<div class="tp-line" style="background:'+t.text+'"></div>'+
+        '<div class="tp-line s" style="background:'+t.steel+'"></div>'+
+        '<div class="tp-btn" style="background:'+t.face+'"></div>'+
+      '</div></div>'+
+    '<button class="tstar'+(fav?" on":"")+'" onclick="toggleFav(event,\''+th.id+'\')" aria-label="Favorite">'+
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="'+(fav?"currentColor":"none")+'" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8-6.1-3.5-6.1 3.5 1.4-6.8L2.2 9.1l6.9-.8z"/></svg></button>'+
+    '<div class="tname" style="color:var(--text)">'+th.name+(on?' <svg class="tcheck" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>':'')+'</div>'+
+    '<div class="ttags">'+th.tags.split(" ").slice(0,3).join(" · ")+'</div></div>';
+}
+function renderThemes(){
+  const q=(document.getElementById("themeSearch")?.value||"").trim().toLowerCase();
+  let list=THEMES.filter(th=>!q||(th.name+" "+th.tags).toLowerCase().includes(q));
+  list=[...list.filter(t=>favs.has(t.id)),...list.filter(t=>!favs.has(t.id))];
+  document.getElementById("tgrid").innerHTML=list.map(themeCard).join("");
+  document.getElementById("tcount").textContent=list.length+" themes";
+}
+function openThemes(){renderThemes();document.getElementById("themes").classList.add("open");document.body.style.overflow="hidden"}
+function closeThemes(){document.getElementById("themes").classList.remove("open");document.body.style.overflow=""}
+document.getElementById("themeSearch").addEventListener("input",renderThemes);
+applyTheme(curTheme,false);
 </script>
 </body>
 </html>

@@ -412,8 +412,14 @@
   .fontBtn.on{color:var(--blue-2);border-color:var(--blue-3);background:var(--blue-soft)}
 
   /* ================= QUIZ & FLASHCARDS ================= */
-  #quiz,#flash{position:fixed;inset:0;z-index:130;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
-  #quiz.open,#flash.open{transform:translateY(0);visibility:visible}
+  #quiz,#flash,#gym{position:fixed;inset:0;z-index:130;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
+  #gym{z-index:131}
+  #quiz.open,#flash.open,#gym.open{transform:translateY(0);visibility:visible}
+  .gymQ{font-family:var(--font-d);font-weight:600;font-size:22px;line-height:1.45;letter-spacing:.01em;margin:10px 0 18px}
+  .gymSol{margin-top:14px;padding:12px 14px;border-radius:var(--r-card);background:var(--blue-soft);color:var(--blue-2);font-size:13.5px;line-height:1.6;font-weight:600}
+  .gymMeta{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11.5px;color:var(--steel);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+  .dtDone .num{background:var(--green)!important;color:#fff!important}
+  .dtDone .ct b{text-decoration:line-through;opacity:.62}
   .qInner{max-width:640px;margin:0 auto;padding:24px 18px calc(60px + env(safe-area-inset-bottom))}
   .qProg{display:flex;gap:5px;margin-bottom:18px}
   .qProg i{flex:1;height:4px;border-radius:2px;background:var(--hover)}
@@ -782,6 +788,18 @@
     <div class="barBtns"></div>
   </div>
   <div class="qInner" id="flashInner"></div>
+</div>
+
+<div id="gym" role="dialog" aria-modal="true" aria-label="Numbers Gym">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeGym()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb" id="gymCrumb">Numbers Gym</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="qInner" id="gymInner"></div>
 </div>
 
 <div id="ai" role="dialog" aria-modal="true" aria-label="AI Tutor">
@@ -5732,7 +5750,7 @@ let lastLesson=localStorage.getItem(LAST_KEY)||"";
    One versioned store for everything beyond lesson completion.
    Slots reserved for future phases: books, tools, cases, sims, assignments. */
 const STORE_KEY="bvStore_v1";
-const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{},labs:{},rp:{}};
+const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{},labs:{},rp:{},gym:{}};
 let store=STORE_DEFAULT;
 try{store=Object.assign({},STORE_DEFAULT,JSON.parse(localStorage.getItem(STORE_KEY)||"{}"))}catch(e){store=STORE_DEFAULT}
 function saveStore(){localStorage.setItem(STORE_KEY,JSON.stringify(store))}
@@ -5744,6 +5762,28 @@ function saveStore(){localStorage.setItem(STORE_KEY,JSON.stringify(store))}
 function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 let days=JSON.parse(localStorage.getItem(DAYS_KEY)||"[]");
 if(!days.includes(todayStr())){days.push(todayStr());days=days.slice(-400);localStorage.setItem(DAYS_KEY,JSON.stringify(days))}
+/* ---- The Daily Ten: a ~10-minute daily circuit, tracked automatically.
+   Steps mark themselves done as you use the app normally — no honor system:
+   learn = a real read (90s+ in the reader, or marking a lesson complete),
+   quiz = finishing any quiz, cards = a real flashcard session (8 graded or
+   deck finished), gym = finishing a Numbers Gym round. Resets each day;
+   `days` counts lifetime completed days. */
+const DAILY_KEY="bvDaily_v1";
+function dailyGet(){
+  let d=null;try{d=JSON.parse(localStorage.getItem(DAILY_KEY))}catch(e){}
+  if(!d||typeof d!=="object")d={d:todayStr(),learn:0,quiz:0,cards:0,gym:0,days:0};
+  if(d.d!==todayStr()){d={d:todayStr(),learn:0,quiz:0,cards:0,gym:0,days:d.days||0}}
+  return d;
+}
+function dailyCount(d){return (d.learn?1:0)+(d.quiz?1:0)+(d.cards?1:0)+(d.gym?1:0)}
+function dailyMark(step){
+  const d=dailyGet();
+  if(d[step])return;
+  d[step]=1;
+  if(dailyCount(d)===4){d.days=(d.days||0)+1;toast("🔥 Daily Ten complete — day "+d.days+" in the books")}
+  localStorage.setItem(DAILY_KEY,JSON.stringify(d));
+  if(activeView==="home")renderHome();
+}
 function streak(){
   const set=new Set(days);let n=0;const d=new Date();
   for(;;){const s=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -5949,6 +5989,7 @@ function buildSidebar(){
   h+='<button class="sb-item" id="sb-libcases" onclick="openLibrary(\'cases\')">'+ICONS.scale+'Case Studies<span class="n">'+CASES.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libsims" onclick="openLibrary(\'sims\')">'+ICONS.sim+'Simulations<span class="n">'+SIMS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-librp" onclick="openLibrary(\'rp\')">'+ICONS.rp+'Roleplay Arena<span class="n">'+ROLEPLAYS.length+'</span></button>';
+  h+='<button class="sb-item" id="sb-gym" onclick="openGym()">'+ICONS.gym+'Numbers Gym'+((store.gym||{}).best!==undefined?'<span class="n">'+store.gym.best+'/10</span>':'')+'</button>';
   h+='<button class="sb-item" id="sb-liblabs" onclick="openLibrary(\'labs\')">'+ICONS.tool+'Operator Labs<span class="n">'+LABS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libterms" onclick="openLibrary(\'terms\')">'+ICONS.book+'Dictionary<span class="n">'+allTerms.length+'</span></button>';
   document.getElementById("sbNav").innerHTML=h;
@@ -6007,21 +6048,23 @@ function renderHome(){
      '<span class="num" style="background:var(--blue-face);color:#fff">🧭</span>'+
      '<span class="ct"><b>'+(gp&&gp.plan?"My Game Plan":"Build My Game Plan")+'</b><span>'+(gp&&gp.plan?"Your personal roadmap · written "+new Date(gp.ts).toLocaleDateString()+" · tap to review or check in":"Tell the AI advisor your situation and goals — get your full roadmap: phases, year one, first 90 days, and which lessons to study when")+'</span></span>'+
      '<span style="color:var(--blue-2)">→</span></button>';
-  /* today's study plan */
+  /* The Daily Ten — tracked daily circuit */
+  const dt=dailyGet(),dtN=dailyCount(dt);
   const dueN=Math.min(flashDue().length,10);
   const weakL=weakLessons()[0];
-  const planItems=[
-    {n:1,t:(doneAll?"Review: ":"")+res.t,s:"~"+lessonMins(res)+" min · read + video",run:"openLesson('"+res.id+"')"},
-    {n:2,t:"Quiz yourself on it",s:"~3 min · locks in the mastery score",run:"openQuiz('"+res.id+"')"},
+  const dtItems=[
+    {k:"learn",t:(doneAll?"Review: ":"Learn: ")+res.t,s:"~"+lessonMins(res)+" min · read + video",run:"openLesson('"+res.id+"')"},
+    {k:"quiz",t:"Quiz yourself",s:"~2 min · any quiz counts — this one locks in "+(doneAll?"today's review":"the lesson"),run:"openQuiz('"+res.id+"')"},
+    {k:"cards",t:dueN?dueN+" flashcards due":"Flashcard review",s:"~2 min · spaced repetition on key terms",run:"openFlash('due')"},
+    {k:"gym",t:"One Numbers Gym round",s:"~2 min · 10 rapid-fire operator math reps",run:"openGym()"}
   ];
-  if(dueN)planItems.push({n:planItems.length+1,t:dueN+" flashcards",s:"~"+Math.ceil(dueN/4)+" min · spaced repetition",run:"openFlash('due')"});
-  if(weakL)planItems.push({n:planItems.length+1,t:"Retake: "+weakL.t,s:"weak area · best "+store.quiz[weakL.id].best+"%",run:"openQuiz('"+weakL.id+"')"});
-  const planMins=lessonMins(res)+3+(dueN?Math.ceil(dueN/4):0)+(weakL?3:0);
-  h+='<div class="sectionHead"><i></i><h3>TODAY\'S STUDY PLAN</h3><span class="mono">~'+planMins+' min</span></div><div class="panel" style="padding:8px 6px"><div class="cards" style="gap:2px">';
-  planItems.forEach(p=>{
-    h+='<button class="card" style="box-shadow:none;border:none;padding:11px 12px" onclick="'+p.run+'"><span class="num">'+p.n+'</span><span class="ct"><b>'+esc(p.t)+'</b><span>'+p.s+'</span></span><span style="color:var(--blue-2)">→</span></button>';
+  h+='<div class="sectionHead"><i></i><h3>THE DAILY TEN</h3><span class="mono">'+(dtN===4?"done today 🔥":dtN+" of 4 · ~10 min")+'</span></div><div class="panel" style="padding:8px 6px"><div class="cards" style="gap:2px">';
+  dtItems.forEach((p,i)=>{
+    const on=!!dt[p.k];
+    h+='<button class="card'+(on?" dtDone":"")+'" style="box-shadow:none;border:none;padding:11px 12px" onclick="'+p.run+'"><span class="num">'+(on?"✓":i+1)+'</span><span class="ct"><b>'+esc(p.t)+'</b><span>'+p.s+'</span></span><span style="color:var(--blue-2)">→</span></button>';
   });
-  h+='</div></div>';
+  if(weakL)h+='<button class="card" style="box-shadow:none;border:none;padding:11px 12px" onclick="openQuiz(\''+weakL.id+'\')"><span class="num">+</span><span class="ct"><b>'+esc("Bonus — retake: "+weakL.t)+'</b><span>weak area · best '+store.quiz[weakL.id].best+'%</span></span><span style="color:var(--blue-2)">→</span></button>';
+  h+='</div>'+(dt.days?'<div style="padding:8px 12px 4px;font-size:11.5px;font-family:var(--mono);color:var(--steel);letter-spacing:.05em">DAILY TEN COMPLETED '+dt.days+' DAY'+(dt.days===1?"":"S")+' ALL-TIME · steps check themselves off as you work</div>':'<div style="padding:8px 12px 4px;font-size:11.5px;font-family:var(--mono);color:var(--steel);letter-spacing:.05em">STEPS CHECK THEMSELVES OFF AS YOU WORK — NO HONOR SYSTEM</div>')+'</div>';
   const daily=dailyLesson(),rec=nextIncomplete();
   const dueCards=flashDue().length;
   h+='<div class="sectionHead"><i></i><h3>TODAY AT THE UNIVERSITY</h3></div><div class="duoGrid">'+
@@ -6885,6 +6928,7 @@ function qzPick(j){
 }
 function qzNext(){qz.i++;qz.i<qz.qs.length?renderQuizQ():renderQuizEnd()}
 function renderQuizEnd(){
+  dailyMark("quiz");
   const pct=Math.round(qz.right/qz.n0*100);
   let title,msg,btns;
   if(qz.placement){
@@ -7004,9 +7048,12 @@ function flMark(got){
     fl.again++;
   }
   saveStore();
-  fl.i++;fl.flip=false;renderFlash();
+  fl.i++;fl.flip=false;
+  if(fl.got+fl.again>=8)dailyMark("cards"); // a real session even if the deck is long
+  renderFlash();
 }
 function renderFlashEnd(){
+  dailyMark("cards");
   const mastered=flashMastered();
   let h='<div class="qEnd"><div class="bigRing">'+ringSVG(132,58,fl.deck.length?fl.got/fl.deck.length:0,7)+'<b>'+fl.got+'/'+fl.deck.length+'</b></div>'+
     '<div><div style="font-family:var(--font-d);font-weight:600;font-size:18px;letter-spacing:.03em">SESSION COMPLETE</div>'+
@@ -7018,6 +7065,145 @@ function renderFlashEnd(){
   renderAll();
 }
 function closeFlash(){flashEl.classList.remove("open");syncScrollLock()}
+
+/* ================= NUMBERS GYM =================
+   Rapid-fire mental math for operators. Every round is freshly
+   generated, so the numbers never repeat — the reflexes do.
+   Reuses the quiz option styles (.qOpt) for a native feel. */
+const gymEl=document.getElementById("gym");
+let gm=null;
+function gymRand(a){return a[Math.floor(Math.random()*a.length)]}
+function gym$(n){return "$"+Math.round(n).toLocaleString("en-US")}
+function gymOpts(ans,wrongs,fmt){
+  /* dedupe on the FORMATTED string — rounding can make distinct raw
+     values render identically (e.g. $17.60 and $18 both showing "$18") */
+  const vals=[ans],strs=[fmt(ans)];
+  wrongs.forEach(w=>{
+    let v=w,guard=0;
+    while(strs.includes(fmt(v))&&guard++<10)v+=Math.max(1,Math.round(Math.abs(ans)*0.18));
+    if(!strs.includes(fmt(v))){vals.push(v);strs.push(fmt(v))}
+  });
+  let guard=0;
+  while(vals.length<4&&guard++<15){
+    const v=ans+Math.max(1,Math.round(Math.abs(ans)*0.22))*vals.length+guard;
+    if(!strs.includes(fmt(v))){vals.push(v);strs.push(fmt(v))}
+  }
+  const order=vals.map((v,i)=>i).sort(()=>Math.random()-0.5);
+  return {opts:order.map(i=>fmt(vals[i])),a:order.indexOf(0)};
+}
+const GYM_GENS=[
+function(){const m=gymRand([20,25,30,40,50]),R=gymRand([200,500,800,1000,2000]),C=R*(1-m/100);
+  const markup=Math.round((R-C)/C*100);
+  return {cat:"Margin",q:"You did "+gym$(R)+" in revenue this month. Your costs were "+gym$(C)+". What's your profit margin?",
+    ...gymOpts(m,[markup,m+10,Math.max(5,m-10)],x=>x+"%"),
+    sol:"Margin = profit ÷ REVENUE: "+gym$(R-C)+" ÷ "+gym$(R)+" = "+m+"%. Dividing by cost gives markup ("+markup+"%) — the classic mix-up."};},
+function(){const t=gymRand([[12,20,15],[80,20,100],[60,25,80],[45,40,75],[60,40,100],[80,50,160],[150,50,300],[12,40,20]]),C=t[0],m=t[1],P=t[2];
+  return {cat:"Pricing",q:"A job costs you "+gym$(C)+" to deliver. You want a "+m+"% profit margin. What do you charge?",
+    ...gymOpts(P,[C*(1+m/100),Math.round(P*1.2),C+m],gym$),
+    sol:"Price = Cost ÷ (1 − margin) = "+gym$(C)+" ÷ "+(1-m/100).toFixed(2).replace(/0$/,"")+" = "+gym$(P)+". Cost × 1."+m+" ("+gym$(C*(1+m/100))+") gives a "+m+"% MARKUP — a thinner margin."};},
+function(){const diff=gymRand([25,50,75,100]),units=gymRand([40,60,80,120]),F=diff*units,V=gymRand([25,50,75]),P=V+diff;
+  return {cat:"Breakeven",q:"Fixed costs: "+gym$(F)+"/month. You charge "+gym$(P)+" per job and each job costs "+gym$(V)+" to deliver. How many jobs a month to break even?",
+    ...gymOpts(units,[Math.round(F/P),Math.round(units*1.25),Math.round(units*0.75)],x=>x+" jobs"),
+    sol:"Breakeven = Fixed ÷ (Price − Variable) = "+gym$(F)+" ÷ "+gym$(diff)+" = "+units+" jobs. Only the "+gym$(diff)+" contribution pays the fixed bills."};},
+function(){let I,m,g=0;do{I=gymRand([6000,12000,24000,36000]);m=gymRand([500,1000,1500,2000,3000])}while(I%m!==0&&g++<20);const mo=I/m;
+  return {cat:"Payback",q:"A machine costs "+gym$(I)+" and adds "+gym$(m)+"/month in profit. Payback period?",
+    ...gymOpts(mo,[mo*2,Math.max(1,Math.round(mo/2)),mo+6],x=>x+" months"),
+    sol:"Payback = Investment ÷ monthly profit = "+gym$(I)+" ÷ "+gym$(m)+" = "+mo+" months. After that it's all upside."};},
+function(){const S=gymRand([80000,100000,120000,150000]),X=gymRand([2,2.5,3,3.5,4]),Pr=S*X;
+  return {cat:"Valuation",q:"A business earns "+gym$(S)+"/year (SDE). The seller is asking "+gym$(Pr)+". What multiple is that?",
+    ...gymOpts(X,[X+1,Math.max(1,X-1),X+0.5],x=>x+"x"),
+    sol:"Multiple = Price ÷ SDE = "+gym$(Pr)+" ÷ "+gym$(S)+" = "+X+"x. Small service businesses usually trade around 2–3.5x."};},
+function(){const W=gymRand([16,20,24,28]),L=W*1.25;
+  return {cat:"Labor",q:"You pay a tech "+gym$(W)+"/hour. With payroll taxes and insurance adding about 25%, what does that hour really cost you?",
+    ...gymOpts(L,[W,W+2,W*1.5],gym$),
+    sol:"Loaded cost ≈ wage × 1.25 = "+gym$(L)+". Price your jobs off the LOADED number, not the paycheck number."};},
+function(){const m=gymRand([30,40,50]),d=gymRand([10,15,20]);
+  return {cat:"Discounts",q:"Your margin is "+m+"%. A customer asks for "+d+"% off. On a $100 job, your profit goes from $"+m+" to…?",
+    ...gymOpts(m-d,[Math.round(m*(1-d/100)),m-Math.round(d/2),m],x=>"$"+x),
+    sol:"The discount comes straight out of profit: $"+m+" − $"+d+" = $"+(m-d)+". A "+d+"% discount just cut your PROFIT by "+Math.round(d/m*100)+"%."};},
+function(){const t=gymRand([40,60,120]),v=gymRand([4,6,12]),y=gymRand([2,3,5]),L=t*v*y;
+  return {cat:"LTV",q:"Average ticket "+gym$(t)+", about "+v+" visits a year, and customers stay ~"+y+" years. Lifetime value?",
+    ...gymOpts(L,[t*v,L*2,Math.round(L*0.6)],gym$),
+    sol:"LTV = "+gym$(t)+" × "+v+"/yr × "+y+" yrs = "+gym$(L)+". THIS is the number that tells you what you can afford to spend to win a customer."};},
+function(){let S,N,g=0;do{S=gymRand([600,1200,2400]);N=gymRand([12,20,40,60])}while(S%N!==0&&g++<20);const c=S/N;
+  return {cat:"CAC",q:"You spent "+gym$(S)+" on ads last month and landed "+N+" new customers. Your customer acquisition cost?",
+    ...gymOpts(c,[c*2,Math.max(2,Math.round(c/2)),c+15],gym$),
+    sol:"CAC = spend ÷ new customers = "+gym$(S)+" ÷ "+N+" = "+gym$(c)+". Healthy when LTV is at least 3× this."};},
+function(){const p=gymRand([[8000,10000,25],[5000,6000,20],[4000,5000,25],[6000,9000,50],[10000,12000,20],[2000,2500,25],[4000,6000,50]]);
+  return {cat:"Growth",q:"Monthly revenue went from "+gym$(p[0])+" to "+gym$(p[1])+". What's the growth?",
+    ...gymOpts(p[2],[Math.round((p[1]-p[0])/p[1]*100),p[2]+15,Math.max(5,p[2]-10)],x=>x+"%"),
+    sol:"Growth = change ÷ ORIGINAL = "+gym$(p[1]-p[0])+" ÷ "+gym$(p[0])+" = "+p[2]+"%. Dividing by the new number understates it."};},
+function(){const r=gymRand([6,8,9,12]),y=72/r;
+  return {cat:"Compounding",q:"Your money compounds at "+r+"% a year. Roughly how long until it doubles?",
+    ...gymOpts(y,[y*2,Math.max(2,Math.round(y/2)),y+4],x=>"~"+x+" years"),
+    sol:"Rule of 72: 72 ÷ "+r+" = "+y+" years. Fast enough for a head check in any pitch meeting."};},
+function(){const t=gymRand([[60000,25,48],[60000,30,40],[75000,25,60],[75000,30,50],[90000,30,60],[90000,25,72]]),T=t[0],hr=t[1],rate=t[2];
+  return {cat:"Rates",q:"You want to personally earn "+gym$(T)+" a year and can bill "+hr+" hours a week, 50 weeks a year. Minimum hourly rate?",
+    ...gymOpts(rate,[Math.round(rate*0.8),Math.round(rate*1.3),Math.round(T/2000)],gym$),
+    sol:"Rate = "+gym$(T)+" ÷ ("+hr+" × 50 = "+(hr*50)+" billable hours) = "+gym$(rate)+"/hr — before overhead. Most people forget how few hours are actually billable."};}
+];
+function openGym(){
+  gm=null;
+  gymEl.scrollTop=0;gymEl.classList.add("open");syncScrollLock();
+  renderGymStart();
+}
+function closeGym(){gymEl.classList.remove("open");syncScrollLock()}
+function renderGymStart(){
+  const g=store.gym||{};
+  document.getElementById("gymCrumb").textContent="Numbers Gym";
+  document.getElementById("gymInner").innerHTML='<div class="qEnd">'+
+    '<div style="font-size:44px">🧮</div>'+
+    '<div><div style="font-family:var(--font-d);font-weight:600;font-size:20px;letter-spacing:.03em">THE NUMBERS GYM</div>'+
+    '<div style="font-size:13.5px;color:var(--steel-2);line-height:1.65;margin-top:7px;max-width:430px">10 rapid-fire reps of the math operators do in their heads: margins, pricing, breakeven, payback, multiples, LTV, CAC. Fresh numbers every round — do it until the answers beat you to the calculator.</div></div>'+
+    (g.best!==undefined?'<div class="example" style="font-size:13px">Personal best: <b>'+g.best+'/10</b>'+(g.bestT?' in '+Math.round(g.bestT)+'s':'')+' · '+(g.plays||0)+' round'+((g.plays||0)===1?'':'s')+' logged</div>':'')+
+    '<button class="btn" onclick="gymStart()">Start a Round</button></div>';
+}
+function gymStart(){
+  const idx=GYM_GENS.map((_,i)=>i).sort(()=>Math.random()-0.5).slice(0,10);
+  gm={qs:idx.map(i=>GYM_GENS[i]()),i:0,score:0,t0:Date.now(),picked:null};
+  renderGymQ();
+}
+function renderGymQ(){
+  const q=gm.qs[gm.i];
+  document.getElementById("gymCrumb").textContent="Numbers Gym · "+q.cat;
+  let h='<div style="max-width:560px;margin:0 auto;padding:6px 2px 30px">'+
+    '<div class="gymMeta"><span>Rep '+(gm.i+1)+' of '+gm.qs.length+'</span><span>'+gm.score+' right</span></div>'+
+    '<div class="gymQ">'+q.q+'</div>';
+  q.opts.forEach((o,i)=>{h+='<button class="qOpt" id="gopt'+i+'" onclick="gymAns('+i+')"><span class="qL">'+"ABCD"[i]+'</span><span>'+o+'</span></button>'});
+  h+='<div id="gymFb"></div></div>';
+  document.getElementById("gymInner").innerHTML=h;
+  gymEl.scrollTop=0;
+}
+function gymAns(i){
+  if(gm.picked!==null)return;
+  gm.picked=i;
+  const q=gm.qs[gm.i],right=i===q.a;
+  if(right)gm.score++;
+  for(let k=0;k<4;k++){const el=document.getElementById("gopt"+k);el.disabled=true;if(k===q.a)el.classList.add("ok");else if(k===i)el.classList.add("bad")}
+  document.getElementById("gymFb").innerHTML='<div class="gymSol">'+(right?"✓ Right. ":"✗ Not quite. ")+q.sol+'</div>'+
+    '<button class="btn full" style="margin-top:12px" onclick="gymNext()">'+(gm.i+1<gm.qs.length?"Next Rep →":"See My Score")+'</button>';
+  document.getElementById("gymFb").scrollIntoView({behavior:"smooth",block:"end"});
+}
+function gymNext(){
+  gm.picked=null;gm.i++;
+  if(gm.i<gm.qs.length)renderGymQ();else renderGymEnd();
+}
+function renderGymEnd(){
+  const secs=Math.max(1,Math.round((Date.now()-gm.t0)/1000));
+  const prev=store.gym||{};
+  const newBest=gm.score>(prev.best||0)||(gm.score===(prev.best||0)&&prev.bestT&&secs<prev.bestT);
+  store.gym={best:Math.max(gm.score,prev.best||0),bestT:newBest?secs:(prev.bestT||secs),plays:(prev.plays||0)+1};
+  saveStore();dailyMark("gym");renderAll();
+  if(newBest)toast("🧮 New personal best!");
+  document.getElementById("gymCrumb").textContent="Numbers Gym";
+  document.getElementById("gymInner").innerHTML='<div class="qEnd"><div class="bigRing">'+ringSVG(132,58,gm.score/gm.qs.length,7)+'<b>'+gm.score+'/'+gm.qs.length+'</b></div>'+
+    '<div><div style="font-family:var(--font-d);font-weight:600;font-size:18px;letter-spacing:.03em">'+(gm.score===10?"PERFECT ROUND":gm.score>=8?"OPERATOR GRADE":gm.score>=6?"GETTING SHARP":"KEEP DRILLING")+'</div>'+
+    '<div style="font-size:13px;color:var(--steel-2);margin-top:5px">'+secs+' seconds · personal best '+store.gym.best+'/10'+(store.gym.bestT?' in '+Math.round(store.gym.bestT)+'s':'')+'</div>'+
+    (gm.score<10?'<div style="font-size:12.5px;color:var(--steel);margin-top:4px">Every miss showed you the formula — run it back.</div>':'')+'</div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">'+
+    '<button class="btn ghost" onclick="gymStart()">Go Again</button>'+
+    '<button class="btn" onclick="closeGym()">Done</button></div></div>';
+}
 
 /* ================= PROGRESS & MASTERY ================= */
 function badgeDefs(){
@@ -7039,6 +7225,8 @@ function badgeDefs(){
     {ic:"🕹️",n:"Simulator",d:"Complete 3 simulations",e:Object.keys(store.sims).length>=3},
     {ic:"♟️",n:"Decision Master",d:"Score 90%+ on every simulation",e:SIMS.length>0&&SIMS.every(s=>(store.sims[s.id]||{}).best>=90)},
     {ic:"🎭",n:"Silver Tongue",d:"Get scored in 5 roleplay scenarios",e:Object.keys(store.rp||{}).length>=5},
+    {ic:"🧮",n:"Human Calculator",d:"Score a perfect 10/10 in the Numbers Gym",e:((store.gym||{}).best||0)>=10},
+    {ic:"🔥",n:"Daily Driver",d:"Complete the Daily Ten on 7 different days",e:dailyGet().days>=7},
     {ic:"📜",n:"Certified",d:"Earn your first school certificate",e:DATA.some(t=>certStatus(t).eligible)},
     {ic:"🏛️",n:"Graduate",d:"Earn every school certificate — the full diploma",e:DATA.every(t=>certStatus(t).eligible)},
     {ic:"🧮",n:"Toolsmith",d:"Save 3 calculations in Operator Tools",e:Object.values(store.tools).reduce((a,t)=>a+((t.saved||[]).length),0)>=3},
@@ -7091,6 +7279,8 @@ function renderProgress(){
      '<button class="mini" onclick="setView(\'courses\')"><span class="m-k">'+ICONS.spark+'Assignments</span><b>'+assignsDone+' completed</b><span>Real-world exercises at the end of lessons</span></button>'+
      '<button class="mini" onclick="openLibrary(\'sims\')"><span class="m-k">'+ICONS.sim+'Simulations</span><b>'+Object.keys(store.sims).length+' of '+SIMS.length+' completed</b><span>Run businesses in fast-forward · scored debriefs</span></button>'+
      '<button class="mini" onclick="openLibrary(\'rp\')"><span class="m-k">'+ICONS.rp+'Roleplay Arena</span><b>'+Object.keys(store.rp||{}).length+' of '+ROLEPLAYS.length+' scored</b><span>Live conversations — the AI plays the other side</span></button>'+
+     '<button class="mini" onclick="openGym()"><span class="m-k">'+ICONS.gym+'Numbers Gym</span><b>'+((store.gym||{}).best!==undefined?'Best '+store.gym.best+'/10'+(store.gym.bestT?' in '+Math.round(store.gym.bestT)+'s':''):'No rounds yet')+'</b><span>Operator math at conversation speed · '+((store.gym||{}).plays||0)+' rounds logged</span></button>'+
+     '<button class="mini" onclick="setView(\'home\')"><span class="m-k">🔥 The Daily Ten</span><b>'+dailyCount(dailyGet())+' of 4 today · '+(dailyGet().days||0)+' days all-time</b><span>Learn · quiz · flashcards · gym — tracked automatically</span></button>'+
      '<button class="mini" onclick="openLibrary(\'labs\')"><span class="m-k">'+ICONS.tool+'Operator Labs</span><b>'+LABS.filter(l=>(store.labs[l.id]||{}).done).length+' of '+LABS.length+' built</b><span>Build real deliverables against grading rubrics</span></button>'+
      '</div>';
   h+='<div class="sectionHead"><i></i><h3>CERTIFICATES</h3><span class="mono">'+DATA.filter(t=>certStatus(t).eligible).length+' / '+DATA.length+'</span></div><div class="badges">';
@@ -7137,7 +7327,7 @@ function renderProgress(){
   document.getElementById("view-progress").innerHTML=h;
 }
 /* ---- full backup & restore ---- */
-const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1","bvFont_v1"];
+const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1","bvFont_v1","bvDaily_v1"];
 async function backupAll(){
   const keys={};
   BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)keys[k]=v});
@@ -7232,6 +7422,7 @@ function aiPrompt(le,instruction){
 }
 function openLesson(id){
   if(typeof ttsSet==="function")ttsSet(false);
+  sheetT0=Date.now();
   currentId=id;
   lastLesson=id;localStorage.setItem(LAST_KEY,id);
   const le=byId[id];
@@ -7323,10 +7514,12 @@ function openLesson(id){
 }
 function closeLesson(){
   ttsSet(false);
+  if(sheetT0&&Date.now()-sheetT0>90000)dailyMark("learn"); // a real read, not a peek
   document.getElementById("sheet").classList.remove("open");
   syncScrollLock();
   renderAll();
 }
+let sheetT0=0;
 /* ---- listen to this lesson (on-device text-to-speech) ---- */
 let ttsActive=false;
 function ttsSet(on){
@@ -7368,7 +7561,7 @@ function toggleListen(){
   next();
 }
 function toggleComplete(){
-  if(done.has(currentId))done.delete(currentId);else done.add(currentId);
+  if(done.has(currentId))done.delete(currentId);else{done.add(currentId);dailyMark("learn")}
   saveProgress();
   const isDone=done.has(currentId);
   const btn=document.getElementById("completeBtn");
@@ -7432,7 +7625,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","book","tool","case","sim","cert","lab","ai","plan"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -7641,6 +7834,7 @@ function aiTool(){const t=TOOLS.find(x=>x.id===curTool);if(!t)return;openAI(curT
    character and grades the conversation when the student ends the scene.
    Stage directions are sent as [DIRECTOR] messages the chat never displays. */
 ICONS.rp='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+ICONS.gym='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
 function rpState(id){return (store.rp||{})[id]||{}}
 function rpRow(s,i){
   const st=rpState(s.id);
@@ -7880,6 +8074,8 @@ function palActions(){
     {k:"Action",t:"Book of the Day",s:dailyPick(BOOKS).title,run:()=>openBook(dailyPick(BOOKS).id)},
     {k:"Action",t:"Run a Simulation",s:SIMS.length+" scored scenarios",run:()=>openLibrary("sims")},
     {k:"Action",t:"Roleplay Arena",s:ROLEPLAYS.length+" live AI conversations",run:()=>openLibrary("rp")},
+    {k:"Action",t:"Numbers Gym",s:"10 rapid-fire math reps · beat your best",run:()=>openGym()},
+    {k:"Action",t:"The Daily Ten",s:"Your tracked 10-minute daily circuit",run:()=>setView("home")},
     {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
     {k:"Page",t:"Business Dictionary",s:allTerms.length+" terms",run:()=>openLibrary("terms")},
     {k:"Page",t:"Operator Labs",s:LABS.length+" builds with rubrics",run:()=>openLibrary("labs")},
@@ -7942,6 +8138,7 @@ document.addEventListener("keydown",e=>{
     else if(aiEl.classList.contains("open"))closeAI();
     else if(planEl.classList.contains("open"))closePlanner();
     else if(quizEl.classList.contains("open"))closeQuiz();
+    else if(gymEl.classList.contains("open"))closeGym();
     else if(flashEl.classList.contains("open"))closeFlash();
     else if(sheetEl.classList.contains("open"))closeLesson();
     else if(certEl.classList.contains("open"))closeCert();

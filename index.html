@@ -488,6 +488,17 @@
   #plan{position:fixed;inset:0;z-index:136;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
   #plan.open{transform:translateY(0);visibility:visible}
   #plan .sheetBar{flex-shrink:0}
+  #score{position:fixed;inset:0;z-index:137;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
+  #score.open{transform:translateY(0);visibility:visible}
+  #score .sheetBar{flex-shrink:0}
+  .scSpark{width:100%;height:44px;display:block}
+  .scCard{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:13px 14px;margin-bottom:11px;box-shadow:var(--card-sh)}
+  .scCard h6{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-weight:700;margin:0 0 7px}
+  .scFlag{display:flex;gap:9px;align-items:flex-start;font-size:13px;line-height:1.55;color:var(--text);padding:8px 11px;border-radius:11px;background:rgba(226,86,79,.08);border:1px solid rgba(226,86,79,.25);margin-bottom:7px}
+  .scFlag.good{background:var(--green-soft);border-color:rgba(46,160,95,.3)}
+  .scRow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 2px;border-bottom:1px solid var(--edge);font-size:13.5px;cursor:pointer;width:100%;background:none;border-left:none;border-right:none;border-top:none;color:var(--text);text-align:left;font-family:inherit}
+  .scRow b{font-family:var(--mono);font-size:12.5px}
+  .scDelta{font-family:var(--mono);font-size:11px;font-weight:700}
   .planScroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
   .planInner{max-width:680px;margin:0 auto;padding:20px 16px calc(50px + env(safe-area-inset-bottom))}
   .planField{margin-bottom:14px}
@@ -829,6 +840,22 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
     </button>
   </div>
+</div>
+
+<div id="score" role="dialog" aria-modal="true" aria-label="Owner's Scoreboard">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeScore()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb" id="scoreCrumb">Owner's Scoreboard</div>
+    <div class="barBtns">
+      <button class="iconBtn" onclick="scForm()" aria-label="Log a month" title="Log a month">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="planScroll" id="scoreScroll"><div class="planInner" id="scoreInner"></div></div>
 </div>
 
 <div id="plan" role="dialog" aria-modal="true" aria-label="AI Game Plan">
@@ -5990,6 +6017,7 @@ function buildSidebar(){
   h+='<button class="sb-item" id="sb-libsims" onclick="openLibrary(\'sims\')">'+ICONS.sim+'Simulations<span class="n">'+SIMS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-librp" onclick="openLibrary(\'rp\')">'+ICONS.rp+'Roleplay Arena<span class="n">'+ROLEPLAYS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-gym" onclick="openGym()">'+ICONS.gym+'Numbers Gym'+((store.gym||{}).best!==undefined?'<span class="n">'+store.gym.best+'/10</span>':'')+'</button>';
+  h+='<button class="sb-item" id="sb-score" onclick="openScore()">'+ICONS.chart+'Owner\'s Scoreboard'+(scGet().length?'<span class="n">'+scGet().length+'</span>':'')+'</button>';
   h+='<button class="sb-item" id="sb-liblabs" onclick="openLibrary(\'labs\')">'+ICONS.tool+'Operator Labs<span class="n">'+LABS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libterms" onclick="openLibrary(\'terms\')">'+ICONS.book+'Dictionary<span class="n">'+allTerms.length+'</span></button>';
   document.getElementById("sbNav").innerHTML=h;
@@ -6047,6 +6075,13 @@ function renderHome(){
   h+='<button class="card tutorCard" style="margin:2px 0 14px" onclick="openPlanner()">'+
      '<span class="num" style="background:var(--blue-face);color:#fff">🧭</span>'+
      '<span class="ct"><b>'+(gp&&gp.plan?"My Game Plan":"Build My Game Plan")+'</b><span>'+(gp&&gp.plan?"Your personal roadmap · written "+new Date(gp.ts).toLocaleDateString()+" · tap to review or check in":"Tell the AI advisor your situation and goals — get your full roadmap: phases, year one, first 90 days, and which lessons to study when")+'</span></span>'+
+     '<span style="color:var(--blue-2)">→</span></button>';
+  /* owner's scoreboard */
+  const scA=scGet(),scE=scA[scA.length-1];
+  const scC=scE?scCalc(scE,scA.length>1?scA[scA.length-2]:null):null;
+  h+='<button class="card tutorCard" style="margin:2px 0 14px" onclick="openScore()">'+
+     '<span class="num" style="background:var(--green);color:#fff">📈</span>'+
+     '<span class="ct"><b>Owner\'s Scoreboard</b><span>'+(scE?scMonthName(scE.m)+": "+scFmt$(scE.rev)+" revenue · "+scC.margin.toFixed(0)+"% margin · tap for trends + AI review":"Your real numbers, tracked monthly — margin, profit, cost per customer. 2 minutes a month, drift can't hide")+'</span></span>'+
      '<span style="color:var(--blue-2)">→</span></button>';
   /* The Daily Ten — tracked daily circuit */
   const dt=dailyGet(),dtN=dailyCount(dt);
@@ -7205,6 +7240,130 @@ function renderGymEnd(){
     '<button class="btn" onclick="closeGym()">Done</button></div></div>';
 }
 
+/* ================= OWNER'S SCOREBOARD =================
+   A private monthly KPI log: the owner enters 4 raw numbers, the app
+   derives profit, margin, CAC and growth, charts the trend, flags
+   drift, and can hand the table to the AI advisor for a review.
+   Lives only on this device (bvScoreboard_v1, included in backups). */
+const SC_KEY="bvScoreboard_v1";
+const scoreEl=document.getElementById("score");
+function scGet(){let a=[];try{a=JSON.parse(localStorage.getItem(SC_KEY))||[]}catch(e){}return Array.isArray(a)?a.sort((x,y)=>x.m<y.m?-1:1):[]}
+function scSave(a){localStorage.setItem(SC_KEY,JSON.stringify(a))}
+function scMonthName(m){const p=m.split("-");return new Date(p[0],p[1]-1,1).toLocaleDateString("en-US",{month:"long",year:"numeric"})}
+function scCalc(e,prev){
+  const profit=e.rev-e.cost;
+  const margin=e.rev>0?(profit/e.rev*100):0;
+  const cac=e.cust>0?e.mkt/e.cust:null;
+  const growth=prev&&prev.rev>0?((e.rev-prev.rev)/prev.rev*100):null;
+  return {profit,margin,cac,growth};
+}
+function scFmt$(n){return (n<0?"-$":"$")+Math.round(Math.abs(n)).toLocaleString("en-US")}
+function scSpark(vals,color){
+  if(vals.length<2)return '<div style="font-size:11.5px;color:var(--steel);padding:6px 0">Log a second month and the trend line appears here.</div>';
+  const w=300,h=44,pad=4;
+  const min=Math.min(...vals),max=Math.max(...vals),span=(max-min)||1;
+  const pts=vals.map((v,i)=>[pad+i*(w-2*pad)/(vals.length-1),h-pad-((v-min)/span)*(h-2*pad)]);
+  const last=pts[pts.length-1];
+  return '<svg class="scSpark" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" aria-hidden="true">'+
+    '<polyline fill="none" stroke="'+color+'" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" points="'+pts.map(p=>p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ")+'"/>'+
+    '<circle cx="'+last[0].toFixed(1)+'" cy="'+last[1].toFixed(1)+'" r="3.4" fill="'+color+'"/></svg>';
+}
+function scFlags(a){
+  const f=[];
+  if(a.length<1)return f;
+  const e=a[a.length-1],p=a.length>1?a[a.length-2]:null;
+  const c=scCalc(e,p),cp=p?scCalc(p,a.length>2?a[a.length-3]:null):null;
+  if(c.profit<0)f.push("You lost money in "+scMonthName(e.m)+" — costs beat revenue by "+scFmt$(-c.profit)+". Job one: find what grew.");
+  if(cp&&c.margin<cp.margin-2)f.push("Margin slipped from "+cp.margin.toFixed(0)+"% to "+c.margin.toFixed(0)+"%. Either costs crept up or pricing gave ground.");
+  if(p&&a.length>2&&e.rev<p.rev&&p.rev<a[a.length-3].rev)f.push("Revenue is down two months in a row. Trends beat single months — worth a real look.");
+  if(cp&&cp.cac&&c.cac&&c.cac>cp.cac*1.2)f.push("Customer acquisition cost jumped "+Math.round((c.cac/cp.cac-1)*100)+"% (now "+scFmt$(c.cac)+"). Marketing is buying less than it used to.");
+  if(!f.length&&p&&c.growth!==null&&c.growth>0&&c.margin>=(cp?cp.margin-1:0))f.push("GOOD:Growing revenue without giving up margin — that's the hard combination. Keep the recipe.");
+  return f;
+}
+function openScore(){scoreEl.classList.add("open");document.getElementById("scoreScroll").scrollTop=0;syncScrollLock();renderScore()}
+function closeScore(){scoreEl.classList.remove("open");syncScrollLock()}
+function renderScore(){
+  const a=scGet();
+  if(!a.length){scForm();return}
+  const e=a[a.length-1],p=a.length>1?a[a.length-2]:null;
+  const c=scCalc(e,p),cp=p?scCalc(p,a.length>2?a[a.length-3]:null):null;
+  const delta=(v,pv,goodUp,fmt)=>{
+    if(pv===null||pv===undefined||v===null)return "";
+    const up=v>=pv,good=(up===goodUp);
+    return ' <span class="scDelta" style="color:var(--'+(good?"green":"red")+')">'+(up?"▲":"▼")+" "+fmt(Math.abs(v-pv))+'</span>';
+  };
+  let h='<h2 style="font-family:var(--font-d);font-size:22px;margin:2px 0 3px">Owner\'s Scoreboard</h2>'+
+    '<p style="font-size:13px;color:var(--steel-2);margin-bottom:14px">'+scMonthName(e.m)+' · '+a.length+' month'+(a.length===1?"":"s")+' logged · private, on this device</p>';
+  h+='<div class="statGrid" style="margin-bottom:12px">'+
+    '<div class="stat"><b class="c-blue">'+scFmt$(e.rev)+'</b><span>Revenue'+delta(e.rev,p?p.rev:null,true,scFmt$)+'</span></div>'+
+    '<div class="stat"><b class="'+(c.profit>=0?"c-green":"")+'"'+(c.profit<0?' style="color:var(--red)"':'')+'>'+scFmt$(c.profit)+'</b><span>Profit'+delta(c.profit,cp?cp.profit:null,true,scFmt$)+'</span></div>'+
+    '<div class="stat"><b>'+c.margin.toFixed(0)+'%</b><span>Margin'+delta(c.margin,cp?cp.margin:null,true,x=>x.toFixed(0)+"pt")+'</span></div>'+
+    '<div class="stat"><b>'+(c.cac!==null?scFmt$(c.cac):"—")+'</b><span>Cost / New Customer'+(c.cac!==null&&cp&&cp.cac!==null?delta(c.cac,cp.cac,false,scFmt$):"")+'</span></div></div>';
+  const flags=scFlags(a);
+  if(flags.length){h+='<div class="scCard"><h6>What the numbers are saying</h6>'+flags.map(f=>{const good=f.startsWith("GOOD:");return '<div class="scFlag'+(good?" good":"")+'"><span>'+(good?"✅":"⚠️")+'</span><span>'+esc(good?f.slice(5):f)+'</span></div>'}).join("")+'</div>'}
+  h+='<div class="scCard"><h6>Revenue trend</h6>'+scSpark(a.map(x=>x.rev),"var(--blue-2)")+'</div>'+
+     '<div class="scCard"><h6>Margin % trend</h6>'+scSpark(a.map((x,i)=>scCalc(x,i>0?a[i-1]:null).margin),"var(--green)")+'</div>';
+  h+='<button class="btn full" onclick="scForm()">➕ Log a Month</button>'+
+     '<button class="btn ghost full" style="margin-top:9px" onclick="scAIReview()">🧠 AI: Review My Numbers</button>';
+  h+='<div class="scCard" style="margin-top:14px"><h6>Month by month · tap to edit</h6>';
+  a.slice().reverse().forEach(x=>{
+    const pv=a[a.indexOf(x)-1]||null,cx=scCalc(x,pv);
+    h+='<button class="scRow" onclick="scForm(\''+x.m+'\')"><span>'+scMonthName(x.m)+'</span><b>'+scFmt$(x.rev)+' · '+cx.margin.toFixed(0)+'% margin</b></button>';
+  });
+  h+='</div><p style="font-size:12px;color:var(--steel);line-height:1.6;margin-top:10px">Estimates for education and self-tracking — not accounting records. Confirm the real books with your bookkeeper or CPA.</p>';
+  document.getElementById("scoreInner").innerHTML=h;
+}
+function scForm(month){
+  const a=scGet();
+  const now=new Date(),curM=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  const ex=month?a.find(x=>x.m===month):null;
+  const first=!a.length;
+  let h='<h2 style="font-family:var(--font-d);font-size:22px;margin:2px 0 8px">'+(ex?"Edit "+scMonthName(ex.m):first?"Start Keeping Score":"Log a Month")+'</h2>';
+  if(first)h+='<p style="font-size:14px;line-height:1.7;color:var(--light);margin-bottom:14px">Four numbers, once a month, two minutes. The app turns them into your margin, your profit, your cost per new customer — and shows the trend so drift can\'t hide. Rough numbers are fine; honest beats precise.</p>';
+  h+='<div class="planField"><label>Month</label><input id="sc-m" type="month" value="'+(ex?ex.m:curM)+'" style="width:100%;background:var(--surface);border:1.5px solid var(--edge);border-radius:12px;padding:12px 13px;font-size:15px;color:var(--text);font-family:inherit;outline:none"'+(ex?" disabled":"")+'></div>';
+  const fields=[["rev","Revenue — everything you collected","8000"],["cost","Total costs — everything it took (incl. your pay)","6000"],["mkt","Marketing spend — part of costs, broken out","400"],["cust","New customers won","10"]];
+  fields.forEach(f=>{h+='<div class="planField"><label>'+f[1]+'</label><input id="sc-'+f[0]+'" type="number" inputmode="decimal" min="0" step="any" placeholder="'+f[2]+'" value="'+(ex?ex[f[0]]:"")+'" style="width:100%;background:var(--surface);border:1.5px solid var(--edge);border-radius:12px;padding:12px 13px;font-size:15px;color:var(--text);font-family:inherit;outline:none"></div>'});
+  h+='<button class="btn full" onclick="scSaveForm()">Save Month</button>';
+  if(ex)h+='<button class="btn ghost full" style="margin-top:9px" onclick="scDelete(\''+ex.m+'\')">Delete This Month</button>';
+  if(!first)h+='<button class="btn ghost full" style="margin-top:9px" onclick="renderScore()">← Back to Scoreboard</button>';
+  document.getElementById("scoreInner").innerHTML=h;
+}
+function scSaveForm(){
+  const m=document.getElementById("sc-m").value;
+  if(!m){toast("Pick the month first");return}
+  const num=id=>{const v=parseFloat(document.getElementById("sc-"+id).value);return isNaN(v)?null:Math.abs(v)};
+  const rev=num("rev"),cost=num("cost"),mkt=num("mkt")||0,cust=num("cust")||0;
+  if(rev===null||cost===null){toast("Revenue and costs are the two must-haves");return}
+  const a=scGet().filter(x=>x.m!==m);
+  a.push({m,rev,cost,mkt,cust});
+  scSave(a.sort((x,y)=>x.m<y.m?-1:1));
+  toast("Saved — "+scMonthName(m)+" is on the board");
+  renderScore();
+  if(activeView==="home")renderHome();
+}
+function scDelete(m){
+  if(!confirm("Remove "+scMonthName(m)+" from the scoreboard?"))return;
+  scSave(scGet().filter(x=>x.m!==m));
+  toast("Removed");
+  renderScore();
+}
+function scAIReview(){
+  const a=scGet();
+  if(!a.length){toast("Log at least one month first");return}
+  const rows=a.slice(-6).map((x,i,arr)=>{
+    const c=scCalc(x,i>0?arr[i-1]:null);
+    return scMonthName(x.m)+": revenue "+scFmt$(x.rev)+", costs "+scFmt$(x.cost)+", profit "+scFmt$(c.profit)+", margin "+c.margin.toFixed(1)+"%, marketing "+scFmt$(x.mkt)+", new customers "+x.cust+(c.cac!==null?", CAC "+scFmt$(c.cac):"");
+  }).join("\n");
+  const p="You are my financial advisor inside Business Vault University. Here is my real business scoreboard, most recent last:\n\n"+rows+
+    "\n\nGive me a straight monthly review: (1) the one-sentence honest read of where this business is; (2) the trend that matters most, good or bad, with the numbers; (3) the single highest-leverage move for next month — specific, not generic; (4) one question I should be able to answer about my own business but probably can't yet; (5) which BVU topics to study this month (accounting, pricing, marketing, ops — name the concepts). Educational guidance, not professional financial advice — say so in one line at the end.";
+  openAI(p,"Scoreboard review");
+}
+function aiTeachBack(){
+  const le=byId[currentId];if(!le)return;
+  const p="TEACH-BACK SESSION for the lesson \""+le.t+"\" ("+le.track.name+"). I just studied it, and now I'm going to teach it back to you in my own words — the Feynman technique.\n\nYou play Sam: sharp, curious, knows nothing about business. After each thing I explain, react like a real beginner — ask ONE short clarifying question, or say what still confuses you. Never lecture, never fill gaps for me, one question at a time.\n\nWhen I say DONE, break character and grade my teaching out of 100 on accuracy, completeness and simplicity — measured against the lesson's key ideas: "+(le.keys||[]).map(k=>ttsStrip(k)).join(" · ").slice(0,700)+". Tell me what I nailed, what I glossed over or got wrong, and the one thing to re-study.\n\nStart by saying hi and asking me to begin.";
+  openAI(p,"Teach it back: "+le.t);
+}
+
 /* ================= PROGRESS & MASTERY ================= */
 function badgeDefs(){
   const bests=Object.values(store.quiz).map(q=>q.best);
@@ -7327,7 +7486,7 @@ function renderProgress(){
   document.getElementById("view-progress").innerHTML=h;
 }
 /* ---- full backup & restore ---- */
-const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1","bvFont_v1","bvDaily_v1"];
+const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1","bvFont_v1","bvDaily_v1","bvScoreboard_v1"];
 async function backupAll(){
   const keys={};
   BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)keys[k]=v});
@@ -7486,6 +7645,7 @@ function openLesson(id){
     '<div class="lsec"><i></i><h4>Assignment</h4></div><div class="example">'+assignText+'</div>'+
     '<button class="btn '+(store.assignments[id]?'green':'ghost')+' full" style="margin-top:10px" id="assignBtn" onclick="toggleAssignment()">'+(store.assignments[id]?"✓ Assignment Done — Tap to Undo":"Mark Assignment Done")+'</button>'+
     '<button class="btn ghost full" style="margin-top:9px" onclick="aiGradeAssign()">🎓 Grade My Assignment — AI reads my notes below</button>'+
+    '<button class="btn ghost full" style="margin-top:9px" onclick="aiTeachBack()">🧑‍🏫 Teach It Back — explain it in your words, get graded</button>'+
     (le.check&&le.check.length?'<div class="lsec"><i></i><h4>Mastery Checklist — you own this lesson when…</h4></div><ul class="takeaways">'+le.check.map((k,i)=>'<li><i>☐</i>'+k+'</li>').join("")+'</ul>':'')+
     (le.books&&le.books.length?'<div class="lsec"><i></i><h4>Go Deeper — Related Books</h4></div><div class="cards">'+le.books.map(bid=>{const b=BOOKS.find(x=>x.id===bid);return b?bookRow(b,0):""}).join("")+'</div>':'')+
     (related.length?'<div class="lsec"><i></i><h4>Related Lessons</h4></div><div class="cards">'+related.map((x,i)=>cardHTML(x,i+1,x.module.name+(done.has(x.id)?" · ✓ done":""))).join("")+'</div>':'')+
@@ -7625,7 +7785,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -7835,6 +7995,7 @@ function aiTool(){const t=TOOLS.find(x=>x.id===curTool);if(!t)return;openAI(curT
    Stage directions are sent as [DIRECTOR] messages the chat never displays. */
 ICONS.rp='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
 ICONS.gym='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+ICONS.chart='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
 function rpState(id){return (store.rp||{})[id]||{}}
 function rpRow(s,i){
   const st=rpState(s.id);
@@ -8075,6 +8236,7 @@ function palActions(){
     {k:"Action",t:"Run a Simulation",s:SIMS.length+" scored scenarios",run:()=>openLibrary("sims")},
     {k:"Action",t:"Roleplay Arena",s:ROLEPLAYS.length+" live AI conversations",run:()=>openLibrary("rp")},
     {k:"Action",t:"Numbers Gym",s:"10 rapid-fire math reps · beat your best",run:()=>openGym()},
+    {k:"Action",t:"Owner's Scoreboard",s:"Your real numbers, monthly — trends + AI review",run:()=>openScore()},
     {k:"Action",t:"The Daily Ten",s:"Your tracked 10-minute daily circuit",run:()=>setView("home")},
     {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
     {k:"Page",t:"Business Dictionary",s:allTerms.length+" terms",run:()=>openLibrary("terms")},
@@ -8136,6 +8298,7 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Escape"){
     if(palEl.classList.contains("open"))closePalette();
     else if(aiEl.classList.contains("open"))closeAI();
+    else if(scoreEl.classList.contains("open"))closeScore();
     else if(planEl.classList.contains("open"))closePlanner();
     else if(quizEl.classList.contains("open"))closeQuiz();
     else if(gymEl.classList.contains("open"))closeGym();

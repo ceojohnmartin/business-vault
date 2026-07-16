@@ -2620,12 +2620,22 @@ function streak(){
   return n;
 }
 
+/* ================= CURRICULUM ORGANIZATION =================
+   Core schools run beginner → advanced as a numbered path;
+   industry playbooks (car wash, pest control) live in their own tab. */
+const TRACK_ORDER=["biz","money","acct","sales","acq","wash","pest"];
+DATA.sort((a,b)=>TRACK_ORDER.indexOf(a.id)-TRACK_ORDER.indexOf(b.id));
+const PLAYBOOK_IDS=new Set(["wash","pest"]);
+DATA.forEach(t=>t.playbook=PLAYBOOK_IDS.has(t.id));
+const TRACK_RANGE={biz:"Beginner → Mastery",money:"Beginner → Intermediate",acct:"Beginner → Intermediate",sales:"Beginner → Advanced",acq:"Advanced → Operator",wash:"Operator",pest:"Operator"};
+
 /* flatten */
 const allLessons=[];
 DATA.forEach(tr=>tr.levels.forEach(lv=>lv.modules.forEach(mo=>mo.lessons.forEach(le=>{
   allLessons.push({...le,track:tr,level:lv,module:mo});
 }))));
 const byId={};allLessons.forEach((l,i)=>{l.idx=i;byId[l.id]=l});
+const coreLessons=allLessons.filter(l=>!l.track.playbook);
 /* global glossary: every key term across the university */
 const allTerms=[];
 allLessons.forEach(l=>(l.terms||[]).forEach((t,i)=>allTerms.push({id:l.id+"::"+i,t:t[0],d:t[1],le:l})));
@@ -2692,14 +2702,14 @@ function trackStats(tr){
   const d=ls.filter(l=>done.has(l.id)).length;
   return {done:d,total:ls.length,pct:ls.length?d/ls.length:0};
 }
-function nextIncomplete(){return allLessons.find(l=>!done.has(l.id))||allLessons[0]}
+function nextIncomplete(){return coreLessons.find(l=>!done.has(l.id))||allLessons.find(l=>!done.has(l.id))||allLessons[0]}
 function resumeLesson(){
   if(lastLesson&&byId[lastLesson]&&!done.has(lastLesson))return byId[lastLesson];
   return nextIncomplete();
 }
 function dailyLesson(){
   const seed=parseInt(todayStr().replace(/-/g,""),10);
-  return allLessons[seed%allLessons.length];
+  return coreLessons[seed%coreLessons.length];
 }
 
 /* ================= NAV / VIEWS ================= */
@@ -2729,7 +2739,7 @@ const ICONS={
   tool:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8"/><path d="M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01M8 19h.01M12 19h.01M16 19h.01"/></svg>',
   scale:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7l7-4 7 4"/><path d="M5 7l-3 7a3.5 3.5 0 0 0 6 0L5 7z"/><path d="M19 7l-3 7a3.5 3.5 0 0 0 6 0l-3-7z"/></svg>'
 };
-const VIEWS=["home","courses",...DATA.map(t=>t.id),"library","search","progress"];
+const VIEWS=["home","courses","playbooks",...DATA.map(t=>t.id),"library","search","progress"];
 const TABS=[
   {id:"home",label:"Home",ic:"home"},
   {id:"courses",label:"Courses",ic:"courses"},
@@ -2737,7 +2747,7 @@ const TABS=[
   {id:"search",label:"Search",ic:"search"},
   {id:"progress",label:"Progress",ic:"progress"}
 ];
-const TITLES={home:"Dashboard",courses:"The Schools",biz:"Business A–Z",wash:"Car Wash School",pest:"Pest Control School",money:"Money & Wealth School",acct:"Accounting School",sales:"Sales School",acq:"Acquisition School",library:"The Library",search:"Search",progress:"Progress & Mastery"};
+const TITLES={home:"Dashboard",courses:"The Schools",playbooks:"Industry Playbooks",biz:"Business A–Z",wash:"Car Wash Playbook",pest:"Pest Control Playbook",money:"Money & Wealth School",acct:"Accounting School",sales:"Sales School",acq:"Acquisition School",library:"The Library",search:"Search",progress:"Progress & Mastery"};
 let activeView="home";
 const levelSel={};DATA.forEach(tr=>levelSel[tr.id]=0);
 
@@ -2758,8 +2768,13 @@ function buildSidebar(){
   [["home","Home"],["courses","Courses"],["search","Search"],["progress","Progress"]].forEach(([id,label])=>{
     h+='<button class="sb-item" id="sb-'+id+'" onclick="setView(\''+id+'\')">'+ICONS[id==="home"?"home":id==="courses"?"courses":id]+label+'</button>';
   });
-  h+='<div class="sb-sec">Schools</div>';
-  DATA.forEach(tr=>{
+  h+='<div class="sb-sec">The Path</div>';
+  DATA.filter(t=>!t.playbook).forEach((tr,i)=>{
+    const s=trackStats(tr);
+    h+='<button class="sb-item" id="sb-'+tr.id+'" onclick="setView(\''+tr.id+'\')">'+ICONS[tr.id]+tr.name+'<span class="n">'+s.done+'/'+s.total+'</span></button>';
+  });
+  h+='<div class="sb-sec">Industry Playbooks</div>';
+  DATA.filter(t=>t.playbook).forEach(tr=>{
     const s=trackStats(tr);
     h+='<button class="sb-item" id="sb-'+tr.id+'" onclick="setView(\''+tr.id+'\')">'+ICONS[tr.id]+tr.name+'<span class="n">'+s.done+'/'+s.total+'</span></button>';
   });
@@ -2772,7 +2787,7 @@ function buildSidebar(){
 }
 function setView(id){
   activeView=id;
-  const tabFor={home:"home",courses:"courses",library:"library",search:"search",progress:"progress"};
+  const tabFor={home:"home",courses:"courses",playbooks:"courses",library:"library",search:"search",progress:"progress"};
   DATA.forEach(tr=>tabFor[tr.id]="courses");
   VIEWS.forEach(v=>document.getElementById("view-"+v).classList.toggle("active",v===id));
   TABS.forEach(n=>document.getElementById("tab-"+n.id).classList.toggle("active",tabFor[id]===n.id));
@@ -2857,18 +2872,15 @@ function renderHome(){
     });
     h+='</div>';
   }
-  h+='<div class="sectionHead"><i></i><h3>CURRICULUM PROGRESS</h3><span class="mono">'+d+' / '+total+'</span></div><div class="panel"><div class="snap">';
-  DATA.forEach(tr=>{
+  const coreN=coreLessons.filter(l=>done.has(l.id)).length;
+  h+='<div class="sectionHead"><i></i><h3>THE PATH</h3><span class="mono">'+coreN+' / '+coreLessons.length+'</span></div><div class="panel"><div class="snap">';
+  DATA.filter(t=>!t.playbook).forEach((tr,i)=>{
     const s=trackStats(tr);
-    h+='<div class="snap-row"><span class="snap-label">'+tr.name+'</span><div class="snap-bar"><div class="snap-fill" style="width:'+(s.pct*100).toFixed(1)+'%"></div></div><span class="snap-n">'+s.done+'/'+s.total+'</span></div>';
-  });
-  DATA[0].levels.forEach(lv=>{
-    const ls=lv.modules.flatMap(m=>m.lessons);const dd=ls.filter(l=>done.has(l.id)).length;
-    h+='<div class="snap-row"><span class="snap-label" style="padding-left:12px;color:var(--steel)">'+lv.tagline+'</span><div class="snap-bar"><div class="snap-fill" style="width:'+(ls.length?dd/ls.length*100:0).toFixed(1)+'%"></div></div><span class="snap-n">'+dd+'/'+ls.length+'</span></div>';
+    h+='<div class="snap-row"><span class="snap-label">'+(i+1)+'. '+tr.name+'</span><div class="snap-bar"><div class="snap-fill" style="width:'+(s.pct*100).toFixed(1)+'%"></div></div><span class="snap-n">'+s.done+'/'+s.total+'</span></div>';
   });
   h+='</div></div>';
-  h+='<div class="sectionHead"><i></i><h3>UP NEXT</h3></div><div class="cards">';
-  allLessons.filter(l=>!done.has(l.id)).slice(0,3).forEach((le,i)=>{
+  h+='<div class="sectionHead"><i></i><h3>UP NEXT ON THE PATH</h3></div><div class="cards">';
+  coreLessons.filter(l=>!done.has(l.id)).slice(0,3).forEach((le,i)=>{
     h+=cardHTML(le,i+1,le.track.name+" · "+le.level.tagline+" · "+le.module.name);
   });
   if(doneAll)h+='<div class="panel empty">Every lesson complete. You built the machine. 🎓</div>';
@@ -2876,33 +2888,51 @@ function renderHome(){
   document.getElementById("view-home").innerHTML=h;
 }
 
-/* ================= COURSES ================= */
-function courseCard(tr){
+/* ================= COURSES / THE PATH ================= */
+function courseCard(tr,step){
   const s=trackStats(tr);
   const m=masteryOf(allLessons.filter(l=>l.track.id===tr.id));
-  const meta=tr.levels.length>1?tr.levels.length+" levels · "+s.total+" lessons":s.total+" lessons";
+  const meta=(step?"Step "+step+" · ":"")+TRACK_RANGE[tr.id]+" · "+(tr.levels.length>1?tr.levels.length+" levels · ":"")+s.total+" lessons";
   return '<button class="course" onclick="setView(\''+tr.id+'\')">'+
     '<span class="c-icon">'+ICONS[tr.id]+'</span>'+
-    '<span class="c-t"><b>'+tr.name+'</b><span>'+tr.tag+' · '+meta+'</span>'+
+    '<span class="c-t"><b>'+tr.name+'</b><span>'+meta+'</span>'+
     '<span class="c-bar"><i style="width:'+(s.pct*100).toFixed(1)+'%"></i></span></span>'+
     '<span class="c-ring">'+ringSVG(52,22,m,4.5)+'<b>'+Math.round(m*100)+'%</b></span></button>';
 }
 function renderCourses(){
-  let h='<div class="sectionHead"><i></i><h3>THE SCHOOLS</h3><span class="mono">'+allLessons.length+' lessons</span></div>';
-  h+='<p style="font-size:13px;color:var(--steel-2);line-height:1.6;padding:0 2px">Every school is a complete program — work through the levels in order, or jump straight to what your business needs today.</p>';
-  DATA.forEach(tr=>{h+=courseCard(tr)});
+  const core=DATA.filter(t=>!t.playbook);
+  let h='<div class="sectionHead"><i></i><h3>THE PATH</h3><span class="mono">'+coreLessons.length+' lessons</span></div>';
+  h+='<p style="font-size:13px;color:var(--steel-2);line-height:1.6;padding:0 2px">Five schools, in order, from your very first business lesson to buying companies. Start at Step 1 and climb — each school assumes the ones before it.</p>';
+  core.forEach((tr,i)=>{h+=courseCard(tr,i+1)});
+  h+='<div class="sectionHead"><i></i><h3>SPECIALTY</h3></div>';
+  h+='<button class="course" onclick="setView(\'playbooks\')">'+
+     '<span class="c-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-6.2 5.5L3 17.3V21h3.7l5.5-5.5a4.5 4.5 0 0 0 5.5-6.2l-3 3-2.3-2.3z"/></svg></span>'+
+     '<span class="c-t"><b>Industry Playbooks</b><span>Car Wash · Pest Control — operator tracks for specific industries</span></span>'+
+     '<span style="color:var(--blue-2);flex-shrink:0">→</span></button>';
   h+='<div class="course soon" style="cursor:default" onclick="void 0">'+
      '<span class="c-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg></span>'+
      '<span class="c-t"><b>More Schools In Session Soon</b><span>Real Estate School · Legal, Tax & Risk · Executive Mastery and more — the university keeps expanding.</span></span></div>';
-  h+='<div class="footerNote">Business Vault · Private University</div>';
+  h+='<div class="footerNote">Business Vault University</div>';
   document.getElementById("view-courses").innerHTML=h;
+}
+function renderPlaybooks(){
+  let h='<button class="backlink" onclick="setView(\'courses\')">'+
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>The Path</button>';
+  h+='<div class="sectionHead"><i></i><h3>INDUSTRY PLAYBOOKS</h3></div>';
+  h+='<p style="font-size:13px;color:var(--steel-2);line-height:1.6;padding:0 2px">Deep operator tracks for specific industries — how the businesses actually run, make money, and sell. Best taken after Steps 1-2 of the Path, or whenever a deal appears.</p>';
+  DATA.filter(t=>t.playbook).forEach(tr=>{h+=courseCard(tr)});
+  h+='<div class="course soon" style="cursor:default" onclick="void 0">'+
+     '<span class="c-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg></span>'+
+     '<span class="c-t"><b>More Playbooks Coming</b><span>Home Services · SaaS · E-commerce · Self-Storage · Laundromats and more.</span></span></div>';
+  h+='<div class="footerNote">Industry Playbooks · BVU</div>';
+  document.getElementById("view-playbooks").innerHTML=h;
 }
 
 /* ================= TRACK VIEWS ================= */
 function renderTrack(tr){
   const s=trackStats(tr);
-  let h='<button class="backlink" onclick="setView(\'courses\')">'+
-    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>All Schools</button>';
+  let h='<button class="backlink" onclick="setView(\''+(tr.playbook?"playbooks":"courses")+'\')">'+
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>'+(tr.playbook?"Playbooks":"The Path")+'</button>';
   h+='<div class="sectionHead"><i></i><h3>'+tr.name.toUpperCase()+'</h3><span class="mono">'+s.done+' / '+s.total+'</span></div>';
   h+='<div class="panel" style="padding:14px 16px"><p style="font-size:13px;line-height:1.6;color:var(--steel-2)">'+tr.intro+'</p></div>';
   if(tr.levels.length>1){
@@ -3856,6 +3886,7 @@ function palActions(){
     {k:"Page",t:"Progress & Mastery",s:"Rings, badges, streak",run:()=>setView("progress")},
     {k:"Action",t:"Continue Learning",s:resumeLesson().t,run:()=>openLesson(resumeLesson().id)},
     {k:"Action",t:"Daily Lesson",s:dailyLesson().t,run:()=>openLesson(dailyLesson().id)},
+    {k:"Page",t:"Industry Playbooks",s:"Car Wash · Pest Control",run:()=>setView("playbooks")},
     {k:"Page",t:"Business Library",s:BOOKS.length+" books with study notes",run:()=>openLibrary("books")},
     {k:"Page",t:"Operator Tools",s:TOOLS.length+" calculators",run:()=>openLibrary("tools")},
     {k:"Page",t:"Case Studies",s:CASES.length+" decision cases",run:()=>openLibrary("cases")},
@@ -3951,7 +3982,7 @@ function renderHeader(){
   document.querySelectorAll(".streakN").forEach(el=>el.textContent=streak());
 }
 function renderAll(){
-  renderHeader();buildSidebar();renderHome();renderCourses();renderProgress();renderLibrary();
+  renderHeader();buildSidebar();renderHome();renderCourses();renderPlaybooks();renderProgress();renderLibrary();
   DATA.forEach(tr=>renderTrack(tr));
   setView(activeView);
 }

@@ -449,7 +449,8 @@
   .qOpt.pick{border-color:var(--blue);background:var(--blue-soft)}
 
   /* ================= SIMULATIONS & CERTIFICATES ================= */
-  #sim{position:fixed;inset:0;z-index:97;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
+  #sim,#lab{position:fixed;inset:0;z-index:97;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
+  #lab.open{transform:translateY(0);visibility:visible}
   #cert{position:fixed;inset:0;z-index:140;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
   #sim.open,#cert.open{transform:translateY(0);visibility:visible}
   #certCanvas{width:100%;height:auto;border-radius:12px;box-shadow:0 20px 50px -20px rgba(0,0,0,.45);display:block}
@@ -680,6 +681,18 @@
     <canvas id="certCanvas"></canvas>
     <div id="certActions"></div>
   </div>
+</div>
+
+<div id="lab" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeLab()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Labs
+    </button>
+    <div class="crumb" id="labCrumb"></div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="sheetInner" id="labInner"></div>
 </div>
 
 <div id="quiz" role="dialog" aria-modal="true">
@@ -2588,6 +2601,234 @@ choices:[
 lessons:["Expand when the BUSINESS passes the absence test — capital and demand aren't readiness","Contiguous density compounds (staff, oversight, brand, members); leapfrogging fragments you","Build the manager bench before the site; branch P&L + profit share makes owners","Standardize ruthlessly, pre-sell the annuity, and let integration finish before the next deal"]}
 ];
 
+/* ================= OPERATOR LABS & CAPSTONES (Learning Engine) =================
+   Labs: guided build-it exercises with steps, a work area, and a grading rubric.
+   Capstones (cap:true) are the final project of each core school. */
+const LABS=[
+{id:"lab-pnl",title:"Build a P&L",cat:"Finance",goal:"A one-page monthly profit & loss statement for a real or imagined business.",
+brief:"Take a business you know (your own, your employer, or a $50k/month car wash) and build its P&L from scratch. Use the Quick P&L Builder tool for the math, then write the statement out line by line in the work area.",
+steps:["List all revenue lines (split by service/product type)","List COGS: every cost that scales with delivering (labor on jobs, materials, fuel)","List operating expenses by category (rent, admin, marketing, insurance)","Compute gross profit, gross margin %, operating profit, operating margin %","Write one sentence on the weakest number and what you'd do about it"],
+tool:"pnl",rel:["f5","ac5","ac7"],
+rubric:["Revenue is split into at least 2 meaningful lines","COGS contains ONLY costs that scale with delivery (no rent, no owner salary)","All four margins computed and labeled correctly","Includes a written observation about the weakest line with an action"]},
+{id:"lab-budget",title:"Build a Budget",cat:"Money",goal:"A personal monthly budget with automation plan.",
+brief:"Build your real monthly budget using one of the three systems from the Money school (50/30/20, zero-based, or pay-yourself-first). Then design the automation skeleton that runs it without willpower.",
+steps:["Compute monthly take-home income","Categorize last month's actual spending (essentials / choices / savings)","Choose your system and set target amounts per bucket","Write the automation plan: what transfers where, on what day","Compute your personal margin % and your 6-month emergency fund target"],
+tool:"budget",rel:["mw1","mw2","mw4"],
+rubric:["Based on real last-month numbers, not guesses","Every dollar has a bucket — nothing unassigned","Automation plan names specific accounts and dates","Margin % and emergency fund target computed"]},
+{id:"lab-script",title:"Build a Sales Script",cat:"Sales",goal:"A full sales conversation script: opener, discovery, pitch, objections, close.",
+brief:"Write the word-for-word script for selling one specific offer — a pest control plan, a wash membership, or your own product. Use SPIN discovery, the four-step objection loop, and one clean close.",
+steps:["Write an 8-second opener (pattern interrupt + social proof)","Write 6 SPIN discovery questions (situation → problem → implication → need-payoff)","Write the pitch as playback: their problem, your solution, one proof, one recommendation","Script responses to your 3 most common objections (agree → isolate → reframe → advance)","Choose and script your close, plus the silence after it"],
+rel:["s3","s4","s5","s6"],
+rubric:["Opener avoids sounding like a salesman in the first sentence","At least one implication question that makes the problem expensive","Objection responses isolate before answering","Ends with one specific close and a next step, not 'any questions?'"]},
+{id:"lab-offer",title:"Build an Offer",cat:"Marketing",goal:"A Grand-Slam-style offer for one service: outcome, guarantee, bonuses, price.",
+brief:"Package one service into an offer so good people feel dumb saying no. Use the value equation: dream outcome × likelihood ÷ time × effort.",
+steps:["Name the dream outcome in the customer's words (not your service's name)","Stack 2-3 bonuses that raise perceived likelihood of success","Write a bold risk-reversal guarantee you can actually honor","Set a premium price and justify it against the cost of the problem","Name the offer (outcome-based, not service-based)"],
+rel:["c11","c6","s4"],
+rubric:["Outcome named in customer language, not industry jargon","Guarantee genuinely reverses risk (not 'satisfaction guaranteed' fluff)","Price is justified against problem cost with real numbers","The whole offer fits in 3 sentences a rep could say aloud"]},
+{id:"lab-funnel",title:"Build a Marketing Funnel",cat:"Marketing",goal:"A complete funnel: traffic source → lead magnet → follow-up → offer, with target numbers.",
+brief:"Design the funnel for one business: where strangers come from, what earns their contact info, the follow-up sequence, and the offer that converts them. Use the Ad Budget Planner for the math.",
+steps:["Pick ONE traffic channel and justify it (who's there, what it costs)","Design a lead magnet that solves a narrow free problem","Write the 5-touch follow-up sequence (channel + value of each touch)","Define the conversion offer and its price","Work the math backward: revenue goal → sales → leads → budget"],
+tool:"adbudget",rel:["c3","c2","s8"],
+rubric:["One channel, chosen with reasoning — not 'everywhere'","Lead magnet is specific and genuinely useful alone","Every follow-up touch adds value (no 'just checking in')","Funnel math computed: CPL → leads → sales → CAC vs LTV"]},
+{id:"lab-sop",title:"Build an SOP",cat:"Operations",goal:"A standard operating procedure a new hire could follow without you.",
+brief:"Document one process you know well — opening the shop, running a service stop, invoicing a job — as a checklist SOP with quality standards.",
+steps:["Pick one process that currently lives in someone's head","Write the trigger (when this SOP starts) and the outcome (what done looks like)","List every step in order, with times and tools needed","Add 3 quality checks: how the person knows they did it right","Add the failure branch: what to do when something's wrong"],
+rel:["c9","ac6","aq9"],
+rubric:["A stranger could execute it without asking questions","Steps are actions, not descriptions ('Wipe sensor with dry cloth' not 'sensor should be clean')","Includes measurable quality standards","Covers at least one what-if/failure path"]},
+{id:"lab-scorecard",title:"Build a Weekly Scorecard",cat:"Operations",goal:"A 5-10 number weekly dashboard for one business.",
+brief:"Design the scorecard an owner would review every Monday: leading indicators, lagging results, and owners for each number.",
+steps:["List the 3-5 leading indicators (activities that predict revenue)","List the 3-5 lagging results (revenue, margin, churn, cash)","Set a green/red threshold for each number","Assign one accountable owner per number","Write the 15-minute Monday meeting agenda that reviews it"],
+rel:["s9","a6","ac10"],
+rubric:["Mix of leading AND lagging numbers (not just results)","Every number has a threshold that forces a conversation","Every number has exactly one owner","Whole scorecard fits on one screen/page"]},
+{id:"lab-cashflow",title:"Build a Cash Flow Forecast",cat:"Finance",goal:"A 13-week cash forecast with the crunch weeks identified.",
+brief:"Build the operator's favorite instrument: 13 weeks of cash in, cash out, and ending balance. Use the Cash Flow Forecast tool for totals, then map the weeks in your work area.",
+steps:["Start with actual cash on hand today","List weekly cash IN (collections timing, not invoicing timing)","List weekly cash OUT (payroll weeks, rent week, insurance/quarterly hits)","Compute ending cash for each of 13 weeks","Highlight the lowest week and write your plan for it"],
+tool:"cashfc",rel:["f7","a9","ac9"],
+rubric:["Uses collection timing, not revenue timing","Payroll and irregular hits (insurance, taxes) on correct weeks","Identifies the minimum-cash week explicitly","Includes a written action plan for the crunch"]},
+{id:"lab-acqmodel",title:"Build an Acquisition Model",cat:"Acquisition",goal:"A one-page deal analysis: recast SDE, price, structure, DSCR, and cash-on-cash.",
+brief:"Take a real listing (or invent one from the industry tracks) and build the full buyer's model using the SBA Acquisition Analyzer, then write the deal memo.",
+steps:["Recast SDE: start from stated earnings, audit each add-back","Set your three prices: delight / accept / walk (show the math)","Structure the offer: cash + SBA + seller note + earnout triggers","Run DSCR after a REAL salary for yourself — verify ≥1.25","Write a 5-sentence deal memo: the business, the price logic, the biggest risk"],
+tool:"sba",rel:["aq3","aq4","aq5"],
+rubric:["Add-backs individually accepted/rejected with reasons","Walk-away number derived from DSCR math, not feelings","Structure bridges any price gap with note/earnout, not cash","Deal memo names the single biggest risk honestly"]},
+{id:"lab-carwash",title:"Build a Car Wash Pro Forma",cat:"Playbooks",goal:"A monthly pro forma for an express wash: volume, memberships, costs, profit, valuation.",
+brief:"Model a site: retail cars/day, membership base, per-car costs, fixed costs — then compute profit and what the site would be worth. Use the Car Wash Unit Economics tool.",
+steps:["Estimate retail cars/day and average ticket for your market","Set a realistic membership count and monthly fee","List variable cost per car (chemicals, water, power, labor)","Total fixed costs (rent/debt, staff base, insurance, marketing)","Compute monthly profit and value at a market multiple; test a ±20% volume swing"],
+tool:"carwash",rel:["w2","w4","w12"],
+rubric:["Membership share of revenue computed and defended","Variable vs fixed costs correctly separated","Includes a downside case, not just the happy path","Valuation multiple justified against the track's ranges"]},
+{id:"lab-pestroute",title:"Build a Pest Control Route Model",cat:"Playbooks",goal:"A route economics model: accounts, fees, churn, density, and book value.",
+brief:"Model a residential route using the Pest Control Route Economics tool: recurring accounts, monthly fee, churn drag, and what the book is worth.",
+steps:["Set account count, average monthly fee, and service frequency","Estimate annual churn honestly and compute accounts-to-replace","Compute revenue per tech-day from stops/day and route density","Total operating margin after tech cost, chemicals, fuel, overhead","Value the book at market multiples; test churn at ±5 points"],
+tool:"pestroute",rel:["p2","p4","p10"],
+rubric:["Churn's revenue drag explicitly computed","Density (stops/day) tied to profit, not just revenue","Margin survives a realistic cost load (not fantasy 60%)","Book value stated with the multiple's justification"]},
+/* ---- Capstones: the final project of each core school ---- */
+{id:"cap-biz",cap:true,school:"biz",title:"Capstone: The Beginner Business Plan",cat:"Capstone",goal:"A complete 2-page business plan for a real business you could start or buy.",
+brief:"The Business A–Z capstone. Choose one business idea and write the full plan: the problem, the customer, the offer, the numbers, and the first 90 days. Every section uses a lesson you completed.",
+steps:["The one-sentence business: who pays, for what, why you","The market: who exactly is the customer and how many are reachable","The unit economics: price, cost to deliver, gross margin per sale","The engine: how customers are acquired (channel + CAC estimate)","Break-even math: fixed costs ÷ contribution margin","The first 90 days: week-by-week launch plan"],
+tool:"breakeven",rel:["f1","f10","e8"],
+rubric:["A stranger could understand the business in one read","Unit economics computed with real numbers, not vibes","Customer acquisition names a channel with cost logic","Break-even stated in units AND revenue","90-day plan has weekly, checkable milestones"]},
+{id:"cap-money",cap:true,school:"money",title:"Capstone: The Personal Finance Plan",cat:"Capstone",goal:"Your complete money system: budget, buffer, debt plan, investing order, net worth tracker.",
+brief:"The Money & Wealth capstone. Build your entire personal finance operating system in one document — the one you'll actually run.",
+steps:["Personal P&L: income, burn, margin %","Budget system chosen + automation map","Emergency fund: target, current, monthly path to full","Debt kill-list (balance, rate, method) or 'debt-free' declaration","Investing order of operations applied to YOUR accounts","Net worth statement + your freedom number (essentials × 25)"],
+tool:"networth",rel:["mw1","mw10","mw14"],
+rubric:["Every number is real (from statements), not estimated","Automation map has specific accounts, amounts, and dates","Investing order matches the match→debt→HSA→Roth→401k logic","Freedom number computed and compared to trajectory"]},
+{id:"cap-acct",cap:true,school:"acct",title:"Capstone: P&L + Cash Flow Model",cat:"Capstone",goal:"A linked monthly P&L and cash flow model for one business, with a written health diagnosis.",
+brief:"The Accounting capstone. Build the two statements for the same business and — the real test — explain where and why they differ.",
+steps:["Build the monthly P&L (lab-pnl quality or better)","Build the 13-week cash forecast for the same business","Reconcile: list every reason profit ≠ cash change (receivables, prepaids, debt payments)","Compute 5 ratios: gross margin, operating margin, current ratio, DSO, DSCR","Write the health diagnosis: 3 findings, 3 recommendations"],
+tool:"cashfc",rel:["ac7","ac8","ac9"],
+rubric:["P&L uses accrual logic; forecast uses cash timing","Profit-vs-cash gap explained line by line","All five ratios computed correctly with interpretation","Diagnosis reads like an analyst, not a cheerleader"]},
+{id:"cap-sales",cap:true,school:"sales",title:"Capstone: The Sales System",cat:"Capstone",goal:"A complete sales machine on paper: pipeline math, script, follow-up, comp plan, scorecard.",
+brief:"The Sales School capstone. Design the entire revenue system for one business — everything a new sales hire would need to start producing.",
+steps:["Pipeline math: revenue goal → closes → quotes → contacts → daily activity","The full script (lab-script quality or better)","The 5-touch follow-up sequence + referral ask script","Comp plan: base, commission on collected, clawback, one accelerator","The weekly sales scorecard with thresholds"],
+tool:"commission",rel:["s2","s9","s10"],
+rubric:["Pipeline math chains correctly from goal to daily activity","Script includes discovery, objection loop, and one clean close","Comp plan pays on collected revenue with churn protection","Scorecard mixes activity and results with owners"]},
+{id:"cap-acq",cap:true,school:"acq",title:"Capstone: Full Acquisition Analysis",cat:"Capstone",goal:"A complete deal package on a real listing: thesis fit, recast, valuation, structure, diligence plan, 100-day plan.",
+brief:"The Acquisition School capstone — the document you'd actually take to a lender. Pick a real listing from any marketplace and produce the full buyer's package.",
+steps:["Thesis-fit check: does this deal pass your written thesis and disqualifiers?","Recast SDE with the add-back audit table","Three-lens valuation: comps, DCF-lite, financeability ceiling","Offer structure: price, cash/SBA/note/earnout, key LOI terms","Diligence plan: the 10 questions that could kill this deal","The 100-day plan: stabilize → learn → first signal win"],
+tool:"sba",rel:["aq4","aq6","aq9"],
+rubric:["Uses a real listing with real numbers","Every add-back accepted or rejected in writing","Walk number derived from DSCR ≥1.25 after real salary","Diligence questions target THIS deal's specific risks","100-day plan honors stabilize-before-improve"]}
+];
+
+/* ================= SIMULATIONS — Wave 2 (Learning Engine) ================= */
+SIMS.push(
+{id:"sim-zero",title:"Start a Business from Zero",cat:"Entrepreneurship",time:"~8 min",
+intro:"You have $5,000, a full-time job, and the itch. No product, no customers, no experience — just the lessons in this university. Build something real without torching your savings.",
+steps:[
+{text:"Where do you start?",
+choices:[
+{t:"Quit the job — burn the boats, full commitment",s:0,fb:"You just put a 3-month fuse on an idea you haven't tested. Rent doesn't care about commitment. The boats you burned were your runway."},
+{t:"Keep the job; spend 2 weeks interviewing 15 potential customers about their problems (Mom Test rules — past behavior, no pitching)",s:2,fb:"Evidence before investment. Three of fifteen describe the same expensive, recurring annoyance — and two say what they've already paid trying to fix it. That's a market speaking."},
+{t:"Spend the $5,000 on a logo, LLC, website, and business cards",s:1,fb:"You bought the costume before the play. None of it creates a customer — and an LLC for a business with zero revenue is paperwork protecting nothing yet."}]},
+{text:"Interviews point to a real problem: busy homeowners' gutters and exterior maintenance. Design the first test.",
+choices:[
+{t:"Build a $4,000 website with online booking before 'launching properly'",s:0,fb:"Four months and $4k for what a text message could test. Perfection before contact with customers is procrastination wearing a business suit."},
+{t:"An MVP weekend: $150 of flyers in two neighborhoods with one clear offer and your phone number — decide in advance what result means 'continue'",s:2,fb:"Nine calls, five jobs booked, $640 collected in one weekend. The market just voted with money — the only ballot that counts. Your pre-set threshold (3 jobs) was cleared."},
+{t:"Post in local Facebook groups asking if people would 'hypothetically be interested'",s:1,fb:"Forty-one likes, nine 'totally would!' comments, zero commitments. Compliments are the fool's gold of validation — you measured politeness, not demand."}]},
+{text:"Five paying customers, weekends full. Price check: you charged $120/job gut-feel; each takes 3 hours plus materials ($25). What now?",
+choices:[
+{t:"Keep prices low to build a customer base first",s:1,fb:"The 'raise it later' trap: later never comes without a fight, and you're anchoring the neighborhood at unsustainable math. ~$30/hour before taxes and equipment isn't a business yet."},
+{t:"Do the unit math: at $185 with a season-package option, you clear a real margin — raise it for all NEW customers and test",s:2,fb:"New customers don't know the old price. Close rate dips barely (11→9 of 20 quotes) while revenue per job jumps 54%. The flyer test proved demand; this test proved margin."},
+{t:"Add more service types to increase each ticket",s:1,fb:"Scope creep before the core is priced right. Now you're mediocre at four things instead of profitable at one — the 68-item menu problem, lawn-sized."}]},
+{text:"Demand exceeds your weekends. The fork: stay solo-premium, or build capacity?",
+choices:[
+{t:"Hire a full-time employee — go big immediately",s:1,fb:"A full-timer needs ~$4k/month of wages against your ~$5k/month of weekend revenue. You hired a payroll crisis. Capacity should trail demand by one gear, not lead it by three."},
+{t:"Subcontract overflow to a vetted solo operator at 70/30, keep quality control via a written checklist (your first SOP)",s:2,fb:"Variable capacity, zero fixed cost, and your first taste of the E-Myth transition: the checklist IS the business now. Two months later the sub wants more work — that's your future first hire, pre-auditioned."},
+{t:"Just raise prices again to shrink demand to your capacity",s:1,fb:"Legitimate lever, but you used it to avoid building the machine. Solo-premium is a fine lifestyle business — just know you chose a ceiling, not a company."}]},
+{text:"Month six: $9k/month revenue, one sub, weekends maxed, job intact. The decision everyone asks about: when do you quit?",
+choices:[
+{t:"Now — six months of proof is plenty",s:1,fb:"Close. But your monthly take-home from the business is still under your salary, and you skipped a step: the numbers rule. Emotion is voting where arithmetic should."},
+{t:"When the business clears a written threshold: 3 consecutive months of business profit ≥ 75% of salary + 6 months personal runway banked — then resign with a plan",s:2,fb:"The operator's exit from employment: pre-committed math instead of a mood. You cross the line in month eleven — and because it was a threshold, not a leap, you never look back in panic."},
+{t:"Never — run it as a side business forever",s:0,fb:"At maxed weekends with growing demand, refusing the decision IS a decision: the business plateaus, the sub drifts to steadier work, and the window that was open in month six quietly closes."}]}],
+lessons:["Validate with customer money, not compliments — set pass/fail thresholds before every test","Price from unit math, not fear; new customers never knew the old price","Add capacity one gear behind demand (subs before hires); the SOP is the real product","Quit the job on a written financial threshold, not a feeling"]},
+
+{id:"sim-decline",title:"Fix Declining Sales",cat:"Sales",time:"~7 min",
+intro:"Your home-services company's revenue has slid 3 straight months: $86k → $81k → $74k. The team blames 'the economy.' Your job: diagnose like an operator before treating like a gambler.",
+steps:[
+{text:"First move?",
+choices:[
+{t:"Launch a 25%-off promotion immediately to jolt revenue",s:0,fb:"Treatment before diagnosis. If the problem is lead flow, the discount does nothing but cut margin on the customers you'd have gotten anyway — and it anchors your price down for the recovery."},
+{t:"Pull the funnel apart: leads, quote rate, close rate, average ticket, churn — month by month for six months",s:2,fb:"The dashboard tells the story feelings can't: leads flat, quotes flat, close rate flat… churn UP from 2.1% to 4.8% monthly. This isn't a sales problem — it's a leaky bucket."},
+{t:"Hold a team meeting demanding everyone 'step it up'",s:1,fb:"Motivation aimed at a mystery. The team nods, works scared for two weeks, and nothing changes — because nobody, including you, knows WHICH number needs stepping up."}]},
+{text:"Churn doubled starting exactly three months ago. What happened three months ago? Dig.",
+choices:[
+{t:"Survey lost customers with one honest question: 'What made you leave?'",s:2,fb:"Eleven of 20 responses name the same thing: your best senior tech left, and his replacement rushes jobs. Two name a competitor's door-knockers. Now the problem has a face, a date, and a fix."},
+{t:"Assume it's the new competitor's discounting and match their price",s:1,fb:"You cut price for everyone to fight a cause affecting some — and lost customers' actual complaint (service quality) stays unfixed. Expensive guess, wrong target."},
+{t:"Fire the newest tech — churn started around when he was hired",s:0,fb:"Correlation cosplaying as diagnosis. The new tech serves 40 customers; churn hit all 700. You just lost a decent tech, gained a wrongful-dismissal risk, and the number didn't move."}]},
+{text:"Root cause confirmed: quality dropped after the senior tech left; the replacement was never properly trained. Fix the bucket.",
+choices:[
+{t:"Retrain against a written service SOP with ride-alongs, add a post-job quality text ('Rate today's visit 1-5'), and call every 1-2 star immediately",s:2,fb:"The leak seals in six weeks: churn 4.8% → 2.4%. The rating system now catches quality drift in days, not quarters — the andon cord, home-services edition."},
+{t:"Offer every remaining customer a discount to stay",s:0,fb:"You're now paying customers to tolerate bad service. Churn slows a hair; margin bleeds everywhere; and the moment the discount ends, the unfixed problem resumes."},
+{t:"Start a win-back campaign for the customers who left",s:1,fb:"Right tool, wrong order: you're inviting people back into a leaky bucket. Fix quality first — THEN the win-back letter has something true to say."}]},
+{text:"Churn is fixed but you're 120 customers down. Rebuild volume — with margin intact.",
+choices:[
+{t:"Now run the win-back: personal call to lost customers — 'we heard you, here's what changed' + one no-strings free service",s:2,fb:"38 of 120 return — at full price, because what changed was real. Cheapest acquisition in business: people who already knew you. The referral engine restarts with them."},
+{t:"Double the ad budget to replace lost customers with new ones",s:1,fb:"It works — at 5× the cost of win-backs and with strangers who churn at new-customer rates. You bought volume when you could've reclaimed loyalty."},
+{t:"NOW run that 25%-off promotion to accelerate everything",s:0,fb:"The discount finally launches — into a fixed bucket, thankfully — but it attracts the coupon-chasers, teaches the market to wait for sales, and marks the quarter's margin down for a volume spike that fades."}]},
+{text:"Revenue recovered to $88k. Institutionalize the save.",
+choices:[
+{t:"Add churn + quality-score to the weekly scorecard with red thresholds, keep the post-job rating forever, and document the senior tech's knowledge into training SOPs",s:2,fb:"The decline that took three months to notice would now surface in one week. And the real lesson lands: the crisis wasn't sales, was never sales — it was an untrained hire and no instrument panel."},
+{t:"Celebrate and move on — problem solved",s:0,fb:"The next senior departure triggers the identical slide, because nothing structural changed. You fixed the leak and kept the rusty pipe."},
+{t:"Promise yourself you'll watch the numbers more closely",s:1,fb:"Vigilance is a mood; scorecards are a system. Moods fade by Q3."}]}],
+lessons:["Diagnose the funnel stage before treating — most 'sales problems' live elsewhere","Ask lost customers why they left; the answer usually has a date and a name","Fix quality before win-backs, win-backs before ads, ads before discounts","Institutionalize the save: churn and quality on the weekly scorecard with thresholds"]},
+
+{id:"sim-capital",title:"Choose Debt vs. Equity",cat:"Finance",time:"~7 min",
+intro:"Your pest control company ($480k revenue, $110k EBITDA, growing 30%/year) needs $150k to add two trucks, two techs, and a marketing push. How you fund it will echo for a decade.",
+steps:[
+{text:"A local investor offers $150k for 25% of the company. The bank offers a $150k equipment+working capital loan at 9.5% over 7 years. First instinct?",
+choices:[
+{t:"Take the investor — no monthly payments, shared risk, and a 'partner'",s:1,fb:"Feel the real price: 25% of a growing company, forever. At your growth rate that stake could be worth $400k+ in five years — for $150k the bank would've rented you at ~$2,400/month. Equity is the most expensive money healthy companies can buy."},
+{t:"Run both against the test: is the cash flow predictable enough to service debt? At $110k EBITDA vs ~$29k/year of payments, DSCR is ~3.8 — take the loan",s:2,fb:"The operator's rule: predictable cash flow → debt; unpredictable bets → equity. Your recurring revenue makes this a debt story, and every point of growth now belongs entirely to you."},
+{t:"Take neither — grow only from retained profits",s:1,fb:"Bootstrap discipline is real, but at 30% market growth, funding trucks from profit means competitors take the territory while you save up. Sometimes leverage isn't risk — it's timing."}]},
+{text:"You lean debt. The bank's term sheet arrives: 9.5%, 7 years, a blanket lien on all business assets, your personal guarantee, and a covenant: DSCR must stay above 1.5.",
+choices:[
+{t:"Sign as-is — terms are terms",s:1,fb:"You left money on the table: terms are a negotiation, not a menu. And you didn't model the covenant against a bad year — 1.5 DSCR is comfortable now, but one rough season plus this payment could trip it."},
+{t:"Negotiate what's negotiable (rate vs. a deposit relationship, covenant at 1.25, carve-out of one truck title), and stress-test the payment against a 20% revenue drop before signing",s:2,fb:"Rate drops to 8.9% with your deposits moving over, covenant lands at 1.25, and the stress test says survivable-but-tight — so you also open a small standby line. Signed with eyes open."},
+{t:"Reject the personal guarantee on principle and walk",s:0,fb:"For a $480k-revenue company, the PG is standard at every bank in town — walking on principle means funding at credit-card rates or not at all. Principles are for terms that are actually negotiable."}]},
+{text:"Eight months in: growth is ahead of plan — and a second opportunity appears. A retiring competitor offers his 300-account book for $210k. Your loan capacity is thin. Fund the acquisition how?",
+choices:[
+{t:"Max a second bank loan on top of the first",s:1,fb:"The stack now eats ~$60k/year of a $130k EBITDA — DSCR ~1.4 with zero slack for a bad quarter or a churn surprise on the acquired book. Survivable, white-knuckled, and one flat tire from a covenant breach."},
+{t:"Structure it: $60k cash + $110k seller note (the seller's 'yes' costs him nothing today) + $40k earnout tied to account retention",s:2,fb:"The seller finances his own exit at 6% and stays invested in a clean handoff. Bank debt untouched, DSCR healthy, and the earnout prices the churn risk to the person who controls the goodwill. Structure IS financing."},
+{t:"NOW bring in that equity investor for this deal",s:1,fb:"Defensible — acquisitions are riskier than trucks — but 25% of the whole company for a bolt-on the seller would've financed himself? You paid platform equity for a seller-note problem."}]},
+{text:"Year three: $1.1M revenue, $270k EBITDA. A private equity group offers $400k for 30% to 'fuel a regional roll-up together.' Decide with the cap-table lessons in mind.",
+choices:[
+{t:"Take it — PE money validates the business",s:1,fb:"Read the term sheet twice: their preferred shares carry a 2× liquidation preference and a board seat with veto on any sale. 'Validation' just bought control levers. Equity partners are permanent; make sure you're buying their VALUE, not their money."},
+{t:"Evaluate them as a hire, not a lifeline: what do they bring beyond cash (deal flow, debt relationships, operators)? Counter on preference and control terms — and only proceed if the ANSWER, not the money, is compelling",s:2,fb:"Their answers are thin — money, hype, and someone else's playbook. You pass, keep 100%, and fund the next two bolt-ons with the SBA + seller-note machine you already mastered. Equity for value, debt for fuel."},
+{t:"Decline all outside capital forever as a policy",s:0,fb:"Absolutes are expensive: someday a deal appears that genuinely needs equity-scale capital and a partner's network. The skill isn't refusing equity — it's pricing it."}]},
+{text:"The durable framework you write down for every future capital decision:",
+choices:[
+{t:"Debt when cash flows are predictable and the asset outearns the payment; equity only when the partner brings value money can't buy; structure (seller notes, earnouts) before either; stress-test everything against the bad year",s:2,fb:"That's the whole capital stack lesson in four clauses. Debt rents money and keeps your upside; equity sells your future and buys permanence; structure gets creativity for free. The company stays 100% yours — on purpose."},
+{t:"Debt is always better because you keep ownership",s:1,fb:"Mostly — until the bet is genuinely uncertain (new market, unproven model), where fixed payments against unpredictable cash flow is how personal guarantees get called. 'Always' is doing too much work in that sentence."},
+{t:"Whatever capital is available fastest when needed",s:0,fb:"Speed-shopping for capital is how businesses end up owned by their lenders' terms or their investors' preferences. The time to choose your capital philosophy is before you need money — which was today."}]}],
+lessons:["Predictable cash flow → debt; unpredictable bets → equity; structure before either","Term sheets are negotiations: rate, covenants, carve-outs — and stress-test the bad year","Seller notes and earnouts are free creativity — the counterparty finances what they control","Take equity partners for what they bring beyond money; price the preferences, not the headline"]}
+);
+
+/* ================= CASE STUDIES — Wave 2 (Learning Engine) ================= */
+CASES.push(
+{id:"amazon-reinvest",title:"The Company That Refused to Profit",inspired:"Inspired by Amazon's reinvestment strategy",cat:"Capital & Investing",
+situation:"For two decades, a fast-growing retailer reports razor-thin or negative profits — on purpose. Every dollar of would-be profit is poured into warehouses, logistics, technology, and new business lines. Wall Street analysts call it 'a charity run for consumers.' Shareholders keep asking when the profits will come.",
+fin:[["Revenue growth","20-40%/yr for two decades"],["Reported net income","Near zero, by choice"],["Operating cash flow","Large and growing"],["Reinvestment rate","~100% of potential profit"]],
+problem:"Is a company that never shows profit brilliant or broken — and how do you tell the difference?",
+constraints:["Public market pressure for quarterly earnings","Competitors can copy any single initiative","Every reinvested dollar is a bet on future returns"],
+options:[{t:"It's broken: a business that can't produce profit after 20 years has no business model"},{t:"It's brilliant IF reinvestment earns high returns: judge it on cash generation and return on invested capital, not reported profit"},{t:"It's a bubble kept alive by storytelling to investors"},{t:"It should split the difference: pay some dividends to prove profitability, reinvest the rest"}],
+suggested:1,
+analysis:"Option 2 is the analytical answer. Reported profit is a CHOICE when a company has more high-return projects than money: profit shown is just reinvestment declined. The tell is in the pair of numbers most people never check together: operating cash flow (huge and compounding) and return on each reinvested dollar (the flywheel — more selection → more customers → more scale → lower costs). A business burning cash with LOW returns on reinvestment is broken; one suppressing profit to compound at high returns is playing a longer game than its critics' attention spans.",
+instructor:"This is the income statement lesson wearing its most famous costume: profit is an opinion, cash is a fact — and growth capex hiding inside the P&L makes great businesses look mediocre. Connect to the small-business version: the pest owner who 'shows no profit' because every dollar funds new routes at 40% returns is doing the same thing (and the one whose reinvestment earns nothing is just broke with extra steps). The discipline question for students: do you KNOW the return on your reinvested dollar?",
+lessons:["Reported profit is a choice when reinvestment opportunities exceed capital","Judge suppressed-profit companies on cash flow and return on invested capital","The flywheel: reinvestment that lowers costs or widens moats compounds; reinvestment that doesn't is just spending"],
+rel:["e5","ac9","f3"]},
+{id:"tesla-vertical",title:"Build or Buy Everything?",inspired:"Inspired by Tesla's vertical integration",cat:"Strategy",
+situation:"A manufacturer in an industry that outsources everything — parts, software, batteries, sales — decides to do the opposite: build its own batteries, write its own software, own its stores, even run its own charging network. Costs and risks explode in the short term. Analysts call it arrogance; suppliers call it impossible.",
+fin:[["Upfront capital vs. outsourcing","5-10× higher"],["Per-unit costs at scale","Falling below industry"],["Supplier dependence","Near zero"],["Industry norm","Outsource everything non-core"]],
+problem:"When is vertical integration genius, and when is it hubris?",
+constraints:["Capital is limited and integration consumes it","Each integrated layer adds management complexity","Suppliers already have scale economies you'd rebuild from zero"],
+options:[{t:"Always outsource: focus on your core competence and let specialists do the rest"},{t:"Integrate ONLY where the market can't sell you what you need — where the bottleneck to your differentiation lives"},{t:"Integrate everything: control is always worth the cost"},{t:"Copy whatever the industry leader does"}],
+suggested:1,
+analysis:"Option 2 is the principle. Integration paid off precisely where suppliers COULDN'T deliver what the strategy required — batteries at the needed cost curve, software as the product's soul, charging as the adoption unlock. It would have been madness for commodity parts any supplier makes well. The test: integrate where the market fails your differentiation; outsource where it doesn't. Control is a cost; it's only worth paying at the bottleneck.",
+instructor:"Scale this down hard for students: the pest company that brings call-answering in-house (because missed calls ARE lost revenue and no answering service cares like you do) while outsourcing payroll (a solved commodity) is making the same judgment. Wrong versions both directions: the owner who builds custom software for a solved problem, and the owner who outsources the customer relationship itself. Ask of every function: does the market sell what my differentiation needs? ",
+lessons:["Integrate where the market can't deliver your differentiation; outsource commodities","Control is a cost — pay it only at the bottleneck","First-principles questions ('why is this outsourced?') occasionally beat industry norms — but the norm exists for a reason everywhere else"],
+rel:["e3","x2","c9"]},
+{id:"hvac-scaling",title:"The $3M Wall",inspired:"An HVAC scaling problem",cat:"Operations",
+situation:"An HVAC company grew from $500k to $3M in four years on the owner's hustle: he quotes every job, approves every schedule, handles every escalation. Now growth has stopped, margins are slipping, two good techs just left for competitors, and the owner works 80-hour weeks. Every new hire seems to make things worse, not better.",
+fin:[["Revenue","$3M, flat 18 months"],["Gross margin","Slipping: 48% → 41%"],["Owner hours","80+/week"],["Tech turnover","4 departures in 12 months"],["Quotes touched by owner","100%"]],
+problem:"Why does everything the owner adds make the company worse — and what actually breaks the wall?",
+constraints:["The owner genuinely IS the best quoter and troubleshooter","Cash is adequate but not lavish","Customers ask for the owner by name"],
+options:[{t:"Hire more techs — revenue per tech is fine, so more techs = more revenue"},{t:"The owner is the bottleneck: build the operating layer — pricing system, dispatcher, service manager, documented quality standards — so decisions stop routing through one brain"},{t:"Raise prices to slow demand to a manageable level"},{t:"Sell now before margins slip further"}],
+suggested:1,
+analysis:"Option 2. The company hit the ceiling of one man's decision bandwidth — the $3M wall is where owner-as-operating-system stops scaling. More techs (option 1) adds load to the bottleneck, which is why every hire made it worse. The fix is boring and specific: a price book so quotes don't need his gut, a dispatcher who owns the schedule, a working manager who owns quality against written standards, and the owner promoted to working ON the machine. Margins slipped because rushed, inconsistent decisions replaced his (formerly) careful ones — systemize the decisions and margins recover with less of him, not more.",
+instructor:"The Theory of Constraints applied to a human: the constraint isn't trucks or demand, it's decision throughput. Have students find the tell in the numbers — 100% of quotes through one person at $3M means quoting is either a queue (slow) or a coin flip (rushed); both destroy margin. Connect to E-Myth, the trapped-founder case, and the absence test from the expansion sim. The techs left because working for a bottleneck is exhausting.",
+lessons:["Companies scale to the limit of their systems, then to the limit of their owner — the wall is decision bandwidth","Adding capacity below the bottleneck makes things worse (queues, rushed calls, turnover)","Price books, dispatch, and written standards convert one person's judgment into an operating layer"],
+rel:["c9","aq9","s10"]},
+{id:"laundromat-cash",title:"The Quarters Machine That Ran Dry",inspired:"A laundromat cash flow problem",cat:"Finance",
+situation:"A first-time buyer purchases a laundromat — 'the ultimate passive cash business.' Six months in, the bank account is shrinking despite steady customer volume. Machines are aging, the water bill spiked, the previous owner's 'light maintenance' schedule turns out to have been deferral, and two big machines are down awaiting $4,200 in parts.",
+fin:[["Purchase price","$240k (3.4× stated cash flow)"],["Stated cash flow","$70k 'mostly passive'"],["Actual monthly cash","Negative $800 and worsening"],["Machine age","Washers avg 11 years (life: ~12-14)"],["Deferred maintenance found","~$38k"],["Utilities","+22% vs. seller's books"]],
+problem:"Where did the 'passive cash machine' story break — and what's the recovery plan?",
+constraints:["$18k of buyer's reserves remain","Revenue is genuinely steady — customers still come","Machines fail faster the longer repairs wait"],
+options:[{t:"Sell immediately and take the loss — the business was a lemon"},{t:"Recognize the diligence failure, then run the turnaround: triage repairs by revenue-per-machine, restructure to a real maintenance reserve, raise prices (unchanged in 6 years), and add wash-and-fold service"},{t:"Stop all maintenance to conserve cash until revenue improves"},{t:"Borrow $50k against the house to replace all machines at once"}],
+suggested:1,
+analysis:"Option 2. The story broke in diligence, not operations: 'cash flow' was stated BEFORE the capital expenditure a machine business demands — depreciation was real, the seller just stopped paying it. The recovery is sequenced: triage repairs by which machines earn most (not which broke loudest), institutionalize a per-turn maintenance reserve (this business's true P&L includes ~$1,500/month of machine mortality), take the 6-years-frozen price increase (laundromat demand barely flinches at +25¢), and add the wash-and-fold layer that turns machine-hours into service margin. Options 3 and 4 are the two classic deaths: starving the equipment, or drowning the household to save the business.",
+instructor:"This is the 'EBITDA vs. free cash flow' lesson in quarters: capex-heavy businesses must be priced on cash flow AFTER maintenance reserves, and 'passive' usually means 'the seller stopped doing the active parts.' Have students recompute the purchase multiple on true cash flow (≈$45k after reserves → they paid 5.3×, not 3.4×). Diligence takeaway: in machine businesses, the equipment ledger IS the balance sheet — walk it with a technician before you buy.",
+lessons:["In capex-heavy businesses, cash flow after maintenance reserves is the only honest number","'Passive income' listings usually mean deferred work compounding quietly","Turnarounds sequence: triage by revenue impact → build reserves into pricing → then add service layers","Frozen prices are deferred crises — six years of no increases was the cheapest fix available"],
+rel:["ac9","aq6","mw12"]}
+);
+
 /* ================= APP ENGINE ================= */
 const LS_KEY="businessVaultProgress_v1";
 const DAYS_KEY="businessVaultDays_v1";
@@ -2601,7 +2842,7 @@ let lastLesson=localStorage.getItem(LAST_KEY)||"";
    One versioned store for everything beyond lesson completion.
    Slots reserved for future phases: books, tools, cases, sims, assignments. */
 const STORE_KEY="bvStore_v1";
-const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{}};
+const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{},labs:{}};
 let store=STORE_DEFAULT;
 try{store=Object.assign({},STORE_DEFAULT,JSON.parse(localStorage.getItem(STORE_KEY)||"{}"))}catch(e){store=STORE_DEFAULT}
 function saveStore(){localStorage.setItem(STORE_KEY,JSON.stringify(store))}
@@ -2675,6 +2916,34 @@ function quizAvg(){
 }
 function weakLessons(){
   return allLessons.filter(l=>{const q=store.quiz[l.id];return q&&q.best<70});
+}
+/* ================= BVU MASTERY SCORE =================
+   One number from seven signals: completion, quizzes, exams,
+   flashcard retention, assignments, simulations, cases+labs. */
+function bvuBreakdown(){
+  const completion=done.size/allLessons.length;
+  const qKeys=Object.keys(store.quiz);
+  const quizAvgV=qKeys.length?qKeys.reduce((a,k)=>a+store.quiz[k].best,0)/qKeys.length/100:0;
+  const quiz=quizAvgV*Math.min(qKeys.length/allLessons.length*2,1);
+  const totalExams=DATA.reduce((a,t)=>a+t.levels.length+1,0);
+  const exams=Object.values(store.exams).filter(x=>x.passed).length/totalExams;
+  const flash=allTerms.length?flashMastered()/allTerms.length:0;
+  const assigns=Math.min(Object.keys(store.assignments).length/40,1);
+  const sims=SIMS.length?SIMS.reduce((a,s)=>a+((store.sims[s.id]||{}).best||0),0)/100/SIMS.length:0;
+  const casesLabs=(CASES.filter(c=>(store.cases[c.id]||{}).done).length+LABS.filter(l=>(store.labs[l.id]||{}).done).length)/(CASES.length+LABS.length);
+  return [
+    ["Lesson completion",completion,30],["Quiz mastery",quiz,20],["Exams passed",exams,15],
+    ["Flashcard retention",flash,10],["Assignments",assigns,10],["Simulations",sims,7.5],["Cases & labs",casesLabs,7.5]
+  ];
+}
+function bvuScore(){
+  return Math.round(bvuBreakdown().reduce((a,r)=>a+r[1]*r[2],0));
+}
+function bvuRank(){
+  const s=bvuScore();
+  const byScore=s>=90?5:s>=75?4:s>=55?3:s>=30?2:s>=10?1:0;
+  const p=placementInfo();
+  return RANK_NAMES[Math.max(byScore,p?Math.min(p.rank,byScore+1):0)];
 }
 
 /* ================= HELPERS ================= */
@@ -2783,6 +3052,8 @@ function buildSidebar(){
   h+='<button class="sb-item" id="sb-libtools" onclick="openLibrary(\'tools\')">'+ICONS.tool+'Operator Tools<span class="n">'+TOOLS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libcases" onclick="openLibrary(\'cases\')">'+ICONS.scale+'Case Studies<span class="n">'+CASES.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libsims" onclick="openLibrary(\'sims\')">'+ICONS.sim+'Simulations<span class="n">'+SIMS.length+'</span></button>';
+  h+='<button class="sb-item" id="sb-liblabs" onclick="openLibrary(\'labs\')">'+ICONS.tool+'Operator Labs<span class="n">'+LABS.length+'</span></button>';
+  h+='<button class="sb-item" id="sb-libterms" onclick="openLibrary(\'terms\')">'+ICONS.book+'Dictionary<span class="n">'+allTerms.length+'</span></button>';
   document.getElementById("sbNav").innerHTML=h;
 }
 function setView(id){
@@ -2794,9 +3065,9 @@ function setView(id){
   ["home","courses","search","progress",...DATA.map(t=>t.id)].forEach(v=>{
     const el=document.getElementById("sb-"+v);if(el)el.classList.toggle("active",v===id);
   });
-  ["libbooks","libtools","libcases","libsims"].forEach((v,i)=>{
+  ["libbooks","libtools","libcases","libsims","liblabs","libterms"].forEach((v,i)=>{
     const el=document.getElementById("sb-"+v);
-    if(el)el.classList.toggle("active",id==="library"&&libSel===["books","tools","cases","sims"][i]);
+    if(el)el.classList.toggle("active",id==="library"&&libSel===["books","tools","cases","sims","labs","terms"][i]);
   });
   document.getElementById("pageTitle").textContent=TITLES[id]||"";
   window.scrollTo({top:0});
@@ -2805,16 +3076,22 @@ function setView(id){
 
 /* ================= HOME / DASHBOARD ================= */
 function renderHome(){
-  const total=allLessons.length,d=done.size,pct=masteryOf(allLessons);
+  const total=allLessons.length,d=done.size,pct=bvuScore()/100;
   const res=resumeLesson();
   const hNow=new Date().getHours();
   const greet=hNow<12?"Good morning.":hNow<18?"Good afternoon.":"Good evening.";
   const fresh=d===0;
   const doneAll=d>=total;
+  const placed=placementInfo();
   let h='';
-  h+='<div class="greet"><small>'+new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})+'</small><h1>'+greet+'</h1></div>';
+  h+='<div class="greet"><small>'+new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})+' · '+bvuRank()+'</small><h1>'+greet+'</h1></div>';
+  if(!placed&&d<5){
+    h+='<button class="mini" style="border-color:var(--blue-3)" onclick="openPlacement()"><span class="m-k">'+ICONS.exam+'Start Here: Placement Test</span>'+
+       '<b>Find your level in 12 questions</b>'+
+       '<span>Zero to Business Operator starts with knowing where you stand — takes ~4 minutes, and tells you exactly where to begin</span></button>';
+  }
   h+='<div class="heroDash"><div class="hd-body">'+
-     '<div class="hd-kicker">'+(doneAll?"Curriculum complete":fresh?"Your first lesson awaits":"Continue learning")+'</div>'+
+     '<div class="hd-kicker">'+(doneAll?"Curriculum complete":fresh?"Zero to Business Operator · your first lesson":"Zero to Business Operator · continue")+'</div>'+
      '<h2>'+esc(res.t)+'</h2>'+
      '<div class="hd-crumb">'+res.track.name+' · '+res.level.name+' · ~'+lessonMins(res)+' min · '+difficulty(res)+'</div>'+
      '<div class="hd-cta">'+
@@ -2953,6 +3230,20 @@ function renderTrack(tr){
      '<span class="ct"><b>'+(exSt&&exSt.passed?"✓ Level Exam Passed":"Take the Level Exam")+'</b>'+
      '<span>'+(exSt?("Best "+exSt.best+"% · "+(exSt.passed?"mastery certified — retake anytime":"80% to pass — try again")):"10 questions across the whole level · pass at 80%")+'</span></span>'+
      '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
+  const finSt=store.exams[tr.id+":FINAL"];
+  h+='<button class="card'+(finSt&&finSt.passed?" done":"")+'" onclick="openFinal(\''+tr.id+'\')">'+
+     '<span class="num">'+ICONS.cert+'</span>'+
+     '<span class="ct"><b>'+(finSt&&finSt.passed?"✓ School Final Passed":"School Final Exam")+'</b>'+
+     '<span>'+(finSt?("Best "+finSt.best+"% · "+(finSt.passed?"required for the certificate — done":"85% to pass")):"15 questions across the whole school · pass at 85% · required for the certificate")+'</span></span>'+
+     '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
+  const capDef=LABS.find(l=>l.cap&&l.school===tr.id);
+  if(capDef){
+    const capSt=store.labs[capDef.id]||{};
+    h+='<button class="card'+(capSt.done?" done":"")+'" onclick="openLab(\''+capDef.id+'\')">'+
+       '<span class="num">🎓</span>'+
+       '<span class="ct"><b>'+(capSt.done?"✓ ":"")+esc(capDef.title)+'</b><span>'+esc(capDef.goal)+'</span></span>'+
+       '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
+  }
   let n=0;
   lv.modules.forEach(mo=>{
     h+='<div class="moduleName">'+mo.name+'</div><div class="cards">';
@@ -3035,6 +3326,8 @@ function renderLibrary(){
      '<button class="seg'+(libSel==="tools"?" on":"")+'" onclick="openLibrary(\'tools\')">Tools <span class="mono">'+TOOLS.length+'</span></button>'+
      '<button class="seg'+(libSel==="cases"?" on":"")+'" onclick="openLibrary(\'cases\')">Cases <span class="mono">'+CASES.length+'</span></button>'+
      '<button class="seg'+(libSel==="sims"?" on":"")+'" onclick="openLibrary(\'sims\')">Sims <span class="mono">'+SIMS.length+'</span></button>'+
+     '<button class="seg'+(libSel==="labs"?" on":"")+'" onclick="openLibrary(\'labs\')">Labs <span class="mono">'+LABS.length+'</span></button>'+
+     '<button class="seg'+(libSel==="terms"?" on":"")+'" onclick="openLibrary(\'terms\')">Terms <span class="mono">'+allTerms.length+'</span></button>'+
      '</div></div>';
   if(libSel==="books"){
     h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Original study notes on the operator canon — what each book teaches, its best lessons, and an exercise to apply it. No substitute for reading the real thing.</p>';
@@ -3057,14 +3350,25 @@ function renderLibrary(){
     h+='<div class="cards">';
     CASES.forEach((c,i)=>{h+=caseRow(c,i)});
     h+='</div>';
-  }else{
+  }else if(libSel==="sims"){
     h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Run a business in fast-forward: five decisions, real consequences, a scored debrief. Retake anytime — the situations reward what the schools teach.</p>';
     h+='<div class="cards">';
     SIMS.forEach((s,i)=>{h+=simRow(s,i)});
     h+='</div>';
+  }else if(libSel==="labs"){
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Operator Labs: build real deliverables — P&Ls, scripts, SOPs, deal models — with steps, a work area, and a grading rubric. Capstones are each school\'s final project.</p>';
+    h+='<div class="moduleName">Labs</div><div class="cards">';
+    LABS.filter(l=>!l.cap).forEach(l=>{h+=labRow(l)});
+    h+='</div><div class="moduleName">Capstone Projects</div><div class="cards">';
+    LABS.filter(l=>l.cap).forEach(l=>{h+=labRow(l)});
+    h+='</div>';
+  }else{
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">The Business Dictionary: every key term in the university. Tap a term for the full definition, its lesson, and a deeper AI explanation.</p>';
+    h+='<div id="dictWrap"></div>';
   }
   h+='<div class="footerNote">The Library · Business Vault</div>';
   document.getElementById("view-library").innerHTML=h;
+  if(libSel==="terms")renderDict();
 }
 
 /* ---- Book sheet ---- */
@@ -3246,6 +3550,100 @@ function caseReveal(){
 }
 function closeCase(){caseEl.classList.remove("open");syncScrollLock()}
 
+/* ---- Operator Labs & Capstones ---- */
+const labEl=document.getElementById("lab");
+let curLab=null;
+function labState(id){return store.labs[id]||{}}
+function labRow(l){
+  const st=labState(l.id);
+  return '<button class="card'+(st.done?" done":"")+'" onclick="openLab(\''+l.id+'\')">'+
+    '<span class="num">'+(l.cap?"🎓":ICONS.tool)+'</span>'+
+    '<span class="ct"><b>'+esc(l.title)+'</b><span>'+(l.cap?"Capstone · ":"")+l.cat+' · '+esc(l.goal)+'</span></span>'+
+    (st.done?'<span class="mins" style="color:var(--green)">'+(st.score!==undefined?st.score+'%':'done')+'</span>':'')+
+    '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
+}
+function openLab(id){
+  curLab=id;
+  const l=LABS.find(x=>x.id===id);if(!l)return;
+  const st=labState(id);
+  const steps=st.steps||[];
+  const rub=st.rub||[];
+  document.getElementById("labCrumb").textContent=(l.cap?"Capstone · ":"Operator Lab · ")+l.cat;
+  const rel=(l.rel||[]).map(lid=>byId[lid]).filter(Boolean);
+  const aiP="I'm doing the '"+l.title+"' "+(l.cap?"capstone project":"lab")+" in my Business Vault University app. Goal: "+l.goal+" Steps: "+l.steps.join("; ")+". Coach me through it step by step — ask me for my numbers and inputs one at a time, and critique my work against this rubric: "+l.rubric.join("; ");
+  document.getElementById("labInner").innerHTML=
+    '<span class="lessonChip">'+(l.cap?"🎓 Capstone":"Operator Lab")+'</span>'+
+    '<h2>'+esc(l.title)+'</h2>'+
+    '<div class="lessonMeta"><span class="metaChip">'+l.cat+'</span>'+(st.done?'<span class="metaChip" style="color:var(--green)">✓ Complete'+(st.score!==undefined?' · '+st.score+'%':'')+'</span>':'')+'</div>'+
+    '<div class="lbody">'+
+    '<div class="lsec"><i></i><h4>The Build</h4></div><div class="example">'+l.brief+'</div>'+
+    '<div class="lsec"><i></i><h4>Steps</h4></div><div class="cards" style="gap:6px">'+
+    l.steps.map((s,i)=>'<button class="card" style="padding:11px 13px" onclick="labStep('+i+')"><span class="check" style="'+(steps[i]?"background:var(--green);border-color:var(--green)":"")+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:'+(steps[i]?1:0)+';transform:scale(1)"><path d="M20 6L9 17l-5-5"/></svg></span><span class="ct"><b style="font-size:13.5px;font-weight:500;'+(steps[i]?"color:var(--steel);text-decoration:line-through":"")+'">'+(i+1)+'. '+esc(s)+'</b></span></button>').join("")+'</div>'+
+    (l.tool?'<button class="card" style="margin-top:12px" onclick="openTool(\''+l.tool+'\')"><span class="num">'+ICONS.tool+'</span><span class="ct"><b>Open the Calculator</b><span>'+esc((TOOLS.find(t=>t.id===l.tool)||{}).name||"Tool")+' — do the math, then paste results below</span></span><span style="color:var(--blue-2)">→</span></button>':'')+
+    '<a class="card" style="margin-top:9px" href="https://claude.ai/new?q='+encodeURIComponent(aiP)+'" target="_blank" rel="noopener"><span class="num" style="background:var(--blue-face);color:#fff">'+ICONS.spark+'</span><span class="ct"><b>Build It With the AI Tutor</b><span>Step-by-step coaching + rubric critique of your work</span></span><span style="color:var(--blue-2)">→</span></a>'+
+    '<div class="lsec"><i></i><h4>Your Work</h4></div>'+
+    '<textarea class="noteBox" id="labWork" style="min-height:180px" placeholder="Build it right here — numbers, lines, script text. Saved automatically.">'+esc(st.work||"")+'</textarea>'+
+    '<div class="lsec"><i></i><h4>Grading Rubric — check what your work achieves</h4></div><div class="cards" style="gap:6px">'+
+    l.rubric.map((r,i)=>'<button class="card" style="padding:11px 13px" onclick="labRub('+i+')"><span class="check" style="'+(rub[i]?"background:var(--green);border-color:var(--green)":"")+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:'+(rub[i]?1:0)+';transform:scale(1)"><path d="M20 6L9 17l-5-5"/></svg></span><span class="ct"><b style="font-size:13px;font-weight:500">'+esc(r)+'</b></span></button>').join("")+'</div>'+
+    (rel.length?'<div class="lsec"><i></i><h4>Lessons That Teach This</h4></div><div class="cards">'+rel.map((x,i)=>cardHTML(x,i+1,x.track.name+" · "+x.module.name)).join("")+'</div>':'')+
+    '<button class="btn full completeBtn'+(st.done?" green":"")+'" onclick="labComplete()">'+(st.done?"✓ Completed — Tap to Reopen":"Mark "+(l.cap?"Capstone":"Lab")+" Complete")+'</button>'+
+    '</div>';
+  const wb=document.getElementById("labWork");
+  let t=null;
+  wb.addEventListener("input",()=>{clearTimeout(t);t=setTimeout(()=>{
+    store.labs[id]=Object.assign({},labState(id),{work:wb.value});saveStore();
+  },400)});
+  labEl.scrollTop=0;labEl.classList.add("open");syncScrollLock();
+}
+function labStep(i){
+  const st=labState(curLab);const steps=(st.steps||[]).slice();steps[i]=!steps[i];
+  store.labs[curLab]=Object.assign({},st,{steps});saveStore();openLab(curLab);
+}
+function labRub(i){
+  const st=labState(curLab);const rub=(st.rub||[]).slice();rub[i]=!rub[i];
+  store.labs[curLab]=Object.assign({},st,{rub});saveStore();openLab(curLab);
+}
+function labComplete(){
+  const l=LABS.find(x=>x.id===curLab);
+  const st=labState(curLab);
+  if(st.done){store.labs[curLab]=Object.assign({},st,{done:false});saveStore();openLab(curLab);renderAll();return}
+  const rub=st.rub||[];
+  const checked=l.rubric.filter((r,i)=>rub[i]).length;
+  const score=Math.round(checked/l.rubric.length*100);
+  if(!(st.work||"").trim()){toast("Do the work first — the work area is empty");return}
+  store.labs[curLab]=Object.assign({},st,{done:true,score});
+  saveStore();
+  toast((l.cap?"🎓 Capstone":"Lab")+" complete — self-graded "+score+"%");
+  openLab(curLab);renderAll();
+}
+function closeLab(){labEl.classList.remove("open");syncScrollLock();renderLibrary();renderProgress()}
+
+/* ---- Dictionary ---- */
+let dictQ="",dictSel=null;
+function renderDict(){
+  const q=dictQ.trim().toLowerCase();
+  const list=(q?allTerms.filter(t=>(t.t+" "+t.d).toLowerCase().includes(q)):allTerms.slice().sort((a,b)=>a.t.localeCompare(b.t))).slice(0,q?60:40);
+  let h='<div class="searchBox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'+
+    '<input id="dictInput" type="search" placeholder="Look up any business term — EBITDA, churn, DSCR…" value="'+esc(dictQ)+'" autocomplete="off"></div>'+
+    '<div class="rhead">'+(q?list.length+" matches":allTerms.length+" terms · A→Z · type to search")+'</div><div class="cards" style="gap:6px">';
+  list.forEach(t=>{
+    const open=dictSel===t.id;
+    h+='<button class="card" style="flex-wrap:wrap;padding:12px 14px" onclick="dictPick(\''+t.id+'\')">'+
+       '<span class="ct"><b style="color:var(--blue-2)">'+esc(t.t)+'</b>'+(open?'':'<span>'+esc(t.d.slice(0,70))+(t.d.length>70?'…':'')+'</span>')+'</span>'+
+       (open?'<span style="flex-basis:100%;display:block;margin-top:8px;font-size:13.5px;line-height:1.6;color:var(--light)">'+esc(t.d)+
+         '<span style="display:block;margin-top:8px;font-size:11.5px;color:var(--steel)">From: '+esc(t.le.t)+' ('+t.le.track.name+') · '+(flashBox(t.id)>=4?"✓ mastered":"box "+(flashBox(t.id)+1)+"/5")+'</span>'+
+         '<span style="display:flex;gap:8px;margin-top:9px">'+
+         '<a class="aiChip" style="flex:1" href="https://claude.ai/new?q='+encodeURIComponent("Explain the business term \""+t.t+"\" to a beginner: simple definition, the formula if there is one, a worked example with numbers, and why it matters to a small business operator.")+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">Explain Fully</a>'+
+         '<button class="aiChip" style="flex:1" onclick="event.stopPropagation();closePalette();openLesson(\''+t.le.id+'\')">Open the Lesson</button></span></span>':'')+
+       '</button>';
+  });
+  h+='</div>';
+  document.getElementById("dictWrap").innerHTML=h;
+  const di=document.getElementById("dictInput");
+  di.addEventListener("input",e=>{dictQ=e.target.value;dictSel=null;const pos=di.selectionStart;renderDict();const el=document.getElementById("dictInput");el.focus();el.setSelectionRange(pos,pos)});
+}
+function dictPick(id){dictSel=dictSel===id?null:id;renderDict()}
+
 /* ---- Simulations ---- */
 const simEl=document.getElementById("sim");
 let sim=null;
@@ -3328,8 +3726,13 @@ function certStatus(tr){
   const ls=tr.levels.flatMap(l=>l.modules.flatMap(m=>m.lessons));
   const lessonsOK=ls.every(l=>done.has(l.id));
   const examsOK=tr.levels.every(lv=>{const e=store.exams[tr.id+":"+lv.id];return e&&e.passed});
-  return {lessonsOK,examsOK,eligible:lessonsOK&&examsOK,
-    missing:(lessonsOK?"":(ls.filter(l=>!done.has(l.id)).length+" lessons left"))+(lessonsOK||examsOK?"":" · ")+(examsOK?"":(tr.levels.filter(lv=>{const e=store.exams[tr.id+":"+lv.id];return !(e&&e.passed)}).length+" exams to pass"))};
+  const fin=store.exams[tr.id+":FINAL"];
+  const finalOK=!!(fin&&fin.passed);
+  const parts=[];
+  if(!lessonsOK)parts.push(ls.filter(l=>!done.has(l.id)).length+" lessons left");
+  if(!examsOK)parts.push(tr.levels.filter(lv=>{const e=store.exams[tr.id+":"+lv.id];return !(e&&e.passed)}).length+" level exams");
+  if(!finalOK)parts.push("final exam");
+  return {lessonsOK,examsOK,finalOK,eligible:lessonsOK&&examsOK&&finalOK,missing:parts.join(" · ")};
 }
 function gradName(){
   let n=localStorage.getItem("bvName_v1");
@@ -3408,28 +3811,41 @@ function closeCert(){certEl.classList.remove("open");syncScrollLock()}
    Custom lesson.quiz [{q,opts[],ci}] is used when present (Phase 4+);
    otherwise a quiz is generated from the lesson's key terms. */
 function buildQuiz(le){
-  if(le.quiz&&le.quiz.length)return le.quiz.map(q=>({q:q.q,opts:q.opts.slice(),ci:q.ci}));
+  if(le.quiz&&le.quiz.length)return le.quiz.map(q=>({q:q.q,opts:q.opts.slice(),ci:q.ci,tier:"Custom",lid:le.id}));
   const terms=le.terms||[];
   if(terms.length<2)return null;
   const rand=seededRng(hashStr(le.id+todayStr()));
   const qs=[];
   const pool=allTerms.filter(t=>t.le.id!==le.id);
   const order=shuffled(terms.map((t,i)=>i),rand);
-  const nQ=Math.min(5,terms.length);
-  for(let k=0;k<nQ;k++){
-    const ti=order[k],term=terms[ti];
-    const dir=k%2===0;
+  const mkTermQ=(ti,dir)=>{
+    const term=terms[ti];
     let distract=shuffled(terms.filter((t,i)=>i!==ti),rand).slice(0,3);
     while(distract.length<3&&pool.length){
       const p=pool[Math.floor(rand()*pool.length)];
       if(!distract.some(d=>d[0]===p.t)&&p.t!==term[0])distract.push([p.t,p.d]);
     }
     const opts=shuffled([term,...distract],rand);
-    if(dir){
-      qs.push({q:"Which term matches this definition?",prompt:term[1],opts:opts.map(o=>o[0]),ci:opts.indexOf(term)});
-    }else{
-      qs.push({q:'What best describes “'+term[0]+'”?',opts:opts.map(o=>o[1]),ci:opts.indexOf(term)});
+    return dir?
+      {q:"Which term matches this definition?",prompt:term[1],opts:opts.map(o=>o[0]),ci:opts.indexOf(term),tier:"Recall",term:term[0],def:term[1],lid:le.id}:
+      {q:'What best describes “'+term[0]+'”?',opts:opts.map(o=>o[1]),ci:opts.indexOf(term),tier:"Concept",term:term[0],def:term[1],lid:le.id};
+  };
+  const nT=Math.min(4,terms.length);
+  for(let k=0;k<nT;k++)qs.push(mkTermQ(order[k],k%2===0));
+  /* application: which is a real takeaway of THIS lesson? */
+  if(le.keys&&le.keys.length){
+    const key=le.keys[Math.floor(rand()*le.keys.length)];
+    const others=shuffled(allLessons.filter(l=>l.id!==le.id&&l.keys&&l.keys.length),rand).slice(0,3).map(l=>l.keys[0]);
+    if(others.length===3){
+      const opts=shuffled([key,...others],rand);
+      qs.push({q:"Which of these is a key lesson from “"+le.t+"”?",opts,ci:opts.indexOf(key),tier:"Application",def:key,lid:le.id});
     }
+  }
+  /* scenario: spot the mistake among best practices */
+  if(le.mistakes&&le.mistakes.length&&le.keys&&le.keys.length>=3){
+    const mk=le.mistakes[Math.floor(rand()*le.mistakes.length)];
+    const opts=shuffled([mk,...shuffled(le.keys.slice(),rand).slice(0,3)],rand);
+    qs.push({q:"One of these is a common MISTAKE from this lesson — the rest are best practices. Spot the mistake.",opts,ci:opts.indexOf(mk),tier:"Scenario",def:mk,lid:le.id});
   }
   return qs;
 }
@@ -3439,8 +3855,36 @@ function openQuiz(id,reviewSet){
   const le=byId[id];
   const qs=reviewSet||buildQuiz(le);
   if(!qs){toast("No quiz available for this lesson");return}
-  qz={le,qs,i:0,right:0,marks:[],wrong:[],review:!!reviewSet};
+  qz={le,qs,n0:qs.length,i:0,right:0,marks:[],wrong:[],review:!!reviewSet};
   document.getElementById("quizCrumb").textContent=(qz.review?"Review Mistakes · ":"Lesson Quiz · ")+le.t.slice(0,34);
+  quizEl.classList.add("open");syncScrollLock();
+  renderQuizQ();
+}
+/* ---- Placement test: 12 questions across the university → starting rank ---- */
+const RANK_NAMES=["Total Beginner","Beginner","Operator","Advanced Operator","Executive","Mastery"];
+function placementInfo(){try{return JSON.parse(localStorage.getItem("bvPlacement_v1"))}catch(e){return null}}
+function openPlacement(){
+  const rand=seededRng(hashStr("placement"+todayStr()));
+  const buckets=[
+    allTerms.filter(t=>t.le.track.id==="biz"&&t.le.level.id==="L1"),
+    allTerms.filter(t=>t.le.track.id==="money"),
+    allTerms.filter(t=>t.le.track.id==="acct"),
+    allTerms.filter(t=>t.le.track.id==="sales"),
+    allTerms.filter(t=>t.le.track.id==="acq"),
+    allTerms.filter(t=>t.le.track.id==="biz"&&["L4","L5","L6"].includes(t.le.level.id))
+  ];
+  const qs=[];
+  buckets.forEach(pool=>{
+    shuffled(pool,rand).slice(0,2).forEach((p,k)=>{
+      const distract=shuffled(allTerms.filter(x=>x.t!==p.t),rand).slice(0,3);
+      const opts=shuffled([p,...distract],rand);
+      qs.push(k%2===0?
+        {q:"Which term matches this definition?",prompt:p.d,opts:opts.map(o=>o.t),ci:opts.indexOf(p),tier:"Placement",term:p.t,def:p.d,lid:p.le.id}:
+        {q:'What best describes “'+p.t+'”?',opts:opts.map(o=>o.d),ci:opts.indexOf(p),tier:"Placement",term:p.t,def:p.d,lid:p.le.id});
+    });
+  });
+  qz={le:null,placement:true,qs:shuffled(qs,rand),n0:qs.length,i:0,right:0,marks:[],wrong:[],review:true};
+  document.getElementById("quizCrumb").textContent="Placement Test · "+qs.length+" questions";
   quizEl.classList.add("open");syncScrollLock();
   renderQuizQ();
 }
@@ -3457,11 +3901,30 @@ function openExam(trId,lvIdx){
     const distract=shuffled(pool.filter(x=>x.t!==p.t),rand).slice(0,3);
     const opts=shuffled([p,...distract],rand);
     return k%2===0?
-      {q:"Which term matches this definition?",prompt:p.d,opts:opts.map(o=>o.t),ci:opts.indexOf(p)}:
-      {q:'What best describes “'+p.t+'”?',opts:opts.map(o=>o.d),ci:opts.indexOf(p)};
+      {q:"Which term matches this definition?",prompt:p.d,opts:opts.map(o=>o.t),ci:opts.indexOf(p),tier:"Exam",term:p.t,def:p.d,lid:p.le.id}:
+      {q:'What best describes “'+p.t+'”?',opts:opts.map(o=>o.d),ci:opts.indexOf(p),tier:"Exam",term:p.t,def:p.d,lid:p.le.id};
   });
-  qz={le:null,exam:{key:trId+":"+lv.id,name:lv.name,trId,lvIdx},qs,i:0,right:0,marks:[],wrong:[],review:false};
+  qz={le:null,exam:{key:trId+":"+lv.id,name:lv.name,trId,lvIdx,pass:80},qs,n0:qs.length,i:0,right:0,marks:[],wrong:[],review:false};
   document.getElementById("quizCrumb").textContent="Level Exam · "+lv.name;
+  quizEl.classList.add("open");syncScrollLock();
+  renderQuizQ();
+}
+/* school final exam: 15 questions across every level, pass at 85% */
+function openFinal(trId){
+  const tr=DATA.find(t=>t.id===trId);if(!tr)return;
+  const pool=allTerms.filter(t=>t.le.track.id===trId);
+  if(pool.length<8){toast("Not enough material yet");return}
+  const rand=seededRng(hashStr(trId+"FINAL"+todayStr()));
+  const picks=shuffled(pool,rand).slice(0,Math.min(15,pool.length));
+  const qs=picks.map((p,k)=>{
+    const distract=shuffled(pool.filter(x=>x.t!==p.t),rand).slice(0,3);
+    const opts=shuffled([p,...distract],rand);
+    return k%2===0?
+      {q:"Which term matches this definition?",prompt:p.d,opts:opts.map(o=>o.t),ci:opts.indexOf(p),tier:"Final",term:p.t,def:p.d,lid:p.le.id}:
+      {q:'What best describes “'+p.t+'”?',opts:opts.map(o=>o.d),ci:opts.indexOf(p),tier:"Final",term:p.t,def:p.d,lid:p.le.id};
+  });
+  qz={le:null,exam:{key:trId+":FINAL",name:tr.name+" Final",trId,final:true,pass:85},qs,n0:qs.length,i:0,right:0,marks:[],wrong:[],review:false};
+  document.getElementById("quizCrumb").textContent="Final Exam · "+tr.name;
   quizEl.classList.add("open");syncScrollLock();
   renderQuizQ();
 }
@@ -3469,41 +3932,82 @@ function renderQuizQ(){
   const {qs,i,marks}=qz;
   const q=qs[i];
   let h='<div class="qProg">'+qs.map((x,j)=>'<i class="'+(j<i?(marks[j]?"ok":"bad"):j===i?"on":"")+'"></i>').join("")+'</div>';
-  h+='<div class="qCard"><div class="qKick">Question '+(i+1)+' of '+qs.length+'</div><h3>'+esc(q.q)+'</h3>'+
+  h+='<div class="qCard"><div class="qKick">Question '+(i+1)+' of '+qs.length+(q.tier?' · '+q.tier:'')+(q.re?' · second chance':'')+'</div><h3>'+esc(q.q)+'</h3>'+
      (q.prompt?'<p style="margin-top:12px;font-size:14.5px;line-height:1.65;color:var(--steel-2);border-left:3px solid var(--blue-3);padding-left:12px">'+esc(q.prompt)+'</p>':'')+'</div>';
   q.opts.forEach((o,j)=>{
     h+='<button class="qOpt" id="qopt'+j+'" onclick="qzPick('+j+')"><span class="qL">'+String.fromCharCode(65+j)+'</span><span>'+esc(o)+'</span></button>';
   });
+  h+='<div id="qTeach"></div>';
   document.getElementById("quizInner").innerHTML=h;
   quizEl.scrollTop=0;
 }
+/* wrong answers pause for teaching: why it's wrong, the concept missed,
+   a simpler take, where to review — and the question re-queues once */
 function qzPick(j){
   const q=qz.qs[qz.i];
   const ok=j===q.ci;
-  qz.marks[qz.i]=ok;
-  if(ok)qz.right++;else qz.wrong.push(q);
+  if(!q.re){qz.marks[qz.i]=ok;if(ok)qz.right++;else qz.wrong.push(q)}
+  else qz.marks[qz.i]=ok;
   for(let k=0;k<q.opts.length;k++){
     const el=document.getElementById("qopt"+k);
     el.disabled=true;
     if(k===q.ci)el.classList.add("ok");
     else if(k===j)el.classList.add("bad");
   }
-  setTimeout(()=>{qz.i++;qz.i<qz.qs.length?renderQuizQ():renderQuizEnd()},ok?550:1100);
+  if(ok){
+    setTimeout(()=>{qz.i++;qz.i<qz.qs.length?renderQuizQ():renderQuizEnd()},550);
+    return;
+  }
+  /* re-queue this question once, at the end */
+  if(!q.re&&!qz.review)qz.qs.push(Object.assign({},q,{re:true}));
+  const le=q.lid?byId[q.lid]:null;
+  let t='<div class="example" style="margin-top:12px">'+
+    '<b style="display:block;margin-bottom:6px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--red)">Not quite — here\'s the teaching</b>'+
+    '<span style="display:block;margin-bottom:7px"><b>The correct answer:</b> '+esc(q.opts[q.ci])+'</span>'+
+    (q.term?'<span style="display:block;margin-bottom:7px"><b>The concept you missed:</b> “'+esc(q.term)+'” — '+esc(q.def)+'</span>':
+      (q.def?'<span style="display:block;margin-bottom:7px"><b>The idea:</b> '+esc(q.def)+'</span>':''))+
+    (q.term?'<span style="display:block;margin-bottom:7px"><b>Simpler:</b> '+esc(q.term)+' is just: '+esc(q.def.split("—")[0].split(".")[0].toLowerCase())+'.</span>':'')+
+    (q.re===undefined&&!qz.review?'<span style="display:block;color:var(--steel-2)">This question will come back at the end — get it right the second time.</span>':'')+
+    '</div>'+
+    '<div class="pnRow" style="margin-top:12px">'+
+    (le?'<button class="btn ghost" onclick="closeQuiz();openLesson(\''+le.id+'\')">Review the Lesson</button>':'')+
+    '<button class="btn" onclick="qzNext()">Continue →</button></div>';
+  document.getElementById("qTeach").innerHTML=t;
+  document.getElementById("qTeach").scrollIntoView({behavior:"smooth",block:"end"});
 }
+function qzNext(){qz.i++;qz.i<qz.qs.length?renderQuizQ():renderQuizEnd()}
 function renderQuizEnd(){
-  const pct=Math.round(qz.right/qz.qs.length*100);
+  const pct=Math.round(qz.right/qz.n0*100);
   let title,msg,btns;
-  if(qz.exam){
+  if(qz.placement){
+    const rankIdx=pct<=17?0:pct<=42?1:pct<=67?2:pct<=83?3:pct<92?4:5;
+    localStorage.setItem("bvPlacement_v1",JSON.stringify({score:qz.right,total:qz.n0,pct,rank:rankIdx,ts:todayStr()}));
+    renderAll();
+    title="PLACEMENT: "+RANK_NAMES[rankIdx].toUpperCase();
+    const advice=[
+      "Perfect starting point — this university was built for exactly you. Begin at Step 1, Lesson 1, and don't skip: the foundations make everything else easy.",
+      "You know some pieces. Start at Step 1 anyway — move fast through what you know (quiz out: 80%+ lets you skip confidently) and slow down where it's new.",
+      "You have working knowledge. Skim Business A–Z Levels 1-2 with quizzes to fill gaps, then give full attention to Accounting, Sales, and Money.",
+      "Strong operator instincts. Quiz through the early levels to verify, then live in Acquisition School, the advanced Business A–Z levels, and the simulations.",
+      "Executive-grade knowledge. Use the app as a sharpening stone: level exams to find rare gaps, simulations and case studies for judgment reps.",
+      "Mastery-level placement. Take the final exams cold, run every simulation, and use the Library and labs to train your team."
+    ][rankIdx];
+    msg=advice;
+    btns='<button class="btn" onclick="closeQuiz();openLesson(nextIncomplete().id)">Start Learning</button>'+
+         '<button class="btn ghost" onclick="closeQuiz()">Explore First</button>';
+    toast("Placed: "+RANK_NAMES[rankIdx]);
+  }else if(qz.exam){
+    const pass=qz.exam.pass||80;
     const prev=store.exams[qz.exam.key];
     const best=Math.max(pct,prev?prev.best:0);
-    store.exams[qz.exam.key]={best,last:pct,n:(prev?prev.n:0)+1,passed:best>=80};
+    store.exams[qz.exam.key]={best,last:pct,n:(prev?prev.n:0)+1,passed:best>=pass};
     saveStore();renderAll();
-    const passed=pct>=80;
-    title=passed?"🎓 EXAM PASSED":"EXAM COMPLETE";
-    msg=passed?"You've certified "+qz.exam.name+". This level is mastered — on to the next.":"You need 80% to pass. Review the level's weak lessons and flashcards, then come back.";
-    btns='<button class="btn ghost" onclick="openExam(\''+qz.exam.trId+'\','+qz.exam.lvIdx+')">Retake Exam</button>'+
+    const passed=pct>=pass;
+    title=passed?(qz.exam.final?"🏛️ FINAL EXAM PASSED":"🎓 EXAM PASSED"):(qz.exam.final?"FINAL EXAM":"EXAM COMPLETE");
+    msg=passed?"You've certified "+qz.exam.name+"."+(qz.exam.final?" One requirement closer to the certificate.":" On to the next level."):"You need "+pass+"% to pass. Review the weak lessons and flashcards, then come back.";
+    btns='<button class="btn ghost" onclick="'+(qz.exam.final?'openFinal(\''+qz.exam.trId+'\')':'openExam(\''+qz.exam.trId+'\','+qz.exam.lvIdx+')')+'">Retake Exam</button>'+
          '<button class="btn" onclick="closeQuiz()">Done</button>';
-    if(passed)toast("🎓 "+qz.exam.name+" exam passed!");
+    if(passed)toast((qz.exam.final?"🏛️ ":"🎓 ")+qz.exam.name+" passed!");
   }else{
     if(!qz.review){
       const prev=store.quiz[qz.le.id];
@@ -3525,12 +4029,23 @@ function renderQuizEnd(){
 function qzWrongSet(){return qz.wrong.slice()}
 function closeQuiz(){quizEl.classList.remove("open");syncScrollLock();if(sheetEl.classList.contains("open")&&currentId)openLesson(currentId)}
 
-/* ================= FLASHCARDS =================
-   Box levels 0-2 = still learning, 3 = mastered. "Got it" moves up, "Again" resets. */
+/* ================= FLASHCARDS: SPACED REPETITION =================
+   Boxes 0-4 with review intervals: today, +1d, +3d, +7d, +30d.
+   "Got it" moves a card up and schedules it out; "Again" resets to today. */
 const flashEl=document.getElementById("flash");
-function flashBox(cid){return store.flash[cid]||0}
-function flashDue(){return allTerms.filter(t=>flashBox(t.id)<3)}
-function flashMastered(){return allTerms.filter(t=>flashBox(t.id)>=3).length}
+const FLASH_INT=[0,1,3,7,30];
+function isoPlus(days){const d=new Date();d.setDate(d.getDate()+days);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function flashEntry(cid){
+  let v=store.flash[cid];
+  if(typeof v==="number")v={b:Math.min(v,4),d:todayStr()}; /* migrate old box-only data */
+  return v||null;
+}
+function flashBox(cid){const e=flashEntry(cid);return e?e.b:0}
+function flashDue(){
+  const t=todayStr();
+  return allTerms.filter(x=>{const e=flashEntry(x.id);return !e||e.d<=t});
+}
+function flashMastered(){return allTerms.filter(t=>flashBox(t.id)>=4).length}
 let fl=null;
 function openFlash(mode,lessonId){
   let deck;
@@ -3552,11 +4067,12 @@ function renderFlash(){
   if(fl.i>=fl.deck.length){renderFlashEnd();return}
   const c=fl.deck[fl.i];
   const box=flashBox(c.id);
+  const sched=["new","reviews tomorrow","reviews in 3 days","reviews in 7 days","reviews in 30 days"];
   let h='<div class="qProg">'+fl.deck.map((x,j)=>'<i class="'+(j<fl.i?"ok":j===fl.i?"on":"")+'"></i>').join("")+'</div>';
   h+='<div class="fCard" onclick="flFlip()">'+
      (fl.flip?
        '<span class="f-tag">'+esc(c.le.t)+'</span><p>'+esc(c.d)+'</p>':
-       '<span class="f-tag">'+(box>=3?"Mastered":"Box "+(box+1)+" of 3")+' · Card '+(fl.i+1)+' of '+fl.deck.length+'</span><b>'+esc(c.t)+'</b>')+
+       '<span class="f-tag">'+(box>=4?"Mastered":"Got it → "+sched[Math.min(box+1,4)])+' · Card '+(fl.i+1)+' of '+fl.deck.length+'</span><b>'+esc(c.t)+'</b>')+
      '</div>';
   h+='<div class="fHint">'+(fl.flip?"How did you do?":"Tap the card to reveal the definition")+'</div>';
   if(fl.flip){
@@ -3571,8 +4087,14 @@ function renderFlash(){
 function flFlip(){fl.flip=!fl.flip;renderFlash()}
 function flMark(got){
   const c=fl.deck[fl.i];
-  if(got){store.flash[c.id]=Math.min(flashBox(c.id)+1,3);fl.got++}
-  else{store.flash[c.id]=0;fl.again++}
+  if(got){
+    const b=Math.min(flashBox(c.id)+1,4);
+    store.flash[c.id]={b,d:isoPlus(FLASH_INT[b])};
+    fl.got++;
+  }else{
+    store.flash[c.id]={b:0,d:todayStr()};
+    fl.again++;
+  }
   saveStore();
   fl.i++;fl.flip=false;renderFlash();
 }
@@ -3603,6 +4125,9 @@ function badgeDefs(){
     {ic:"📖",n:"Bookworm",d:"Finish 5 books from the Library",e:BOOKS.filter(b=>(store.books[b.id]||{}).status==="finished").length>=5},
     {ic:"🎓",n:"Examined",d:"Pass 3 level exams",e:Object.values(store.exams).filter(x=>x.passed).length>=3},
     {ic:"📝",n:"Doer",d:"Complete 5 lesson assignments",e:Object.keys(store.assignments).length>=5},
+    {ic:"🧭",n:"Placed",d:"Take the placement test",e:!!placementInfo()},
+    {ic:"🔬",n:"Lab Rat",d:"Complete 3 Operator Labs",e:LABS.filter(l=>!l.cap&&(store.labs[l.id]||{}).done).length>=3},
+    {ic:"🏗️",n:"Capstone Builder",d:"Complete your first capstone project",e:LABS.some(l=>l.cap&&(store.labs[l.id]||{}).done)},
     {ic:"🕹️",n:"Simulator",d:"Complete 3 simulations",e:Object.keys(store.sims).length>=3},
     {ic:"♟️",n:"Decision Master",d:"Score 90%+ on every simulation",e:SIMS.length>0&&SIMS.every(s=>(store.sims[s.id]||{}).best>=90)},
     {ic:"📜",n:"Certified",d:"Earn your first school certificate",e:DATA.some(t=>certStatus(t).eligible)},
@@ -3626,13 +4151,22 @@ function badgeDefs(){
   return list;
 }
 function renderProgress(){
-  const total=allLessons.length,d=done.size,pct=masteryOf(allLessons);
+  const total=allLessons.length,d=done.size,score=bvuScore(),pct=score/100;
   const badges=badgeDefs(),earned=badges.filter(b=>b.e).length;
   const qa=quizAvg(),weak=weakLessons(),mastered=flashMastered();
+  const placed=placementInfo();
   let h='<div class="panel" style="text-align:center;padding:26px 18px">'+
-    '<div class="bigRing">'+ringSVG(132,58,pct,7)+'<b>'+Math.round(pct*100)+'%</b></div>'+
-    '<div style="font-family:var(--font-d);font-weight:600;font-size:17px;letter-spacing:.04em;margin-top:14px">OVERALL MASTERY</div>'+
-    '<div style="font-size:12.5px;color:var(--steel);margin-top:4px">'+d+' of '+total+' lessons · quizzes and completion combined · '+streak()+'-day streak</div></div>';
+    '<div class="bigRing">'+ringSVG(132,58,pct,7)+'<b>'+score+'</b></div>'+
+    '<div style="font-family:var(--font-d);font-weight:600;font-size:17px;letter-spacing:.04em;margin-top:14px">BVU MASTERY SCORE</div>'+
+    '<div style="font-size:12.5px;color:var(--steel);margin-top:4px">Standing: <b style="color:var(--blue-2)">'+bvuRank()+'</b>'+(placed?' · placed as '+RANK_NAMES[placed.rank]:'')+' · '+streak()+'-day streak</div></div>';
+  h+='<div class="panel"><div class="snap">';
+  bvuBreakdown().forEach(r=>{
+    h+='<div class="snap-row"><span class="snap-label">'+r[0]+'</span><div class="snap-bar"><div class="snap-fill" style="width:'+(r[1]*100).toFixed(1)+'%"></div></div><span class="snap-n">'+Math.round(r[1]*r[2]*10)/10+'/'+r[2]+'</span></div>';
+  });
+  h+='</div></div>';
+  if(!placed){
+    h+='<button class="mini" style="border-color:var(--blue-3)" onclick="openPlacement()"><span class="m-k">'+ICONS.exam+'Placement Test</span><b>Find your starting level</b><span>12 questions across the whole university · sets your standing</span></button>';
+  }
   h+='<div class="statGrid">'+
      '<div class="stat"><b class="c-blue">'+d+'</b><span>Lessons Done</span></div>'+
      '<div class="stat"><b class="c-green">'+(qa===null?"—":qa+"%")+'</b><span>Quiz Average</span></div>'+
@@ -3647,6 +4181,7 @@ function renderProgress(){
      '<button class="mini" onclick="setView(\'courses\')"><span class="m-k">'+ICONS.exam+'Level Exams</span><b>'+examsPassed+' of '+totalLevels+' levels certified</b><span>Pass each level\'s 10-question exam at 80%+</span></button>'+
      '<button class="mini" onclick="setView(\'courses\')"><span class="m-k">'+ICONS.spark+'Assignments</span><b>'+assignsDone+' completed</b><span>Real-world exercises at the end of lessons</span></button>'+
      '<button class="mini" onclick="openLibrary(\'sims\')"><span class="m-k">'+ICONS.sim+'Simulations</span><b>'+Object.keys(store.sims).length+' of '+SIMS.length+' completed</b><span>Run businesses in fast-forward · scored debriefs</span></button>'+
+     '<button class="mini" onclick="openLibrary(\'labs\')"><span class="m-k">'+ICONS.tool+'Operator Labs</span><b>'+LABS.filter(l=>(store.labs[l.id]||{}).done).length+' of '+LABS.length+' built</b><span>Build real deliverables against grading rubrics</span></button>'+
      '</div>';
   h+='<div class="sectionHead"><i></i><h3>CERTIFICATES</h3><span class="mono">'+DATA.filter(t=>certStatus(t).eligible).length+' / '+DATA.length+'</span></div><div class="badges">';
   DATA.forEach(tr=>{
@@ -3734,7 +4269,11 @@ const AI_MOVES=[
  ["SOP From This","Turn this lesson into a written SOP (standard operating procedure) I could hand to an employee. Ask me about my business first."],
  ["Checklist From This","Turn this lesson into a practical checklist I can actually use. Make every item concrete and checkable."],
  ["Financial Model From This","Help me build a simple financial model applying this lesson — walk me through it cell by cell as if in a spreadsheet."],
- ["Role-Play It","Run a realistic role-play where I apply this lesson — you play the other side (customer, seller, banker, or employee). Debrief me after."]
+ ["Role-Play It","Run a realistic role-play where I apply this lesson — you play the other side (customer, seller, banker, or employee). Debrief me after."],
+ ["Explain With Numbers","Explain this lesson with a fully worked numeric example — real dollar amounts, every calculation shown step by step."],
+ ["Car Wash Example","Explain this entire lesson using a car wash business as the running example — an express tunnel wash with memberships."],
+ ["Pest Control Example","Explain this entire lesson using a residential pest control company as the running example — recurring routes and door-to-door sales."],
+ ["Real Estate Example","Explain this entire lesson using a small rental property portfolio as the running example."]
 ];
 function aiURL(le,instruction){
   const p="Context: I'm a business student using my Business Vault University app. Today's lesson: \""+le.t+"\" ("+le.module.name+", "+le.level.name+", "+le.track.name+"). Key terms: "+(le.terms||[]).map(t=>t[0]).join(", ")+". "+instruction;
@@ -3764,6 +4303,8 @@ function openLesson(id){
   const prev=le.idx>0?allLessons[le.idx-1]:null;
   const next=le.idx<allLessons.length-1?allLessons[le.idx+1]:null;
   const hasTerms=(le.terms||[]).length>0;
+  const related=le.module.lessons.filter(x=>x.id!==id).slice(0,3).map(x=>byId[x.id]);
+  const assignText=le.assign||("Apply this lesson to a business you know this week: where does “"+le.t.toLowerCase().replace(/"/g,"")+"” show up there, what's being done well or badly, and what one concrete action would you take? Write 5-10 sentences in your notes below.");
   document.getElementById("sheetInner").innerHTML=
     '<span class="lessonChip">'+le.module.name+'</span>'+
     '<h2>'+esc(le.t)+'</h2>'+
@@ -3772,6 +4313,10 @@ function openLesson(id){
       '<span class="metaChip">'+difficulty(le)+'</span>'+
       '<span class="metaChip">'+le.level.name+'</span>'+
       (q?'<span class="metaChip" style="color:'+(q.best>=70?'var(--green)':'var(--red)')+'">Quiz best '+q.best+'%</span>':'')+
+    '</div>'+
+    '<div class="lessonMeta" style="margin-top:-10px">'+
+      '<span class="metaChip" style="color:var(--steel)">'+(prev?('Before this: '+(done.has(prev.id)?"✓ ":"")+esc(prev.t)):"⭐ The very first lesson — no prerequisites")+'</span>'+
+      (next?'<span class="metaChip" style="color:var(--steel)">Unlocks: '+esc(next.t)+'</span>':'')+
     '</div>'+
     video+
     '<a class="card tutorCard" style="margin-top:12px" href="'+tutorURL(le)+'" target="_blank" rel="noopener">'+
@@ -3784,7 +4329,7 @@ function openLesson(id){
       '<button class="card" onclick="openFlash(\'lesson\',\''+id+'\')"><span class="num">'+ICONS.cards+'</span><span class="ct"><b>Flashcards</b><span>'+(le.terms||[]).length+' key terms</span></span></button>'+
     '</div>':'')+
     '<div class="lbody">'+
-    optSection("What You Will Learn",le.learn&&le.learn.length?'<ul class="takeaways">'+le.learn.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>':'')+
+    optSection("What You Will Learn",'<ul class="takeaways">'+(le.learn&&le.learn.length?le.learn:le.keys.slice(0,3)).map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>')+
     optSection("Why This Matters",le.why?'<div class="example">'+le.why+'</div>':'')+
     '<div class="lsec"><i></i><h4>The Lesson</h4></div>'+le.p.map(x=>"<p>"+x+"</p>").join("")+
     optSection("Key Formulas",le.formulas&&le.formulas.length?'<div class="terms">'+le.formulas.map(f=>'<div class="term"><b class="mono">'+esc(f[0])+'</b><span>'+f[1]+'</span></div>').join("")+'</div>':'')+
@@ -3793,8 +4338,9 @@ function openLesson(id){
     optSection("Common Mistakes",le.mistakes&&le.mistakes.length?'<ul class="takeaways">'+le.mistakes.map((k,i)=>'<li><i>✕</i>'+k+'</li>').join("")+'</ul>':'')+
     optSection("Operator Notes",le.op&&le.op.length?'<ul class="takeaways">'+le.op.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>':'')+
     '<div class="lsec"><i></i><h4>Key Takeaways</h4></div><ul class="takeaways">'+le.keys.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>'+
-    (le.assign?'<div class="lsec"><i></i><h4>Assignment</h4></div><div class="example">'+le.assign+'</div>'+
-      '<button class="btn '+(store.assignments[id]?'green':'ghost')+' full" style="margin-top:10px" id="assignBtn" onclick="toggleAssignment()">'+(store.assignments[id]?"✓ Assignment Done — Tap to Undo":"Mark Assignment Done")+'</button>':'')+
+    '<div class="lsec"><i></i><h4>Assignment</h4></div><div class="example">'+assignText+'</div>'+
+    '<button class="btn '+(store.assignments[id]?'green':'ghost')+' full" style="margin-top:10px" id="assignBtn" onclick="toggleAssignment()">'+(store.assignments[id]?"✓ Assignment Done — Tap to Undo":"Mark Assignment Done")+'</button>'+
+    (related.length?'<div class="lsec"><i></i><h4>Related Lessons</h4></div><div class="cards">'+related.map((x,i)=>cardHTML(x,i+1,x.module.name+(done.has(x.id)?" · ✓ done":""))).join("")+'</div>':'')+
     '<div class="lsec"><i></i><h4>My Notes</h4></div>'+
     '<textarea class="noteBox" id="noteBox" placeholder="Write your own notes on this lesson — ideas, numbers for your business, questions to bring to the AI tutor…">'+esc(store.notes[id]||"")+'</textarea>'+
     '<div class="noteHint">Saved automatically on this device · notes are searchable</div>'+
@@ -3872,7 +4418,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","book","tool","case","sim","cert"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","book","tool","case","sim","cert","lab"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -3894,6 +4440,9 @@ function palActions(){
     {k:"Action",t:"Quick Quiz",s:resumeLesson().t,run:()=>openQuiz(resumeLesson().id)},
     {k:"Action",t:"Book of the Day",s:dailyPick(BOOKS).title,run:()=>openBook(dailyPick(BOOKS).id)},
     {k:"Action",t:"Run a Simulation",s:SIMS.length+" scored scenarios",run:()=>openLibrary("sims")},
+    {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
+    {k:"Page",t:"Business Dictionary",s:allTerms.length+" terms",run:()=>openLibrary("terms")},
+    {k:"Page",t:"Operator Labs",s:LABS.length+" builds with rubrics",run:()=>openLibrary("labs")},
     {k:"Action",t:"Toggle Light / Dark",s:"Switch appearance",run:()=>toggleAppearance()},
     {k:"Action",t:"Theme Gallery",s:"16 premium themes",run:()=>openThemes()}
   ];
@@ -3955,6 +4504,7 @@ document.addEventListener("keydown",e=>{
     else if(sheetEl.classList.contains("open"))closeLesson();
     else if(certEl.classList.contains("open"))closeCert();
     else if(simEl.classList.contains("open"))closeSim();
+    else if(labEl.classList.contains("open"))closeLab();
     else if(bookEl.classList.contains("open"))closeBook();
     else if(toolEl.classList.contains("open"))closeTool();
     else if(caseEl.classList.contains("open"))closeCase();
@@ -3977,7 +4527,7 @@ document.addEventListener("keydown",e=>{
 
 /* ================= RENDER ALL ================= */
 function renderHeader(){
-  const pct=Math.round(masteryOf(allLessons)*100);
+  const pct=bvuScore();
   document.querySelectorAll(".masteryPct").forEach(el=>el.textContent=pct+"%");
   document.querySelectorAll(".streakN").forEach(el=>el.textContent=streak());
 }

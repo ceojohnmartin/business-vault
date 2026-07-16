@@ -399,6 +399,42 @@
   #sheet.zen .lbody p{font-size:17.5px;line-height:1.9}
   .zenBtn.on{color:var(--blue-2);border-color:var(--blue-3);background:var(--blue-soft)}
 
+  /* ================= QUIZ & FLASHCARDS ================= */
+  #quiz,#flash{position:fixed;inset:0;z-index:130;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
+  #quiz.open,#flash.open{transform:translateY(0);visibility:visible}
+  .qInner{max-width:640px;margin:0 auto;padding:24px 18px calc(60px + env(safe-area-inset-bottom))}
+  .qProg{display:flex;gap:5px;margin-bottom:18px}
+  .qProg i{flex:1;height:4px;border-radius:2px;background:var(--hover)}
+  .qProg i.on{background:var(--blue-line)}
+  .qProg i.ok{background:var(--green)}
+  .qProg i.bad{background:var(--red)}
+  .qCard{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:20px;box-shadow:var(--card-sh);margin-bottom:14px}
+  .qKick{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--blue-2);font-weight:700;margin-bottom:9px}
+  .qCard h3{font-size:17px;line-height:1.5;font-weight:600}
+  .qOpt{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:var(--surface);border:1.5px solid var(--edge);border-radius:var(--r-card);padding:14px 15px;margin-bottom:9px;font-size:14px;line-height:1.5;box-shadow:var(--card-sh);transition:border-color .15s;color:var(--text)}
+  .qOpt .qL{width:26px;height:26px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue-2);font-family:var(--mono);font-size:11px;font-weight:700}
+  .qOpt.ok{border-color:var(--green);background:var(--green-soft)}
+  .qOpt.bad{border-color:var(--red);background:rgba(226,86,79,.08)}
+  .qOpt:disabled{cursor:default}
+  @media(hover:hover){.qOpt:not(:disabled):hover{border-color:var(--blue-3)}}
+  .qEnd{text-align:center;padding:10px 0;display:flex;flex-direction:column;gap:14px;align-items:center}
+  .fCard{min-height:300px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:26px 20px;box-shadow:var(--card-sh);cursor:pointer;margin-bottom:14px}
+  .fCard .f-tag{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--steel);font-weight:700}
+  .fCard b{font-family:var(--font-d);font-size:24px;font-weight:700;line-height:1.25}
+  .fCard p{font-size:15px;line-height:1.7;color:var(--light)}
+  .fBtns{display:flex;gap:10px}
+  .fBtns .btn{flex:1}
+  .fHint{text-align:center;font-family:var(--mono);font-size:10.5px;color:var(--steel);letter-spacing:.1em;margin-bottom:12px}
+
+  /* ================= READER EXTRAS ================= */
+  .actGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
+  .actGrid .card{padding:13px 12px}
+  .noteBox{width:100%;min-height:110px;resize:vertical;border:1px solid var(--edge);border-radius:var(--r-card);background:var(--surface);color:var(--text);padding:14px 15px;font-size:14px;line-height:1.6;outline:none;box-shadow:var(--card-sh);font-family:var(--inter)}
+  .noteBox:focus{border-color:var(--blue-3);box-shadow:0 0 0 3px var(--blue-soft),var(--card-sh)}
+  .noteHint{font-family:var(--mono);font-size:10px;color:var(--steel);margin-top:6px;letter-spacing:.08em}
+  .bmBtn.on{color:var(--amber);border-color:var(--amber);background:rgba(245,158,11,.12)}
+  .scoreTag{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--green)}
+
   /* ================= TOAST ================= */
   #toast{
     position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(16px);z-index:200;
@@ -543,6 +579,30 @@
   </div>
 </div>
 
+<div id="quiz" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeQuiz()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb" id="quizCrumb">Lesson Quiz</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="qInner" id="quizInner"></div>
+</div>
+
+<div id="flash" role="dialog" aria-modal="true">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeFlash()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb" id="flashCrumb">Flashcards</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="qInner" id="flashInner"></div>
+</div>
+
 <div id="sheet" role="dialog" aria-modal="true">
   <div class="sheetBar">
     <button class="backBtn" onclick="closeLesson()">
@@ -551,6 +611,9 @@
     </button>
     <div class="crumb" id="sheetCrumb"></div>
     <div class="barBtns">
+      <button class="iconBtn bmBtn" id="bmBtn" onclick="toggleBookmark()" aria-label="Bookmark" title="Bookmark this lesson">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
       <button class="iconBtn zenBtn" id="zenBtn" onclick="toggleZen()" aria-label="Focus mode" title="Focus mode — pure reading">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
@@ -1187,6 +1250,23 @@ let done=new Set(JSON.parse(localStorage.getItem(LS_KEY)||"[]"));
 function saveProgress(){localStorage.setItem(LS_KEY,JSON.stringify([...done]))}
 let lastLesson=localStorage.getItem(LAST_KEY)||"";
 
+/* ================= USER STORE (v1) =================
+   One versioned store for everything beyond lesson completion.
+   Slots reserved for future phases: books, tools, cases, sims, assignments. */
+const STORE_KEY="bvStore_v1";
+const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{}};
+let store=STORE_DEFAULT;
+try{store=Object.assign({},STORE_DEFAULT,JSON.parse(localStorage.getItem(STORE_KEY)||"{}"))}catch(e){store=STORE_DEFAULT}
+function saveStore(){localStorage.setItem(STORE_KEY,JSON.stringify(store))}
+
+/* ================= CONTENT REGISTRIES =================
+   Populated in Phase 3+. Schemas:
+   BOOKS: {id,title,author,cat,diff,why,teaches[],best[],modules[],assignment,exercise}
+   TOOLS: {id,name,cat,desc,inputs[{k,label,def}],calc(vals)=>rows[],formula,explain}
+   CASES: {id,title,inspired,situation,financials[],problem,constraints[],options[],decision,analysis,notes,answer,lessons[]}
+   SIMS:  {id,title,intro,start,nodes:{id:{text,choices[{t,to,fx}]}}} */
+const BOOKS=[],TOOLS=[],CASES=[],SIMS=[];
+
 /* streak */
 function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
 let days=JSON.parse(localStorage.getItem(DAYS_KEY)||"[]");
@@ -1204,6 +1284,9 @@ DATA.forEach(tr=>tr.levels.forEach(lv=>lv.modules.forEach(mo=>mo.lessons.forEach
   allLessons.push({...le,track:tr,level:lv,module:mo});
 }))));
 const byId={};allLessons.forEach((l,i)=>{l.idx=i;byId[l.id]=l});
+/* global glossary: every key term across the university */
+const allTerms=[];
+allLessons.forEach(l=>(l.terms||[]).forEach((t,i)=>allTerms.push({id:l.id+"::"+i,t:t[0],d:t[1],le:l})));
 
 /* lesson meta */
 function lessonMins(le){
@@ -1216,20 +1299,46 @@ function difficulty(le){
   return "Operator";
 }
 
+/* ================= MASTERY ENGINE =================
+   Mastery blends completion with proven knowledge:
+   lesson with a quiz attempt: 60% completion + 40% best quiz score;
+   lesson never quizzed: completion only. */
+function masteryOf(lessons){
+  if(!lessons.length)return 0;
+  let sum=0;
+  lessons.forEach(l=>{
+    const c=done.has(l.id)?1:0;
+    const q=store.quiz[l.id];
+    sum+=q?0.6*c+0.4*(q.best/100):c;
+  });
+  return sum/lessons.length;
+}
+function quizAvg(){
+  const qs=Object.values(store.quiz);
+  return qs.length?Math.round(qs.reduce((a,q)=>a+q.best,0)/qs.length):null;
+}
+function weakLessons(){
+  return allLessons.filter(l=>{const q=store.quiz[l.id];return q&&q.best<70});
+}
+
 /* ================= HELPERS ================= */
-function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function hashStr(s){let h=1779033703^s.length;for(let i=0;i<s.length;i++){h=Math.imul(h^s.charCodeAt(i),3432918353);h=h<<13|h>>>19}return h>>>0}
+function seededRng(seed){let a=seed>>>0;return function(){a=Math.imul(a^a>>>15,a|1);a^=a+Math.imul(a^a>>>7,a|61);return((a^a>>>14)>>>0)/4294967296}}
+function shuffled(arr,rand){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function ringSVG(size,r,pct,w){
   const c=2*Math.PI*r,off=c*(1-Math.min(Math.max(pct,0),1)),sw=w||5;
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+
     '<circle class="ring-track" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" style="stroke-width:'+sw+'"/>'+
     '<circle class="ring-fill" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" style="stroke-width:'+sw+'" stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg>';
 }
-function cardHTML(le,num,crumb){
+function cardHTML(le,num,crumb,onclick){
   const isDone=done.has(le.id);
-  return '<button class="card'+(isDone?" done":"")+'" onclick="openLesson(\''+le.id+'\')">'+
+  const q=store.quiz[le.id];
+  return '<button class="card'+(isDone?" done":"")+'" onclick="'+(onclick||("openLesson('"+le.id+"')"))+'">'+
     '<span class="num">'+num+'</span>'+
-    '<span class="ct"><b>'+le.t+'</b><span>'+crumb+'</span></span>'+
-    '<span class="mins">'+lessonMins(le)+'m</span>'+
+    '<span class="ct"><b>'+esc(le.t)+'</b><span>'+crumb+'</span></span>'+
+    (q?'<span class="mins '+(q.best>=70?'scoreTag':'')+'" style="'+(q.best<70?'color:var(--red)':'')+'">'+q.best+'%</span>':'<span class="mins">'+lessonMins(le)+'m</span>')+
     '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
 }
 function trackStats(tr){
@@ -1258,7 +1367,10 @@ const ICONS={
   progress:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>',
   sun:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>',
   moon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.7 8.7 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
-  spark:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 4.6L18 8l-4.2 1.4L12 14l-1.8-4.6L6 8l4.2-1.4z"/><path d="M19 14l.9 2.3L22 17l-2.1.7L19 20l-.9-2.3L16 17l2.1-.7z"/></svg>'
+  spark:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 4.6L18 8l-4.2 1.4L12 14l-1.8-4.6L6 8l4.2-1.4z"/><path d="M19 14l.9 2.3L22 17l-2.1.7L19 20l-.9-2.3L16 17l2.1-.7z"/></svg>',
+  quiz:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.2 9.2a2.8 2.8 0 1 1 3.9 2.6c-.7.3-1.1.8-1.1 1.5v.5"/><circle cx="12" cy="17" r=".5" fill="currentColor"/></svg>',
+  cards:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="15" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v13"/></svg>',
+  bookmark:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
 };
 const VIEWS=["home","courses","biz","wash","pest","search","progress"];
 const TABS=[
@@ -1310,7 +1422,7 @@ function setView(id){
 
 /* ================= HOME / DASHBOARD ================= */
 function renderHome(){
-  const total=allLessons.length,d=done.size,pct=total?d/total:0;
+  const total=allLessons.length,d=done.size,pct=masteryOf(allLessons);
   const res=resumeLesson();
   const hNow=new Date().getHours();
   const greet=hNow<12?"Good morning.":hNow<18?"Good afternoon.":"Good evening.";
@@ -1331,12 +1443,30 @@ function renderHome(){
      '<div class="stat"><b class="c-blue">'+d+'</b><span>Lessons Done</span></div>'+
      '<div class="stat"><b class="c-green">'+Math.round(pct*100)+'%</b><span>Mastery</span></div>'+
      '<div class="stat"><b class="c-amber">'+streak()+'</b><span>Day Streak</span></div>'+
-     '<div class="stat"><b>'+(total-d)+'</b><span>Remaining</span></div></div>';
+     '<div class="stat"><b>'+Object.keys(store.quiz).length+'</b><span>Quizzes Taken</span></div></div>';
   const daily=dailyLesson(),rec=nextIncomplete();
+  const dueCards=flashDue().length;
   h+='<div class="sectionHead"><i></i><h3>TODAY AT THE UNIVERSITY</h3></div><div class="duoGrid">'+
      '<button class="mini" onclick="openLesson(\''+daily.id+'\')"><span class="m-k">'+ICONS.spark+'Daily Lesson</span><b>'+esc(daily.t)+'</b><span>'+daily.track.name+' · '+daily.level.name+' · ~'+lessonMins(daily)+' min'+(done.has(daily.id)?" · ✓ done":"")+'</span></button>'+
      '<button class="mini" onclick="openLesson(\''+rec.id+'\')"><span class="m-k">'+ICONS.spark+'Recommended Next</span><b>'+esc(rec.t)+'</b><span>'+rec.track.name+' · '+rec.level.name+' · ~'+lessonMins(rec)+' min</span></button>'+
+     '<button class="mini" onclick="openFlash(\'due\')"><span class="m-k">'+ICONS.cards+'Flashcard Review</span><b>Drill the key terms</b><span>'+(dueCards?dueCards+' cards to master · spaced repetition':'All '+allTerms.length+' terms mastered 🎉')+'</span></button>'+
+     '<button class="mini" onclick="openQuiz(\''+res.id+'\')"><span class="m-k">'+ICONS.quiz+'Quick Quiz</span><b>Test yourself: '+esc(res.t)+'</b><span>5 questions · counts toward your mastery score</span></button>'+
      '</div>';
+  const weak=weakLessons();
+  if(weak.length){
+    h+='<div class="sectionHead"><i></i><h3>WEAK AREAS TO REVIEW</h3><span class="mono">'+weak.length+' topic'+(weak.length>1?'s':'')+'</span></div><div class="cards">';
+    weak.slice(0,3).forEach((le,i)=>{
+      h+=cardHTML(le,i+1,"Quiz score "+store.quiz[le.id].best+"% — reread, then retake the quiz");
+    });
+    h+='</div>';
+  }
+  if(store.bookmarks.length){
+    h+='<div class="sectionHead"><i></i><h3>BOOKMARKED</h3><span class="mono">'+store.bookmarks.length+' saved</span></div><div class="cards">';
+    store.bookmarks.slice(0,3).forEach((id,i)=>{
+      const le=byId[id];if(le)h+=cardHTML(le,i+1,le.track.name+" · "+le.level.tagline+" · "+le.module.name);
+    });
+    h+='</div>';
+  }
   h+='<div class="sectionHead"><i></i><h3>CURRICULUM PROGRESS</h3><span class="mono">'+d+' / '+total+'</span></div><div class="panel"><div class="snap">';
   DATA.forEach(tr=>{
     const s=trackStats(tr);
@@ -1359,12 +1489,13 @@ function renderHome(){
 /* ================= COURSES ================= */
 function courseCard(tr){
   const s=trackStats(tr);
+  const m=masteryOf(allLessons.filter(l=>l.track.id===tr.id));
   const meta=tr.levels.length>1?tr.levels.length+" levels · "+s.total+" lessons":s.total+" lessons";
   return '<button class="course" onclick="setView(\''+tr.id+'\')">'+
     '<span class="c-icon">'+ICONS[tr.id]+'</span>'+
     '<span class="c-t"><b>'+tr.name+'</b><span>'+tr.tag+' · '+meta+'</span>'+
     '<span class="c-bar"><i style="width:'+(s.pct*100).toFixed(1)+'%"></i></span></span>'+
-    '<span class="c-ring">'+ringSVG(52,22,s.pct,4.5)+'<b>'+Math.round(s.pct*100)+'%</b></span></button>';
+    '<span class="c-ring">'+ringSVG(52,22,m,4.5)+'<b>'+Math.round(m*100)+'%</b></span></button>';
 }
 function renderCourses(){
   let h='<div class="sectionHead"><i></i><h3>THE SCHOOLS</h3><span class="mono">'+allLessons.length+' lessons</span></div>';
@@ -1409,32 +1540,186 @@ function pickLevel(trId,i){levelSel[trId]=i;renderTrack(DATA.find(t=>t.id===trId
 
 /* ================= SEARCH ================= */
 function lessonHay(l){
-  return (l.t+" "+l.module.name+" "+l.level.name+" "+l.level.tagline+" "+l.track.name+" "+(l.terms||[]).map(t=>t[0]).join(" ")).toLowerCase();
+  return (l.t+" "+l.module.name+" "+l.level.name+" "+l.level.tagline+" "+l.track.name+" "+
+    (l.terms||[]).map(t=>t[0]+" "+t[1]).join(" ")+" "+(store.notes[l.id]||"")).toLowerCase();
 }
 function renderSearchShell(){
   document.getElementById("view-search").innerHTML=
     '<div class="sectionHead"><i></i><h3>SEARCH THE VAULT</h3></div>'+
     '<div class="searchBox"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'+
     '<input id="searchInput" type="search" placeholder="EBITDA, funnels, route density, DCF…" autocomplete="off"></div>'+
-    '<div class="rhead" id="rhead">Search all '+allLessons.length+' lessons by topic, term, or level.</div>'+
+    '<div class="rhead" id="rhead">Search all '+allLessons.length+' lessons, '+allTerms.length+' glossary terms, and your notes.</div>'+
     '<div class="cards" id="rcards"></div>';
   document.getElementById("searchInput").addEventListener("input",e=>{
     const q=e.target.value.trim().toLowerCase();
     const rc=document.getElementById("rcards"),rh=document.getElementById("rhead");
-    if(q.length<2){rc.innerHTML="";rh.textContent="Search all "+allLessons.length+" lessons by topic, term, or level.";return}
+    if(q.length<2){rc.innerHTML="";rh.textContent="Search all "+allLessons.length+" lessons, "+allTerms.length+" glossary terms, and your notes.";return}
     const hits=allLessons.filter(l=>q.split(/\s+/).every(w=>lessonHay(l).includes(w)));
     rh.textContent=hits.length?hits.length+" lesson"+(hits.length>1?"s":"")+" found":"No lessons match — try a broader term.";
     rc.innerHTML=hits.slice(0,40).map((l,i)=>cardHTML(l,i+1,l.track.name+" · "+l.level.tagline+" · "+l.module.name)).join("");
   });
 }
 
+/* ================= QUIZ ENGINE =================
+   Custom lesson.quiz [{q,opts[],ci}] is used when present (Phase 4+);
+   otherwise a quiz is generated from the lesson's key terms. */
+function buildQuiz(le){
+  if(le.quiz&&le.quiz.length)return le.quiz.map(q=>({q:q.q,opts:q.opts.slice(),ci:q.ci}));
+  const terms=le.terms||[];
+  if(terms.length<2)return null;
+  const rand=seededRng(hashStr(le.id+todayStr()));
+  const qs=[];
+  const pool=allTerms.filter(t=>t.le.id!==le.id);
+  const order=shuffled(terms.map((t,i)=>i),rand);
+  const nQ=Math.min(5,terms.length);
+  for(let k=0;k<nQ;k++){
+    const ti=order[k],term=terms[ti];
+    const dir=k%2===0;
+    let distract=shuffled(terms.filter((t,i)=>i!==ti),rand).slice(0,3);
+    while(distract.length<3&&pool.length){
+      const p=pool[Math.floor(rand()*pool.length)];
+      if(!distract.some(d=>d[0]===p.t)&&p.t!==term[0])distract.push([p.t,p.d]);
+    }
+    const opts=shuffled([term,...distract],rand);
+    if(dir){
+      qs.push({q:"Which term matches this definition?",prompt:term[1],opts:opts.map(o=>o[0]),ci:opts.indexOf(term)});
+    }else{
+      qs.push({q:'What best describes “'+term[0]+'”?',opts:opts.map(o=>o[1]),ci:opts.indexOf(term)});
+    }
+  }
+  return qs;
+}
+let qz=null;
+const quizEl=document.getElementById("quiz");
+function openQuiz(id,reviewSet){
+  const le=byId[id];
+  const qs=reviewSet||buildQuiz(le);
+  if(!qs){toast("No quiz available for this lesson");return}
+  qz={le,qs,i:0,right:0,marks:[],wrong:[],review:!!reviewSet};
+  document.getElementById("quizCrumb").textContent=(qz.review?"Review Mistakes · ":"Lesson Quiz · ")+le.t.slice(0,34);
+  quizEl.classList.add("open");syncScrollLock();
+  renderQuizQ();
+}
+function renderQuizQ(){
+  const {qs,i,marks}=qz;
+  const q=qs[i];
+  let h='<div class="qProg">'+qs.map((x,j)=>'<i class="'+(j<i?(marks[j]?"ok":"bad"):j===i?"on":"")+'"></i>').join("")+'</div>';
+  h+='<div class="qCard"><div class="qKick">Question '+(i+1)+' of '+qs.length+'</div><h3>'+esc(q.q)+'</h3>'+
+     (q.prompt?'<p style="margin-top:12px;font-size:14.5px;line-height:1.65;color:var(--steel-2);border-left:3px solid var(--blue-3);padding-left:12px">'+esc(q.prompt)+'</p>':'')+'</div>';
+  q.opts.forEach((o,j)=>{
+    h+='<button class="qOpt" id="qopt'+j+'" onclick="qzPick('+j+')"><span class="qL">'+String.fromCharCode(65+j)+'</span><span>'+esc(o)+'</span></button>';
+  });
+  document.getElementById("quizInner").innerHTML=h;
+  quizEl.scrollTop=0;
+}
+function qzPick(j){
+  const q=qz.qs[qz.i];
+  const ok=j===q.ci;
+  qz.marks[qz.i]=ok;
+  if(ok)qz.right++;else qz.wrong.push(q);
+  for(let k=0;k<q.opts.length;k++){
+    const el=document.getElementById("qopt"+k);
+    el.disabled=true;
+    if(k===q.ci)el.classList.add("ok");
+    else if(k===j)el.classList.add("bad");
+  }
+  setTimeout(()=>{qz.i++;qz.i<qz.qs.length?renderQuizQ():renderQuizEnd()},ok?550:1100);
+}
+function renderQuizEnd(){
+  const pct=Math.round(qz.right/qz.qs.length*100);
+  if(!qz.review){
+    const prev=store.quiz[qz.le.id];
+    store.quiz[qz.le.id]={best:Math.max(pct,prev?prev.best:0),last:pct,n:(prev?prev.n:0)+1};
+    saveStore();renderAll();
+  }
+  const msg=pct===100?"Perfect score. Operator-grade.":pct>=80?"Strong. This is sticking.":pct>=60?"Solid — review the misses and go again.":"Reread the lesson, then retake. Repetition builds mastery.";
+  let h='<div class="qEnd"><div class="bigRing">'+ringSVG(132,58,pct/100,7)+'<b>'+pct+'%</b></div>'+
+    '<div><div style="font-family:var(--font-d);font-weight:600;font-size:18px;letter-spacing:.03em">'+(qz.review?"MISTAKES REVIEWED":"QUIZ COMPLETE")+'</div>'+
+    '<div style="font-size:13px;color:var(--steel-2);margin-top:5px;max-width:340px">'+msg+'</div></div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">'+
+    (qz.wrong.length?'<button class="btn ghost" onclick="openQuiz(\''+qz.le.id+'\',qzWrongSet())">Review Mistakes ('+qz.wrong.length+')</button>':'')+
+    '<button class="btn ghost" onclick="openQuiz(\''+qz.le.id+'\')">Retake Quiz</button>'+
+    '<button class="btn" onclick="closeQuiz()">Done</button></div></div>';
+  document.getElementById("quizInner").innerHTML=h;
+}
+function qzWrongSet(){return qz.wrong.slice()}
+function closeQuiz(){quizEl.classList.remove("open");syncScrollLock();if(sheetEl.classList.contains("open")&&currentId)openLesson(currentId)}
+
+/* ================= FLASHCARDS =================
+   Box levels 0-2 = still learning, 3 = mastered. "Got it" moves up, "Again" resets. */
+const flashEl=document.getElementById("flash");
+function flashBox(cid){return store.flash[cid]||0}
+function flashDue(){return allTerms.filter(t=>flashBox(t.id)<3)}
+function flashMastered(){return allTerms.filter(t=>flashBox(t.id)>=3).length}
+let fl=null;
+function openFlash(mode,lessonId){
+  let deck;
+  if(mode==="lesson"&&lessonId){
+    deck=allTerms.filter(t=>t.le.id===lessonId);
+    if(!deck.length){toast("No key terms in this lesson");return}
+  }else{
+    const due=flashDue();
+    if(!due.length){toast("All "+allTerms.length+" terms mastered 🎉");return}
+    const rand=seededRng(hashStr("deck"+todayStr()));
+    deck=shuffled(due.sort((a,b)=>flashBox(a.id)-flashBox(b.id)).slice(0,60),rand).slice(0,20);
+  }
+  fl={deck,i:0,flip:false,got:0,again:0,mode,lessonId};
+  document.getElementById("flashCrumb").textContent=mode==="lesson"?"Lesson Flashcards":"Flashcard Review";
+  flashEl.classList.add("open");syncScrollLock();
+  renderFlash();
+}
+function renderFlash(){
+  if(fl.i>=fl.deck.length){renderFlashEnd();return}
+  const c=fl.deck[fl.i];
+  const box=flashBox(c.id);
+  let h='<div class="qProg">'+fl.deck.map((x,j)=>'<i class="'+(j<fl.i?"ok":j===fl.i?"on":"")+'"></i>').join("")+'</div>';
+  h+='<div class="fCard" onclick="flFlip()">'+
+     (fl.flip?
+       '<span class="f-tag">'+esc(c.le.t)+'</span><p>'+esc(c.d)+'</p>':
+       '<span class="f-tag">'+(box>=3?"Mastered":"Box "+(box+1)+" of 3")+' · Card '+(fl.i+1)+' of '+fl.deck.length+'</span><b>'+esc(c.t)+'</b>')+
+     '</div>';
+  h+='<div class="fHint">'+(fl.flip?"How did you do?":"Tap the card to reveal the definition")+'</div>';
+  if(fl.flip){
+    h+='<div class="fBtns">'+
+       '<button class="btn danger" onclick="flMark(false)">Again</button>'+
+       '<button class="btn green" onclick="flMark(true)">Got It</button></div>';
+  }else{
+    h+='<div class="fBtns"><button class="btn ghost full" onclick="flFlip()">Reveal</button></div>';
+  }
+  document.getElementById("flashInner").innerHTML=h;
+}
+function flFlip(){fl.flip=!fl.flip;renderFlash()}
+function flMark(got){
+  const c=fl.deck[fl.i];
+  if(got){store.flash[c.id]=Math.min(flashBox(c.id)+1,3);fl.got++}
+  else{store.flash[c.id]=0;fl.again++}
+  saveStore();
+  fl.i++;fl.flip=false;renderFlash();
+}
+function renderFlashEnd(){
+  const mastered=flashMastered();
+  let h='<div class="qEnd"><div class="bigRing">'+ringSVG(132,58,fl.deck.length?fl.got/fl.deck.length:0,7)+'<b>'+fl.got+'/'+fl.deck.length+'</b></div>'+
+    '<div><div style="font-family:var(--font-d);font-weight:600;font-size:18px;letter-spacing:.03em">SESSION COMPLETE</div>'+
+    '<div style="font-size:13px;color:var(--steel-2);margin-top:5px">'+fl.got+' got it · '+fl.again+' to revisit · '+mastered+' of '+allTerms.length+' terms mastered</div></div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">'+
+    '<button class="btn ghost" onclick="openFlash(fl.mode,fl.lessonId)">Go Again</button>'+
+    '<button class="btn" onclick="closeFlash()">Done</button></div></div>';
+  document.getElementById("flashInner").innerHTML=h;
+  renderAll();
+}
+function closeFlash(){flashEl.classList.remove("open");syncScrollLock()}
+
 /* ================= PROGRESS & MASTERY ================= */
 function badgeDefs(){
+  const bests=Object.values(store.quiz).map(q=>q.best);
   const list=[
     {ic:"🎯",n:"First Steps",d:"Complete your first lesson",e:done.size>=1},
     {ic:"📚",n:"Committed",d:"Complete 10 lessons",e:done.size>=10},
     {ic:"🎓",n:"Scholar",d:"Complete 25 lessons",e:done.size>=25},
-    {ic:"🏆",n:"Dean's List",d:"Complete 50 lessons",e:done.size>=50}
+    {ic:"🏆",n:"Dean's List",d:"Complete 50 lessons",e:done.size>=50},
+    {ic:"🧠",n:"Quiz Taker",d:"Pass your first quiz (70%+)",e:bests.some(b=>b>=70)},
+    {ic:"🏅",n:"Quiz Ace",d:"Score 100% on 5 quizzes",e:bests.filter(b=>b===100).length>=5},
+    {ic:"🃏",n:"Card Shark",d:"Master 50 flashcards",e:flashMastered()>=50}
   ];
   DATA[0].levels.forEach(lv=>{
     const ls=lv.modules.flatMap(m=>m.lessons);
@@ -1452,17 +1737,27 @@ function badgeDefs(){
   return list;
 }
 function renderProgress(){
-  const total=allLessons.length,d=done.size,pct=total?d/total:0;
+  const total=allLessons.length,d=done.size,pct=masteryOf(allLessons);
   const badges=badgeDefs(),earned=badges.filter(b=>b.e).length;
+  const qa=quizAvg(),weak=weakLessons(),mastered=flashMastered();
   let h='<div class="panel" style="text-align:center;padding:26px 18px">'+
     '<div class="bigRing">'+ringSVG(132,58,pct,7)+'<b>'+Math.round(pct*100)+'%</b></div>'+
     '<div style="font-family:var(--font-d);font-weight:600;font-size:17px;letter-spacing:.04em;margin-top:14px">OVERALL MASTERY</div>'+
-    '<div style="font-size:12.5px;color:var(--steel);margin-top:4px">'+d+' of '+total+' lessons complete · '+streak()+'-day streak</div></div>';
+    '<div style="font-size:12.5px;color:var(--steel);margin-top:4px">'+d+' of '+total+' lessons · quizzes and completion combined · '+streak()+'-day streak</div></div>';
   h+='<div class="statGrid">'+
      '<div class="stat"><b class="c-blue">'+d+'</b><span>Lessons Done</span></div>'+
-     '<div class="stat"><b class="c-green">'+earned+'</b><span>Badges Earned</span></div>'+
+     '<div class="stat"><b class="c-green">'+(qa===null?"—":qa+"%")+'</b><span>Quiz Average</span></div>'+
      '<div class="stat"><b class="c-amber">'+streak()+'</b><span>Day Streak</span></div>'+
-     '<div class="stat"><b>'+(total-d)+'</b><span>Remaining</span></div></div>';
+     '<div class="stat"><b>'+earned+'</b><span>Badges</span></div></div>';
+  h+='<div class="sectionHead"><i></i><h3>STUDY TOOLS</h3></div><div class="duoGrid">'+
+     '<button class="mini" onclick="openFlash(\'due\')"><span class="m-k">'+ICONS.cards+'Flashcards</span><b>'+mastered+' of '+allTerms.length+' terms mastered</b><span>Spaced-repetition review of every key term</span></button>'+
+     '<button class="mini" onclick="'+(weak.length?'openLesson(\''+weak[0].id+'\')':'openQuiz(\''+resumeLesson().id+'\')')+'"><span class="m-k">'+ICONS.quiz+'Weak Areas</span><b>'+(weak.length?weak.length+' topic'+(weak.length>1?'s':'')+' below 70%':'No weak areas — take more quizzes')+'</b><span>'+(weak.length?'Reread and retake to lift your mastery':'Quiz scores under 70% will appear here')+'</span></button>'+
+     '</div>';
+  if(weak.length){
+    h+='<div class="sectionHead"><i></i><h3>REVIEW QUEUE</h3></div><div class="cards">';
+    weak.slice(0,5).forEach((le,i)=>{h+=cardHTML(le,i+1,"Best score "+store.quiz[le.id].best+"% · "+le.track.name)});
+    h+='</div>';
+  }
   h+='<div class="sectionHead"><i></i><h3>BY SCHOOL</h3></div><div class="panel"><div class="snap">';
   DATA.forEach(tr=>{
     const s=trackStats(tr);
@@ -1485,7 +1780,7 @@ function renderProgress(){
   document.getElementById("view-progress").innerHTML=h;
 }
 function exportProgress(){
-  const data={exported:new Date().toISOString(),completedLessons:[...done],days:days,theme:localStorage.getItem("bvTheme_v1")||"azure"};
+  const data={exported:new Date().toISOString(),completedLessons:[...done],days:days,store:store,theme:localStorage.getItem("bvTheme_v1")||"azure"};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);a.download="business-vault-progress.json";
@@ -1493,8 +1788,9 @@ function exportProgress(){
   toast("Progress exported");
 }
 function resetProgress(){
-  if(!confirm("Reset all lesson progress? Your theme and streak are kept. This cannot be undone."))return;
+  if(!confirm("Reset all lessons, quiz scores, flashcards, notes and bookmarks? Your theme and streak are kept. This cannot be undone."))return;
   done=new Set();saveProgress();lastLesson="";localStorage.removeItem(LAST_KEY);
+  store=JSON.parse(JSON.stringify(STORE_DEFAULT));saveStore();
   renderAll();toast("Progress reset");
 }
 
@@ -1504,12 +1800,15 @@ function tutorURL(le){
   const p="Act as my personal business professor from the world's best business school. Today's lesson from my Business Vault curriculum is \""+le.t+"\" ("+le.module.name+", "+le.level.name+"). Key terms: "+(le.terms||[]).map(t=>t[0]).join(", ")+". Please: 1) quiz me with 5 questions one at a time, waiting for my answers; 2) explain anything I miss in plain English with real-world examples; 3) then run a short realistic role-play where I apply this lesson (a negotiation, sales call, investor meeting, or operating decision - whatever fits the topic best); 4) end with one practice assignment for my own business.";
   return "https://claude.ai/new?q="+encodeURIComponent(p);
 }
+/* optional deep-structure sections (Phase 4 content plugs in here) */
+function optSection(title,html){return html?'<div class="lsec"><i></i><h4>'+title+'</h4></div>'+html:''}
 function openLesson(id){
   currentId=id;
   lastLesson=id;localStorage.setItem(LAST_KEY,id);
   const le=byId[id];
   const sheet=document.getElementById("sheet");
   document.getElementById("sheetCrumb").textContent=le.track.name+" · "+le.level.tagline;
+  document.getElementById("bmBtn").classList.toggle("on",store.bookmarks.includes(id));
   const searchURL="https://www.youtube.com/results?search_query="+encodeURIComponent(le.q);
   const vm=(typeof VIDEO_MAP!=="undefined"&&VIDEO_MAP[le.id])||(le.v?{v:le.v,title:"",ch:""}:null);
   let video;
@@ -1523,40 +1822,64 @@ function openLesson(id){
       '<span><b>Watch on YouTube</b><span>Opens a curated search of the best videos on this exact topic — pick a top result from a channel you trust.</span></span></a></div>';
   }
   const isDone=done.has(id);
+  const q=store.quiz[id];
   const prev=le.idx>0?allLessons[le.idx-1]:null;
   const next=le.idx<allLessons.length-1?allLessons[le.idx+1]:null;
+  const hasTerms=(le.terms||[]).length>0;
   document.getElementById("sheetInner").innerHTML=
     '<span class="lessonChip">'+le.module.name+'</span>'+
-    '<h2>'+le.t+'</h2>'+
+    '<h2>'+esc(le.t)+'</h2>'+
     '<div class="lessonMeta">'+
-      '<span class="metaChip">⏱ ~'+lessonMins(le)+' min</span>'+
-      '<span class="metaChip">🎚 '+difficulty(le)+'</span>'+
+      '<span class="metaChip">~'+lessonMins(le)+' min</span>'+
+      '<span class="metaChip">'+difficulty(le)+'</span>'+
       '<span class="metaChip">'+le.level.name+'</span>'+
-      '<span class="metaChip">Lesson '+(le.idx+1)+' of '+allLessons.length+'</span>'+
+      (q?'<span class="metaChip" style="color:'+(q.best>=70?'var(--green)':'var(--red)')+'">Quiz best '+q.best+'%</span>':'')+
     '</div>'+
     video+
     '<a class="card tutorCard" style="margin-top:12px" href="'+tutorURL(le)+'" target="_blank" rel="noopener">'+
     '<span class="num" style="background:var(--blue-face);color:#fff">'+ICONS.spark+'</span>'+
     '<span class="ct"><b>AI Tutor — quiz me on this lesson</b><span>Opens Claude with a professor prompt: 5 quiz questions, explanations, and a role-play simulation</span></span>'+
     '<span style="color:var(--blue-2)">→</span></a>'+
+    (hasTerms?'<div class="actGrid">'+
+      '<button class="card" onclick="openQuiz(\''+id+'\')"><span class="num">'+ICONS.quiz+'</span><span class="ct"><b>Take Quiz</b><span>'+(q?"Best "+q.best+"% · "+q.n+" attempt"+(q.n>1?"s":""):"5 questions · builds mastery")+'</span></span></button>'+
+      '<button class="card" onclick="openFlash(\'lesson\',\''+id+'\')"><span class="num">'+ICONS.cards+'</span><span class="ct"><b>Flashcards</b><span>'+(le.terms||[]).length+' key terms</span></span></button>'+
+    '</div>':'')+
     '<div class="lbody">'+
+    optSection("What You Will Learn",le.learn&&le.learn.length?'<ul class="takeaways">'+le.learn.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>':'')+
+    optSection("Why This Matters",le.why?'<div class="example">'+le.why+'</div>':'')+
     '<div class="lsec"><i></i><h4>The Lesson</h4></div>'+le.p.map(x=>"<p>"+x+"</p>").join("")+
+    optSection("Key Formulas",le.formulas&&le.formulas.length?'<div class="terms">'+le.formulas.map(f=>'<div class="term"><b class="mono">'+esc(f[0])+'</b><span>'+f[1]+'</span></div>').join("")+'</div>':'')+
     '<div class="lsec"><i></i><h4>Key Terms</h4></div><div class="terms">'+le.terms.map(t=>'<div class="term"><b>'+t[0]+'</b><span>'+t[1]+'</span></div>').join("")+'</div>'+
     '<div class="lsec"><i></i><h4>Real-World Example</h4></div><div class="example">'+le.ex+'</div>'+
+    optSection("Common Mistakes",le.mistakes&&le.mistakes.length?'<ul class="takeaways">'+le.mistakes.map((k,i)=>'<li><i>✕</i>'+k+'</li>').join("")+'</ul>':'')+
+    optSection("Operator Notes",le.op&&le.op.length?'<ul class="takeaways">'+le.op.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>':'')+
     '<div class="lsec"><i></i><h4>Key Takeaways</h4></div><ul class="takeaways">'+le.keys.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>'+
+    '<div class="lsec"><i></i><h4>My Notes</h4></div>'+
+    '<textarea class="noteBox" id="noteBox" placeholder="Write your own notes on this lesson — ideas, numbers for your business, questions to bring to the AI tutor…">'+esc(store.notes[id]||"")+'</textarea>'+
+    '<div class="noteHint">Saved automatically on this device · notes are searchable</div>'+
     '<button class="btn full completeBtn'+(isDone?" green":"")+'" id="completeBtn" onclick="toggleComplete()">'+(isDone?"✓ Completed — Tap to Undo":"Mark Complete")+'</button>'+
     '<div class="pnRow">'+
       '<button class="btn ghost" '+(prev?'onclick="openLesson(\''+prev.id+'\')"':'disabled')+'>← Previous</button>'+
       '<button class="btn ghost" '+(next?'onclick="openLesson(\''+next.id+'\')"':'disabled')+'>Next Lesson →</button>'+
     '</div></div>';
+  const nb=document.getElementById("noteBox");
+  let noteT=null;
+  nb.addEventListener("input",()=>{
+    clearTimeout(noteT);
+    noteT=setTimeout(()=>{
+      const v=nb.value.trim();
+      if(v)store.notes[id]=v;else delete store.notes[id];
+      saveStore();
+    },400);
+  });
   sheet.scrollTop=0;
   updateReadBar();
   sheet.classList.add("open");
-  document.body.style.overflow="hidden";
+  syncScrollLock();
 }
 function closeLesson(){
   document.getElementById("sheet").classList.remove("open");
-  document.body.style.overflow="";
+  syncScrollLock();
   renderAll();
 }
 function toggleComplete(){
@@ -1567,6 +1890,14 @@ function toggleComplete(){
   btn.classList.toggle("green",isDone);
   btn.textContent=isDone?"✓ Completed — Tap to Undo":"Mark Complete";
   if(isDone)toast(done.size>=allLessons.length?"🎓 Curriculum complete!":"Lesson complete — "+done.size+" of "+allLessons.length);
+  renderAll();
+}
+function toggleBookmark(){
+  const i=store.bookmarks.indexOf(currentId);
+  if(i>=0){store.bookmarks.splice(i,1);toast("Bookmark removed")}
+  else{store.bookmarks.unshift(currentId);toast("Bookmarked")}
+  saveStore();
+  document.getElementById("bmBtn").classList.toggle("on",store.bookmarks.includes(currentId));
   renderAll();
 }
 /* reading progress */
@@ -1587,6 +1918,11 @@ function toggleZen(){
   zen=!zen;localStorage.setItem(ZEN_KEY,zen?"1":"0");applyZen();
   toast(zen?"Focus mode on — pure reading":"Focus mode off");
 }
+/* body scroll lock shared by all overlays */
+function syncScrollLock(){
+  const anyOpen=["sheet","themes","quiz","flash"].some(x=>document.getElementById(x).classList.contains("open"));
+  document.body.style.overflow=anyOpen?"hidden":"";
+}
 
 /* ================= COMMAND PALETTE ================= */
 let palSel=0,palItems=[];
@@ -1598,6 +1934,8 @@ function palActions(){
     {k:"Page",t:"Progress & Mastery",s:"Rings, badges, streak",run:()=>setView("progress")},
     {k:"Action",t:"Continue Learning",s:resumeLesson().t,run:()=>openLesson(resumeLesson().id)},
     {k:"Action",t:"Daily Lesson",s:dailyLesson().t,run:()=>openLesson(dailyLesson().id)},
+    {k:"Action",t:"Review Flashcards",s:flashDue().length+" cards to master",run:()=>openFlash("due")},
+    {k:"Action",t:"Quick Quiz",s:resumeLesson().t,run:()=>openQuiz(resumeLesson().id)},
     {k:"Action",t:"Toggle Light / Dark",s:"Switch appearance",run:()=>toggleAppearance()},
     {k:"Action",t:"Theme Gallery",s:"16 premium themes",run:()=>openThemes()}
   ];
@@ -1654,12 +1992,19 @@ document.addEventListener("keydown",e=>{
   }
   if(e.key==="Escape"){
     if(palEl.classList.contains("open"))closePalette();
+    else if(quizEl.classList.contains("open"))closeQuiz();
+    else if(flashEl.classList.contains("open"))closeFlash();
     else if(sheetEl.classList.contains("open"))closeLesson();
     else if(document.getElementById("themes").classList.contains("open"))closeThemes();
     return;
   }
   const typing=/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||"");
   if(typing||palEl.classList.contains("open"))return;
+  if(flashEl.classList.contains("open")&&fl&&fl.i<fl.deck.length){
+    if(e.key===" "){e.preventDefault();flFlip()}
+    return;
+  }
+  if(quizEl.classList.contains("open"))return;
   if(sheetEl.classList.contains("open")&&currentId){
     const le=byId[currentId];
     if(e.key==="ArrowRight"&&le.idx<allLessons.length-1)openLesson(allLessons[le.idx+1].id);
@@ -1669,7 +2014,7 @@ document.addEventListener("keydown",e=>{
 
 /* ================= RENDER ALL ================= */
 function renderHeader(){
-  const total=allLessons.length,pct=total?Math.round(done.size/total*100):0;
+  const pct=Math.round(masteryOf(allLessons)*100);
   document.querySelectorAll(".masteryPct").forEach(el=>el.textContent=pct+"%");
   document.querySelectorAll(".streakN").forEach(el=>el.textContent=streak());
 }

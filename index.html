@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#eef3fb">
+<meta name="description" content="Business Vault Private University — master business from zero to operator.">
 <title>The Business Vault</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,6 +36,7 @@
     --video-bg:#0f1b2d;
     --hero-glow:rgba(47,111,237,.12);
     --r-lg:18px;--r-card:14px;--r-btn:11px;
+    --sb-w:264px;
   }
   html.theming, html.theming *{transition:background .35s ease,background-color .35s ease,color .35s ease,border-color .35s ease,box-shadow .35s ease!important}
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -47,70 +49,176 @@
   button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
   input{font-family:inherit}
   .mono{font-family:var(--mono)}
-  /* ================= TOP BAR ================= */
-  .top{
-    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:11px;
-    padding:calc(12px + env(safe-area-inset-top)) 18px 12px;
-    background:var(--glass);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);
-    border-bottom:1px solid var(--edge);
+  kbd{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:5px;background:var(--hover);border:1px solid var(--edge-2);color:var(--steel-2)}
+
+  /* ================= APP SHELL ================= */
+  .shell{display:flex;min-height:100vh}
+  .main{flex:1;min-width:0}
+
+  /* ---- sidebar (desktop) ---- */
+  .sidebar{
+    display:none;position:fixed;top:0;bottom:0;left:0;width:var(--sb-w);z-index:70;
+    flex-direction:column;background:var(--glass);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);
+    border-right:1px solid var(--edge);padding:20px 14px 16px;overflow-y:auto;
   }
+  .sb-brand{display:flex;align-items:center;gap:11px;padding:2px 8px 16px}
+  .sb-brand .brandname{font-size:13.5px}
+  .sb-search{
+    display:flex;align-items:center;gap:9px;width:100%;padding:10px 12px;margin-bottom:14px;
+    border-radius:var(--r-btn);background:var(--surface);border:1px solid var(--edge);color:var(--steel);
+    font-size:13px;font-weight:500;box-shadow:var(--card-sh);transition:border-color .15s;
+  }
+  .sb-search kbd{margin-left:auto}
+  @media(hover:hover){.sb-search:hover{border-color:var(--blue-3);color:var(--steel-2)}}
+  .sb-sec{font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--steel);font-weight:700;padding:14px 10px 7px}
+  .sb-item{
+    display:flex;align-items:center;gap:11px;width:100%;padding:10px 11px;border-radius:10px;
+    font-size:13.5px;font-weight:600;color:var(--steel-2);text-align:left;
+    transition:background .14s,color .14s;position:relative;
+  }
+  .sb-item svg{flex-shrink:0;opacity:.85}
+  .sb-item .n{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--steel);font-weight:500}
+  @media(hover:hover){.sb-item:hover{background:var(--hover);color:var(--text)}}
+  .sb-item.active{background:var(--blue-soft);color:var(--blue-2)}
+  .sb-item.active::before{content:"";position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--blue-line)}
+  .sb-foot{margin-top:auto;padding-top:16px;display:flex;flex-direction:column;gap:8px}
+  .sb-chips{display:flex;gap:8px}
+  .sb-chips>*{flex:1;justify-content:center}
+  .sb-btnrow{display:flex;gap:8px}
+  .sb-tool{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 10px;border-radius:10px;
+    background:var(--surface);border:1px solid var(--edge);color:var(--steel-2);font-size:12px;font-weight:600;
+    transition:border-color .15s,color .15s;
+  }
+  @media(hover:hover){.sb-tool:hover{border-color:var(--blue-3);color:var(--blue-2)}}
+
+  /* ---- brand ---- */
   .brandmark{
     width:36px;height:36px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;
     background:var(--brand-face);border:1px solid var(--blue-3);color:var(--blue-2);
     box-shadow:0 0 14px rgba(47,111,237,.18),inset 0 1px 0 rgba(255,255,255,.6);
   }
-  .brandname{font-family:var(--font-d);font-weight:700;font-size:16px;letter-spacing:.18em;color:var(--text)}
-  .brandname small{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.34em;color:var(--steel);font-weight:500;margin-top:1px}
+  .brandname{font-family:var(--font-d);font-weight:700;font-size:15px;letter-spacing:.16em;color:var(--text)}
+  .brandname small{display:block;font-family:var(--mono);font-size:7.5px;letter-spacing:.34em;color:var(--steel);font-weight:500;margin-top:1px}
+
+  /* ---- top bar ---- */
+  .top{
+    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:10px;
+    padding:calc(12px + env(safe-area-inset-top)) 18px 12px;
+    background:var(--glass);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);
+    border-bottom:1px solid var(--edge);
+  }
+  .top .brandwrap{display:flex;align-items:center;gap:10px}
+  .pageTitle{display:none;font-family:var(--font-d);font-weight:600;font-size:17px;letter-spacing:.04em}
   .top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
   .streak{display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:9px;background:var(--surface);border:1px solid var(--edge);font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--amber)}
   .masteryChip{display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:9px;background:var(--blue-soft);border:1px solid var(--blue-3);font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--blue-2)}
-  /* ================= LAYOUT ================= */
+  .iconBtn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--edge);color:var(--steel-2);flex-shrink:0;transition:border-color .15s,color .15s}
+  .iconBtn:active{transform:scale(.93)}
+  @media(hover:hover){.iconBtn:hover{border-color:var(--blue-3);color:var(--blue-2)}}
+
+  /* ================= VIEWS ================= */
   .view{max-width:760px;margin:0 auto;padding:18px 16px calc(96px + env(safe-area-inset-bottom));display:none;flex-direction:column;gap:14px;animation:fadeUp .4s ease}
   .view.active{display:flex}
   @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  /* ================= PANELS / CARDS ================= */
+
+  /* ================= COMMON ================= */
   .panel{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:18px;box-shadow:var(--card-sh)}
   .chipBadge{
     display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:100px;
     background:var(--blue-soft);border:1px solid var(--blue-3);color:var(--blue-2);
     font-size:12.5px;font-weight:600;width:fit-content;
   }
-  .hero{position:relative;overflow:hidden;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:22px 20px;box-shadow:var(--card-sh)}
-  .hero::after{content:"";position:absolute;right:-70px;top:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,var(--hero-glow),transparent 65%);pointer-events:none}
-  .hero h1{font-family:var(--font-d);font-weight:700;font-size:clamp(28px,7.4vw,40px);line-height:1.08;letter-spacing:.01em;margin:13px 0 9px;text-transform:none}
-  .hero p{color:var(--steel-2);font-size:14.5px;line-height:1.6;max-width:480px}
-  .hero-cta{display:flex;align-items:center;gap:12px;margin-top:17px;flex-wrap:wrap}
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;border-radius:var(--r-btn);
     background:var(--blue-face);color:var(--on-accent);font-weight:700;font-size:14px;border:1px solid var(--blue-2);
     box-shadow:0 8px 22px -10px var(--blue-glow),inset 0 1px 0 rgba(255,255,255,.3);
-    transition:transform .12s ease,filter .12s ease;white-space:nowrap;
+    transition:transform .12s ease,filter .12s ease;white-space:nowrap;text-decoration:none;
   }
   .btn:active{transform:translateY(1px);filter:brightness(.97)}
   @media(hover:hover){.btn:hover{filter:brightness(1.07);transform:translateY(-1px)}}
   .btn.green{background:linear-gradient(135deg,#4ade80,#16a34a 55%,#15803d);border-color:#15803d;box-shadow:0 8px 22px -10px rgba(22,163,74,.4),inset 0 1px 0 rgba(255,255,255,.3)}
+  .btn.ghost{background:var(--surface);color:var(--blue-2);border:1px solid var(--edge-2);box-shadow:var(--card-sh)}
   .btn.full{width:100%;padding:15px;font-size:15px}
-  .hero-note{font-family:var(--mono);font-size:11.5px;color:var(--steel)}
-  /* stat tiles */
+  .btn.danger{background:var(--surface);color:var(--red);border:1px solid var(--edge-2);box-shadow:var(--card-sh)}
+  .sectionHead{display:flex;align-items:center;gap:9px;margin:6px 2px -4px}
+  .sectionHead i{width:4px;height:17px;border-radius:3px;background:var(--blue-line);flex-shrink:0}
+  .sectionHead h3{font-family:var(--font-d);font-weight:600;font-size:16px;letter-spacing:.05em}
+  .sectionHead .mono{margin-left:auto;font-size:11px;color:var(--steel);font-weight:500}
+  .ring-track{fill:none;stroke:var(--hover);stroke-width:5}
+  .ring-fill{fill:none;stroke:url(#blueGrad);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.22,1,.36,1)}
+  .empty{text-align:center;color:var(--steel);font-size:13px;padding:30px 16px}
+  .footerNote{text-align:center;font-family:var(--mono);color:var(--steel);font-size:10px;letter-spacing:.2em;text-transform:uppercase;padding:14px 0 4px}
+  .backlink{display:inline-flex;align-items:center;gap:7px;color:var(--blue-2);font-size:13px;font-weight:700;padding:2px 2px;width:fit-content}
+
+  /* ================= DASHBOARD ================= */
+  .greet{padding:4px 4px 0}
+  .greet small{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--steel);font-weight:700;margin-bottom:5px}
+  .greet h1{font-family:var(--font-d);font-weight:700;font-size:clamp(24px,6vw,32px);line-height:1.1;letter-spacing:.01em}
+  .heroDash{
+    position:relative;overflow:hidden;display:flex;align-items:center;gap:18px;
+    background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:22px 20px;box-shadow:var(--card-sh);
+  }
+  .heroDash::after{content:"";position:absolute;right:-70px;top:-70px;width:230px;height:230px;border-radius:50%;background:radial-gradient(circle,var(--hero-glow),transparent 65%);pointer-events:none}
+  .heroDash .hd-body{flex:1;min-width:0;position:relative;z-index:1}
+  .heroDash .hd-kicker{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue-2);font-weight:700}
+  .heroDash h2{font-family:var(--font-d);font-weight:700;font-size:clamp(20px,5vw,26px);line-height:1.18;margin:8px 0 4px}
+  .heroDash .hd-crumb{font-size:12.5px;color:var(--steel);margin-bottom:15px}
+  .heroDash .hd-cta{display:flex;gap:10px;flex-wrap:wrap}
+  .heroDash .hd-ring{position:relative;flex-shrink:0;width:92px;height:92px;z-index:1}
+  .heroDash .hd-ring svg{transform:rotate(-90deg)}
+  .heroDash .hd-ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:17px;font-weight:700;color:var(--blue-2)}
+  .heroDash .hd-ring span{position:absolute;left:0;right:0;bottom:-19px;text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--steel);font-weight:700}
+  @media(max-width:520px){.heroDash .hd-ring{display:none}}
   .statGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
   @media(max-width:560px){.statGrid{grid-template-columns:repeat(2,1fr)}}
   .stat{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:14px 8px;text-align:center;box-shadow:var(--card-sh)}
   .stat b{display:block;font-family:var(--mono);font-size:26px;font-weight:700;line-height:1.1;color:var(--text)}
   .stat b.c-blue{color:var(--blue)}.stat b.c-green{color:var(--green)}.stat b.c-red{color:var(--red)}.stat b.c-amber{color:var(--amber)}
   .stat span{display:block;font-size:11.5px;color:var(--steel);margin-top:4px;font-weight:500}
-  /* section head — "| Title" style */
-  .sectionHead{display:flex;align-items:center;gap:9px;margin:6px 2px -4px}
-  .sectionHead i{width:4px;height:17px;border-radius:3px;background:var(--blue-line);flex-shrink:0}
-  .sectionHead h3{font-family:var(--font-d);font-weight:600;font-size:16px;letter-spacing:.05em}
-  .sectionHead .mono{margin-left:auto;font-size:11px;color:var(--steel);font-weight:500}
-  /* track progress rows */
+  .duoGrid{display:grid;grid-template-columns:1fr;gap:10px}
+  @media(min-width:680px){.duoGrid{grid-template-columns:1fr 1fr}}
+  .mini{
+    display:flex;flex-direction:column;gap:9px;text-align:left;
+    background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:15px 16px;box-shadow:var(--card-sh);
+    transition:transform .25s cubic-bezier(.22,1,.36,1),border-color .2s;color:var(--text);
+  }
+  .mini:active{transform:scale(.985)}
+  @media(hover:hover){.mini:hover{border-color:var(--blue-3);transform:translateY(-1px)}}
+  .mini .m-k{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;color:var(--blue-2)}
+  .mini b{font-size:14.5px;font-weight:600;line-height:1.35}
+  .mini span{font-size:11.5px;color:var(--steel)}
   .snap{display:flex;flex-direction:column;gap:12px}
   .snap-row{display:flex;align-items:center;gap:11px}
   .snap-label{flex:0 0 108px;font-size:12.5px;color:var(--steel-2);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .snap-bar{flex:1;height:8px;border-radius:5px;background:var(--hover);overflow:hidden}
   .snap-fill{height:100%;background:var(--blue-line);border-radius:5px;transition:width .6s cubic-bezier(.2,.8,.2,1)}
   .snap-n{flex:0 0 52px;text-align:right;font-family:var(--mono);font-size:11.5px;color:var(--text);font-weight:700}
-  /* segmented level pills */
+
+  /* ================= COURSES ================= */
+  .course{
+    display:flex;align-items:center;gap:15px;width:100%;text-align:left;
+    background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-lg);padding:18px 17px;box-shadow:var(--card-sh);
+    transition:transform .25s cubic-bezier(.22,1,.36,1),border-color .2s,box-shadow .2s;color:var(--text);
+  }
+  .course:active{transform:scale(.985)}
+  @media(hover:hover){.course:hover{border-color:var(--blue-3);transform:translateY(-2px);box-shadow:0 6px 18px -6px var(--shadow),0 14px 34px -18px var(--shadow)}}
+  .course .c-icon{
+    width:52px;height:52px;border-radius:14px;flex-shrink:0;display:grid;place-items:center;
+    background:var(--blue-soft);color:var(--blue-2);border:1px solid var(--blue-3);
+  }
+  .course .c-t{flex:1;min-width:0}
+  .course .c-t b{display:block;font-family:var(--font-d);font-weight:600;font-size:17px;letter-spacing:.02em}
+  .course .c-t span{display:block;font-size:12px;color:var(--steel);margin:3px 0 9px;line-height:1.45}
+  .course .c-bar{height:7px;border-radius:4px;background:var(--hover);overflow:hidden;max-width:280px}
+  .course .c-bar i{display:block;height:100%;background:var(--blue-line);border-radius:4px}
+  .course .c-ring{position:relative;width:52px;height:52px;flex-shrink:0}
+  .course .c-ring svg{transform:rotate(-90deg)}
+  .course .c-ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--blue-2)}
+  .soon{border-style:dashed;opacity:.8}
+  .soon .c-icon{background:var(--hover);color:var(--steel);border-color:var(--edge-2)}
+
+  /* ================= TRACK / SKILL PATH ================= */
   .segWrap{position:sticky;top:calc(61px + env(safe-area-inset-top));z-index:20;padding:2px 0}
   .seg-group{
     display:flex;gap:4px;padding:4px;border-radius:var(--r-card);overflow-x:auto;scrollbar-width:none;
@@ -120,19 +228,14 @@
   .seg{flex:1 0 auto;padding:9px 14px;border-radius:9px;font-size:12.5px;color:var(--steel-2);font-weight:600;white-space:nowrap;transition:color .16s ease,background .18s cubic-bezier(.22,1,.36,1),box-shadow .18s ease;text-align:center}
   .seg.on{background:var(--surface);color:var(--blue-2);box-shadow:0 2px 8px -2px var(--shadow),inset 0 0 0 1px var(--edge)}
   .seg .mono{font-size:10px;margin-left:5px;opacity:.75}
-  /* level meta card */
   .levelMeta{display:flex;align-items:center;gap:13px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:14px 16px;box-shadow:var(--card-sh)}
   .levelMeta .lm-ring{position:relative;width:48px;height:48px;flex-shrink:0}
   .levelMeta .lm-ring svg{transform:rotate(-90deg)}
   .levelMeta .lm-ring b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--blue-2)}
   .levelMeta .lm-t b{display:block;font-family:var(--font-d);font-weight:600;font-size:16.5px;letter-spacing:.02em}
   .levelMeta .lm-t span{display:block;font-size:12px;color:var(--steel);margin-top:2px}
-  .ring-track{fill:none;stroke:var(--hover);stroke-width:5}
-  .ring-fill{fill:none;stroke:url(#blueGrad);stroke-width:5;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.22,1,.36,1)}
-  /* module label */
   .moduleName{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--steel);font-weight:700;margin:10px 4px -6px}
   .moduleName::after{content:"";flex:1;height:1px;background:var(--edge)}
-  /* lesson cards */
   .cards{display:flex;flex-direction:column;gap:9px}
   .card{
     display:flex;align-items:center;gap:13px;text-align:left;width:100%;
@@ -152,6 +255,7 @@
   .card .ct b{display:block;font-size:14.5px;font-weight:600;line-height:1.35;letter-spacing:-.005em}
   .card .ct span{display:block;font-size:11.5px;color:var(--steel);margin-top:2.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .card.done .ct b{color:var(--steel-2)}
+  .card .mins{flex-shrink:0;font-family:var(--mono);font-size:10px;color:var(--steel);font-weight:500}
   .check{
     width:25px;height:25px;flex-shrink:0;border-radius:50%;border:1.5px solid var(--edge-2);
     display:grid;place-items:center;transition:all .25s;background:var(--surface);
@@ -159,7 +263,8 @@
   .check svg{opacity:0;transform:scale(.4);transition:all .3s cubic-bezier(.34,1.56,.64,1)}
   .card.done .check{background:var(--green);border-color:var(--green);box-shadow:0 3px 10px -3px rgba(22,163,74,.5)}
   .card.done .check svg{opacity:1;transform:scale(1)}
-  /* search */
+
+  /* ================= SEARCH ================= */
   .searchBox{position:relative}
   .searchBox svg{position:absolute;left:15px;top:50%;transform:translateY(-50%);color:var(--steel);pointer-events:none}
   .searchBox input{
@@ -170,7 +275,25 @@
   .searchBox input::placeholder{color:var(--steel)}
   .searchBox input:focus{border-color:var(--blue-3);box-shadow:0 0 0 3px var(--blue-soft),var(--card-sh)}
   .rhead{font-family:var(--mono);font-size:12px;color:var(--steel);padding:2px 4px}
-  .empty{text-align:center;color:var(--steel);font-size:13px;padding:30px 16px}
+
+  /* ================= PROGRESS / BADGES ================= */
+  .bigRing{position:relative;width:132px;height:132px;margin:0 auto}
+  .bigRing svg{transform:rotate(-90deg)}
+  .bigRing b{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--mono);font-size:26px;font-weight:700;color:var(--blue-2)}
+  .badges{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  @media(min-width:680px){.badges{grid-template-columns:repeat(3,1fr)}}
+  .badge{
+    display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+    background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:16px 10px;box-shadow:var(--card-sh);
+  }
+  .badge .b-ic{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:21px;background:var(--blue-soft);border:1px solid var(--blue-3)}
+  .badge b{font-size:12.5px;font-weight:700}
+  .badge span{font-size:10.5px;color:var(--steel);line-height:1.4}
+  .badge.locked{opacity:.45;filter:grayscale(1)}
+  .badge.locked .b-ic{background:var(--hover);border-color:var(--edge-2)}
+  .actRow{display:flex;gap:10px;flex-wrap:wrap}
+  .actRow .btn{flex:1;min-width:150px}
+
   /* ================= BOTTOM TAB BAR ================= */
   .tabbar{
     position:fixed;bottom:0;left:0;right:0;z-index:60;display:flex;justify-content:space-around;align-items:center;
@@ -183,7 +306,33 @@
   .tab.active{color:var(--blue-2)}
   .tab.active svg{filter:drop-shadow(0 3px 6px var(--blue-glow))}
   .tab:active{transform:scale(.94)}
-  /* ================= LESSON SHEET ================= */
+
+  /* ================= COMMAND PALETTE ================= */
+  #palette{position:fixed;inset:0;z-index:150;display:none;background:rgba(8,14,26,.45);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+  #palette.open{display:block}
+  .pal{
+    width:min(640px,92vw);margin:max(10vh,60px) auto 0;background:var(--surface);border:1px solid var(--edge);
+    border-radius:16px;box-shadow:0 30px 80px -20px rgba(0,0,0,.45);overflow:hidden;animation:palIn .18s ease;
+  }
+  @keyframes palIn{from{opacity:0;transform:translateY(-8px) scale(.98)}to{opacity:1;transform:none}}
+  .palTop{display:flex;align-items:center;gap:11px;padding:15px 17px;border-bottom:1px solid var(--edge)}
+  .palTop svg{color:var(--steel);flex-shrink:0}
+  .palTop input{flex:1;border:none;outline:none;background:none;font-size:16px;color:var(--text)}
+  .palTop input::placeholder{color:var(--steel)}
+  .palList{max-height:min(46vh,420px);overflow-y:auto;padding:7px}
+  .palItem{
+    display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:11px 12px;border-radius:10px;
+    color:var(--text);font-size:13.5px;font-weight:500;
+  }
+  .palItem .pi-ic{width:30px;height:30px;border-radius:8px;flex-shrink:0;display:grid;place-items:center;background:var(--blue-soft);color:var(--blue-2)}
+  .palItem .pi-t{flex:1;min-width:0}
+  .palItem .pi-t b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .palItem .pi-t span{display:block;font-size:11px;color:var(--steel);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+  .palItem.sel{background:var(--blue-soft)}
+  .palItem .pi-k{font-family:var(--mono);font-size:9.5px;color:var(--steel);letter-spacing:.08em;text-transform:uppercase}
+  .palHint{display:flex;gap:14px;padding:9px 17px;border-top:1px solid var(--edge);font-family:var(--mono);font-size:10px;color:var(--steel)}
+
+  /* ================= LESSON READER ================= */
   #sheet{
     position:fixed;inset:0;z-index:100;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;
     transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;
@@ -193,16 +342,20 @@
   .sheetBar{
     position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:10px;
     padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
-    background:rgba(255,255,255,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
     border-bottom:1px solid var(--edge);
   }
   .backBtn{display:flex;align-items:center;gap:6px;color:var(--blue-2);font-size:14.5px;font-weight:700;padding:6px 8px;border-radius:9px}
   .backBtn:active{background:var(--blue-soft)}
-  .sheetBar .crumb{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-weight:600;text-align:right}
+  .sheetBar .crumb{flex:1;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-weight:600;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sheetBar .barBtns{display:flex;gap:7px}
+  #readBar{position:sticky;top:calc(59px + env(safe-area-inset-top));z-index:9;height:3px;background:transparent}
+  #readBar i{display:block;height:100%;width:0%;background:var(--blue-line);border-radius:0 2px 2px 0;transition:width .1s linear}
   .sheetInner{max-width:720px;margin:0 auto;padding:24px 18px calc(60px + env(safe-area-inset-bottom))}
   .lessonChip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:100px;background:var(--blue-soft);border:1px solid var(--blue-3);color:var(--blue-2);font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-  .sheetInner h2{font-family:var(--font-d);font-weight:700;font-size:clamp(24px,6vw,32px);line-height:1.14;letter-spacing:.005em;margin:12px 0 6px}
-  .lessonMeta{color:var(--steel);font-size:13px;margin-bottom:18px}
+  .sheetInner h2{font-family:var(--font-d);font-weight:700;font-size:clamp(24px,6vw,34px);line-height:1.14;letter-spacing:.005em;margin:12px 0 10px}
+  .lessonMeta{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:18px}
+  .metaChip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:8px;background:var(--surface);border:1px solid var(--edge);font-family:var(--mono);font-size:10.5px;font-weight:600;color:var(--steel-2)}
   .videoBox{border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--edge);background:var(--surface);box-shadow:var(--card-sh)}
   .videoBox .frame{position:relative;padding-top:56.25%;background:var(--video-bg)}
   .videoBox iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
@@ -211,21 +364,20 @@
     width:52px;height:52px;border-radius:50%;flex-shrink:0;display:grid;place-items:center;color:var(--on-accent);
     background:var(--blue-face);box-shadow:0 8px 22px -8px var(--blue-glow);transition:transform .25s;
   }
-  .vcap{display:flex;align-items:center;gap:7px;padding:11px 14px;border-top:1px solid var(--edge);font-size:12px;color:var(--steel-2);background:var(--surface)}
-  .vcap b{color:var(--text);font-weight:600}
-  .iconBtn{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--edge);color:var(--steel-2);flex-shrink:0}
-  .iconBtn:active{transform:scale(.93)}
   .ytBtn:active .play{transform:scale(.92)}
   .ytBtn b{display:block;font-size:15px;font-weight:700;margin-bottom:2px}
   .ytBtn span{font-size:12.5px;color:var(--steel-2);line-height:1.45;display:block}
+  .vcap{display:flex;align-items:center;gap:7px;padding:11px 14px;border-top:1px solid var(--edge);font-size:12px;color:var(--steel-2);background:var(--surface)}
+  .vcap b{color:var(--text);font-weight:600}
   .moreVids{display:block;text-align:center;font-family:var(--mono);font-size:11.5px;color:var(--steel);text-decoration:none;padding:12px 0 0}
   .moreVids u{color:var(--blue-2);font-weight:600}
   .lbody{margin-top:8px}
-  .lsec{display:flex;align-items:center;gap:9px;margin:26px 0 13px}
+  .lsec{display:flex;align-items:center;gap:9px;margin:28px 0 13px}
   .lsec i{width:4px;height:15px;border-radius:3px;background:var(--blue-line);flex-shrink:0}
   .lsec h4{font-family:var(--font-d);font-weight:600;font-size:14px;letter-spacing:.09em;text-transform:uppercase}
-  .lbody p{font-size:15.5px;line-height:1.75;color:var(--light);margin-bottom:14px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:15px 17px;box-shadow:var(--card-sh)}
-  .terms{display:flex;flex-direction:column;gap:9px}
+  .lbody p{font-size:16px;line-height:1.8;color:var(--light);margin-bottom:16px}
+  .terms{display:grid;grid-template-columns:1fr;gap:9px}
+  @media(min-width:640px){.terms{grid-template-columns:1fr 1fr}}
   .term{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:12px 15px;box-shadow:var(--card-sh)}
   .term b{color:var(--blue-2);font-size:13.5px;font-weight:700}
   .term span{display:block;font-size:13px;color:var(--steel-2);line-height:1.55;margin-top:3px}
@@ -238,8 +390,26 @@
     display:grid;place-items:center;
   }
   .completeBtn{margin-top:28px}
-  .footerNote{text-align:center;font-family:var(--mono);color:var(--steel);font-size:10px;letter-spacing:.2em;text-transform:uppercase;padding:14px 0 4px}
-  /* ============ THEME GALLERY ============ */
+  .pnRow{display:flex;gap:10px;margin-top:12px}
+  .pnRow .btn{flex:1;padding:13px 10px;font-size:13px}
+  .pnRow .btn:disabled{opacity:.4;pointer-events:none}
+  /* focus mode: pure reading */
+  #sheet.zen .videoBox,#sheet.zen .moreVids,#sheet.zen .tutorCard{display:none}
+  #sheet.zen .sheetInner{max-width:640px}
+  #sheet.zen .lbody p{font-size:17.5px;line-height:1.9}
+  .zenBtn.on{color:var(--blue-2);border-color:var(--blue-3);background:var(--blue-soft)}
+
+  /* ================= TOAST ================= */
+  #toast{
+    position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(16px);z-index:200;
+    background:var(--text);color:var(--bg);font-size:13px;font-weight:600;padding:11px 20px;border-radius:100px;
+    box-shadow:0 12px 30px -8px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;
+    max-width:88vw;text-align:center;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media(min-width:1080px){#toast{bottom:36px}}
+
+  /* ================= THEME GALLERY ================= */
   #themes{position:fixed;inset:0;z-index:120;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
   #themes.open{transform:translateY(0);visibility:visible}
   .tInner{max-width:760px;margin:0 auto;padding:18px 16px calc(50px + env(safe-area-inset-bottom))}
@@ -259,6 +429,16 @@
   .tstar{position:absolute;top:14px;right:14px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.85);color:#b9b9c2;border:1px solid rgba(0,0,0,.08)}
   .tstar.on{color:#f59e0b}
   .tcheck{color:var(--blue-2)}
+  /* ---- desktop layout switch (last: must win over base rules) ---- */
+  @media(min-width:1080px){
+    .sidebar{display:flex}
+    .main{margin-left:var(--sb-w)}
+    .tabbar{display:none}
+    .top .brandwrap{display:none}
+    .pageTitle{display:block}
+    .top .themeTop{display:none}
+    .view{padding:26px 34px 60px;max-width:920px}
+  }
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -270,26 +450,80 @@
   </linearGradient>
 </defs></svg>
 
-<header class="top">
-  <div class="brandmark">
-    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><circle cx="12" cy="14" r="2.4"/><path d="M12 16.4V18"/></svg>
+<div class="shell">
+
+<aside class="sidebar" id="sidebar">
+  <div class="sb-brand">
+    <div class="brandmark">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><circle cx="12" cy="14" r="2.4"/><path d="M12 16.4V18"/></svg>
+    </div>
+    <div class="brandname">BUSINESS VAULT<small>PRIVATE UNIVERSITY</small></div>
   </div>
-  <div class="brandname">BUSINESS VAULT<small>PRIVATE UNIVERSITY</small></div>
+  <button class="sb-search" onclick="openPalette()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    Quick search<kbd>⌘K</kbd>
+  </button>
+  <nav id="sbNav"></nav>
+  <div class="sb-foot">
+    <div class="sb-chips">
+      <div class="streak" title="Day streak">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 0.7s.8 3.2-1.6 6.4C9.6 10.2 7 11.7 7 15a5.5 5.5 0 0 0 11 0c0-1.6-.6-2.9-1.4-4.1-.6 1-1.6 1.9-2.6 2.1.6-1.9 1-4.9-.5-7.5-1-1.9-3-4.8 0-4.8z" transform="translate(-1.5 2) scale(0.95)"/></svg>
+        <span class="streakN">1</span>
+      </div>
+      <div class="masteryChip" title="Mastery"><span class="masteryPct">0%</span></div>
+    </div>
+    <div class="sb-btnrow">
+      <button class="sb-tool" onclick="toggleAppearance()" id="appearBtn" title="Toggle light / dark">
+        <span id="appearIcon"></span><span id="appearLabel">Dark</span>
+      </button>
+      <button class="sb-tool" onclick="openThemes()" title="Theme gallery">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 0 0 20c1.2 0 2-.9 2-2 0-.6-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 22 10.6 8.9 8.9 0 0 0 12 2z"/><circle cx="7.5" cy="10.5" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16.5" cy="10.5" r="1.3"/></svg>
+        Themes
+      </button>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+<header class="top">
+  <div class="brandwrap">
+    <div class="brandmark">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><circle cx="12" cy="14" r="2.4"/><path d="M12 16.4V18"/></svg>
+    </div>
+    <div class="brandname">BUSINESS VAULT<small>PRIVATE UNIVERSITY</small></div>
+  </div>
+  <div class="pageTitle" id="pageTitle">Dashboard</div>
   <div class="top-right">
-    <button class="iconBtn" onclick="openThemes()" aria-label="Theme gallery">
+    <button class="iconBtn themeTop" onclick="openThemes()" aria-label="Theme gallery">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 0 0 20c1.2 0 2-.9 2-2 0-.6-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 22 10.6 8.9 8.9 0 0 0 12 2z"/><circle cx="7.5" cy="10.5" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16.5" cy="10.5" r="1.3"/></svg>
     </button>
-    <div class="streak" id="streakChip" title="Day streak">
+    <div class="streak" title="Day streak">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 0.7s.8 3.2-1.6 6.4C9.6 10.2 7 11.7 7 15a5.5 5.5 0 0 0 11 0c0-1.6-.6-2.9-1.4-4.1-.6 1-1.6 1.9-2.6 2.1.6-1.9 1-4.9-.5-7.5-1-1.9-3-4.8 0-4.8z" transform="translate(-1.5 2) scale(0.95)"/></svg>
-      <span id="streakN">1</span>
+      <span class="streakN">1</span>
     </div>
-    <div class="masteryChip"><span id="masteryPct">0%</span></div>
+    <div class="masteryChip"><span class="masteryPct">0%</span></div>
   </div>
 </header>
 
 <main id="views"></main>
+</div>
+</div>
 
 <nav class="tabbar" id="tabbar"></nav>
+
+<div id="palette">
+  <div class="pal">
+    <div class="palTop">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="palInput" type="text" placeholder="Search lessons, pages, actions…" autocomplete="off" spellcheck="false">
+      <kbd>ESC</kbd>
+    </div>
+    <div class="palList" id="palList"></div>
+    <div class="palHint"><span>↑↓ navigate</span><span>↵ open</span><span>esc close</span></div>
+  </div>
+</div>
+
+<div id="toast" role="status"></div>
 
 <div id="themes" role="dialog" aria-modal="true">
   <div class="sheetBar">
@@ -298,6 +532,7 @@
       Done
     </button>
     <div class="crumb">Theme Gallery</div>
+    <div class="barBtns"></div>
   </div>
   <div class="tInner">
     <div class="sectionHead"><i></i><h3>CHOOSE YOUR LOOK</h3><span class="mono" id="tcount"></span></div>
@@ -315,7 +550,13 @@
       Back
     </button>
     <div class="crumb" id="sheetCrumb"></div>
+    <div class="barBtns">
+      <button class="iconBtn zenBtn" id="zenBtn" onclick="toggleZen()" aria-label="Focus mode" title="Focus mode — pure reading">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
   </div>
+  <div id="readBar"><i></i></div>
   <div class="sheetInner" id="sheetInner"></div>
 </div>
 
@@ -940,8 +1181,11 @@ const VIDEO_MAP={"f1":{"v":"CBYhVcO4WgI","title":"Lecture 1 - How to Start a Sta
 /* ================= APP ENGINE ================= */
 const LS_KEY="businessVaultProgress_v1";
 const DAYS_KEY="businessVaultDays_v1";
+const LAST_KEY="bvLastLesson_v1";
+const ZEN_KEY="bvFocus_v1";
 let done=new Set(JSON.parse(localStorage.getItem(LS_KEY)||"[]"));
 function saveProgress(){localStorage.setItem(LS_KEY,JSON.stringify([...done]))}
+let lastLesson=localStorage.getItem(LAST_KEY)||"";
 
 /* streak */
 function todayStr(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
@@ -961,59 +1205,31 @@ DATA.forEach(tr=>tr.levels.forEach(lv=>lv.modules.forEach(mo=>mo.lessons.forEach
 }))));
 const byId={};allLessons.forEach((l,i)=>{l.idx=i;byId[l.id]=l});
 
-/* ================= NAV / VIEWS ================= */
-const ICONS={
-  home:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>',
-  biz:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8.2l10 5.2 10-5.2z"/><path d="M6 10.5V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-5.5"/><path d="M22 8.2V14"/></svg>',
-  wash:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.3 6 11a6 6 0 0 1-12 0c0-4.7 6-11 6-11z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/></svg>',
-  pest:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.4-3.2 7.6-8 9-4.8-1.4-8-4.6-8-9V6z"/><path d="M9 12l2.2 2.2L15.5 9.5"/></svg>',
-  search:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>'
-};
-const NAV=[
-  {id:"home",label:"Home"},
-  {id:"biz",label:"Business"},
-  {id:"wash",label:"Car Wash"},
-  {id:"pest",label:"Pest Control"},
-  {id:"search",label:"Search"}
-];
-let activeView="home";
-const levelSel={};DATA.forEach(tr=>levelSel[tr.id]=0);
-
-const viewsEl=document.getElementById("views");
-NAV.forEach(n=>{
-  const d=document.createElement("div");d.className="view";d.id="view-"+n.id;viewsEl.appendChild(d);
-});
-const tabbarEl=document.getElementById("tabbar");
-NAV.forEach(n=>{
-  const b=document.createElement("button");
-  b.className="tab";b.id="tab-"+n.id;
-  b.innerHTML=ICONS[n.id]+"<span>"+n.label+"</span>";
-  b.onclick=()=>setView(n.id);
-  tabbarEl.appendChild(b);
-});
-function setView(id){
-  activeView=id;
-  NAV.forEach(n=>{
-    document.getElementById("view-"+n.id).classList.toggle("active",n.id===id);
-    document.getElementById("tab-"+n.id).classList.toggle("active",n.id===id);
-  });
-  window.scrollTo({top:0});
-  if(id==="search")setTimeout(()=>{const i=document.getElementById("searchInput");if(i&&!i.value)i.focus()},250);
+/* lesson meta */
+function lessonMins(le){
+  const w=((le.p||[]).join(" ")+" "+(le.ex||"")+" "+(le.keys||[]).join(" ")).split(/\s+/).length;
+  return Math.max(4,Math.round(w/170)+2);
+}
+const DIFF=["Beginner","Intermediate","Advanced","Operator","Executive","Mastery"];
+function difficulty(le){
+  if(le.track.id==="biz"){const i=le.track.levels.findIndex(l=>l.id===le.level.id);return DIFF[Math.min(Math.max(i,0),5)]}
+  return "Operator";
 }
 
 /* ================= HELPERS ================= */
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
-function ringSVG(size,r,pct){
-  const c=2*Math.PI*r,off=c*(1-pct);
+function ringSVG(size,r,pct,w){
+  const c=2*Math.PI*r,off=c*(1-Math.min(Math.max(pct,0),1)),sw=w||5;
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+
-    '<circle class="ring-track" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'"/>'+
-    '<circle class="ring-fill" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg>';
+    '<circle class="ring-track" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" style="stroke-width:'+sw+'"/>'+
+    '<circle class="ring-fill" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" style="stroke-width:'+sw+'" stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'"/></svg>';
 }
 function cardHTML(le,num,crumb){
   const isDone=done.has(le.id);
   return '<button class="card'+(isDone?" done":"")+'" onclick="openLesson(\''+le.id+'\')">'+
     '<span class="num">'+num+'</span>'+
     '<span class="ct"><b>'+le.t+'</b><span>'+crumb+'</span></span>'+
+    '<span class="mins">'+lessonMins(le)+'m</span>'+
     '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
 }
 function trackStats(tr){
@@ -1022,26 +1238,105 @@ function trackStats(tr){
   return {done:d,total:ls.length,pct:ls.length?d/ls.length:0};
 }
 function nextIncomplete(){return allLessons.find(l=>!done.has(l.id))||allLessons[0]}
+function resumeLesson(){
+  if(lastLesson&&byId[lastLesson]&&!done.has(lastLesson))return byId[lastLesson];
+  return nextIncomplete();
+}
+function dailyLesson(){
+  const seed=parseInt(todayStr().replace(/-/g,""),10);
+  return allLessons[seed%allLessons.length];
+}
 
-/* ================= HOME ================= */
+/* ================= NAV / VIEWS ================= */
+const ICONS={
+  home:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></svg>',
+  courses:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8.2l10 5.2 10-5.2z"/><path d="M6 10.5V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-5.5"/><path d="M22 8.2V14"/></svg>',
+  biz:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8.2l10 5.2 10-5.2z"/><path d="M6 10.5V16c0 1.6 2.7 3 6 3s6-1.4 6-3v-5.5"/><path d="M22 8.2V14"/></svg>',
+  wash:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.3 6 11a6 6 0 0 1-12 0c0-4.7 6-11 6-11z"/><path d="M9.5 14.5a2.5 2.5 0 0 0 2.5 2.5"/></svg>',
+  pest:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.4-3.2 7.6-8 9-4.8-1.4-8-4.6-8-9V6z"/><path d="M9 12l2.2 2.2L15.5 9.5"/></svg>',
+  search:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  progress:'<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>',
+  sun:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.4"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>',
+  moon:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A8.7 8.7 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  spark:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 4.6L18 8l-4.2 1.4L12 14l-1.8-4.6L6 8l4.2-1.4z"/><path d="M19 14l.9 2.3L22 17l-2.1.7L19 20l-.9-2.3L16 17l2.1-.7z"/></svg>'
+};
+const VIEWS=["home","courses","biz","wash","pest","search","progress"];
+const TABS=[
+  {id:"home",label:"Home",ic:"home"},
+  {id:"courses",label:"Courses",ic:"courses"},
+  {id:"search",label:"Search",ic:"search"},
+  {id:"progress",label:"Progress",ic:"progress"}
+];
+const TITLES={home:"Dashboard",courses:"The Schools",biz:"Business A–Z",wash:"Car Wash School",pest:"Pest Control School",search:"Search",progress:"Progress & Mastery"};
+let activeView="home";
+const levelSel={};DATA.forEach(tr=>levelSel[tr.id]=0);
+
+const viewsEl=document.getElementById("views");
+VIEWS.forEach(id=>{
+  const d=document.createElement("div");d.className="view";d.id="view-"+id;viewsEl.appendChild(d);
+});
+const tabbarEl=document.getElementById("tabbar");
+TABS.forEach(n=>{
+  const b=document.createElement("button");
+  b.className="tab";b.id="tab-"+n.id;
+  b.innerHTML=ICONS[n.ic]+"<span>"+n.label+"</span>";
+  b.onclick=()=>setView(n.id);
+  tabbarEl.appendChild(b);
+});
+function buildSidebar(){
+  let h='<div class="sb-sec">Learn</div>';
+  [["home","Home"],["courses","Courses"],["search","Search"],["progress","Progress"]].forEach(([id,label])=>{
+    h+='<button class="sb-item" id="sb-'+id+'" onclick="setView(\''+id+'\')">'+ICONS[id==="home"?"home":id==="courses"?"courses":id]+label+'</button>';
+  });
+  h+='<div class="sb-sec">Schools</div>';
+  DATA.forEach(tr=>{
+    const s=trackStats(tr);
+    h+='<button class="sb-item" id="sb-'+tr.id+'" onclick="setView(\''+tr.id+'\')">'+ICONS[tr.id]+tr.name+'<span class="n">'+s.done+'/'+s.total+'</span></button>';
+  });
+  document.getElementById("sbNav").innerHTML=h;
+}
+function setView(id){
+  activeView=id;
+  const tabFor={home:"home",courses:"courses",biz:"courses",wash:"courses",pest:"courses",search:"search",progress:"progress"};
+  VIEWS.forEach(v=>document.getElementById("view-"+v).classList.toggle("active",v===id));
+  TABS.forEach(n=>document.getElementById("tab-"+n.id).classList.toggle("active",tabFor[id]===n.id));
+  ["home","courses","search","progress","biz","wash","pest"].forEach(v=>{
+    const el=document.getElementById("sb-"+v);if(el)el.classList.toggle("active",v===id);
+  });
+  document.getElementById("pageTitle").textContent=TITLES[id]||"";
+  window.scrollTo({top:0});
+  if(id==="search")setTimeout(()=>{const i=document.getElementById("searchInput");if(i&&!i.value&&window.innerWidth<1080)i.focus()},250);
+}
+
+/* ================= HOME / DASHBOARD ================= */
 function renderHome(){
-  const total=allLessons.length,d=done.size,pct=total?Math.round(d/total*100):0;
-  const nxt=nextIncomplete();
-  const contLabel=done.size>=total?"Review the Curriculum":"Continue Learning";
+  const total=allLessons.length,d=done.size,pct=total?d/total:0;
+  const res=resumeLesson();
+  const hNow=new Date().getHours();
+  const greet=hNow<12?"Good morning.":hNow<18?"Good afternoon.":"Good evening.";
+  const fresh=d===0;
+  const doneAll=d>=total;
   let h='';
-  h+='<div class="hero"><span class="chipBadge">'+
-     '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.6 6.2L21 9l-5 4.4L17.5 20 12 16.5 6.5 20 8 13.4 3 9l6.4-.8z"/></svg>'+
-     'Private Business University</span>'+
-     '<h1>MASTER BUSINESS.<br>OWN THE MACHINE.</h1>'+
-     '<p>From zero to doctorate-level command of business — '+total+' lessons across a six-level master curriculum plus the Car Wash and Pest Control operator tracks. Built like a Harvard MBA, aimed like a checkbook.</p>'+
-     '<div class="hero-cta"><button class="btn" onclick="openLesson(\''+nxt.id+'\')">'+
-     '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'+esc(contLabel)+'</button>'+
-     '<span class="hero-note mono">'+(done.size>=total?'All '+total+' complete':'Next · '+esc(nxt.t))+'</span></div></div>';
+  h+='<div class="greet"><small>'+new Date().toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})+'</small><h1>'+greet+'</h1></div>';
+  h+='<div class="heroDash"><div class="hd-body">'+
+     '<div class="hd-kicker">'+(doneAll?"Curriculum complete":fresh?"Your first lesson awaits":"Continue learning")+'</div>'+
+     '<h2>'+esc(res.t)+'</h2>'+
+     '<div class="hd-crumb">'+res.track.name+' · '+res.level.name+' · ~'+lessonMins(res)+' min · '+difficulty(res)+'</div>'+
+     '<div class="hd-cta">'+
+       '<button class="btn" onclick="openLesson(\''+res.id+'\')"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'+(doneAll?"Review":fresh?"Start Here":"Continue Learning")+'</button>'+
+       (fresh||doneAll?'':'<button class="btn ghost" onclick="openLesson(\''+allLessons[0].id+'\')">Start Here</button>')+
+     '</div></div>'+
+     '<div class="hd-ring">'+ringSVG(92,40,pct,6)+'<b>'+Math.round(pct*100)+'%</b><span>Mastery</span></div></div>';
   h+='<div class="statGrid">'+
      '<div class="stat"><b class="c-blue">'+d+'</b><span>Lessons Done</span></div>'+
-     '<div class="stat"><b class="c-green">'+pct+'%</b><span>Mastery</span></div>'+
+     '<div class="stat"><b class="c-green">'+Math.round(pct*100)+'%</b><span>Mastery</span></div>'+
      '<div class="stat"><b class="c-amber">'+streak()+'</b><span>Day Streak</span></div>'+
      '<div class="stat"><b>'+(total-d)+'</b><span>Remaining</span></div></div>';
+  const daily=dailyLesson(),rec=nextIncomplete();
+  h+='<div class="sectionHead"><i></i><h3>TODAY AT THE UNIVERSITY</h3></div><div class="duoGrid">'+
+     '<button class="mini" onclick="openLesson(\''+daily.id+'\')"><span class="m-k">'+ICONS.spark+'Daily Lesson</span><b>'+esc(daily.t)+'</b><span>'+daily.track.name+' · '+daily.level.name+' · ~'+lessonMins(daily)+' min'+(done.has(daily.id)?" · ✓ done":"")+'</span></button>'+
+     '<button class="mini" onclick="openLesson(\''+rec.id+'\')"><span class="m-k">'+ICONS.spark+'Recommended Next</span><b>'+esc(rec.t)+'</b><span>'+rec.track.name+' · '+rec.level.name+' · ~'+lessonMins(rec)+' min</span></button>'+
+     '</div>';
   h+='<div class="sectionHead"><i></i><h3>CURRICULUM PROGRESS</h3><span class="mono">'+d+' / '+total+'</span></div><div class="panel"><div class="snap">';
   DATA.forEach(tr=>{
     const s=trackStats(tr);
@@ -1056,15 +1351,38 @@ function renderHome(){
   allLessons.filter(l=>!done.has(l.id)).slice(0,3).forEach((le,i)=>{
     h+=cardHTML(le,i+1,le.track.name+" · "+le.level.tagline+" · "+le.module.name);
   });
-  if(done.size===allLessons.length)h+='<div class="panel empty">Every lesson complete. You built the machine. 🎓</div>';
+  if(doneAll)h+='<div class="panel empty">Every lesson complete. You built the machine. 🎓</div>';
   h+='</div><div class="footerNote">The Business Vault · Built for Mastery</div>';
   document.getElementById("view-home").innerHTML=h;
+}
+
+/* ================= COURSES ================= */
+function courseCard(tr){
+  const s=trackStats(tr);
+  const meta=tr.levels.length>1?tr.levels.length+" levels · "+s.total+" lessons":s.total+" lessons";
+  return '<button class="course" onclick="setView(\''+tr.id+'\')">'+
+    '<span class="c-icon">'+ICONS[tr.id]+'</span>'+
+    '<span class="c-t"><b>'+tr.name+'</b><span>'+tr.tag+' · '+meta+'</span>'+
+    '<span class="c-bar"><i style="width:'+(s.pct*100).toFixed(1)+'%"></i></span></span>'+
+    '<span class="c-ring">'+ringSVG(52,22,s.pct,4.5)+'<b>'+Math.round(s.pct*100)+'%</b></span></button>';
+}
+function renderCourses(){
+  let h='<div class="sectionHead"><i></i><h3>THE SCHOOLS</h3><span class="mono">'+allLessons.length+' lessons</span></div>';
+  h+='<p style="font-size:13px;color:var(--steel-2);line-height:1.6;padding:0 2px">Every school is a complete program — work through the levels in order, or jump straight to what your business needs today.</p>';
+  DATA.forEach(tr=>{h+=courseCard(tr)});
+  h+='<div class="course soon" style="cursor:default" onclick="void 0">'+
+     '<span class="c-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/></svg></span>'+
+     '<span class="c-t"><b>More Schools In Session Soon</b><span>Money & Wealth · Accounting School · Sales School · Acquisition School and more — the university is expanding.</span></span></div>';
+  h+='<div class="footerNote">Business Vault · Private University</div>';
+  document.getElementById("view-courses").innerHTML=h;
 }
 
 /* ================= TRACK VIEWS ================= */
 function renderTrack(tr){
   const s=trackStats(tr);
-  let h='<div class="sectionHead"><i></i><h3>'+tr.name.toUpperCase()+'</h3><span class="mono">'+s.done+' / '+s.total+'</span></div>';
+  let h='<button class="backlink" onclick="setView(\'courses\')">'+
+    '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>All Schools</button>';
+  h+='<div class="sectionHead"><i></i><h3>'+tr.name.toUpperCase()+'</h3><span class="mono">'+s.done+' / '+s.total+'</span></div>';
   h+='<div class="panel" style="padding:14px 16px"><p style="font-size:13px;line-height:1.6;color:var(--steel-2)">'+tr.intro+'</p></div>';
   if(tr.levels.length>1){
     h+='<div class="segWrap"><div class="seg-group">';
@@ -1090,6 +1408,9 @@ function renderTrack(tr){
 function pickLevel(trId,i){levelSel[trId]=i;renderTrack(DATA.find(t=>t.id===trId));window.scrollTo({top:0,behavior:"smooth"})}
 
 /* ================= SEARCH ================= */
+function lessonHay(l){
+  return (l.t+" "+l.module.name+" "+l.level.name+" "+l.level.tagline+" "+l.track.name+" "+(l.terms||[]).map(t=>t[0]).join(" ")).toLowerCase();
+}
 function renderSearchShell(){
   document.getElementById("view-search").innerHTML=
     '<div class="sectionHead"><i></i><h3>SEARCH THE VAULT</h3></div>'+
@@ -1101,16 +1422,83 @@ function renderSearchShell(){
     const q=e.target.value.trim().toLowerCase();
     const rc=document.getElementById("rcards"),rh=document.getElementById("rhead");
     if(q.length<2){rc.innerHTML="";rh.textContent="Search all "+allLessons.length+" lessons by topic, term, or level.";return}
-    const hits=allLessons.filter(l=>{
-      const hay=(l.t+" "+l.module.name+" "+l.level.name+" "+l.level.tagline+" "+l.track.name+" "+(l.terms||[]).map(t=>t[0]).join(" ")).toLowerCase();
-      return q.split(/\s+/).every(w=>hay.includes(w));
-    });
+    const hits=allLessons.filter(l=>q.split(/\s+/).every(w=>lessonHay(l).includes(w)));
     rh.textContent=hits.length?hits.length+" lesson"+(hits.length>1?"s":"")+" found":"No lessons match — try a broader term.";
     rc.innerHTML=hits.slice(0,40).map((l,i)=>cardHTML(l,i+1,l.track.name+" · "+l.level.tagline+" · "+l.module.name)).join("");
   });
 }
 
-/* ================= LESSON SHEET ================= */
+/* ================= PROGRESS & MASTERY ================= */
+function badgeDefs(){
+  const list=[
+    {ic:"🎯",n:"First Steps",d:"Complete your first lesson",e:done.size>=1},
+    {ic:"📚",n:"Committed",d:"Complete 10 lessons",e:done.size>=10},
+    {ic:"🎓",n:"Scholar",d:"Complete 25 lessons",e:done.size>=25},
+    {ic:"🏆",n:"Dean's List",d:"Complete 50 lessons",e:done.size>=50}
+  ];
+  DATA[0].levels.forEach(lv=>{
+    const ls=lv.modules.flatMap(m=>m.lessons);
+    list.push({ic:"🎖️",n:lv.name+" Complete",d:"Finish all of "+lv.tagline,e:ls.every(l=>done.has(l.id))});
+  });
+  DATA.slice(1).forEach(tr=>{
+    const s=trackStats(tr);
+    list.push({ic:tr.id==="wash"?"💦":"🛡️",n:tr.name+" Operator",d:"Finish the "+tr.name+" track",e:s.done>=s.total});
+  });
+  const st=streak();
+  list.push({ic:"🔥",n:"On Fire",d:"3-day study streak",e:st>=3});
+  list.push({ic:"⚡",n:"Unstoppable",d:"7-day study streak",e:st>=7});
+  list.push({ic:"💎",n:"Iron Discipline",d:"30-day study streak",e:st>=30});
+  list.push({ic:"👑",n:"Summa Cum Laude",d:"Complete the entire vault",e:done.size>=allLessons.length});
+  return list;
+}
+function renderProgress(){
+  const total=allLessons.length,d=done.size,pct=total?d/total:0;
+  const badges=badgeDefs(),earned=badges.filter(b=>b.e).length;
+  let h='<div class="panel" style="text-align:center;padding:26px 18px">'+
+    '<div class="bigRing">'+ringSVG(132,58,pct,7)+'<b>'+Math.round(pct*100)+'%</b></div>'+
+    '<div style="font-family:var(--font-d);font-weight:600;font-size:17px;letter-spacing:.04em;margin-top:14px">OVERALL MASTERY</div>'+
+    '<div style="font-size:12.5px;color:var(--steel);margin-top:4px">'+d+' of '+total+' lessons complete · '+streak()+'-day streak</div></div>';
+  h+='<div class="statGrid">'+
+     '<div class="stat"><b class="c-blue">'+d+'</b><span>Lessons Done</span></div>'+
+     '<div class="stat"><b class="c-green">'+earned+'</b><span>Badges Earned</span></div>'+
+     '<div class="stat"><b class="c-amber">'+streak()+'</b><span>Day Streak</span></div>'+
+     '<div class="stat"><b>'+(total-d)+'</b><span>Remaining</span></div></div>';
+  h+='<div class="sectionHead"><i></i><h3>BY SCHOOL</h3></div><div class="panel"><div class="snap">';
+  DATA.forEach(tr=>{
+    const s=trackStats(tr);
+    h+='<div class="snap-row"><span class="snap-label">'+tr.name+'</span><div class="snap-bar"><div class="snap-fill" style="width:'+(s.pct*100).toFixed(1)+'%"></div></div><span class="snap-n">'+s.done+'/'+s.total+'</span></div>';
+  });
+  DATA[0].levels.forEach(lv=>{
+    const ls=lv.modules.flatMap(m=>m.lessons);const dd=ls.filter(l=>done.has(l.id)).length;
+    h+='<div class="snap-row"><span class="snap-label" style="padding-left:12px;color:var(--steel)">'+lv.name+'</span><div class="snap-bar"><div class="snap-fill" style="width:'+(ls.length?dd/ls.length*100:0).toFixed(1)+'%"></div></div><span class="snap-n">'+dd+'/'+ls.length+'</span></div>';
+  });
+  h+='</div></div>';
+  h+='<div class="sectionHead"><i></i><h3>BADGES</h3><span class="mono">'+earned+' / '+badges.length+'</span></div><div class="badges">';
+  badges.forEach(b=>{
+    h+='<div class="badge'+(b.e?"":" locked")+'"><span class="b-ic">'+b.ic+'</span><b>'+b.n+'</b><span>'+b.d+'</span></div>';
+  });
+  h+='</div>';
+  h+='<div class="sectionHead"><i></i><h3>MANAGE</h3></div><div class="actRow">'+
+     '<button class="btn ghost" onclick="exportProgress()">Export Progress</button>'+
+     '<button class="btn danger" onclick="resetProgress()">Reset Progress</button></div>';
+  h+='<div class="footerNote">Progress is saved on this device</div>';
+  document.getElementById("view-progress").innerHTML=h;
+}
+function exportProgress(){
+  const data={exported:new Date().toISOString(),completedLessons:[...done],days:days,theme:localStorage.getItem("bvTheme_v1")||"azure"};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="business-vault-progress.json";
+  document.body.appendChild(a);a.click();a.remove();
+  toast("Progress exported");
+}
+function resetProgress(){
+  if(!confirm("Reset all lesson progress? Your theme and streak are kept. This cannot be undone."))return;
+  done=new Set();saveProgress();lastLesson="";localStorage.removeItem(LAST_KEY);
+  renderAll();toast("Progress reset");
+}
+
+/* ================= LESSON READER ================= */
 let currentId=null;
 function tutorURL(le){
   const p="Act as my personal business professor from the world's best business school. Today's lesson from my Business Vault curriculum is \""+le.t+"\" ("+le.module.name+", "+le.level.name+"). Key terms: "+(le.terms||[]).map(t=>t[0]).join(", ")+". Please: 1) quiz me with 5 questions one at a time, waiting for my answers; 2) explain anything I miss in plain English with real-world examples; 3) then run a short realistic role-play where I apply this lesson (a negotiation, sales call, investor meeting, or operating decision - whatever fits the topic best); 4) end with one practice assignment for my own business.";
@@ -1118,6 +1506,7 @@ function tutorURL(le){
 }
 function openLesson(id){
   currentId=id;
+  lastLesson=id;localStorage.setItem(LAST_KEY,id);
   const le=byId[id];
   const sheet=document.getElementById("sheet");
   document.getElementById("sheetCrumb").textContent=le.track.name+" · "+le.level.tagline;
@@ -1134,12 +1523,20 @@ function openLesson(id){
       '<span><b>Watch on YouTube</b><span>Opens a curated search of the best videos on this exact topic — pick a top result from a channel you trust.</span></span></a></div>';
   }
   const isDone=done.has(id);
+  const prev=le.idx>0?allLessons[le.idx-1]:null;
+  const next=le.idx<allLessons.length-1?allLessons[le.idx+1]:null;
   document.getElementById("sheetInner").innerHTML=
     '<span class="lessonChip">'+le.module.name+'</span>'+
-    '<h2>'+le.t+'</h2><div class="lessonMeta">'+le.level.name+' · Lesson '+(le.idx+1)+' of '+allLessons.length+'</div>'+
+    '<h2>'+le.t+'</h2>'+
+    '<div class="lessonMeta">'+
+      '<span class="metaChip">⏱ ~'+lessonMins(le)+' min</span>'+
+      '<span class="metaChip">🎚 '+difficulty(le)+'</span>'+
+      '<span class="metaChip">'+le.level.name+'</span>'+
+      '<span class="metaChip">Lesson '+(le.idx+1)+' of '+allLessons.length+'</span>'+
+    '</div>'+
     video+
-    '<a class="card" style="margin-top:12px" href="'+tutorURL(le)+'" target="_blank" rel="noopener">'+
-    '<span class="num" style="background:var(--blue-face);color:#fff"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 4.6L18 8l-4.2 1.4L12 14l-1.8-4.6L6 8l4.2-1.4z"/><path d="M19 14l.9 2.3L22 17l-2.1.7L19 20l-.9-2.3L16 17l2.1-.7z"/></svg></span>'+
+    '<a class="card tutorCard" style="margin-top:12px" href="'+tutorURL(le)+'" target="_blank" rel="noopener">'+
+    '<span class="num" style="background:var(--blue-face);color:#fff">'+ICONS.spark+'</span>'+
     '<span class="ct"><b>AI Tutor — quiz me on this lesson</b><span>Opens Claude with a professor prompt: 5 quiz questions, explanations, and a role-play simulation</span></span>'+
     '<span style="color:var(--blue-2)">→</span></a>'+
     '<div class="lbody">'+
@@ -1148,14 +1545,19 @@ function openLesson(id){
     '<div class="lsec"><i></i><h4>Real-World Example</h4></div><div class="example">'+le.ex+'</div>'+
     '<div class="lsec"><i></i><h4>Key Takeaways</h4></div><ul class="takeaways">'+le.keys.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>'+
     '<button class="btn full completeBtn'+(isDone?" green":"")+'" id="completeBtn" onclick="toggleComplete()">'+(isDone?"✓ Completed — Tap to Undo":"Mark Complete")+'</button>'+
-    '</div>';
+    '<div class="pnRow">'+
+      '<button class="btn ghost" '+(prev?'onclick="openLesson(\''+prev.id+'\')"':'disabled')+'>← Previous</button>'+
+      '<button class="btn ghost" '+(next?'onclick="openLesson(\''+next.id+'\')"':'disabled')+'>Next Lesson →</button>'+
+    '</div></div>';
   sheet.scrollTop=0;
+  updateReadBar();
   sheet.classList.add("open");
   document.body.style.overflow="hidden";
 }
 function closeLesson(){
   document.getElementById("sheet").classList.remove("open");
   document.body.style.overflow="";
+  renderAll();
 }
 function toggleComplete(){
   if(done.has(currentId))done.delete(currentId);else done.add(currentId);
@@ -1164,23 +1566,118 @@ function toggleComplete(){
   const btn=document.getElementById("completeBtn");
   btn.classList.toggle("green",isDone);
   btn.textContent=isDone?"✓ Completed — Tap to Undo":"Mark Complete";
+  if(isDone)toast(done.size>=allLessons.length?"🎓 Curriculum complete!":"Lesson complete — "+done.size+" of "+allLessons.length);
   renderAll();
 }
+/* reading progress */
+const sheetEl=document.getElementById("sheet");
+function updateReadBar(){
+  const max=sheetEl.scrollHeight-sheetEl.clientHeight;
+  const p=max>0?sheetEl.scrollTop/max:0;
+  document.querySelector("#readBar i").style.width=(p*100).toFixed(1)+"%";
+}
+sheetEl.addEventListener("scroll",updateReadBar,{passive:true});
+/* focus mode */
+let zen=localStorage.getItem(ZEN_KEY)==="1";
+function applyZen(){
+  sheetEl.classList.toggle("zen",zen);
+  document.getElementById("zenBtn").classList.toggle("on",zen);
+}
+function toggleZen(){
+  zen=!zen;localStorage.setItem(ZEN_KEY,zen?"1":"0");applyZen();
+  toast(zen?"Focus mode on — pure reading":"Focus mode off");
+}
 
-/* ================= BOOT ================= */
+/* ================= COMMAND PALETTE ================= */
+let palSel=0,palItems=[];
+const palEl=document.getElementById("palette"),palInput=document.getElementById("palInput"),palList=document.getElementById("palList");
+function palActions(){
+  return [
+    {k:"Page",t:"Home",s:"Dashboard",run:()=>setView("home")},
+    {k:"Page",t:"Courses",s:"All schools",run:()=>setView("courses")},
+    {k:"Page",t:"Progress & Mastery",s:"Rings, badges, streak",run:()=>setView("progress")},
+    {k:"Action",t:"Continue Learning",s:resumeLesson().t,run:()=>openLesson(resumeLesson().id)},
+    {k:"Action",t:"Daily Lesson",s:dailyLesson().t,run:()=>openLesson(dailyLesson().id)},
+    {k:"Action",t:"Toggle Light / Dark",s:"Switch appearance",run:()=>toggleAppearance()},
+    {k:"Action",t:"Theme Gallery",s:"16 premium themes",run:()=>openThemes()}
+  ];
+}
+function palRender(q){
+  q=(q||"").trim().toLowerCase();
+  let items=[];
+  const acts=palActions().filter(a=>!q||(a.t+" "+a.s).toLowerCase().includes(q));
+  items=acts.map(a=>({type:"act",...a}));
+  if(q.length>=2){
+    const hits=allLessons.filter(l=>q.split(/\s+/).every(w=>lessonHay(l).includes(w))).slice(0,9);
+    items=items.slice(0,3).concat(hits.map(l=>({type:"lesson",t:l.t,s:l.track.name+" · "+l.level.tagline+" · "+l.module.name,k:done.has(l.id)?"✓":"Lesson",run:()=>openLesson(l.id)})));
+  }
+  palItems=items;palSel=0;
+  palList.innerHTML=items.length?items.map((it,i)=>
+    '<button class="palItem'+(i===palSel?" sel":"")+'" onmouseenter="palHover('+i+')" onclick="palGo('+i+')">'+
+    '<span class="pi-ic">'+(it.type==="lesson"?ICONS.biz:ICONS.spark)+'</span>'+
+    '<span class="pi-t"><b>'+esc(it.t)+'</b><span>'+esc(it.s)+'</span></span>'+
+    '<span class="pi-k">'+it.k+'</span></button>'
+  ).join(""):'<div class="empty">No matches — try another word.</div>';
+}
+function palHover(i){palSel=i;[...palList.children].forEach((c,j)=>c.classList&&c.classList.toggle("sel",j===i))}
+function palGo(i){
+  const it=palItems[i];if(!it)return;
+  closePalette();it.run();
+}
+function openPalette(){
+  palEl.classList.add("open");palInput.value="";palRender("");
+  setTimeout(()=>palInput.focus(),40);
+}
+function closePalette(){palEl.classList.remove("open");palInput.blur()}
+palInput.addEventListener("input",e=>palRender(e.target.value));
+palInput.addEventListener("keydown",e=>{
+  if(e.key==="ArrowDown"){e.preventDefault();palSel=Math.min(palSel+1,palItems.length-1);palHover(palSel);palList.children[palSel]?.scrollIntoView({block:"nearest"})}
+  else if(e.key==="ArrowUp"){e.preventDefault();palSel=Math.max(palSel-1,0);palHover(palSel);palList.children[palSel]?.scrollIntoView({block:"nearest"})}
+  else if(e.key==="Enter"){e.preventDefault();palGo(palSel)}
+});
+palEl.addEventListener("click",e=>{if(e.target===palEl)closePalette()});
+
+/* ================= TOAST ================= */
+let toastT=null;
+function toast(m){
+  const el=document.getElementById("toast");
+  el.textContent=m;el.classList.add("show");
+  clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove("show"),2200);
+}
+
+/* ================= KEYBOARD ================= */
+document.addEventListener("keydown",e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){
+    e.preventDefault();
+    palEl.classList.contains("open")?closePalette():openPalette();
+    return;
+  }
+  if(e.key==="Escape"){
+    if(palEl.classList.contains("open"))closePalette();
+    else if(sheetEl.classList.contains("open"))closeLesson();
+    else if(document.getElementById("themes").classList.contains("open"))closeThemes();
+    return;
+  }
+  const typing=/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||"");
+  if(typing||palEl.classList.contains("open"))return;
+  if(sheetEl.classList.contains("open")&&currentId){
+    const le=byId[currentId];
+    if(e.key==="ArrowRight"&&le.idx<allLessons.length-1)openLesson(allLessons[le.idx+1].id);
+    if(e.key==="ArrowLeft"&&le.idx>0)openLesson(allLessons[le.idx-1].id);
+  }else if(e.key==="/"){e.preventDefault();openPalette()}
+});
+
+/* ================= RENDER ALL ================= */
 function renderHeader(){
   const total=allLessons.length,pct=total?Math.round(done.size/total*100):0;
-  document.getElementById("masteryPct").textContent=pct+"%";
-  document.getElementById("streakN").textContent=streak();
+  document.querySelectorAll(".masteryPct").forEach(el=>el.textContent=pct+"%");
+  document.querySelectorAll(".streakN").forEach(el=>el.textContent=streak());
 }
 function renderAll(){
-  renderHeader();renderHome();
+  renderHeader();buildSidebar();renderHome();renderCourses();renderProgress();
   DATA.forEach(tr=>renderTrack(tr));
+  setView(activeView);
 }
-renderSearchShell();
-renderAll();
-setView("home");
-
 /* ================= THEME ENGINE ================= */
 const FONT_OSWALD="'Oswald',system-ui,sans-serif";
 const FONT_SERIF="'Playfair Display',Georgia,serif";
@@ -1347,17 +1844,34 @@ const VARMAP={bg:"--bg",surface:"--surface",surface2:"--surface-2",hover:"--hove
   rLg:"--r-lg",rCard:"--r-card",rBtn:"--r-btn",fontD:"--font-d"};
 
 const THEME_KEY="bvTheme_v1",FAV_KEY="bvThemeFavs_v1";
+const LIGHTP_KEY="bvLightTheme_v1",DARKP_KEY="bvDarkTheme_v1";
 let curTheme=localStorage.getItem(THEME_KEY)||"azure";
 let favs=new Set(JSON.parse(localStorage.getItem(FAV_KEY)||"[]"));
 
+function isDarkTheme(th){return th.tags.split(" ").includes("dark")}
 function applyTheme(id,animate){
   const th=THEMES.find(t=>t.id===id)||THEMES[0];
   curTheme=th.id;localStorage.setItem(THEME_KEY,curTheme);
+  localStorage.setItem(isDarkTheme(th)?DARKP_KEY:LIGHTP_KEY,th.id);
   const root=document.documentElement;
   if(animate){root.classList.add("theming");setTimeout(()=>root.classList.remove("theming"),500)}
   for(const k in VARMAP)if(th.t[k]!==undefined)root.style.setProperty(VARMAP[k],th.t[k]);
   const mc=document.querySelector('meta[name="theme-color"]');if(mc)mc.setAttribute("content",th.t.bg);
+  updateAppearBtn(th);
   renderThemes();
+}
+function updateAppearBtn(th){
+  const dark=isDarkTheme(th);
+  const ic=document.getElementById("appearIcon"),lb=document.getElementById("appearLabel");
+  if(ic)ic.innerHTML=dark?ICONS.sun:ICONS.moon;
+  if(lb)lb.textContent=dark?"Light":"Dark";
+}
+function toggleAppearance(){
+  const th=THEMES.find(t=>t.id===curTheme)||THEMES[0];
+  const goDark=!isDarkTheme(th);
+  const target=goDark?(localStorage.getItem(DARKP_KEY)||"masterclass"):(localStorage.getItem(LIGHTP_KEY)||"azure");
+  applyTheme(target,true);
+  toast(goDark?"Dark mode":"Light mode");
 }
 function toggleFav(e,id){
   e.stopPropagation();
@@ -1390,7 +1904,13 @@ function renderThemes(){
 function openThemes(){renderThemes();document.getElementById("themes").classList.add("open");document.body.style.overflow="hidden"}
 function closeThemes(){document.getElementById("themes").classList.remove("open");document.body.style.overflow=""}
 document.getElementById("themeSearch").addEventListener("input",renderThemes);
+
+/* ================= BOOT ================= */
 applyTheme(curTheme,false);
+applyZen();
+renderSearchShell();
+renderAll();
+setView("home");
 </script>
 </body>
 </html>

@@ -403,6 +403,13 @@
   #sheet.zen .sheetInner{max-width:640px}
   #sheet.zen .lbody p{font-size:17.5px;line-height:1.9}
   .zenBtn.on{color:var(--blue-2);border-color:var(--blue-3);background:var(--blue-soft)}
+  /* reader text size: fs1 = large, fs2 = extra large */
+  #sheet.fs1 .lbody p{font-size:17.5px;line-height:1.85}
+  #sheet.fs1 .example,#sheet.fs1 .takeaways li,#sheet.fs1 .term span,#sheet.fs1 .term b{font-size:15.5px;line-height:1.75}
+  #sheet.fs2 .lbody p{font-size:19.5px;line-height:1.9}
+  #sheet.fs2 .example,#sheet.fs2 .takeaways li,#sheet.fs2 .term span,#sheet.fs2 .term b{font-size:17px;line-height:1.8}
+  .fontBtn{font-family:var(--font-d);font-weight:700;font-size:13px;letter-spacing:.02em}
+  .fontBtn.on{color:var(--blue-2);border-color:var(--blue-3);background:var(--blue-soft)}
 
   /* ================= QUIZ & FLASHCARDS ================= */
   #quiz,#flash{position:fixed;inset:0;z-index:130;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
@@ -821,6 +828,7 @@
       <button class="iconBtn bmBtn" id="bmBtn" onclick="toggleBookmark()" aria-label="Bookmark" title="Bookmark this lesson">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       </button>
+      <button class="iconBtn fontBtn" id="fontBtn" onclick="cycleFont()" aria-label="Text size" title="Text size">aA</button>
       <button class="iconBtn zenBtn" id="zenBtn" onclick="toggleZen()" aria-label="Focus mode" title="Focus mode — pure reading">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
@@ -6375,6 +6383,7 @@ function openLab(id){
     l.steps.map((s,i)=>'<button class="card" style="padding:11px 13px" onclick="labStep('+i+')"><span class="check" style="'+(steps[i]?"background:var(--green);border-color:var(--green)":"")+'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:'+(steps[i]?1:0)+';transform:scale(1)"><path d="M20 6L9 17l-5-5"/></svg></span><span class="ct"><b style="font-size:13.5px;font-weight:500;'+(steps[i]?"color:var(--steel);text-decoration:line-through":"")+'">'+(i+1)+'. '+esc(s)+'</b></span></button>').join("")+'</div>'+
     (l.tool?'<button class="card" style="margin-top:12px" onclick="openTool(\''+l.tool+'\')"><span class="num">'+ICONS.tool+'</span><span class="ct"><b>Open the Calculator</b><span>'+esc((TOOLS.find(t=>t.id===l.tool)||{}).name||"Tool")+' — do the math, then paste results below</span></span><span style="color:var(--blue-2)">→</span></button>':'')+
     '<button class="card" style="margin-top:9px" onclick="aiLab()"><span class="num" style="background:var(--blue-face);color:#fff">'+ICONS.spark+'</span><span class="ct"><b>Build It With the AI Tutor</b><span>Step-by-step coaching + rubric critique, right here in the app</span></span><span style="color:var(--blue-2)">→</span></button>'+
+    '<button class="card" style="margin-top:9px" onclick="aiGradeLab()"><span class="num" style="background:var(--green);color:#fff">🎓</span><span class="ct"><b>Grade My Work — AI</b><span>Your work below, scored line-by-line against the rubric</span></span><span style="color:var(--blue-2)">→</span></button>'+
     '<div class="lsec"><i></i><h4>Your Work</h4></div>'+
     '<textarea class="noteBox" id="labWork" style="min-height:180px" placeholder="Build it right here — numbers, lines, script text. Saved automatically.">'+esc(st.work||"")+'</textarea>'+
     '<div class="lsec"><i></i><h4>Grading Rubric — check what your work achieves</h4></div><div class="cards" style="gap:6px">'+
@@ -7021,7 +7030,7 @@ function renderProgress(){
   document.getElementById("view-progress").innerHTML=h;
 }
 /* ---- full backup & restore ---- */
-const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1"];
+const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1","bvFont_v1"];
 async function backupAll(){
   const keys={};
   BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)keys[k]=v});
@@ -7178,6 +7187,7 @@ function openLesson(id){
     '<div class="lsec"><i></i><h4>Key Takeaways</h4></div><ul class="takeaways">'+le.keys.map((k,i)=>'<li><i>'+(i+1)+'</i>'+k+'</li>').join("")+'</ul>'+
     '<div class="lsec"><i></i><h4>Assignment</h4></div><div class="example">'+assignText+'</div>'+
     '<button class="btn '+(store.assignments[id]?'green':'ghost')+' full" style="margin-top:10px" id="assignBtn" onclick="toggleAssignment()">'+(store.assignments[id]?"✓ Assignment Done — Tap to Undo":"Mark Assignment Done")+'</button>'+
+    '<button class="btn ghost full" style="margin-top:9px" onclick="aiGradeAssign()">🎓 Grade My Assignment — AI reads my notes below</button>'+
     (le.check&&le.check.length?'<div class="lsec"><i></i><h4>Mastery Checklist — you own this lesson when…</h4></div><ul class="takeaways">'+le.check.map((k,i)=>'<li><i>☐</i>'+k+'</li>').join("")+'</ul>':'')+
     (le.books&&le.books.length?'<div class="lsec"><i></i><h4>Go Deeper — Related Books</h4></div><div class="cards">'+le.books.map(bid=>{const b=BOOKS.find(x=>x.id===bid);return b?bookRow(b,0):""}).join("")+'</div>':'')+
     (related.length?'<div class="lsec"><i></i><h4>Related Lessons</h4></div><div class="cards">'+related.map((x,i)=>cardHTML(x,i+1,x.module.name+(done.has(x.id)?" · ✓ done":""))).join("")+'</div>':'')+
@@ -7288,6 +7298,22 @@ function updateReadBar(){
 }
 sheetEl.addEventListener("scroll",updateReadBar,{passive:true});
 /* focus mode */
+/* reader text size: 0 normal, 1 large, 2 extra large */
+const FONT_KEY="bvFont_v1";
+let fontSize=parseInt(localStorage.getItem(FONT_KEY)||"0")||0;
+function applyFont(){
+  sheetEl.classList.toggle("fs1",fontSize===1);
+  sheetEl.classList.toggle("fs2",fontSize===2);
+  const b=document.getElementById("fontBtn");
+  if(b)b.classList.toggle("on",fontSize>0);
+}
+function cycleFont(){
+  fontSize=(fontSize+1)%3;
+  localStorage.setItem(FONT_KEY,String(fontSize));
+  applyFont();
+  toast(fontSize===0?"Text size: normal":fontSize===1?"Text size: large":"Text size: extra large");
+}
+applyFont();
 let zen=localStorage.getItem(ZEN_KEY)==="1";
 function applyZen(){
   sheetEl.classList.toggle("zen",zen);
@@ -7465,9 +7491,33 @@ async function aiSubmit(text){
 }
 /* entry points used across the app */
 function aiTutorLesson(){const le=byId[currentId];if(!le)return;openAI(tutorPrompt(le),"Lesson: "+le.t)}
+function aiGradeAssign(){
+  const le=byId[currentId];if(!le)return;
+  const nEl=document.getElementById("noteBox");
+  const work=((nEl&&nEl.value)||store.notes[currentId]||"").trim();
+  if(work.length<40){toast("Write your assignment in My Notes first — then I'll grade it");return}
+  const assignText=le.assign||"Apply this lesson to a business you know.";
+  const p="You are grading my homework for the lesson \""+le.t+"\" ("+le.track.name+") in Business Vault University."+
+    "\n\nTHE ASSIGNMENT WAS:\n"+ttsStrip(assignText)+
+    "\n\nKEY CONCEPTS FROM THE LESSON: "+(le.keys||[]).map(k=>ttsStrip(k)).join(" · ").slice(0,900)+
+    "\n\nMY SUBMITTED WORK (from my notes):\n"+work.slice(0,7000)+
+    "\n\nGrade it like a tough, fair professor: (1) did I actually do what the assignment asked — point by point; (2) grade out of 100; (3) the TWO improvements that would most sharpen my thinking, concretely; (4) one thing I got genuinely right. Quote my own words back where it helps. Honest beats nice.";
+  openAI(p,"Grading: "+le.t);
+}
 function aiMove(i){const le=byId[currentId];if(!le)return;openAI(aiPrompt(le,AI_MOVES[i][1]),"Lesson: "+le.t)}
 function aiTerm(id){const t=allTerms.find(x=>x.id===id);if(!t)return;openAI("Explain the business term \""+t.t+"\" to a beginner: simple definition, the formula if there is one, a worked example with numbers, and why it matters to a small business operator.","Term: "+t.t)}
 function aiLab(){const l=LABS.find(x=>x.id===curLab);if(!l)return;openAI(curLabPrompt,(l.cap?"Capstone: ":"Lab: ")+l.title)}
+function aiGradeLab(){
+  const l=LABS.find(x=>x.id===curLab);if(!l)return;
+  const wEl=document.getElementById("labWork");
+  const work=((wEl&&wEl.value)||labState(curLab).work||"").trim();
+  if(work.length<40){toast("Write your work in the box first — then I'll grade it");return}
+  const p="You are grading my work on the '"+l.title+"' "+(l.cap?"capstone":"lab")+" from Business Vault University. Goal: "+l.goal+
+    "\n\nGRADING RUBRIC:\n"+l.rubric.map((r,i)=>(i+1)+". "+r).join("\n")+
+    "\n\nMY SUBMITTED WORK:\n"+work.slice(0,7000)+
+    "\n\nGrade it like a tough, fair professor: (1) score each rubric item PASS/PARTIAL/FAIL with a one-line reason quoting my actual work; (2) give an overall grade out of 100; (3) name the TWO highest-impact improvements, concretely; (4) point out anything genuinely strong. Be specific and honest — vague praise doesn't help me.";
+  openAI(p,"Grading: "+l.title);
+}
 function aiTool(){const t=TOOLS.find(x=>x.id===curTool);if(!t)return;openAI(curToolPrompt,"Tool: "+t.name)}
 const aiInputEl=document.getElementById("aiInput");
 aiInputEl.addEventListener("input",()=>{aiInputEl.style.height="auto";aiInputEl.style.height=Math.min(aiInputEl.scrollHeight,130)+"px"});

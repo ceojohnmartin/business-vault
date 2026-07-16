@@ -465,6 +465,10 @@
   .aiBar textarea:focus{border-color:var(--blue-3)}
   .aiSendBtn{width:42px;height:42px;border-radius:13px;border:none;background:var(--blue-face);color:#fff;display:grid;place-items:center;flex-shrink:0;cursor:pointer}
   .aiSendBtn:disabled{opacity:.4}
+  .rpBar{flex-shrink:0;display:flex;gap:8px;padding:9px 14px 0;border-top:1px solid var(--edge);background:var(--surface)}
+  .rpBar button{flex:1;border:1.5px solid var(--edge);background:var(--bg);color:var(--text);border-radius:12px;padding:9px 8px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.01em}
+  .rpBar button.end{border-color:transparent;background:var(--blue-face);color:#fff}
+  .rpBar+.aiBar{border-top:none}
   .aiSetup{max-width:640px;margin:0 auto;padding:22px 4px calc(40px + env(safe-area-inset-bottom))}
   .aiSetup h2{font-family:var(--font-d);font-size:24px;margin-bottom:8px}
   .aiSetup .steps{counter-reset:st;margin:14px 0}
@@ -797,6 +801,10 @@
     </div>
   </div>
   <div class="aiScroll" id="aiScroll"><div id="aiMsgs"></div></div>
+  <div class="rpBar" id="rpBar" style="display:none">
+    <button onclick="rpHint()">💡 Whisper me a hint</button>
+    <button class="end" onclick="rpScore()">🏁 End Scene &amp; Score Me</button>
+  </div>
   <div class="aiBar" id="aiBar">
     <textarea id="aiInput" rows="1" placeholder="Ask your tutor anything…" aria-label="Message the AI tutor"></textarea>
     <button class="aiSendBtn" id="aiSendBtn" onclick="aiSend()" aria-label="Send">
@@ -4669,6 +4677,96 @@ instructor:"The richest teaching is the ENOUGH mechanics: students argue option 
 lessons:["ENOUGH cleared converts selling from need to position — that's when counters work","Consolidation windows and competitor permits are clocks; price them into timing","Rollover equity gets eq1's three questions or it's wallpaper: of what, behind what debt, with what rights"],
 rel:["eq11","eq12","w12"]}
 );
+/* ================= ROLEPLAY ARENA =================
+   Live practice conversations. The AI plays the other side of the
+   table — in character, realistically difficult — then breaks
+   character and scores the student when they end the scene.
+   Fields: id, title, cat, diff, time, them (who the AI plays),
+   you (who the student plays), setup (the scene), goal (mission),
+   win[] (scoring objectives), persona (private character brief for
+   the AI), open (suggested opening line). */
+const ROLEPLAYS=[
+{id:"rp-supplier",title:"The Supplier Price Hike",cat:"Negotiation",diff:"Moderate",time:"10 min",
+ them:"Dale, your supplies distributor rep for the last 3 years",
+ you:"the owner of a small service business that buys about $3,000/month of supplies from Dale",
+ setup:"Dale just emailed an 18% across-the-board price increase effective next month, blaming freight surcharges. An 18% bump costs you about $6,500 a year — real money. You asked for a call. He likes you, but he has a quota and thinks you won't actually leave.",
+ goal:"Get the increase down as far as you can without wrecking a supplier relationship you still need.",
+ win:["Got the increase meaningfully below 18% (a real concession, not a vague promise)","Used leverage — competitor pricing, volume, contract length — instead of just complaining","Traded something for the discount rather than only taking","Kept the relationship warm enough to keep doing business"],
+ persona:"You're friendly, folksy, and a practiced deflector — you open by blaming 'corporate' and freight costs. Privately: you have authority to drop the increase to 8% for good customers, and to 5% if they commit to a 12-month agreement or grow their monthly order. You will NOT go below 5%. You respond to specifics: a named competitor quote, real volume numbers, a signed term. You stall vague complaints with sympathy and stories. If the customer gets rude or threatens theatrically, you get politely stubborn and give less. If they walk toward the door credibly and professionally, you make your best offer.",
+ open:"Hey hey, good to hear from you! Listen, before you say anything — I fought corporate on this one, I really did."},
+{id:"rp-refund",title:"The Furious Customer",cat:"Customer Fires",diff:"Moderate",time:"8 min",
+ them:"Brenda, a customer whose $400 service visit went wrong yesterday",
+ you:"the owner — Brenda demanded 'the owner, not some kid' and you took the call",
+ setup:"Your crew showed up 2 hours late, and one of the three things Brenda paid for genuinely wasn't finished. She's already posted one angry review, is threatening a chargeback, and opens the call at full volume. Some of what she's saying is exaggerated — but not all of it.",
+ goal:"Keep the customer, contain the public damage, and fix what's actually your fault — without giving away the whole $400.",
+ win:["Let her vent and acknowledged the real failure before defending anything","Separated the legitimate complaint from the exaggeration without calling her a liar","Offered a specific, fair make-good (partial refund, redo, or credit) — not a full cave or a stonewall","Asked for the review to be updated only AFTER fixing the problem, not as a condition"],
+ persona:"You are genuinely angry and partly right: the crew WAS 2 hours late and one service item WAS skipped. You're exaggerating the rest ('they trampled my flower bed, they were rude' — mild at best). You want to feel HEARD more than you want money — if the owner apologizes specifically, takes ownership, and offers a concrete fix, you soften noticeably. If they interrupt, blame the schedule, or immediately talk policy, you escalate: chargeback threats, 'I know the health inspector,' more reviews. You'll accept: a redo plus a partial refund or credit around 25-40%. You will not accept a coupon-only offer. Never offer to update the review yourself — but agree if asked politely after a real fix is on the table.",
+ open:"Oh, so NOW I get the owner. Do you have ANY idea what your people did to me yesterday?"},
+{id:"rp-raise",title:"The Raise You Can't Afford",cat:"People",diff:"Hard",time:"10 min",
+ them:"Marcus, your best technician of 4 years",
+ you:"the owner — Marcus asked for 'a quick chat' at the end of the day",
+ setup:"Marcus runs your hardest routes, trains new hires, and customers ask for him by name. He wants a $15,000 raise. He has a real competing offer from a bigger company. Your honest math: you can afford about $6,000 in base plus a performance bonus — a $15k base bump would put his route underwater.",
+ goal:"Keep Marcus without agreeing to a number that breaks your payroll — by figuring out what he actually wants.",
+ win:["Asked questions and uncovered what's really driving this before countering (it's not only money)","Was honest about the business math instead of pleading poverty vaguely","Built a counteroffer package: base + bonus + title/growth path + specifics with dates","Never matched $15k out of fear, and never guilt-tripped him for interviewing"],
+ persona:"You're loyal but you feel taken for granted — the raise request is 60% about respect and a career path, 40% about money. The competing offer is real: $14k more base, but worse hours, more windshield time, and a company you've heard bad things about. You won't volunteer that. You open firm on $15,000. If the owner just says 'I can't afford that,' you get quieter and start wrapping up — that reads as 'start packing.' If they ask real questions about what you want long-term, you open up: you want to lead a crew, have a say in hiring, and stop feeling like a gap-filler. You'll accept: roughly $6-8k base + a real bonus tied to numbers you influence + a lead role with a timeline in writing. If they guilt-trip you ('after all I've done for you'), you go cold.",
+ open:"Thanks for making time. Look, I'll just say it straight — I've got an offer from Apex for a lot more money, and I need us to talk about my pay."},
+{id:"rp-investor",title:"The Investor Grilling",cat:"Money",diff:"Hard",time:"12 min",
+ them:"Patricia Vaughn, a retired operator turned private investor",
+ you:"a founder pitching her for $150,000 to open your second location",
+ setup:"Patricia built and sold two service companies. She invests her own money, does her own diligence, and has heard a thousand pitches. You have 15 minutes at her kitchen table. Your first location does solid numbers; the second one is a projection. She's interested — that's why you're here — but she attacks every weak number.",
+ goal:"Survive the grilling with your credibility intact and get her to a real next step — not a polite 'send me more materials.'",
+ win:["Knew the core numbers cold when pushed: revenue, margin, customer acquisition cost, payback","Answered the question actually asked instead of pivoting to the rehearsed pitch","Said 'I don't know, here's how I'd find out' at least once instead of bluffing","Asked HER for something concrete at the end: terms, timeline, or a defined next step"],
+ persona:"You're direct, warm-then-sharp, and allergic to buzzwords. You interrupt vague answers with 'that's not what I asked.' Your favorite attacks: 'What's your customer acquisition cost and how do you know?', 'Your margin says X — walk me through it', 'What happens to location one while you're building location two?', 'Who runs it when your best person quits?', 'Why do you need MY money instead of a bank's?' You respect precise numbers, honest I-don't-knows with a plan, and founders who ask about HER terms. You despise bluffing — if you catch one made-up number, you needle it for the rest of the meeting. If the founder performs well, you offer a concrete next step: you'll look at their books this week and talk terms — you like revenue-share or a convertible note, and you always counter their first structure.",
+ open:"Sit down. I've read your one-pager — decent bones, optimistic math. Let's start where it always falls apart: tell me exactly what it costs you to get one new customer, and how you know that number is true."},
+{id:"rp-seller",title:"Buying Out the Owner",cat:"Deals",diff:"Hard",time:"12 min",
+ them:"Ray, 61, the founder-owner of a service business you want to buy",
+ you:"a buyer meeting Ray for the second time, at the shop after hours",
+ setup:"Ray's business throws off about $120,000 a year in seller's earnings (SDE). He's asking $450,000 — nearly 3.8x, when similar businesses trade around 2.5-3x. He built it over 24 years and it's his identity. You have financing lined up for a fair price, but not for $450k. You also suspect — correctly — that a chunk of revenue depends on a few big accounts.",
+ goal:"Move Ray toward a realistic price and structure (think seller financing, earnout) without insulting the business he built.",
+ win:["Anchored the conversation in the numbers — multiples of SDE — instead of arguing feelings","Surfaced the customer-concentration risk by asking about the customer list, without accusing","Proposed structure (down payment + seller note and/or earnout), not just a lower number","Treated Ray's legacy with genuine respect — transition period, keeping his people, the name"],
+ persona:"You're proud, guarded, and secretly tired — your knees hurt and your spouse wants to travel, but you'd rather die than fire-sale 'your baby.' You justify $450k with sweat equity, not math. Hidden facts you only reveal if asked good questions: your biggest account is about 30% of revenue and the contract renews in 8 months; you personally hold most customer relationships; equipment is older than it looks. If the buyer opens with a lowball number and no reasoning, you stand up to end the meeting (give them one chance to recover). What actually moves you: respect for the business, a real transition plan, your crew keeping their jobs, and structure — you'd take around $330-360k as $200k-ish down plus a seller note, or less down with an earnout, especially if they keep the name. You NEVER accept below $300k total. You get emotional exactly once about handing over the keys.",
+ open:"So. You came back. Most tire-kickers don't. Before we talk numbers again — tell me what you'd actually DO with my company."},
+{id:"rp-latepay",title:"The Client Who Won't Pay",cat:"Money",diff:"Moderate",time:"8 min",
+ them:"Kevin, a commercial client who owes you $4,800, now 60 days overdue",
+ you:"the owner — you've sent three invoices and two 'friendly reminders'; this is the phone call",
+ setup:"Kevin's property-management company is 15% of your annual revenue, so you can't just torch the relationship. But $4,800 is two payrolls, and Kevin has perfected the warm brush-off: he always takes your call, always sounds delighted, and never sends the money.",
+ goal:"Leave the call with a specific, dated payment commitment — and protect yourself going forward — while keeping the account.",
+ win:["Stayed friendly but did NOT accept a vague 'it's processing' — pinned a specific amount to a specific date","Got a concrete mechanism: who sends it, how, and what happens the day after if it doesn't arrive","Changed future terms (deposit, card on file, net-15, or pause on new work) so this doesn't repeat","Never apologized for asking to be paid, and never threatened anything they weren't ready to do"],
+ persona:"You're charming, unhurried, and a master of the friendly stall: 'You know I'm good for it,' 'Accounting runs checks Fridays,' 'The new system flagged your invoice, isn't that crazy?' Truth: you have the money but you float every vendor 60-90 days on purpose — the polite ones wait. You only commit when someone pins you: an exact amount, an exact date, a specific method, and a stated consequence (work pauses, late fee applies, owner-to-owner call). If they get that far, you agree to $2,400 this Friday and $2,400 the next — and you'll actually pay if they confirm it in writing on the call. If they threaten collections or lawyers out of nowhere, you go cold and 'need to talk to MY accountant.' If they stay vague, you schmooze, promise nothing, and try to end the call with 'we good?'",
+ open:"Heyyy, there he is! I was JUST talking about you — we've got three new properties coming online next quarter and I want your guys on all of them. What's up?"},
+{id:"rp-lease",title:"The Lease Renewal Squeeze",cat:"Negotiation",diff:"Moderate",time:"10 min",
+ them:"Sandra, the property manager for your landlord",
+ you:"a tenant whose 5-year lease is up in 90 days — your location is a real part of your business",
+ setup:"Sandra sent the renewal: a 25% rent increase, take it or leave it by month's end. Moving would cost you real money and customers, and she knows it. What she doesn't advertise: two other units in the plaza have sat empty for months, and good tenants who pay on time are worth a lot to her owner.",
+ goal:"Negotiate the increase down — or trade it for term, improvements, or flexibility — using leverage, not complaints.",
+ win:["Brought market evidence — comparable rents, the plaza's own vacancies — instead of 'that's too much'","Made your value as a tenant explicit: years of on-time payment, upkeep, staying power","Traded term for money — longer commitment for a smaller bump — or extracted improvements/free months","Had a credible walk-away and let it show calmly, without bluffing theatrics"],
+ persona:"You're brisk, professional, and open with 'the owner is firm on this — costs are up everywhere.' Privately: the plaza has two vacancies dragging on the owner's books, a broker costs a month's rent per new tenant, and you have authority to close at +10% with a 3-year renewal, +15% with 2 years plus one month free, or +18% with repainting and parking-lot repairs thrown in. Complaints and hardship stories get sympathy and zero movement. Comparable listings, the vacancy math, and a tenant who calmly says they're pricing alternatives get real numbers. If they ask directly 'what CAN you do?' after showing leverage, you reveal a tier. You never go below +10%, and you always ask for something back (term, earlier notice, small CAM increase).",
+ open:"I'll be honest with you — I've got the renewal in front of me and the owner isn't in a flexible mood this year. Twenty-five percent. Where would you like to start?"},
+{id:"rp-firing",title:"The Hard Goodbye",cat:"People",diff:"Hard",time:"8 min",
+ them:"Tyler, a genuinely likeable employee you have to let go today",
+ you:"the owner — final warning was 6 weeks ago, the decision is made, the paperwork is ready",
+ setup:"Everyone likes Tyler. He also misses deadlines, needs constant rework, and two customers have quietly asked that he not come back. You've done it right: clear expectations, a documented warning, a real improvement window. It didn't improve. Today is the termination meeting — and Tyler thinks it's a check-in.",
+ goal:"Deliver a clean, humane, final termination: clear in the first minute, kind throughout, no new promises, logistics handled.",
+ win:["Said it clearly in the first 60 seconds — no 20-minute wind-up, no 'how do YOU think it's going?'","Held the line through bargaining and emotion without re-arguing the case or inventing new chances","Stayed kind and specific: acknowledged his real strengths without un-saying the decision","Covered the logistics: final pay, last day, company property, what you'll say as a reference"],
+ persona:"You arrive upbeat, assuming this is a routine check-in — open with friendly small talk. When the termination lands, you cycle through real, human reactions: shock ('wait — fired fired?'), bargaining ('give me 30 days, I'll fix it, I'll take the worst routes'), guilt ('I just co-signed a car loan, man'), a flash of anger ('Danny screws up way more than me'), and finally deflated acceptance. You test EVERY soft spot: if the owner over-explains, you argue each point; if they waffle or say 'maybe we could,' you seize it as hope and push; if they get cold or corporate, you say 'four years and this is how you do it?' If they're clear, kind, and final, you settle down and ask practical questions: last paycheck, what do I tell people, will you give me a reference, do I finish the week. You accept a truthful-but-fair reference and leave with rough dignity.",
+ open:"Hey boss! You wanted to see me? Man, wild day — the Hendricks route ran long AGAIN, I've gotta tell you about it."},
+{id:"rp-partner",title:"The 50/50 Standoff",cat:"Deals",diff:"Hard",time:"12 min",
+ them:"Jess, your 50/50 business partner of 5 years",
+ you:"the other half of the partnership — tonight you finally have the money conversation",
+ setup:"The business will clear about $80,000 in profit this year — the best year ever. Jess wants to distribute all of it: 'We earned it, I have plans for my forty.' You want to reinvest most of it in a second location while the momentum is real. Underneath the money fight is an uglier one neither of you has said out loud: you both privately believe you work harder than the other.",
+ goal:"Get past the 40k-vs-reinvest standoff to a structure you can both live with — without saying something you can't take back.",
+ win:["Named the real issue — effort vs. reward feels unfair to both sides — instead of only arguing the $40k","Proposed structure: salaries for roles before profit splits, a partial distribution, written thresholds","Turned the second location into a shared decision with criteria, not an ultimatum","Raised making the rules durable — buyout terms, deadlock breakers, putting it in writing — without threatening"],
+ persona:"You're not the villain — you're a co-founder who feels unseen. You handle the unglamorous back office (books, scheduling, complaints) while your partner does the visible growth work and, in your view, gets all the credit. You want your $40k for real reasons (home repairs, a kid's tuition, proving to your spouse the business pays). You open positional: 'It's MY half of the profit.' Escalation triggers: being told you don't work as hard, being handed a decision pre-made, the phrase 'trust me.' What moves you: genuine acknowledgment of your load, salaries-for-roles so effort is paid BEFORE profit is split, a real number now (you'd take $15-20k each distributed) with the rest reinvested under written conditions you helped set, and a defined say in the second location. If it goes well, you admit you've been quietly resentful for two years. If it goes badly, you say maybe one of you should buy the other out — and mean it as a test, not an exit.",
+ open:"Okay. We keep dancing around this, so let's just have it out. Best year we've ever had, and I want my half. Actual money, in my actual bank account. Tell me why I'm wrong."},
+{id:"rp-whale",title:"The Whale Wants 30% Off",cat:"Customer Fires",diff:"Hard",time:"10 min",
+ them:"Derek, procurement manager at a company that could double your revenue",
+ you:"the owner — this contract is huge, and Derek knows exactly how huge it is for you",
+ setup:"Derek's company wants to put you on all 14 of their sites — roughly double your current revenue. The catch: he 'needs' 30% off your standard pricing and net-60 payment terms, and claims your competitor already agreed. At 30% off, the math barely feeds the crews doing the work. At net-60, they'd float your payroll.",
+ goal:"Land the whale at a price that actually makes money — trading volume for concessions you can afford, not the ones you can't.",
+ win:["Did the survival math out loud — knew (or asked for time to know) where the deal stops making money","Countered the 30% with structure: volume tiers, term length, or scope changes instead of a straight cave","Attacked net-60 as hard as the discount — payment terms got negotiated, not swallowed","Treated the competitor claim as unverified pressure, and was willing to walk from a deal that loses money"],
+ persona:"You're a professional buyer running the standard playbook: big anchor (30% + net-60), artificial deadline ('I need pricing by Friday'), competitor pressure ('your competitor's already at this number' — a bluff; their bid is only 10% under standard and their service reviews are shaky), and flattery ('we want YOU, that's the point'). The truth: your last vendor failed on quality, your boss wants this fixed more than squeezed, and you have authority to sign at 12-15% off standard with a 2-year term and volume commitment, net-30 (net-45 at absolute most), and a phased rollout starting with 4 sites. You respect a vendor who knows their numbers and says 'at that price we lose money on every site' — you push twice more, then get real. If they cave fast on everything, you keep squeezing (add free extras, push net-90) because caving invites it. If they walk credibly, you call back with the real number.",
+ open:"I'll cut to it — we like your operation, and I'm ready to hand you all fourteen sites this quarter. One number stands between us: I need thirty percent off rate card, net-sixty. Your competitor already said yes to it, so… make this easy for me."}
+];
 
 /* ================= DEEP-FORMAT BACKFILL =================
    Adds exx (five industry examples), check (mastery checklist) and books
@@ -5634,7 +5732,7 @@ let lastLesson=localStorage.getItem(LAST_KEY)||"";
    One versioned store for everything beyond lesson completion.
    Slots reserved for future phases: books, tools, cases, sims, assignments. */
 const STORE_KEY="bvStore_v1";
-const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{},labs:{}};
+const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{},labs:{},rp:{}};
 let store=STORE_DEFAULT;
 try{store=Object.assign({},STORE_DEFAULT,JSON.parse(localStorage.getItem(STORE_KEY)||"{}"))}catch(e){store=STORE_DEFAULT}
 function saveStore(){localStorage.setItem(STORE_KEY,JSON.stringify(store))}
@@ -5850,6 +5948,7 @@ function buildSidebar(){
   h+='<button class="sb-item" id="sb-libtools" onclick="openLibrary(\'tools\')">'+ICONS.tool+'Operator Tools<span class="n">'+TOOLS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libcases" onclick="openLibrary(\'cases\')">'+ICONS.scale+'Case Studies<span class="n">'+CASES.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libsims" onclick="openLibrary(\'sims\')">'+ICONS.sim+'Simulations<span class="n">'+SIMS.length+'</span></button>';
+  h+='<button class="sb-item" id="sb-librp" onclick="openLibrary(\'rp\')">'+ICONS.rp+'Roleplay Arena<span class="n">'+ROLEPLAYS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-liblabs" onclick="openLibrary(\'labs\')">'+ICONS.tool+'Operator Labs<span class="n">'+LABS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libterms" onclick="openLibrary(\'terms\')">'+ICONS.book+'Dictionary<span class="n">'+allTerms.length+'</span></button>';
   document.getElementById("sbNav").innerHTML=h;
@@ -6124,12 +6223,13 @@ function renderLibrary(){
   const finished=BOOKS.filter(b=>bookState(b.id).status==="finished").length;
   const casesDone=CASES.filter(c=>(store.cases[c.id]||{}).done).length;
   let h='<div class="sectionHead"><i></i><h3>THE LIBRARY</h3><span class="mono">'+
-    (libSel==="books"?finished+' / '+BOOKS.length+' read':libSel==="tools"?TOOLS.length+' calculators':casesDone+' / '+CASES.length+' solved')+'</span></div>';
+    (libSel==="books"?finished+' / '+BOOKS.length+' read':libSel==="tools"?TOOLS.length+' calculators':libSel==="rp"?ROLEPLAYS.filter(s=>rpState(s.id).done).length+' / '+ROLEPLAYS.length+' scored':casesDone+' / '+CASES.length+' solved')+'</span></div>';
   h+='<div class="segWrap"><div class="seg-group">'+
      '<button class="seg'+(libSel==="books"?" on":"")+'" onclick="openLibrary(\'books\')">Books <span class="mono">'+BOOKS.length+'</span></button>'+
      '<button class="seg'+(libSel==="tools"?" on":"")+'" onclick="openLibrary(\'tools\')">Tools <span class="mono">'+TOOLS.length+'</span></button>'+
      '<button class="seg'+(libSel==="cases"?" on":"")+'" onclick="openLibrary(\'cases\')">Cases <span class="mono">'+CASES.length+'</span></button>'+
      '<button class="seg'+(libSel==="sims"?" on":"")+'" onclick="openLibrary(\'sims\')">Sims <span class="mono">'+SIMS.length+'</span></button>'+
+     '<button class="seg'+(libSel==="rp"?" on":"")+'" onclick="openLibrary(\'rp\')">Roleplay <span class="mono">'+ROLEPLAYS.length+'</span></button>'+
      '<button class="seg'+(libSel==="labs"?" on":"")+'" onclick="openLibrary(\'labs\')">Labs <span class="mono">'+LABS.length+'</span></button>'+
      '<button class="seg'+(libSel==="terms"?" on":"")+'" onclick="openLibrary(\'terms\')">Terms <span class="mono">'+allTerms.length+'</span></button>'+
      '</div></div>';
@@ -6158,6 +6258,11 @@ function renderLibrary(){
     h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Run a business in fast-forward: five decisions, real consequences, a scored debrief. Retake anytime — the situations reward what the schools teach.</p>';
     h+='<div class="cards">';
     SIMS.forEach((s,i)=>{h+=simRow(s,i)});
+    h+='</div>';
+  }else if(libSel==="rp"){
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">The Roleplay Arena: live conversations where the AI plays the other side — a stubborn supplier, a furious customer, a skeptical investor. Say your actual lines, then end the scene for an honest scorecard. Runs on your AI key.</p>';
+    h+='<div class="cards">';
+    ROLEPLAYS.forEach((s,i)=>{h+=rpRow(s,i)});
     h+='</div>';
   }else if(libSel==="labs"){
     h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Operator Labs: build real deliverables — P&Ls, scripts, SOPs, deal models — with steps, a work area, and a grading rubric. Capstones are each school\'s final project.</p>';
@@ -6933,6 +7038,7 @@ function badgeDefs(){
     {ic:"🏗️",n:"Capstone Builder",d:"Complete your first capstone project",e:LABS.some(l=>l.cap&&(store.labs[l.id]||{}).done)},
     {ic:"🕹️",n:"Simulator",d:"Complete 3 simulations",e:Object.keys(store.sims).length>=3},
     {ic:"♟️",n:"Decision Master",d:"Score 90%+ on every simulation",e:SIMS.length>0&&SIMS.every(s=>(store.sims[s.id]||{}).best>=90)},
+    {ic:"🎭",n:"Silver Tongue",d:"Get scored in 5 roleplay scenarios",e:Object.keys(store.rp||{}).length>=5},
     {ic:"📜",n:"Certified",d:"Earn your first school certificate",e:DATA.some(t=>certStatus(t).eligible)},
     {ic:"🏛️",n:"Graduate",d:"Earn every school certificate — the full diploma",e:DATA.every(t=>certStatus(t).eligible)},
     {ic:"🧮",n:"Toolsmith",d:"Save 3 calculations in Operator Tools",e:Object.values(store.tools).reduce((a,t)=>a+((t.saved||[]).length),0)>=3},
@@ -6984,6 +7090,7 @@ function renderProgress(){
      '<button class="mini" onclick="setView(\'courses\')"><span class="m-k">'+ICONS.exam+'Level Exams</span><b>'+examsPassed+' of '+totalLevels+' levels certified</b><span>Pass each level\'s 10-question exam at 80%+</span></button>'+
      '<button class="mini" onclick="setView(\'courses\')"><span class="m-k">'+ICONS.spark+'Assignments</span><b>'+assignsDone+' completed</b><span>Real-world exercises at the end of lessons</span></button>'+
      '<button class="mini" onclick="openLibrary(\'sims\')"><span class="m-k">'+ICONS.sim+'Simulations</span><b>'+Object.keys(store.sims).length+' of '+SIMS.length+' completed</b><span>Run businesses in fast-forward · scored debriefs</span></button>'+
+     '<button class="mini" onclick="openLibrary(\'rp\')"><span class="m-k">'+ICONS.rp+'Roleplay Arena</span><b>'+Object.keys(store.rp||{}).length+' of '+ROLEPLAYS.length+' scored</b><span>Live conversations — the AI plays the other side</span></button>'+
      '<button class="mini" onclick="openLibrary(\'labs\')"><span class="m-k">'+ICONS.tool+'Operator Labs</span><b>'+LABS.filter(l=>(store.labs[l.id]||{}).done).length+' of '+LABS.length+' built</b><span>Build real deliverables against grading rubrics</span></button>'+
      '</div>';
   h+='<div class="sectionHead"><i></i><h3>CERTIFICATES</h3><span class="mono">'+DATA.filter(t=>certStatus(t).eligible).length+' / '+DATA.length+'</span></div><div class="badges">';
@@ -7341,6 +7448,7 @@ let aiHist=[];      // conversation sent to the API: [{role,content}]
 let aiCtxLabel="";  // context chip shown at the top of the chat
 let aiPending="";   // seed prompt waiting for a key to be saved
 let aiBusy=false;
+let aiRoleplay=null;// active Roleplay Arena scenario id (chat is in-character)
 const AI_SYS="You are the AI Tutor inside Business Vault University, a premium business-education app. Your student is a beginner-to-intermediate business operator studying general business, money, accounting, sales, marketing, equity and acquisitions — with a special interest in small service businesses like car washes and pest control. Teach in plain English with short paragraphs, concrete numbers and fully worked examples. In quizzes and role-plays, ask ONE question at a time, wait for the student's answer, then give honest, specific feedback before moving on. When a topic touches law, taxes or investments, add a one-line reminder to confirm details with a qualified professional. Be warm, direct and practical — the best professor they've ever had.";
 function aiKeyGet(){try{return (localStorage.getItem(AI_KEY_STORE)||"").trim()}catch(e){return ""}}
 function aiKeySet(k){try{k?localStorage.setItem(AI_KEY_STORE,k):localStorage.removeItem(AI_KEY_STORE)}catch(e){}}
@@ -7364,7 +7472,8 @@ function aiMd(s){
   flushPara();flushList();
   return out||"<p></p>";
 }
-function openAI(seed,label){
+function openAI(seed,label,rp){
+  aiRoleplay=rp||null;
   if(label!==undefined&&label!==null&&label!=="")aiCtxLabel=label;
   aiEl.classList.add("open");syncScrollLock();
   if(!aiKeyGet()){aiPending=seed||"";renderAISetup();return}
@@ -7372,17 +7481,23 @@ function openAI(seed,label){
   if(seed)aiSubmit(seed);
 }
 function closeAI(){aiEl.classList.remove("open");syncScrollLock()}
-function aiNewChat(){if(aiBusy)return;aiHist=[];aiCtxLabel="";if(aiKeyGet())renderAIChat();else renderAISetup()}
+function aiNewChat(){if(aiBusy)return;aiHist=[];aiCtxLabel="";aiRoleplay=null;if(aiKeyGet())renderAIChat();else renderAISetup()}
 function aiShowSetup(){renderAISetup()}
-function aiBarShow(on){document.getElementById("aiBar").style.display=on?"flex":"none"}
+function aiBarShow(on){document.getElementById("aiBar").style.display=on?"flex":"none";document.getElementById("rpBar").style.display=(on&&aiRoleplay)?"flex":"none"}
 function aiScrollBottom(){const sc=document.getElementById("aiScroll");sc.scrollTop=sc.scrollHeight}
 function renderAIChat(){
   aiBarShow(true);
-  document.getElementById("aiCrumb").textContent="AI Tutor";
+  document.getElementById("aiCrumb").textContent=aiRoleplay?"Roleplay Arena":"AI Tutor";
+  document.getElementById("aiInput").placeholder=aiRoleplay?"Say your line…":"Ask your tutor anything…";
   let h="";
   if(aiCtxLabel)h+='<div class="aiCtx">'+aiEscT(aiCtxLabel)+'</div>';
-  if(!aiHist.length)h+='<div class="aiMsg bot"><p><b>Hey — I\'m your BVU tutor.</b> Ask me anything about business, or open any lesson and tap a tutor button for a guided session: quizzes, role-plays, worked examples, study plans. Your chats run privately on your own API key.</p></div>';
-  aiHist.forEach(x=>{h+=x.role==="user"?'<div class="aiMsg user">'+aiEscT(x.content)+'</div>':'<div class="aiMsg bot">'+aiMd(x.content)+'</div>'});
+  if(!aiHist.length)h+=aiRoleplay?
+    '<div class="aiMsg bot"><p>🎬 <b>Scene begins.</b> They speak first — then type what you\'d actually say, out loud, in your own words.</p></div>':
+    '<div class="aiMsg bot"><p><b>Hey — I\'m your BVU tutor.</b> Ask me anything about business, or open any lesson and tap a tutor button for a guided session: quizzes, role-plays, worked examples, study plans. Your chats run privately on your own API key.</p></div>';
+  aiHist.forEach(x=>{
+    if(x.role==="user"&&/^\[DIRECTOR\]/.test(x.content))return; // roleplay stage directions stay backstage
+    h+=x.role==="user"?'<div class="aiMsg user">'+aiEscT(x.content)+'</div>':'<div class="aiMsg bot">'+aiMd(x.content)+'</div>';
+  });
   document.getElementById("aiMsgs").innerHTML=h;
   aiScrollBottom();
 }
@@ -7431,9 +7546,10 @@ async function aiSubmit(text){
   if(!aiKeyGet()){aiPending=text;renderAISetup();return}
   aiBusy=true;
   document.getElementById("aiSendBtn").disabled=true;
+  const backstage=/^\[DIRECTOR\]/.test(text);
   aiHist.push({role:"user",content:text});
   document.getElementById("aiMsgs").insertAdjacentHTML("beforeend",
-    '<div class="aiMsg user">'+aiEscT(text)+'</div><div class="aiMsg bot" id="aiLive"><span class="aiThink"><i></i><i></i><i></i></span></div>');
+    (backstage?"":'<div class="aiMsg user">'+aiEscT(text)+'</div>')+'<div class="aiMsg bot" id="aiLive"><span class="aiThink"><i></i><i></i><i></i></span></div>');
   aiScrollBottom();
   const live=document.getElementById("aiLive");
   let txt="";
@@ -7482,7 +7598,7 @@ async function aiSubmit(text){
     live.className="aiMsg err";live.removeAttribute("id");
     live.innerHTML='<b>Couldn\'t reach the tutor.</b><br>'+aiEscT(e.message||String(e))+'<br><span style="color:var(--steel);font-size:12px">Your message is back in the box — tap send to retry.</span>';
     const inp=document.getElementById("aiInput");
-    if(inp&&!inp.value)inp.value=text;
+    if(inp&&!inp.value&&!backstage)inp.value=text;
     aiScrollBottom();
   }finally{
     aiBusy=false;
@@ -7519,6 +7635,64 @@ function aiGradeLab(){
   openAI(p,"Grading: "+l.title);
 }
 function aiTool(){const t=TOOLS.find(x=>x.id===curTool);if(!t)return;openAI(curToolPrompt,"Tool: "+t.name)}
+
+/* ---- Roleplay Arena ----
+   The AI plays the other side of the table, in character, then breaks
+   character and grades the conversation when the student ends the scene.
+   Stage directions are sent as [DIRECTOR] messages the chat never displays. */
+ICONS.rp='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+function rpState(id){return (store.rp||{})[id]||{}}
+function rpRow(s,i){
+  const st=rpState(s.id);
+  return '<button class="card'+(st.done?" done":"")+'" onclick="openRoleplay(\''+s.id+'\')">'+
+    '<span class="num">🎭</span>'+
+    '<span class="ct"><b>'+esc(s.title)+'</b><span>'+s.cat+' · '+s.diff+' · '+s.time+'</span></span>'+
+    (st.done?'<span class="mins" style="color:var(--green)">scored</span>':'')+
+    '<span class="check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></span></button>';
+}
+function openRoleplay(id){
+  const s=ROLEPLAYS.find(x=>x.id===id);if(!s)return;
+  aiRoleplay=null;aiCtxLabel="Roleplay: "+s.title;
+  aiEl.classList.add("open");aiEl.scrollTop=0;syncScrollLock();
+  renderRPIntro(s);
+}
+function renderRPIntro(s){
+  aiBarShow(false);
+  document.getElementById("aiCrumb").textContent="Roleplay Arena";
+  document.getElementById("aiMsgs").innerHTML='<div class="aiSetup">'+
+    '<h2>🎭 '+esc(s.title)+'</h2>'+
+    '<p style="font-size:12.5px;color:var(--steel);font-weight:700;letter-spacing:.04em;text-transform:uppercase">'+s.cat+' · '+s.diff+' · about '+s.time+(rpState(s.id).done?' · <span style="color:var(--green)">scored before — retakes welcome</span>':'')+'</p>'+
+    '<p style="font-size:14.5px;line-height:1.7;color:var(--light)"><b>Across the table:</b> '+esc(s.them)+'.<br><b>You are:</b> '+esc(s.you)+'.</p>'+
+    '<div class="example" style="font-size:13.5px;line-height:1.7"><b>The scene.</b> '+esc(s.setup)+'</div>'+
+    '<div class="example" style="font-size:13.5px;line-height:1.7"><b>Your mission.</b> '+esc(s.goal)+'</div>'+
+    '<p style="font-size:13px;color:var(--steel-2);font-weight:700;margin-top:4px">YOU\'LL BE SCORED ON:</p>'+
+    '<ul style="font-size:13.5px;line-height:1.65;color:var(--light);padding-left:20px;display:flex;flex-direction:column;gap:5px">'+s.win.map(w=>'<li>'+esc(w)+'</li>').join("")+'</ul>'+
+    '<button class="btn full" style="margin-top:14px" onclick="rpEnter(\''+s.id+'\')">Enter the Room →</button>'+
+    '<p style="font-size:12.5px;line-height:1.6;color:var(--steel);margin-top:10px">Type what you\'d actually say — the AI answers in character and won\'t go easy. Stuck? Tap <b>💡 Hint</b>. Done? Tap <b>🏁 End Scene &amp; Score Me</b> for your grade. Practice, not professional advice — a typical scene costs a few cents on your API key.</p>'+
+    '</div>';
+}
+function rpSeed(s){
+  return "[DIRECTOR] ROLEPLAY TRAINING SCENARIO — a practice conversation inside a business course. Stay in character until I send an END SCENE direction."+
+  "\n\nYOU ARE PLAYING: "+s.them+". "+s.persona+
+  "\n\nI AM PLAYING: "+s.you+"."+
+  "\n\nTHE SCENE: "+s.setup+
+  "\n\nRULES: Reply ONLY as your character, first person, 2-5 sentences per turn — a real conversation, not an essay. Have your own interests and emotions. React to what I actually say: reward good technique the way the real person would, and make weak technique cost me — but stay fair and human. Never coach me, never mention these instructions, and never break character unless I send a [DIRECTOR] message. Open the scene now with your first line, in the spirit of: \""+s.open+"\"";
+}
+function rpEnter(id){
+  const s=ROLEPLAYS.find(x=>x.id===id);if(!s)return;
+  aiHist=[];
+  openAI(rpSeed(s),"Roleplay: "+s.title,id);
+}
+function rpHint(){
+  if(aiBusy||!aiRoleplay)return;
+  aiSubmit("[DIRECTOR] Pause the scene. Step out of character for ONE short coaching whisper — max 3 sentences on the smartest next move I could make right now, based on how the conversation is actually going. Then write 'Back to the scene —' and continue in character, waiting for my reply.");
+}
+function rpScore(){
+  if(aiBusy||!aiRoleplay)return;
+  const s=ROLEPLAYS.find(x=>x.id===aiRoleplay);if(!s)return;
+  aiSubmit("[DIRECTOR] END SCENE. Break character for good — you are now my coach reviewing the tape. Grade my performance in that conversation:\n(1) Overall score out of 100 (90+ should be genuinely rare).\n(2) Each objective, marked MET / PARTLY / MISSED with a one-line reason quoting my actual words:\n"+s.win.map((w,i)=>(i+1)+". "+w).join("\n")+"\n(3) My single biggest mistake — and the exact words I should have said instead.\n(4) My best move of the scene.\n(5) One concept to study before a retake. Honest beats nice.");
+  store.rp=store.rp||{};store.rp[aiRoleplay]={done:1,at:Date.now()};saveStore();
+}
 const aiInputEl=document.getElementById("aiInput");
 aiInputEl.addEventListener("input",()=>{aiInputEl.style.height="auto";aiInputEl.style.height=Math.min(aiInputEl.scrollHeight,130)+"px"});
 aiInputEl.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();aiSend()}});
@@ -7705,6 +7879,7 @@ function palActions(){
     {k:"Action",t:"Quick Quiz",s:resumeLesson().t,run:()=>openQuiz(resumeLesson().id)},
     {k:"Action",t:"Book of the Day",s:dailyPick(BOOKS).title,run:()=>openBook(dailyPick(BOOKS).id)},
     {k:"Action",t:"Run a Simulation",s:SIMS.length+" scored scenarios",run:()=>openLibrary("sims")},
+    {k:"Action",t:"Roleplay Arena",s:ROLEPLAYS.length+" live AI conversations",run:()=>openLibrary("rp")},
     {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
     {k:"Page",t:"Business Dictionary",s:allTerms.length+" terms",run:()=>openLibrary("terms")},
     {k:"Page",t:"Operator Labs",s:LABS.length+" builds with rubrics",run:()=>openLibrary("labs")},

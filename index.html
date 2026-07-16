@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="BVU">
 <meta name="theme-color" content="#eef3fb">
-<meta name="description" content="Business Vault Private University — master business from zero to operator.">
-<title>The Business Vault</title>
+<meta name="description" content="Business Vault University — master business from zero to operator.">
+<title>Business Vault University</title>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -94,10 +98,11 @@
 
   /* ---- brand ---- */
   .brandmark{
-    width:36px;height:36px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;
+    width:36px;height:36px;border-radius:9px;flex-shrink:0;display:grid;place-items:center;overflow:hidden;
     background:var(--brand-face);border:1px solid var(--blue-3);color:var(--blue-2);
     box-shadow:0 0 14px rgba(47,111,237,.18),inset 0 1px 0 rgba(255,255,255,.6);
   }
+  .brandmark img{width:100%;height:100%;object-fit:cover;display:block}
   .brandname{font-family:var(--font-d);font-weight:700;font-size:15px;letter-spacing:.16em;color:var(--text)}
   .brandname small{display:block;font-family:var(--mono);font-size:7.5px;letter-spacing:.34em;color:var(--steel);font-weight:500;margin-top:1px}
 
@@ -508,9 +513,9 @@
 <aside class="sidebar" id="sidebar">
   <div class="sb-brand">
     <div class="brandmark">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><circle cx="12" cy="14" r="2.4"/><path d="M12 16.4V18"/></svg>
+      <img src="icon-192.png" alt="BVU">
     </div>
-    <div class="brandname">BUSINESS VAULT<small>PRIVATE UNIVERSITY</small></div>
+    <div class="brandname">BUSINESS VAULT<small>UNIVERSITY</small></div>
   </div>
   <button class="sb-search" onclick="openPalette()">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
@@ -541,9 +546,9 @@
 <header class="top">
   <div class="brandwrap">
     <div class="brandmark">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/><circle cx="12" cy="14" r="2.4"/><path d="M12 16.4V18"/></svg>
+      <img src="icon-192.png" alt="BVU">
     </div>
-    <div class="brandname">BUSINESS VAULT<small>PRIVATE UNIVERSITY</small></div>
+    <div class="brandname">BUSINESS VAULT<small>UNIVERSITY</small></div>
   </div>
   <div class="pageTitle" id="pageTitle">Dashboard</div>
   <div class="top-right">

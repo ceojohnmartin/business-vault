@@ -495,6 +495,9 @@
   #settings{position:fixed;inset:0;z-index:138;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
   #settings.open{transform:translateY(0);visibility:visible}
   #settings .sheetBar{flex-shrink:0}
+  #mission{position:fixed;inset:0;z-index:139;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
+  #mission.open{transform:translateY(0);visibility:visible}
+  #mission .sheetBar{flex-shrink:0}
   .setRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid var(--edge)}
   .setRow:last-child{border-bottom:none}
   .setRow .sl{min-width:0}
@@ -895,6 +898,18 @@
     <div class="barBtns"></div>
   </div>
   <div class="planScroll" id="planScroll"><div class="planInner" id="planInner"></div></div>
+</div>
+
+<div id="mission" role="dialog" aria-modal="true" aria-label="Business Mission">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeMission()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb" id="missionCrumb">Business Mission</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="planScroll" id="missionScroll"><div class="planInner" id="missionInner"></div></div>
 </div>
 
 <div id="sheet" role="dialog" aria-modal="true">
@@ -5752,6 +5767,384 @@ brief:"Below are 20 numbered arguments. Work through AT LEAST 8 in the work area
 steps:["1. 'Our top competitor uses radio ads and they're the biggest in town — so radio ads clearly work and we should buy them.' (Watch for: causation vs. correlation, selection effect.)","2. 'Everyone I asked at the gym loved my business idea, so the market clearly wants it.' (Sampling, incentives to be polite, compliments-as-data.)","3. 'We've spent $30k on this software already — abandoning it now would waste all that money.' (Name the fallacy; write the forward-looking version.)","4. 'You're either with the new strategy or you want this company to fail.' (Name the pattern; list the excluded middle.)","5. 'My last three hires from that college worked out great; their graduates are simply better workers.' (Sample size, selection, alternative explanations.)","6. 'Revenue rose every month since we repainted the trucks — the new look is driving sales.' (What else changed? What evidence would isolate the cause?)","7. 'A famous billionaire said cold-calling is dead, so we should stop cold-calling.' (Authority's domain, incentives, base rates.)","8. 'If we let one employee work from home, soon nobody will ever come in and the company will collapse.' (Name the pattern; state the actual gradient and where lines CAN be drawn.)","9. 'Our service must be excellent — we've had almost no complaints.' (Silent evidence: who complains, who just leaves?)","10. 'He drives an expensive truck, so his landscaping business must be doing great — let's copy his pricing.' (Visible signals vs. balance sheets.)","11. 'Raising prices is greedy; keeping them low is how you respect customers.' (Fact vs. value; hidden assumptions about what customers value; margin as service-quality mechanism.)","12. 'Nobody in our family has ever run a business; it's just not something people like us can do.' (Identify the claim type; what evidence bears on it?)","13. 'The consultant has certifications, so her growth plan must be right for us.' (Credentials vs. context; what questions test fit?)","14. 'We tried marketing once in 2022 and it didn't work — marketing doesn't work in our industry.' (Definition problems: what is 'marketing'? what is 'work'? sample of one.)","15. 'Every successful owner I follow wakes at 5am, so waking at 5am is a key to success.' (Survivorship, reversed causation, visible-habit bias.)","16. 'Our people keep quitting for $2/hour more elsewhere — proof that loyalty is dead in this generation.' (Alternative explanation via incentives; whose assumption is doing the work?)","17. 'If the product were actually good, it would sell itself — needing salespeople means it's weak.' (Hidden premise about how buying decisions happen; find the counterexamples.)","18. 'The city report says foot traffic doubled downtown, so opening our second location there is a safe bet.' (From data to decision: what's missing between the premise and 'safe'?)","19. 'You can't trust his cost-cutting advice — he once ran a company that went bankrupt.' (Name the pattern; when IS track record relevant vs. ad hominem?)","20. FULL DISSECTION: 'Discipline is overrated. The most creative breakthroughs come from freedom and play, not rigid schedules. Companies with strict processes never innovate, which is why startups out-invent corporations. If you want innovation, remove the rules.' — Write: every claim; every premise; every hidden assumption; each fallacy by name; the STEELMAN (the strongest true thing this argument is reaching for); your rebuttal to the steelman; and a nuanced final verdict in 2-3 sentences that a fair judge would accept."],
 rel:["rh2","rh7","rh8"],
 rubric:["At least 8 arguments dissected, each with claim, premises, and hidden assumptions explicitly separated","Fallacies and gaps named precisely (sunk cost, false dichotomy, survivorship, correlation/causation…) — not just 'this is dumb'","At least one honest STEELMAN written for a position you disagree with, strong enough that its holder would sign it","Exercise #20 completed in full, ending in a nuanced verdict rather than a takedown","Tone throughout is composed and surgical — arguments dissected, nobody insulted"]});
+/* ================= BUSINESS MISSIONS — DATA (Personalized Execution Upgrade) =================
+   14 mission templates. EVERY item references real, verified BVU content:
+   k: lesson|quiz|flash (lesson id) · exam (tr+lv) · final (tr) · lab|sim|case|rp|book|tool (registry id)
+   st: stage 1 Foundation · 2 Practice · 3 Application · 4 Mastery
+   req: 1 required (drives progress) · 0 optional (swappable)
+   b: 1 = basic — becomes optional for experienced users
+   why/skill: shown on every path item. */
+const MS_TIME={lesson:12,quiz:4,flash:6,sim:12,"case":10,rp:12,lab:45,cap:75,exam:10,"final":15,book:10,tool:6};
+const MS_TEMPLATES=[
+{id:"ms-launch",title:"First Business Launch",who:"Someone starting their first business from zero",
+outcome:"A launched business with validated demand, first paying customers, and cash discipline from day one",
+skills:["Validation","Offers","First sales","Cash discipline"],prereq:[],
+items:[
+{k:"lesson",id:"f1",st:1,req:1,b:1,why:"The foundation everything else stands on",skill:"Foundations"},
+{k:"lesson",id:"f3",st:1,req:1,b:1,why:"Revenue vs. profit — the confusion that kills first businesses",skill:"Foundations"},
+{k:"lesson",id:"st1",st:1,req:1,why:"The honest audit before you leap",skill:"Validation"},
+{k:"lesson",id:"st2",st:1,req:1,why:"Choosing what to start — boring beats brilliant",skill:"Validation"},
+{k:"lesson",id:"st3",st:1,req:1,why:"Validate with $200 before betting your savings",skill:"Validation"},
+{k:"lesson",id:"st4",st:1,req:1,why:"The exact playbook for customers 1-10",skill:"First sales"},
+{k:"lesson",id:"st5",st:1,req:1,why:"Minimum viable setup — skip what can wait",skill:"Launch"},
+{k:"lesson",id:"st7",st:1,req:0,why:"The math of your first $10k month",skill:"Unit economics"},
+{k:"lesson",id:"st8",st:1,req:1,why:"Cash discipline from day one",skill:"Cash discipline"},
+{k:"quiz",id:"st3",st:2,req:1,why:"Lock in the validation method",skill:"Validation"},
+{k:"quiz",id:"st4",st:2,req:1,why:"Lock in the first-customers playbook",skill:"First sales"},
+{k:"sim",id:"sim-zero",st:2,req:1,why:"Run a from-zero launch in fast-forward",skill:"Judgment"},
+{k:"sim",id:"sim-launch",st:2,req:0,why:"A second scored launch scenario",skill:"Judgment"},
+{k:"tool",id:"breakeven",st:2,req:0,why:"Know YOUR breakeven before you spend",skill:"Unit economics"},
+{k:"case",id:"sidehustle-jump",st:2,req:0,why:"When to leap: a real side-hustle decision",skill:"Judgment"},
+{k:"lab",id:"lab-offer",st:3,req:1,why:"Build the offer you'll actually sell",skill:"Offers"},
+{k:"lab",id:"cap-st",st:3,req:1,why:"The Startup School capstone — your launch plan, graded",skill:"Application"},
+{k:"book",id:"lean-startup",st:3,req:0,why:"The validation classic, in a 10-minute deep dive",skill:"Validation"},
+{k:"book",id:"mom-test",st:3,req:0,why:"How to ask customers questions that don't lie",skill:"Validation"},
+{k:"exam",tr:"st",lv:0,id:"st:S1",st:4,req:1,why:"Certify Level 1 of Startup School",skill:"Mastery"},
+{k:"exam",tr:"st",lv:1,id:"st:S2",st:4,req:0,why:"Certify Level 2",skill:"Mastery"},
+{k:"final",tr:"st",id:"st:FINAL",st:4,req:1,why:"The Startup School final — 85% to pass",skill:"Mastery"}]},
+{id:"ms-validate",title:"Idea Validation Sprint",who:"Someone with an idea who needs to know if it's real before spending",
+outcome:"A validated (or honestly killed) business idea, tested with real people and real money signals",
+skills:["Validation","Customer research","Offers"],prereq:[],
+items:[
+{k:"lesson",id:"st2",st:1,req:1,why:"Is this even the right idea category?",skill:"Idea selection"},
+{k:"lesson",id:"st3",st:1,req:1,why:"The $200 validation test, step by step",skill:"Validation"},
+{k:"lesson",id:"mk2",st:1,req:1,why:"Know the customer cold before building",skill:"Customer research"},
+{k:"lesson",id:"mk4",st:1,req:1,why:"An offer people feel dumb refusing",skill:"Offers"},
+{k:"lesson",id:"st4",st:1,req:0,why:"What happens right after validation",skill:"First sales"},
+{k:"quiz",id:"st3",st:2,req:1,why:"Lock in the method",skill:"Validation"},
+{k:"quiz",id:"mk2",st:2,req:0,why:"Test your customer-research grasp",skill:"Customer research"},
+{k:"sim",id:"sim-launch",st:2,req:1,why:"Practice launch decisions before real ones",skill:"Judgment"},
+{k:"case",id:"sidehustle-jump",st:2,req:0,why:"A real validate-then-leap decision",skill:"Judgment"},
+{k:"book",id:"mom-test",st:2,req:1,why:"The book on questions that get honest answers",skill:"Customer research"},
+{k:"lab",id:"lab-offer",st:3,req:1,why:"Package the idea into a testable offer",skill:"Offers"},
+{k:"book",id:"lean-startup",st:3,req:0,why:"Build-measure-learn, properly understood",skill:"Validation"},
+{k:"exam",tr:"st",lv:0,id:"st:S1",st:4,req:0,why:"Certify the foundations if you're continuing",skill:"Mastery"}]},
+{id:"ms-customers",title:"First Customers",who:"Someone launched (or launching) who needs paying customers now",
+outcome:"A working customer-acquisition motion: outreach running, offer converting, first referrals arriving",
+skills:["Prospecting","Local marketing","Selling","Follow-up"],prereq:[],
+items:[
+{k:"lesson",id:"st4",st:1,req:1,why:"The first-ten-customers playbook",skill:"Acquisition"},
+{k:"lesson",id:"s1",st:1,req:1,b:1,why:"Why people actually buy",skill:"Selling"},
+{k:"lesson",id:"s2",st:1,req:1,why:"Prospecting and the pipeline",skill:"Prospecting"},
+{k:"lesson",id:"s3",st:1,req:1,why:"Discovery — selling by asking",skill:"Selling"},
+{k:"lesson",id:"mk6",st:1,req:1,why:"The local marketing engine",skill:"Local marketing"},
+{k:"lesson",id:"mk10",st:1,req:0,why:"The fortune in the follow-up list",skill:"Follow-up"},
+{k:"quiz",id:"s2",st:2,req:1,why:"Lock in prospecting",skill:"Prospecting"},
+{k:"quiz",id:"s3",st:2,req:1,why:"Lock in discovery",skill:"Selling"},
+{k:"sim",id:"sim-marketing",st:2,req:1,why:"Scored marketing decisions under budget pressure",skill:"Judgment"},
+{k:"tool",id:"cac",st:2,req:0,why:"Know what a customer costs you to win",skill:"Unit economics"},
+{k:"lab",id:"lab-script",st:3,req:1,why:"Write the script you'll use on real doors and calls",skill:"Selling"},
+{k:"book",id:"100m-leads",st:3,req:0,why:"The lead-getting playbook, condensed",skill:"Acquisition"},
+{k:"lesson",id:"s8",st:3,req:0,why:"Referrals — the boring fortune",skill:"Follow-up"},
+{k:"exam",tr:"sales",lv:0,id:"sales:S1",st:4,req:1,why:"Certify sales Level 1",skill:"Mastery"}]},
+{id:"ms-sales",title:"Sales Mastery",who:"Anyone who sells — owner, rep, or door-knocker — ready to get genuinely good",
+outcome:"A complete personal selling system: pipeline, discovery, objections, closing, follow-up — certified",
+skills:["Prospecting","Discovery","Objections","Closing","Negotiation"],prereq:[],
+items:[
+{k:"lesson",id:"s1",st:1,req:1,b:1,why:"The psychology under every sale",skill:"Foundations"},
+{k:"lesson",id:"s2",st:1,req:1,why:"Pipeline math and prospecting",skill:"Prospecting"},
+{k:"lesson",id:"s3",st:1,req:1,why:"Discovery — the highest-paid questions",skill:"Discovery"},
+{k:"lesson",id:"s4",st:1,req:1,why:"Presenting and handling objections",skill:"Objections"},
+{k:"lesson",id:"s5",st:1,req:1,why:"Closing without cringe",skill:"Closing"},
+{k:"lesson",id:"s6",st:1,req:0,why:"Door-to-door mastery",skill:"Field sales"},
+{k:"lesson",id:"s8",st:1,req:1,why:"Follow-up and referrals",skill:"Follow-up"},
+{k:"lesson",id:"s9",st:1,req:0,why:"Sales metrics and the CRM truth machine",skill:"Metrics"},
+{k:"quiz",id:"s3",st:2,req:1,why:"Lock in discovery",skill:"Discovery"},
+{k:"quiz",id:"s4",st:2,req:1,why:"Lock in objection handling",skill:"Objections"},
+{k:"quiz",id:"s5",st:2,req:1,why:"Lock in closing",skill:"Closing"},
+{k:"rp",id:"rp-whale",st:2,req:1,why:"Live negotiation vs. a procurement pro",skill:"Negotiation"},
+{k:"rp",id:"rp-latepay",st:2,req:0,why:"Collect without losing the account",skill:"Negotiation"},
+{k:"flash",id:"s3",st:2,req:0,why:"Drill the discovery vocabulary",skill:"Discovery"},
+{k:"lab",id:"lab-script",st:3,req:1,why:"Your full script: opener to close",skill:"Application"},
+{k:"book",id:"spin-selling",st:3,req:1,why:"The 35,000-call study, distilled",skill:"Discovery"},
+{k:"book",id:"never-split",st:3,req:0,why:"FBI negotiation tools for business",skill:"Negotiation"},
+{k:"exam",tr:"sales",lv:0,id:"sales:S1",st:4,req:1,why:"Certify Level 1",skill:"Mastery"},
+{k:"exam",tr:"sales",lv:1,id:"sales:S2",st:4,req:1,why:"Certify Level 2",skill:"Mastery"},
+{k:"final",tr:"sales",id:"sales:FINAL",st:4,req:1,why:"Sales School final",skill:"Mastery"},
+{k:"lab",id:"cap-sales",st:4,req:0,why:"The Sales capstone project",skill:"Application"}]},
+{id:"ms-marketing",title:"Marketing Growth",who:"An owner whose product works but whose phone doesn't ring enough",
+outcome:"A working marketing engine: sharp positioning, a converting offer, one reliable channel, measured results",
+skills:["Positioning","Offers","Channels","Copy","Analytics"],prereq:[],
+items:[
+{k:"lesson",id:"mk1",st:1,req:1,b:1,why:"What marketing actually is",skill:"Foundations"},
+{k:"lesson",id:"mk2",st:1,req:1,why:"Know your customer cold",skill:"Research"},
+{k:"lesson",id:"mk3",st:1,req:1,why:"Positioning — own one thing",skill:"Positioning"},
+{k:"lesson",id:"mk4",st:1,req:1,why:"Offers that sell themselves",skill:"Offers"},
+{k:"lesson",id:"mk5",st:1,req:1,why:"Words that move money",skill:"Copy"},
+{k:"lesson",id:"mk6",st:1,req:1,why:"The local marketing engine",skill:"Channels"},
+{k:"lesson",id:"mk8",st:1,req:0,why:"Paid ads without burning cash",skill:"Channels"},
+{k:"lesson",id:"mk12",st:1,req:0,why:"Steering by numbers",skill:"Analytics"},
+{k:"quiz",id:"mk3",st:2,req:1,why:"Lock in positioning",skill:"Positioning"},
+{k:"quiz",id:"mk4",st:2,req:1,why:"Lock in offer design",skill:"Offers"},
+{k:"sim",id:"sim-marketing",st:2,req:1,why:"Budget decisions, scored",skill:"Judgment"},
+{k:"tool",id:"adbudget",st:2,req:0,why:"Plan spend before spending",skill:"Analytics"},
+{k:"tool",id:"cac",st:2,req:0,why:"Cost per customer, by channel",skill:"Analytics"},
+{k:"case",id:"lego-focus",st:2,req:0,why:"Focus as a turnaround strategy",skill:"Positioning"},
+{k:"lab",id:"lab-offer",st:3,req:1,why:"Build your grand-slam offer",skill:"Offers"},
+{k:"lab",id:"lab-funnel",st:3,req:1,why:"Design the funnel end to end",skill:"Channels"},
+{k:"book",id:"100m-leads",st:3,req:0,why:"Lead generation, systematized",skill:"Channels"},
+{k:"book",id:"sci-advertising",st:3,req:0,why:"Measured advertising, 100 years proven",skill:"Copy"},
+{k:"exam",tr:"mkt",lv:0,id:"mkt:K1",st:4,req:1,why:"Certify Level 1",skill:"Mastery"},
+{k:"final",tr:"mkt",id:"mkt:FINAL",st:4,req:0,why:"Marketing School final",skill:"Mastery"},
+{k:"lab",id:"cap-mkt",st:4,req:0,why:"The Marketing capstone",skill:"Application"}]},
+{id:"ms-finance",title:"Financial Fluency",who:"An owner or operator who nods at financial statements without truly reading them",
+outcome:"You read a P&L, balance sheet and cash-flow statement fluently, know your margins cold, and manage by numbers",
+skills:["Statements","Margins","Cash flow","Ratios"],prereq:[],
+items:[
+{k:"lesson",id:"f3",st:1,req:1,b:1,why:"Revenue vs. profit, settled forever",skill:"Foundations"},
+{k:"lesson",id:"f4",st:1,req:1,b:1,why:"How money flows through a business",skill:"Foundations"},
+{k:"lesson",id:"f5",st:1,req:1,why:"Reading a P&L line by line",skill:"Statements"},
+{k:"lesson",id:"ac4",st:1,req:1,why:"Cash vs. accrual — when a dollar counts",skill:"Statements"},
+{k:"lesson",id:"ac5",st:1,req:1,why:"The anatomy of gross margin",skill:"Margins"},
+{k:"lesson",id:"ac7",st:1,req:1,why:"The income statement, mastered",skill:"Statements"},
+{k:"lesson",id:"ac9",st:1,req:1,why:"Following the cash",skill:"Cash flow"},
+{k:"lesson",id:"ac10",st:1,req:0,why:"Ratios, red flags and fraud",skill:"Ratios"},
+{k:"quiz",id:"f5",st:2,req:1,why:"Lock in P&L reading",skill:"Statements"},
+{k:"quiz",id:"ac5",st:2,req:1,why:"Lock in margin math",skill:"Margins"},
+{k:"sim",id:"sim-cash",st:2,req:1,why:"Survive a cash crunch, scored",skill:"Cash flow"},
+{k:"tool",id:"pnl",st:2,req:1,why:"Build a P&L with live math",skill:"Statements"},
+{k:"tool",id:"grossmargin",st:2,req:0,why:"Margin math on your real numbers",skill:"Margins"},
+{k:"case",id:"cash-crisis",st:2,req:1,why:"A profitable company nearly dies of cash",skill:"Cash flow"},
+{k:"lab",id:"lab-pnl",st:3,req:1,why:"Build YOUR P&L from scratch",skill:"Application"},
+{k:"lab",id:"lab-cashflow",st:3,req:0,why:"The 13-week cash forecast",skill:"Cash flow"},
+{k:"book",id:"fin-intel",st:3,req:0,why:"What the numbers really mean",skill:"Statements"},
+{k:"book",id:"acct-simple",st:3,req:0,why:"The whole skeleton in an afternoon",skill:"Foundations"},
+{k:"exam",tr:"acct",lv:0,id:"acct:A1",st:4,req:1,why:"Certify accounting Level 1",skill:"Mastery"},
+{k:"final",tr:"acct",id:"acct:FINAL",st:4,req:0,why:"Accounting School final",skill:"Mastery"},
+{k:"lab",id:"cap-acct",st:4,req:0,why:"The Accounting capstone",skill:"Application"}]},
+{id:"ms-ops",title:"Operations Upgrade",who:"An owner drowning in the day-to-day whose business lives in their head",
+outcome:"A business that runs on documented systems: SOPs written, scoreboard live, bottleneck found and attacked",
+skills:["SOPs","Scheduling","Quality","Bottlenecks","Meetings"],prereq:[],
+items:[
+{k:"lesson",id:"ops1",st:1,req:1,why:"The machine behind the promise",skill:"Foundations"},
+{k:"lesson",id:"ops2",st:1,req:1,why:"SOPs — the business that runs on paper",skill:"SOPs"},
+{k:"lesson",id:"ops5",st:1,req:1,why:"Scheduling, capacity and route math",skill:"Scheduling"},
+{k:"lesson",id:"ops6",st:1,req:1,why:"Quality control and service recovery",skill:"Quality"},
+{k:"lesson",id:"ops7",st:1,req:1,why:"The weekly scoreboard and meeting rhythm",skill:"Meetings"},
+{k:"lesson",id:"ops11",st:1,req:1,why:"Bottlenecks, waste and cost control",skill:"Bottlenecks"},
+{k:"lesson",id:"ops8",st:1,req:0,why:"Delegation — from doer to builder",skill:"Delegation"},
+{k:"lesson",id:"ops10",st:1,req:0,why:"Systems and the tech stack",skill:"Systems"},
+{k:"quiz",id:"ops2",st:2,req:1,why:"Lock in SOP thinking",skill:"SOPs"},
+{k:"quiz",id:"ops11",st:2,req:0,why:"Lock in bottleneck hunting",skill:"Bottlenecks"},
+{k:"case",id:"toyota-andon",st:2,req:1,why:"Stop-the-line quality, the origin story",skill:"Quality"},
+{k:"sim",id:"sim-crisis",st:2,req:0,why:"An ops crisis, scored",skill:"Judgment"},
+{k:"book",id:"emyth",st:2,req:1,why:"Work ON the business — the classic",skill:"Systems"},
+{k:"book",id:"the-goal",st:2,req:0,why:"The Theory of Constraints as a novel",skill:"Bottlenecks"},
+{k:"lab",id:"lab-sop",st:3,req:1,why:"Write the SOP only you can currently do",skill:"Application"},
+{k:"lab",id:"lab-scorecard",st:3,req:1,why:"Build your weekly scoreboard",skill:"Meetings"},
+{k:"exam",tr:"ops",lv:0,id:"ops:O1",st:4,req:1,why:"Certify ops Level 1",skill:"Mastery"},
+{k:"final",tr:"ops",id:"ops:FINAL",st:4,req:0,why:"Operations School final",skill:"Mastery"},
+{k:"lab",id:"cap-ops",st:4,req:0,why:"The Operations capstone",skill:"Application"}]},
+{id:"ms-team",title:"Leadership & Team Building",who:"An owner or manager whose next level requires other people to perform",
+outcome:"A hiring system, a feedback rhythm, and the hard-conversation skills that keep A-players and fix problems",
+skills:["Hiring","Feedback","Accountability","Hard conversations"],prereq:[],
+items:[
+{k:"lesson",id:"ops3",st:1,req:1,why:"Recruiting like a marketer",skill:"Hiring"},
+{k:"lesson",id:"ops4",st:1,req:1,why:"Onboarding that sticks",skill:"Hiring"},
+{k:"lesson",id:"ld1",st:1,req:1,why:"What leadership actually is",skill:"Foundations"},
+{k:"lesson",id:"ld2",st:1,req:1,why:"Culture — what you tolerate, you teach",skill:"Culture"},
+{k:"lesson",id:"ld3",st:1,req:1,why:"One-on-ones and feedback that lands",skill:"Feedback"},
+{k:"lesson",id:"ld4",st:1,req:1,why:"Accountability without micromanaging",skill:"Accountability"},
+{k:"lesson",id:"ld5",st:1,req:1,why:"Hard conversations and letting people go",skill:"Hard conversations"},
+{k:"lesson",id:"ld6",st:1,req:0,why:"Keeping your best people",skill:"Retention"},
+{k:"quiz",id:"ld3",st:2,req:1,why:"Lock in the feedback method",skill:"Feedback"},
+{k:"sim",id:"sim-badhire",st:2,req:1,why:"A bad hire, scored decisions",skill:"Hiring"},
+{k:"sim",id:"sim-team",st:2,req:0,why:"Team dynamics under pressure",skill:"Culture"},
+{k:"rp",id:"rp-raise",st:2,req:1,why:"Your best tech asks for $15k — live",skill:"Hard conversations"},
+{k:"rp",id:"rp-firing",st:2,req:1,why:"The termination meeting, practiced safely",skill:"Hard conversations"},
+{k:"book",id:"who-smart",st:3,req:1,why:"The A Method for hiring",skill:"Hiring"},
+{k:"book",id:"radical-candor",st:3,req:0,why:"Care personally, challenge directly",skill:"Feedback"},
+{k:"book",id:"high-output",st:3,req:0,why:"Management as leverage",skill:"Foundations"},
+{k:"exam",tr:"lead",lv:0,id:"lead:L1",st:4,req:1,why:"Certify leadership Level 1",skill:"Mastery"},
+{k:"final",tr:"lead",id:"lead:FINAL",st:4,req:0,why:"Leadership School final",skill:"Mastery"},
+{k:"lab",id:"cap-lead",st:4,req:0,why:"The Leadership capstone",skill:"Application"}]},
+{id:"ms-comm",title:"Executive Communication",who:"Anyone who wants to think sharper and speak with calm authority — in deals, rooms, and hard moments",
+outcome:"Clear arguments, precise vocabulary, Socratic questioning, and composure under fire — certified in the Rhetoric school",
+skills:["Clarity","Argument","Vocabulary","Composure","Debate"],prereq:[],
+items:[
+{k:"lesson",id:"rh1",st:1,req:1,why:"Clarity before complexity — the foundation",skill:"Clarity"},
+{k:"lesson",id:"rh2",st:1,req:1,why:"See the parts of any argument",skill:"Argument"},
+{k:"lesson",id:"rh3",st:1,req:1,why:"Mental models, spoken naturally",skill:"Thinking"},
+{k:"lesson",id:"rh4",st:1,req:1,why:"The psychology under disagreements",skill:"Psychology"},
+{k:"lesson",id:"rh5",st:1,req:1,why:"Vocabulary that sharpens, never decorates",skill:"Vocabulary"},
+{k:"lesson",id:"rh6",st:1,req:1,why:"Turn flat statements into insights",skill:"Insight"},
+{k:"lesson",id:"rh7",st:1,req:1,why:"Questions that reveal assumptions",skill:"Questioning"},
+{k:"lesson",id:"rh8",st:1,req:1,why:"Commanding presence and debate moves",skill:"Composure"},
+{k:"quiz",id:"rh1",st:2,req:1,why:"Lock in the clarity rules",skill:"Clarity"},
+{k:"quiz",id:"rh2",st:2,req:1,why:"Lock in argument anatomy",skill:"Argument"},
+{k:"flash",id:"rh5",st:2,req:1,why:"Drill the 14 vocabulary terms",skill:"Vocabulary"},
+{k:"rp",id:"rp-execpush",st:2,req:1,why:"Disagree with a senior executive — live",skill:"Composure"},
+{k:"rp",id:"rp-publicfire",st:2,req:0,why:"Face public criticism without cracking",skill:"Composure"},
+{k:"rp",id:"rp-hostilepod",st:2,req:0,why:"Survive a hostile interviewer",skill:"Debate"},
+{k:"rp",id:"rp-freedomdebate",st:2,req:0,why:"A real philosophical debate, scored",skill:"Debate"},
+{k:"lab",id:"lab-argument",st:3,req:1,why:"Dissect 8+ arguments; steelman one",skill:"Argument"},
+{k:"book",id:"never-split",st:3,req:0,why:"Tactical empathy in negotiation",skill:"Composure"},
+{k:"exam",tr:"rhet",lv:0,id:"rhet:L1",st:4,req:1,why:"Certify Level 1",skill:"Mastery"},
+{k:"exam",tr:"rhet",lv:1,id:"rhet:L2",st:4,req:1,why:"Certify Level 2",skill:"Mastery"},
+{k:"final",tr:"rhet",id:"rhet:FINAL",st:4,req:1,why:"The Rhetoric final — earns the certificate",skill:"Mastery"}]},
+{id:"ms-acq",title:"Business Acquisition Readiness",who:"A future buyer preparing to purchase a cash-flowing business",
+outcome:"You can source, read, value, structure and negotiate a small-business acquisition — with a full deal model built",
+skills:["Sourcing","Valuation","Diligence","Structure","Negotiation"],prereq:["f5","ac5"],
+items:[
+{k:"lesson",id:"aq1",st:1,req:1,why:"The buy-side mindset and your thesis",skill:"Sourcing"},
+{k:"lesson",id:"aq2",st:1,req:1,why:"Building the deal funnel",skill:"Sourcing"},
+{k:"lesson",id:"aq3",st:1,req:1,why:"Reading a CIM without getting fooled",skill:"Diligence"},
+{k:"lesson",id:"aq4",st:1,req:1,why:"Multiples, DSCR and honest valuation",skill:"Valuation"},
+{k:"lesson",id:"aq5",st:1,req:1,why:"Structuring the LOI",skill:"Structure"},
+{k:"lesson",id:"aq6",st:1,req:1,why:"Due diligence — trust, then verify",skill:"Diligence"},
+{k:"lesson",id:"aq7",st:1,req:1,why:"SBA, sellers and the financing stack",skill:"Structure"},
+{k:"lesson",id:"aq8",st:1,req:0,why:"Closing day and transition",skill:"Structure"},
+{k:"lesson",id:"eq4",st:1,req:0,why:"Valuation from the equity lens",skill:"Valuation"},
+{k:"lesson",id:"eq10",st:1,req:0,why:"Deal structures for buying equity",skill:"Structure"},
+{k:"quiz",id:"aq4",st:2,req:1,why:"Lock in valuation math",skill:"Valuation"},
+{k:"tool",id:"valuation",st:2,req:1,why:"Run real multiples on a real listing",skill:"Valuation"},
+{k:"tool",id:"dscr",st:2,req:0,why:"Will the cash flow carry the debt?",skill:"Structure"},
+{k:"tool",id:"sba",st:2,req:0,why:"Model the SBA payment",skill:"Structure"},
+{k:"sim",id:"sim-buy",st:2,req:1,why:"A full acquisition, five scored decisions",skill:"Judgment"},
+{k:"sim",id:"sim-termsheet",st:2,req:0,why:"Negotiate the term sheet",skill:"Negotiation"},
+{k:"rp",id:"rp-seller",st:2,req:1,why:"Negotiate with Ray, the retiring owner — live",skill:"Negotiation"},
+{k:"case",id:"carwash-acq",st:2,req:1,why:"A real wash acquisition decision",skill:"Valuation"},
+{k:"case",id:"wash-rollup-exit",st:2,req:0,why:"The roll-up exit, dissected",skill:"Structure"},
+{k:"lab",id:"lab-acqmodel",st:3,req:1,why:"Build the full deal model",skill:"Application"},
+{k:"book",id:"buy-then-build",st:3,req:1,why:"Acquisition entrepreneurship, complete",skill:"Sourcing"},
+{k:"book",id:"hbr-buy-small",st:3,req:0,why:"The Harvard search-fund course",skill:"Diligence"},
+{k:"exam",tr:"acq",lv:0,id:"acq:Q1",st:4,req:1,why:"Certify acquisition Level 1",skill:"Mastery"},
+{k:"final",tr:"acq",id:"acq:FINAL",st:4,req:0,why:"Acquisition School final",skill:"Mastery"},
+{k:"lab",id:"cap-acq",st:4,req:0,why:"The Acquisition capstone",skill:"Application"}]},
+{id:"ms-wash",title:"Car Wash Operator Path",who:"Someone preparing to build, buy or run a car wash",
+outcome:"You know wash models, membership economics, staffing, financing and valuations — with a full wash plan built",
+skills:["Site & models","Memberships","Unit economics","Financing"],prereq:["f3"],
+items:[
+{k:"lesson",id:"w1",st:1,req:1,why:"Site selection and traffic counts",skill:"Site & models"},
+{k:"lesson",id:"w2",st:1,req:1,why:"Express vs. full-service economics",skill:"Site & models"},
+{k:"lesson",id:"w4",st:1,req:1,why:"Unlimited membership economics",skill:"Memberships"},
+{k:"lesson",id:"w5",st:1,req:1,why:"Per-car unit economics",skill:"Unit economics"},
+{k:"lesson",id:"w7",st:1,req:1,why:"Labor models and staffing a tunnel",skill:"Operations"},
+{k:"lesson",id:"w9",st:1,req:1,why:"SBA financing for washes",skill:"Financing"},
+{k:"lesson",id:"w11",st:1,req:1,why:"Car wash marketing",skill:"Marketing"},
+{k:"lesson",id:"w3",st:1,req:0,why:"Tunnel equipment and buildout costs",skill:"Site & models"},
+{k:"lesson",id:"w6",st:1,req:0,why:"Water reclamation and utilities",skill:"Operations"},
+{k:"lesson",id:"w10",st:1,req:0,why:"Competition analysis in the wash boom",skill:"Strategy"},
+{k:"lesson",id:"w12",st:1,req:0,why:"Wash valuations and M&A",skill:"Financing"},
+{k:"quiz",id:"w4",st:2,req:1,why:"Lock in membership math",skill:"Memberships"},
+{k:"quiz",id:"w5",st:2,req:1,why:"Lock in per-car economics",skill:"Unit economics"},
+{k:"tool",id:"carwash",st:2,req:1,why:"Model YOUR wash's numbers",skill:"Unit economics"},
+{k:"case",id:"carwash-acq",st:2,req:0,why:"A real wash acquisition call",skill:"Financing"},
+{k:"sim",id:"sim-scale",st:2,req:0,why:"Scaling decisions, scored",skill:"Strategy"},
+{k:"lab",id:"lab-carwash",st:3,req:1,why:"Build the complete wash plan",skill:"Application"},
+{k:"exam",tr:"wash",lv:0,id:"wash:W1",st:4,req:1,why:"Certify the playbook",skill:"Mastery"},
+{k:"final",tr:"wash",id:"wash:FINAL",st:4,req:0,why:"Car Wash final",skill:"Mastery"}]},
+{id:"ms-pest",title:"Pest Control Operator Path",who:"Someone building or running a pest control route business",
+outcome:"You know recurring agreements, route density, retention, hiring and pricing — with a full route plan built",
+skills:["Recurring revenue","Routes","Retention","Pricing"],prereq:["f3"],
+items:[
+{k:"lesson",id:"p1",st:1,req:1,why:"Door-to-door sales mastery",skill:"Sales"},
+{k:"lesson",id:"p2",st:1,req:1,why:"Recurring revenue service agreements",skill:"Recurring revenue"},
+{k:"lesson",id:"p3",st:1,req:1,why:"Pricing and contract structures",skill:"Pricing"},
+{k:"lesson",id:"p4",st:1,req:1,why:"Route density — the profit engine",skill:"Routes"},
+{k:"lesson",id:"p8",st:1,req:1,why:"Churn and retention",skill:"Retention"},
+{k:"lesson",id:"p9",st:1,req:1,why:"Hiring techs and reps",skill:"Hiring"},
+{k:"lesson",id:"p6",st:1,req:0,why:"Chemical and product costs",skill:"Unit economics"},
+{k:"lesson",id:"p7",st:1,req:0,why:"Seasonality planning",skill:"Operations"},
+{k:"lesson",id:"p10",st:1,req:0,why:"Valuations and multiples",skill:"Exits"},
+{k:"lesson",id:"p11",st:1,req:0,why:"Multi-branch scaling",skill:"Scaling"},
+{k:"quiz",id:"p4",st:2,req:1,why:"Lock in route math",skill:"Routes"},
+{k:"quiz",id:"p8",st:2,req:1,why:"Lock in retention levers",skill:"Retention"},
+{k:"tool",id:"pestroute",st:2,req:1,why:"Model YOUR route economics",skill:"Routes"},
+{k:"rp",id:"rp-supplier",st:2,req:0,why:"Negotiate the chemical price hike — live",skill:"Negotiation"},
+{k:"case",id:"pest-rollup",st:2,req:0,why:"The pest roll-up, dissected",skill:"Exits"},
+{k:"lab",id:"lab-pestroute",st:3,req:1,why:"Build the complete route plan",skill:"Application"},
+{k:"exam",tr:"pest",lv:0,id:"pest:P1",st:4,req:1,why:"Certify the playbook",skill:"Mastery"},
+{k:"final",tr:"pest",id:"pest:FINAL",st:4,req:0,why:"Pest Control final",skill:"Mastery"}]},
+{id:"ms-wealth",title:"Personal Wealth Foundation",who:"Anyone whose personal money needs a system before (or while) building a business",
+outcome:"A running money system: automated budget, emergency fund plan, debt strategy, and investing started",
+skills:["Budgeting","Saving","Debt","Investing"],prereq:[],
+items:[
+{k:"lesson",id:"mw1",st:1,req:1,why:"Run your life like a P&L",skill:"Foundations"},
+{k:"lesson",id:"mw2",st:1,req:1,why:"Budgeting systems that actually work",skill:"Budgeting"},
+{k:"lesson",id:"mw4",st:1,req:1,why:"Saving and the emergency fund",skill:"Saving"},
+{k:"lesson",id:"mw6",st:1,req:1,why:"Debt — good, bad, and how to kill it",skill:"Debt"},
+{k:"lesson",id:"mw8",st:1,req:1,why:"Investing foundations",skill:"Investing"},
+{k:"lesson",id:"mw9",st:1,req:1,why:"Compound interest and index funds",skill:"Investing"},
+{k:"lesson",id:"mw13",st:1,req:0,why:"Lifestyle inflation — the silent killer",skill:"Discipline"},
+{k:"lesson",id:"mw14",st:1,req:0,why:"Your personal balance sheet",skill:"Foundations"},
+{k:"quiz",id:"mw2",st:2,req:1,why:"Lock in your budgeting system",skill:"Budgeting"},
+{k:"quiz",id:"mw9",st:2,req:0,why:"Lock in compounding math",skill:"Investing"},
+{k:"tool",id:"budget",st:2,req:1,why:"Build your real budget",skill:"Budgeting"},
+{k:"tool",id:"efund",st:2,req:0,why:"Size your emergency fund",skill:"Saving"},
+{k:"tool",id:"compound",st:2,req:0,why:"See your money at 65",skill:"Investing"},
+{k:"tool",id:"debtpayoff",st:2,req:0,why:"Plan the debt kill order",skill:"Debt"},
+{k:"lab",id:"lab-budget",st:3,req:1,why:"Build the budget + automation plan",skill:"Application"},
+{k:"book",id:"psych-money",st:3,req:1,why:"The behavior side of money",skill:"Discipline"},
+{k:"book",id:"simple-path",st:3,req:0,why:"The whole strategy on an index card",skill:"Investing"},
+{k:"book",id:"iwt",st:3,req:0,why:"The 6-week automation system",skill:"Budgeting"},
+{k:"exam",tr:"money",lv:0,id:"money:M1",st:4,req:1,why:"Certify money Level 1",skill:"Mastery"},
+{k:"final",tr:"money",id:"money:FINAL",st:4,req:0,why:"Money School final",skill:"Mastery"},
+{k:"lab",id:"cap-money",st:4,req:0,why:"The Money capstone",skill:"Application"}]},
+{id:"ms-operator",title:"Complete Operator Development",who:"The generalist path — someone becoming a well-rounded business operator across every discipline",
+outcome:"Working fluency across foundations, sales, marketing, numbers, operations, leadership and communication",
+skills:["Foundations","Sales","Marketing","Numbers","Operations","Leadership","Communication"],prereq:[],
+items:[
+{k:"lesson",id:"f1",st:1,req:1,why:"What a business actually is",skill:"Foundations"},
+{k:"lesson",id:"f3",st:1,req:1,why:"Revenue vs. profit",skill:"Foundations"},
+{k:"lesson",id:"f5",st:1,req:1,why:"Reading a P&L",skill:"Numbers"},
+{k:"lesson",id:"s1",st:1,req:1,why:"Why people buy",skill:"Sales"},
+{k:"lesson",id:"s3",st:1,req:1,why:"Discovery selling",skill:"Sales"},
+{k:"lesson",id:"mk3",st:1,req:1,why:"Positioning",skill:"Marketing"},
+{k:"lesson",id:"mk4",st:1,req:1,why:"Offer design",skill:"Marketing"},
+{k:"lesson",id:"ac5",st:1,req:1,why:"Gross margin anatomy",skill:"Numbers"},
+{k:"lesson",id:"ops2",st:1,req:1,why:"SOPs and systems",skill:"Operations"},
+{k:"lesson",id:"ops7",st:1,req:1,why:"The weekly scoreboard",skill:"Operations"},
+{k:"lesson",id:"ld1",st:1,req:1,why:"What leadership is",skill:"Leadership"},
+{k:"lesson",id:"ld3",st:1,req:1,why:"Feedback that lands",skill:"Leadership"},
+{k:"lesson",id:"rh1",st:1,req:1,why:"Clarity before complexity",skill:"Communication"},
+{k:"lesson",id:"rh3",st:1,req:1,why:"Mental models out loud",skill:"Communication"},
+{k:"quiz",id:"f5",st:2,req:1,why:"Lock in the P&L",skill:"Numbers"},
+{k:"quiz",id:"s3",st:2,req:1,why:"Lock in discovery",skill:"Sales"},
+{k:"quiz",id:"mk4",st:2,req:1,why:"Lock in offers",skill:"Marketing"},
+{k:"sim",id:"sim-cash",st:2,req:1,why:"Cash crunch, scored",skill:"Numbers"},
+{k:"sim",id:"sim-price",st:2,req:1,why:"A price war, scored",skill:"Judgment"},
+{k:"rp",id:"rp-supplier",st:2,req:1,why:"A live negotiation",skill:"Communication"},
+{k:"case",id:"costco-model",st:2,req:0,why:"A model built on discipline",skill:"Strategy"},
+{k:"case",id:"cash-crisis",st:2,req:1,why:"Cash kills profitable companies",skill:"Numbers"},
+{k:"lab",id:"lab-pnl",st:3,req:1,why:"Build a real P&L",skill:"Numbers"},
+{k:"lab",id:"lab-offer",st:3,req:1,why:"Build a real offer",skill:"Marketing"},
+{k:"book",id:"personal-mba",st:3,req:1,why:"The map of the whole territory",skill:"Foundations"},
+{k:"book",id:"emyth",st:3,req:0,why:"Systems over hustle",skill:"Operations"},
+{k:"exam",tr:"biz",lv:0,id:"biz:L1",st:4,req:1,why:"Certify Business A-Z Level 1",skill:"Mastery"},
+{k:"exam",tr:"sales",lv:0,id:"sales:S1",st:4,req:0,why:"Certify sales Level 1",skill:"Mastery"},
+{k:"exam",tr:"mkt",lv:0,id:"mkt:K1",st:4,req:0,why:"Certify marketing Level 1",skill:"Mastery"}]}
+];
+/* goal option → template */
+const MS_GOALS=[
+["Start my first business","ms-launch"],["Validate a business idea","ms-validate"],["Get my first customers","ms-customers"],
+["Become excellent at sales","ms-sales"],["Improve my marketing","ms-marketing"],["Understand accounting & business finance","ms-finance"],
+["Improve an existing business","ms-ops"],["Build better systems & operations","ms-ops"],["Hire and manage a team","ms-team"],
+["Improve leadership & communication","ms-team"],["Communicate & persuade like an executive","ms-comm"],["Prepare to buy a business","ms-acq"],
+["Understand equity & ownership","ms-acq"],["Prepare for a car-wash business","ms-wash"],["Prepare for a pest-control business","ms-pest"],
+["Improve my personal finances","ms-wealth"],["Become a complete business operator","ms-operator"]];
+const MS_EXP=["Complete beginner","Some business knowledge","Experienced employee or salesperson","New business owner","Existing business owner","Manager or team leader","Investor or aspiring buyer"];
+const MS_STAGE=["No idea yet","Exploring ideas","Validating an idea","Preparing to launch","First customers","Early growth","Established business","Preparing to scale","Preparing to acquire"];
+const MS_PROBLEMS=[
+["begin","I don't know where to begin"],["customers","I need customers"],["sales","I struggle with sales"],["pricing","My pricing is weak"],
+["numbers","I don't understand my numbers"],["marketing","My marketing is inconsistent"],["operations","My operations are disorganized"],
+["hiring","I need to hire"],["leadership","My team needs leadership"],["communication","I need better communication"],
+["buy","I want to buy a business"],["discipline","I need stronger financial discipline"],["unsure","I'm unsure which business to pursue"]];
+/* weekly review: bottleneck → verified BVU content */
+const WR_BN={
+begin:{label:"I don't know where to begin",recs:[{k:"lesson",id:"st1"},{k:"lesson",id:"f1"},{k:"sim",id:"sim-zero"}]},
+customers:{label:"Not enough customers / leads",recs:[{k:"lesson",id:"st4"},{k:"lesson",id:"mk6"},{k:"lesson",id:"s2"},{k:"lab",id:"lab-offer"}]},
+sales:{label:"Sales conversations aren't converting",recs:[{k:"lesson",id:"s3"},{k:"lesson",id:"s4"},{k:"rp",id:"rp-whale"},{k:"book",id:"spin-selling"}]},
+pricing:{label:"Pricing feels weak or underwater",recs:[{k:"lesson",id:"mk4"},{k:"tool",id:"pricing"},{k:"sim",id:"sim-price"},{k:"lesson",id:"ac5"}]},
+numbers:{label:"I don't understand my numbers",recs:[{k:"lesson",id:"f5"},{k:"lesson",id:"ac7"},{k:"lab",id:"lab-pnl"},{k:"tool",id:"pnl"}]},
+cash:{label:"Cash is tight",recs:[{k:"lesson",id:"ac9"},{k:"sim",id:"sim-cash"},{k:"case",id:"cash-crisis"},{k:"lab",id:"lab-cashflow"}]},
+marketing:{label:"Marketing is inconsistent",recs:[{k:"lesson",id:"mk3"},{k:"lesson",id:"mk6"},{k:"lab",id:"lab-funnel"},{k:"book",id:"100m-leads"}]},
+operations:{label:"Operations are disorganized",recs:[{k:"lesson",id:"ops2"},{k:"lesson",id:"ops11"},{k:"lab",id:"lab-sop"},{k:"case",id:"toyota-andon"}]},
+hiring:{label:"I need to hire (or fix a hire)",recs:[{k:"lesson",id:"ops3"},{k:"book",id:"who-smart"},{k:"sim",id:"sim-badhire"}]},
+leadership:{label:"My team needs leadership",recs:[{k:"lesson",id:"ld2"},{k:"lesson",id:"ld4"},{k:"rp",id:"rp-raise"},{k:"book",id:"radical-candor"}]},
+communication:{label:"A hard conversation or communication problem",recs:[{k:"lesson",id:"rh1"},{k:"lesson",id:"rh8"},{k:"rp",id:"rp-execpush"},{k:"lab",id:"lab-argument"}]},
+buy:{label:"A deal / acquisition question",recs:[{k:"lesson",id:"aq4"},{k:"sim",id:"sim-buy"},{k:"rp",id:"rp-seller"},{k:"book",id:"buy-then-build"}]},
+discipline:{label:"Personal financial discipline",recs:[{k:"lesson",id:"mw2"},{k:"lesson",id:"st8"},{k:"lab",id:"lab-budget"},{k:"book",id:"psych-money"}]}};
 /* ================= BEGINNER → ADVANCED ORDERING =================
    One curriculum spine for every Library tab: everything reads
    top-to-bottom from Level 1 (beginner) to Level 3 (advanced).
@@ -6990,6 +7383,7 @@ function buildSidebar(){
   [["home","Home"],["courses","Courses"],["search","Search"],["progress","Progress"]].forEach(([id,label])=>{
     h+='<button class="sb-item" id="sb-'+id+'" onclick="setView(\''+id+'\')">'+ICONS[id==="home"?"home":id==="courses"?"courses":id]+label+'</button>';
   });
+  h+='<button class="sb-item" id="sb-mission" onclick="openMission()">'+ICONS.mission+'My Mission'+(msGet().active?'<span class="n">'+(msPath()?msPath().pct+'%':'')+'</span>':'')+'</button>';
   h+='<div class="sb-sec">The Path</div>';
   DATA.filter(t=>!t.playbook).forEach((tr,i)=>{
     const s=trackStats(tr);
@@ -7048,7 +7442,10 @@ function renderHome(){
        '<b>Find your level in 12 questions</b>'+
        '<span>Zero to Business Operator starts with knowing where you stand — takes ~4 minutes, and tells you exactly where to begin</span></button>';
   }
-  h+='<div class="heroDash"><div class="hd-body">'+
+  /* mission hero: when a Business Mission is active it becomes the one dominant next action */
+  const msH=(typeof msHomeCard==="function")?msHomeCard():null;
+  if(msH){h+=msH}
+  else h+='<div class="heroDash"><div class="hd-body">'+
      '<div class="hd-kicker">'+(doneAll?"Curriculum complete":fresh?"Zero to Business Operator · your first lesson":"Zero to Business Operator · continue")+'</div>'+
      '<h2>'+esc(res.t)+'</h2>'+
      '<div class="hd-crumb">'+res.track.name+' · '+res.level.name+' · ~'+lessonMins(res)+' min · '+difficulty(res)+'</div>'+
@@ -7062,6 +7459,8 @@ function renderHome(){
      '<div class="stat"><b class="c-green">'+Math.round(pct*100)+'%</b><span>Mastery</span></div>'+
      '<div class="stat"><b class="c-amber">'+streak()+'</b><span>Day Streak</span></div>'+
      '<div class="stat"><b>'+Object.keys(store.quiz).length+'</b><span>Quizzes Taken</span></div></div>';
+  /* choose a business mission (only when none active) */
+  if(!msH&&typeof msIntroCard==="function")h+=msIntroCard();
   /* AI game plan */
   const gp=(typeof planGet==="function")?planGet():(function(){try{return JSON.parse(localStorage.getItem("bvPlan_v1"))}catch(e){return null}})();
   h+='<button class="card tutorCard" style="margin:2px 0 14px" onclick="openPlanner()">'+
@@ -8544,7 +8943,7 @@ function renderProgress(){
   document.getElementById("view-progress").innerHTML=h;
 }
 /* ---- full backup & restore ---- */
-const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1","bvFont_v1","bvDaily_v1","bvScoreboard_v1"];
+const BACKUP_KEYS=["businessVaultProgress_v1","businessVaultDays_v1","bvStore_v1","bvPlacement_v1","bvLastLesson_v1","bvFocus_v1","bvTheme_v1","bvThemeFavs_v1","bvLightTheme_v1","bvDarkTheme_v1","bvName_v1","bvPlan_v1","bvFont_v1","bvDaily_v1","bvScoreboard_v1","bvMission_v1","bvWeekly_v1"];
 async function backupAll(){
   const keys={};
   BACKUP_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)keys[k]=v});
@@ -8843,7 +9242,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score","settings"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score","settings","mission"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -9059,6 +9458,7 @@ function aiBook(){
 ICONS.rp='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
 ICONS.rhet='<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>';
 ICONS.gym='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
+ICONS.mission='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>';
 ICONS.chart='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
 ICONS.gear='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 function rpState(id){return (store.rp||{})[id]||{}}
@@ -9303,6 +9703,8 @@ function palActions(){
     {k:"Action",t:"Roleplay Arena",s:ROLEPLAYS.length+" live AI conversations",run:()=>openLibrary("rp")},
     {k:"Action",t:"Numbers Gym",s:"10 rapid-fire math reps · beat your best",run:()=>openGym()},
     {k:"Action",t:"Owner's Scoreboard",s:"Your real numbers, monthly — trends + AI review",run:()=>openScore()},
+    {k:"Action",t:"Choose Your Business Mission",s:msGet().active?"Mission HQ — your 30/60/90-day path":"Pick a goal, get a personalized 30/60/90-day path",run:()=>openMission()},
+    {k:"Action",t:"Weekly Operator Review",s:"5-minute check-in: what worked, what's stuck, one commitment",run:()=>openMission("review")},
     {k:"Page",t:"Settings",s:"Profile, appearance, AI key, backups, about",run:()=>openSettings()},
     {k:"Action",t:"The Daily Ten",s:"Your tracked 10-minute daily circuit",run:()=>setView("home")},
     {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
@@ -9378,6 +9780,7 @@ document.addEventListener("keydown",e=>{
     if(palEl.classList.contains("open"))closePalette();
     else if(aiEl.classList.contains("open"))closeAI();
     else if(settingsEl.classList.contains("open"))closeSettings();
+    else if(document.getElementById("mission").classList.contains("open"))closeMission();
     else if(scoreEl.classList.contains("open"))closeScore();
     else if(planEl.classList.contains("open"))closePlanner();
     else if(quizEl.classList.contains("open"))closeQuiz();
@@ -9418,6 +9821,430 @@ function renderAll(){
   DATA.forEach(tr=>renderTrack(tr));
   setView(activeView);
 }
+/* ================= BUSINESS MISSIONS + WEEKLY OPERATOR REVIEW — ENGINE =================
+   Personalized Execution Upgrade. State: bvMission_v1 + bvWeekly_v1 (both in backups,
+   both defensive-read, both backward-compatible: absent fields get safe defaults).
+   Progress derives from EXISTING completion systems — nothing is duplicated. */
+const MS_KEY="bvMission_v1",WR_KEY="bvWeekly_v1";
+const missionEl=document.getElementById("mission");
+let msView="dash",msDraft=null,wrDraft=null;
+function msGet(){
+  let m=null;try{m=JSON.parse(localStorage.getItem(MS_KEY))}catch(e){}
+  if(!m||typeof m!=="object")m={};
+  return {profile:m.profile||null,active:m.active||null,history:Array.isArray(m.history)?m.history:[]};
+}
+function msSave(m){localStorage.setItem(MS_KEY,JSON.stringify(m))}
+function wrGet(){
+  let w=null;try{w=JSON.parse(localStorage.getItem(WR_KEY))}catch(e){}
+  if(!w||typeof w!=="object")w={};
+  return {reviews:Array.isArray(w.reviews)?w.reviews:[],ctx:w.ctx||"study"};
+}
+function wrSave(w){localStorage.setItem(WR_KEY,JSON.stringify(w))}
+function msTpl(tid){return MS_TEMPLATES.find(t=>t.id===tid)}
+function msItemKey(it){return it.k+":"+it.id}
+/* resolve any mission item to real content: existence, title, minutes, completion, navigation */
+function msResolve(it){
+  const T=MS_TIME[it.k==="lab"&&String(it.id).startsWith("cap-")?"cap":it.k]||10;
+  const r={ok:false,title:"?",type:it.k,min:T,done:false,nav:null};
+  const le=byId[it.id];
+  switch(it.k){
+    case "lesson":if(!le)return r;return{...r,ok:true,title:le.t,type:"Lesson",done:done.has(it.id),nav:()=>openLesson(it.id)};
+    case "quiz":if(!le)return r;return{...r,ok:true,title:"Quiz: "+le.t,type:"Quiz",done:!!(store.quiz[it.id]&&store.quiz[it.id].best>=70),nav:()=>openQuiz(it.id)};
+    case "flash":if(!le)return r;{const terms=allTerms.filter(t=>t.le.id===it.id);const m2=terms.filter(t=>{const f=store.flash[t.id];return f&&f.b>=2}).length;
+      return{...r,ok:terms.length>0,title:"Flashcards: "+le.t,type:"Flashcards",done:terms.length>0&&m2>=Math.ceil(terms.length/2),nav:()=>openFlash("lesson",it.id)}}
+    case "exam":{const tr=DATA.find(t=>t.id===it.tr);if(!tr||!tr.levels[it.lv])return r;const key=it.tr+":"+tr.levels[it.lv].id;
+      return{...r,ok:true,title:"Exam: "+tr.name+" "+tr.levels[it.lv].tagline,type:"Level Exam",done:!!(store.exams[key]&&store.exams[key].passed),nav:()=>openExam(it.tr,it.lv)}}
+    case "final":{const tr=DATA.find(t=>t.id===it.tr);if(!tr)return r;const key=it.tr+":FINAL";
+      return{...r,ok:true,title:"Final: "+tr.name,type:"Final Exam",done:!!(store.exams[key]&&store.exams[key].passed),nav:()=>openFinal(it.tr)}}
+    case "lab":{const l=LABS.find(x=>x.id===it.id);if(!l)return r;
+      return{...r,ok:true,title:(l.cap?"Capstone: ":"Lab: ")+l.title,type:l.cap?"Capstone":"Lab",done:!!(store.labs[it.id]&&store.labs[it.id].done),nav:()=>openLab(it.id)}}
+    case "sim":{const s=SIMS.find(x=>x.id===it.id);if(!s)return r;
+      return{...r,ok:true,title:"Simulation: "+s.title,type:"Simulation",done:(store.sims[it.id]||{}).best!==undefined,nav:()=>openSim(it.id)}}
+    case "case":{const c=CASES.find(x=>x.id===it.id);if(!c)return r;
+      return{...r,ok:true,title:"Case: "+c.title,type:"Case Study",done:!!(store.cases[it.id]&&store.cases[it.id].done),nav:()=>openCase(it.id)}}
+    case "rp":{const s=ROLEPLAYS.find(x=>x.id===it.id);if(!s)return r;
+      return{...r,ok:true,title:"Roleplay: "+s.title,type:"Roleplay",done:!!(store.rp&&store.rp[it.id]&&store.rp[it.id].done),nav:()=>openRoleplay(it.id)}}
+    case "book":{const b=BOOKS.find(x=>x.id===it.id);if(!b)return r;
+      return{...r,ok:true,title:"Book: "+b.title,type:"Book Deep Dive",done:(store.books[it.id]||{}).status==="finished",nav:()=>openBook(it.id)}}
+    case "tool":{const t=TOOLS.find(x=>x.id===it.id);if(!t)return r;
+      return{...r,ok:true,title:"Calculator: "+t.name,type:"Calculator",done:((store.tools[it.id]||{}).saved||[]).length>0,nav:()=>openTool(it.id)}}
+  }
+  return r;
+}
+/* deterministic path: derived fresh every render from template + profile + choices.
+   No AI, no randomness, no duplicated completion state. */
+function msPath(){
+  const m=msGet();if(!m.active)return null;
+  const tpl=msTpl(m.active.tid);if(!tpl)return null;
+  const prof=m.profile||{};
+  const experienced=(prof.exp||0)>=3||(function(){try{const p=JSON.parse(localStorage.getItem("bvPlacement_v1"));return p&&p.rank>=3}catch(e){return false}})();
+  const skips=m.active.skips||[],repl=m.active.repl||{};
+  let items=[];
+  /* prerequisites not yet done → injected up front as required */
+  (tpl.prereq||[]).forEach(pid=>{if(byId[pid]&&!done.has(pid))items.push({k:"lesson",id:pid,st:1,req:1,why:"Prerequisite for this mission",skill:"Prerequisite",pre:1})});
+  tpl.items.forEach(it=>{
+    let x={...it};
+    if(experienced&&x.b)x.req=0;                       /* basics optional for experienced users */
+    const key=msItemKey(x);
+    if(repl[key]){const alt=tpl.items.find(a=>msItemKey(a)===repl[key]);if(alt)x={...alt,req:0,swapped:1}}
+    if(!x.req&&skips.includes(key))return;             /* skipped optional items drop out */
+    if(msResolve(x).ok)items.push(x);
+  });
+  /* weak areas inside mission scope → up to 2 retake quizzes in Practice */
+  const tplLessonIds=new Set(tpl.items.filter(i=>i.k==="lesson").map(i=>i.id));
+  weakLessons().filter(l=>tplLessonIds.has(l.id)).slice(0,2).forEach(l=>{
+    if(!items.some(i=>i.k==="quiz"&&i.id===l.id))items.push({k:"quiz",id:l.id,st:2,req:0,why:"Weak area detected — quiz best under 70%",skill:"Reinforcement",weak:1});
+  });
+  /* fit to time budget: 30-day plans shed optional items (largest first) until they fit */
+  const len=m.active.len||30,daily=m.active.time||30;
+  const budget=daily*len*0.8;
+  const rmin=it=>msResolve(it).min;
+  let total=items.reduce((a,i)=>a+rmin(i),0);
+  if(total>budget){
+    const opts=items.filter(i=>!i.req&&!i.weak).sort((a,b)=>rmin(b)-rmin(a));
+    for(const o of opts){if(total<=budget)break;items=items.filter(x=>x!==o);total-=rmin(o)}
+  }
+  items.sort((a,b)=>a.st-b.st);
+  /* distribute across weeks by cumulative minutes, preserving stage order */
+  const weeks=Math.max(2,Math.round(len/7));
+  const per=Math.max(20,Math.ceil(items.reduce((a,i)=>a+rmin(i),0)/weeks));
+  const wk=[];let cur={n:1,items:[],min:0};
+  items.forEach(i=>{
+    if(cur.min>=per&&wk.length<weeks-1){wk.push(cur);cur={n:wk.length+1,items:[],min:0}}
+    cur.items.push(i);cur.min+=rmin(i);
+  });
+  wk.push(cur);
+  const req=items.filter(i=>i.req),reqDone=req.filter(i=>msResolve(i).done);
+  const started=m.active.started||todayStr();
+  const dayN=Math.max(1,Math.floor((Date.now()-new Date(started+"T00:00:00").getTime())/864e5)+1);
+  return {tpl,items,weeks:wk,reqTotal:req.length,reqDone:reqDone.length,
+    pct:req.length?Math.round(reqDone.length/req.length*100):0,
+    totalMin:items.reduce((a,i)=>a+rmin(i),0),len,daily,dayN,daysLeft:Math.max(0,len-dayN+1),
+    curWeek:Math.min(weeks,Math.ceil(dayN/7)),
+    next:items.find(i=>i.req&&!msResolve(i).done)||null,
+    nextOpt:items.find(i=>!i.req&&!msResolve(i).done)||null};
+}
+/* ---- overlay ---- */
+function openMission(view){msView=view||(msGet().active?"dash":"setup");missionEl.classList.add("open");document.getElementById("missionScroll").scrollTop=0;syncScrollLock();renderMission()}
+function closeMission(){missionEl.classList.remove("open");syncScrollLock();renderAll()}
+function msNav(idx){
+  const p=msPath();if(!p)return;
+  const it=p.items[idx];if(!it)return;
+  const r=msResolve(it);if(!r.ok||!r.nav)return;
+  closeMission();r.nav();
+}
+function msChip(t){return '<span class="lessonChip" style="font-size:9.5px;padding:3px 8px">'+t+'</span>'}
+function renderMission(){
+  const m=msGet();
+  const el=document.getElementById("missionInner");
+  document.getElementById("missionCrumb").textContent=msView==="review"||msView==="reviewHist"?"Weekly Operator Review":"Business Mission";
+  if(msView==="setup")return msRenderSetup(el);
+  if(msView==="confirm")return msRenderConfirm(el);
+  if(msView==="history")return msRenderHistory(el);
+  if(msView==="review")return wrRenderForm(el);
+  if(msView==="reviewHist")return wrRenderHistory(el);
+  if(!m.active){msView="setup";return msRenderSetup(el)}
+  return msRenderDash(el,m);
+}
+function msRenderSetup(el){
+  msDraft=msDraft||{goal:null,exp:0,stage:0,time:30,len:30,problem:"begin"};
+  const seg=(list,cur,fn)=>list.map((o,i)=>'<button class="seg'+(cur===i?" on":"")+'" style="flex:0 0 auto" onclick="'+fn+'('+i+')">'+esc(typeof o==="string"?o:o[0])+'</button>').join("");
+  let h='<h2 style="font-family:var(--font-d);font-size:22px;margin:2px 0 4px">Choose Your Business Mission</h2>'+
+  '<p style="font-size:13.5px;color:var(--steel-2);line-height:1.65;margin-bottom:14px">The placement test measured what you know. This asks what you\'re trying to <b>accomplish</b> — then builds your 30/60/90-day path from real BVU lessons, labs, sims and roleplays. Change or pause it anytime; your progress always counts.</p>';
+  h+='<div class="scCard"><h6>1 · Primary goal</h6><div class="cards" style="gap:4px">'+MS_GOALS.map((g,i)=>'<button class="card'+(msDraft.goal===i?" done":"")+'" style="box-shadow:none;border:none;padding:9px 12px" onclick="msSetGoal('+i+')"><span class="num" style="width:22px;height:22px;font-size:10px">'+(msDraft.goal===i?"✓":i+1)+'</span><span class="ct"><b style="font-size:13.5px">'+esc(g[0])+'</b></span></button>').join("")+'</div></div>';
+  h+='<div class="scCard"><h6>2 · Your experience</h6><div class="seg-group" style="flex-wrap:wrap">'+seg(MS_EXP,msDraft.exp,"msSetExp")+'</div></div>';
+  h+='<div class="scCard"><h6>3 · Business stage</h6><div class="seg-group" style="flex-wrap:wrap">'+seg(MS_STAGE,msDraft.stage,"msSetStage")+'</div></div>';
+  h+='<div class="scCard"><h6>4 · Time you can give</h6><div class="seg-group" style="flex-wrap:wrap">'+[10,20,30,45,60].map(t=>'<button class="seg'+(msDraft.time===t?" on":"")+'" style="flex:0 0 auto" onclick="msSetTime('+t+')">'+t+' min/day</button>').join("")+'</div></div>';
+  h+='<div class="scCard"><h6>5 · Plan length</h6><div class="seg-group">'+[30,60,90].map(l=>'<button class="seg'+(msDraft.len===l?" on":"")+'" onclick="msSetLen('+l+')">'+l+' days</button>').join("")+'</div></div>';
+  h+='<div class="scCard"><h6>6 · Most urgent problem</h6><div class="seg-group" style="flex-wrap:wrap">'+MS_PROBLEMS.map(p=>'<button class="seg'+(msDraft.problem===p[0]?" on":"")+'" style="flex:0 0 auto" onclick="msSetProblem(\''+p[0]+'\')">'+esc(p[1])+'</button>').join("")+'</div></div>';
+  h+='<button class="btn full" '+(msDraft.goal===null?'disabled style="opacity:.5"':'')+' onclick="msView=\'confirm\';renderMission()">See My Mission →</button>';
+  if(msGet().history.length)h+='<button class="btn ghost full" style="margin-top:9px" onclick="msView=\'history\';renderMission()">Mission History</button>';
+  el.innerHTML=h;
+}
+function msSetGoal(i){msDraft.goal=i;renderMission()}
+function msSetExp(i){msDraft.exp=i;renderMission()}
+function msSetStage(i){msDraft.stage=i;renderMission()}
+function msSetTime(t){msDraft.time=t;renderMission()}
+function msSetLen(l){msDraft.len=l;renderMission()}
+function msSetProblem(p){msDraft.problem=p;renderMission()}
+function msRenderConfirm(el){
+  const tid=MS_GOALS[msDraft.goal][1],tpl=msTpl(tid);
+  const req=tpl.items.filter(i=>i.req),opt=tpl.items.filter(i=>!i.req);
+  const mins=tpl.items.reduce((a,i)=>a+(MS_TIME[i.k==="lab"&&String(i.id).startsWith("cap-")?"cap":i.k]||10),0);
+  let h='<span class="lessonChip">Recommended mission</span>'+
+  '<h2 style="font-family:var(--font-d);font-size:22px;margin:6px 0 4px">'+esc(tpl.title)+'</h2>'+
+  '<p style="font-size:13.5px;color:var(--steel-2);line-height:1.6">'+esc(tpl.who)+'</p>'+
+  '<div class="example" style="margin:12px 0"><b>Outcome.</b> '+esc(tpl.outcome)+'</div>'+
+  '<div class="statGrid" style="margin-bottom:12px">'+
+  '<div class="stat"><b class="c-blue">'+req.length+'</b><span>Required items</span></div>'+
+  '<div class="stat"><b>'+opt.length+'</b><span>Optional items</span></div>'+
+  '<div class="stat"><b class="c-green">~'+Math.round(mins/60)+'h</b><span>Full workload</span></div>'+
+  '<div class="stat"><b>'+msDraft.len+'d</b><span>At '+msDraft.time+' min/day</span></div></div>'+
+  '<div class="scCard"><h6>Skills you\'ll build</h6><div style="display:flex;flex-wrap:wrap;gap:6px">'+tpl.skills.map(s=>msChip(esc(s))).join("")+'</div></div>'+
+  ((tpl.prereq||[]).filter(p=>!done.has(p)).length?'<div class="scFlag"><span>⚠️</span><span>Recommended first (added to week 1): '+(tpl.prereq||[]).filter(p=>!done.has(p)).map(p=>esc((byId[p]||{}).t||p)).join(" · ")+'</span></div>':'')+
+  '<button class="btn full" style="margin-top:8px" onclick="msStart(\''+tid+'\')">Start This Mission</button>'+
+  '<button class="btn ghost full" style="margin-top:9px" onclick="msView=\'setup\';renderMission()">← Change Answers</button>';
+  el.innerHTML=h;
+}
+function msStart(tid){
+  const m=msGet();
+  if(m.active){m.history.unshift(msHistEntry(m,"switched"))}
+  m.profile={goal:msDraft.goal,exp:msDraft.exp,stage:msDraft.stage,time:msDraft.time,len:msDraft.len,problem:msDraft.problem};
+  m.active={tid,started:todayStr(),len:msDraft.len,time:msDraft.time,paused:false,skips:[],repl:{}};
+  msSave(m);toast("Mission started — "+msTpl(tid).title);
+  msView="dash";renderMission();
+}
+function msHistEntry(m,status){
+  const p=msPath();
+  return {tid:m.active.tid,title:(msTpl(m.active.tid)||{}).title||m.active.tid,started:m.active.started,ended:todayStr(),len:m.active.len,pct:p?p.pct:0,status};
+}
+function msRenderDash(el,m){
+  const p=msPath();
+  if(!p){el.innerHTML='<p>Mission data unavailable.</p>';return}
+  if(p.pct===100&&!m.active.celebrated){m.active.celebrated=1;msSave(m);toast("🎓 Mission complete — "+p.tpl.title+"!")}
+  const w=wrGet();const lastRev=w.reviews[0];
+  const commit=lastRev&&lastRev.commit&&!lastRev.commit.done?lastRev.commit:null;
+  let h='<span class="lessonChip">'+(m.active.paused?"Paused":"Active mission")+' · Day '+p.dayN+' of '+p.len+'</span>'+
+  '<h2 style="font-family:var(--font-d);font-size:22px;margin:6px 0 10px">'+esc(p.tpl.title)+'</h2>'+
+  '<div class="statGrid" style="margin-bottom:12px">'+
+  '<div class="stat"><b class="c-blue">'+p.pct+'%</b><span>'+p.reqDone+' of '+p.reqTotal+' required</span></div>'+
+  '<div class="stat"><b>W'+p.curWeek+'</b><span>of '+p.weeks.length+' weeks</span></div>'+
+  '<div class="stat"><b class="c-amber">'+p.daysLeft+'</b><span>days left</span></div>'+
+  '<div class="stat"><b class="c-green">'+streak()+'</b><span>day streak</span></div></div>';
+  if(p.pct===100){
+    h+='<div class="scFlag good"><span>🎓</span><span><b>Mission complete.</b> Every required item is done. Archive it below and choose your next mission — or keep polishing the optional items.</span></div>'+
+    '<button class="btn full" onclick="msComplete()">Archive & Choose Next Mission</button>';
+  }else if(m.active.paused){
+    h+='<div class="scFlag"><span>⏸️</span><span>Mission paused — nothing is lost. Resume when ready.</span></div>'+
+    '<button class="btn full" onclick="msPauseToggle()">Resume Mission</button>';
+  }else if(p.next){
+    const r=msResolve(p.next),idx=p.items.indexOf(p.next);
+    h+='<div class="scCard" style="border-color:var(--blue-3)"><h6>Next required action</h6>'+
+    '<div style="font-family:var(--font-d);font-weight:600;font-size:17px;line-height:1.4;margin:2px 0 3px">'+esc(r.title)+'</div>'+
+    '<div style="font-size:12px;color:var(--steel);margin-bottom:4px">'+r.type+' · ~'+r.min+' min · '+esc(p.next.skill)+'</div>'+
+    '<div style="font-size:12.5px;color:var(--steel-2);line-height:1.55;margin-bottom:10px">'+esc(p.next.why)+'</div>'+
+    '<button class="btn full" onclick="msNav('+idx+')">Start Now →</button></div>';
+    if(p.nextOpt){const ro=msResolve(p.nextOpt);
+      h+='<button class="card" style="margin-bottom:11px" onclick="msNav('+p.items.indexOf(p.nextOpt)+')"><span class="num">+</span><span class="ct"><b>Optional: '+esc(ro.title)+'</b><span>'+ro.type+' · ~'+ro.min+' min · '+esc(p.nextOpt.why)+'</span></span><span style="color:var(--blue-2)">→</span></button>';}
+  }
+  if(commit)h+='<div class="scCard"><h6>This week\'s commitment</h6><div class="setRow"><div class="sl"><b>'+esc(commit.text)+'</b><span>due '+esc(commit.due||"this week")+'</span></div><button class="btn ghost" onclick="wrCommitDone()">Done ✓</button></div></div>';
+  h+='<div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:4px">'+
+  '<button class="btn ghost" style="flex:1" onclick="msView=\'path\';renderMission()">Full Path</button>'+
+  '<button class="btn ghost" style="flex:1" onclick="msView=\'review\';renderMission()">Weekly Review</button>'+
+  (m.active.paused||p.pct===100?'':'<button class="btn ghost" style="flex:1" onclick="msPauseToggle()">Pause</button>')+
+  '</div>';
+  h+='<div class="scCard" style="margin-top:12px"><h6>Mission settings</h6>'+
+  '<div class="setRow"><div class="sl"><b>Plan length</b><span>Path re-fits instantly — progress unaffected</span></div><div class="seg-group" style="padding:2px">'+[30,60,90].map(l=>'<button class="seg'+(m.active.len===l?" on":"")+'" onclick="msSetActive(\'len\','+l+')">'+l+'d</button>').join("")+'</div></div>'+
+  '<div class="setRow"><div class="sl"><b>Daily time</b><span>Trims or restores optional items</span></div><div class="seg-group" style="padding:2px">'+[10,20,30,45,60].map(t=>'<button class="seg'+(m.active.time===t?" on":"")+'" onclick="msSetActive(\'time\','+t+')">'+t+'m</button>').join("")+'</div></div>'+
+  '<div class="setRow"><div class="sl"><b>Recalculate path</b><span>Re-derives the plan from your latest progress</span></div><button class="btn ghost" onclick="renderMission();toast(\'Path recalculated\')">Recalc</button></div>'+
+  '<div class="setRow"><div class="sl"><b>Change mission</b><span>Current mission is archived — all completed work stays yours</span></div><button class="btn ghost" onclick="msSwitch()">Change</button></div>'+
+  '<div class="setRow"><div class="sl"><b>History & reviews</b><span>Past missions and weekly reviews</span></div><div style="display:flex;gap:6px"><button class="btn ghost" onclick="msView=\'history\';renderMission()">Missions</button><button class="btn ghost" onclick="msView=\'reviewHist\';renderMission()">Reviews</button></div></div>'+
+  (aiKeyGet()?'<div class="setRow"><div class="sl"><b>Refine with AI</b><span>Advisory only — your advisor reviews this exact plan; the plan itself never auto-changes</span></div><button class="btn ghost" onclick="msAIRefine()">✨ Refine</button></div>':'')+
+  '<div class="setRow"><div class="sl"><b>AI Game Plan</b><span>Your life-level roadmap — the mission is the study engine inside it</span></div><button class="btn ghost" onclick="closeMission();openPlanner()">Open</button></div>'+
+  '</div>';
+  el.innerHTML=h;
+}
+function msSetActive(k,v){const m=msGet();if(!m.active)return;m.active[k]=v;msSave(m);renderMission()}
+function msPauseToggle(){const m=msGet();if(!m.active)return;m.active.paused=!m.active.paused;msSave(m);toast(m.active.paused?"Mission paused":"Mission resumed");renderMission()}
+function msComplete(){const m=msGet();if(!m.active)return;m.history.unshift(msHistEntry(m,"completed"));m.active=null;msSave(m);msDraft=null;msView="setup";renderMission()}
+function msSwitch(){
+  if(!confirm("Change missions? The current one is archived with its progress — every lesson, quiz and lab you finished stays finished."))return;
+  const m=msGet();m.history.unshift(msHistEntry(m,"switched"));m.active=null;msSave(m);msDraft=null;msView="setup";renderMission();
+}
+function msSkip(idx){
+  const m=msGet(),p=msPath();if(!m.active||!p)return;
+  const it=p.items[idx];if(!it||it.req)return;
+  m.active.skips=m.active.skips||[];m.active.skips.push(msItemKey(it));
+  msSave(m);renderMission();toast("Optional item skipped");
+}
+function msSwapItem(idx){
+  const m=msGet(),p=msPath();if(!m.active||!p)return;
+  const it=p.items[idx];if(!it||it.req)return;
+  const used=new Set(p.items.map(msItemKey));
+  const alt=p.tpl.items.find(a=>!a.req&&a.st===it.st&&!used.has(msItemKey(a))&&msResolve(a).ok);
+  if(!alt){toast("No alternate available for this slot");return}
+  m.active.repl=m.active.repl||{};m.active.repl[msItemKey(it)]=msItemKey(alt);
+  msSave(m);renderMission();toast("Swapped for: "+msResolve(alt).title);
+}
+function msRenderHistory(el){
+  const m=msGet();
+  let h='<h2 style="font-family:var(--font-d);font-size:22px;margin:2px 0 12px">Mission History</h2>';
+  if(m.active){const p=msPath();h+='<div class="scCard"><h6>Active</h6><div class="setRow"><div class="sl"><b>'+esc((msTpl(m.active.tid)||{}).title||"")+'</b><span>started '+esc(m.active.started)+' · '+(p?p.pct:0)+'% · '+m.active.len+'-day plan'+(m.active.paused?" · paused":"")+'</span></div><button class="btn ghost" onclick="msView=\'dash\';renderMission()">Open</button></div></div>'}
+  if(!m.history.length&&!m.active)h+='<div class="example">No missions yet. Choose your first one and BVU stops being a library and starts being a coach.</div>';
+  if(m.history.length){h+='<div class="scCard"><h6>Past missions</h6>'+m.history.map(x=>'<div class="setRow"><div class="sl"><b>'+esc(x.title)+'</b><span>'+esc(x.started)+' → '+esc(x.ended)+' · '+x.pct+'% · '+x.len+'d · '+(x.status==="completed"?"🎓 completed":x.status)+'</span></div></div>').join("")+'</div>'}
+  h+='<button class="btn ghost full" onclick="msView=msGet().active?\'dash\':\'setup\';renderMission()">← Back</button>';
+  el.innerHTML=h;
+}
+/* full path view (rendered inside dash flow when msView==='path') */
+function msRenderPath(el){
+  const m=msGet(),p=msPath();if(!p){el.innerHTML="";return}
+  const stName={1:"Foundation",2:"Practice",3:"Application",4:"Mastery"};
+  let h='<span class="lessonChip">'+esc(p.tpl.title)+' · full path</span>'+
+  '<h2 style="font-family:var(--font-d);font-size:22px;margin:6px 0 10px">'+p.pct+'% · '+p.reqDone+' of '+p.reqTotal+' required done</h2>';
+  p.weeks.forEach(w=>{
+    h+='<div class="moduleName">Week '+w.n+(w.n===p.curWeek?' · you are here':'')+' · ~'+w.min+' min</div><div class="cards">';
+    w.items.forEach(it=>{
+      const r=msResolve(it),idx=p.items.indexOf(it);
+      h+='<div class="card" style="cursor:default"><span class="num"'+(r.done?' style="background:var(--green);color:#fff"':'')+'>'+(r.done?"✓":stName[it.st][0])+'</span>'+
+      '<span class="ct"><b>'+esc(r.title)+'</b><span>'+r.type+' · ~'+r.min+'m · '+(it.req?"Required":"Optional")+' · '+stName[it.st]+(it.pre?' · ⚠️ prerequisite':'')+' — '+esc(it.why)+'</span></span>'+
+      '<span style="display:flex;gap:5px;flex-shrink:0">'+
+      '<button class="btn ghost" style="padding:6px 10px;font-size:11.5px" onclick="msNav('+idx+')">Open</button>'+
+      (!it.req&&!r.done?'<button class="btn ghost" style="padding:6px 8px;font-size:11.5px" onclick="msSwapItem('+idx+')" title="Replace">⇄</button><button class="btn ghost" style="padding:6px 8px;font-size:11.5px" onclick="msSkip('+idx+')" title="Skip">✕</button>':'')+
+      '</span></div>';
+    });
+    h+='</div>';
+  });
+  h+='<button class="btn ghost full" style="margin-top:10px" onclick="msView=\'dash\';renderMission()">← Back to Mission</button>';
+  el.innerHTML=h;
+}
+/* AI refinement — advisory through the existing tutor; plan never auto-mutates */
+function msAIRefine(){
+  const p=msPath();if(!p)return;
+  const listing=p.items.map(i=>{const r=msResolve(i);return (i.req?"[REQ]":"[opt]")+" "+r.title+(r.done?" (done)":"")}).join("\n");
+  openAI("You are my BVU mission advisor. My mission: \""+p.tpl.title+"\" — outcome: "+p.tpl.outcome+". I'm on day "+p.dayN+" of "+p.len+", "+p.pct+"% of required items done, studying "+p.daily+" min/day. My plan (all items are real BVU content — only discuss THESE, never invent new ones):\n"+listing.slice(0,3500)+"\n\nGive me: (1) the smartest order for what's left given my time; (2) which optional items matter most for MY goal and which to skip; (3) one blunt observation about my pace; (4) this week's focus in two sentences. Do not invent content that isn't listed.","Mission: "+p.tpl.title);
+}
+/* ---- Weekly Operator Review ---- */
+function wrWeekId(){const d=new Date(),y=d.getFullYear(),on=new Date(y,0,1),wn=Math.ceil(((d-on)/864e5+on.getDay()+1)/7);return y+"-W"+String(wn).padStart(2,"0")}
+function wrStreak(){
+  const w=wrGet();if(!w.reviews.length)return 0;
+  let s=0,expect=null;
+  for(const r of w.reviews){
+    if(expect===null){s=1;expect=r.week}
+    else{const [y,wk]=expect.split("-W").map(Number);const prev=wk>1?y+"-W"+String(wk-1).padStart(2,"0"):(y-1)+"-W52";
+      if(r.week===prev){s++;expect=r.week}else break}
+    expect=r.week;
+  }
+  return s;
+}
+function wrRenderForm(el){
+  const w=wrGet();
+  wrDraft=wrDraft||{ctx:w.ctx||"study"};
+  const already=w.reviews.length&&w.reviews[0].week===wrWeekId();
+  const biz=wrDraft.ctx==="business",work=wrDraft.ctx!=="study";
+  const lastBn=w.reviews.length?w.reviews[0].bn:null;
+  const ta=(id,label,ph)=>'<div class="planField"><label>'+label+'</label><textarea id="'+id+'" style="min-height:56px" placeholder="'+ph+'">'+esc((wrDraft[id]||""))+'</textarea></div>';
+  let h='<h2 style="font-family:var(--font-d);font-size:22px;margin:2px 0 4px">Weekly Operator Review</h2>'+
+  '<p style="font-size:13px;color:var(--steel-2);line-height:1.6;margin-bottom:8px">Ten minutes, once a week: what happened, what\'s stuck, what you\'ll do next. The Daily Ten trains knowledge; this trains execution. Review streak: <b>'+wrStreak()+'</b>'+(already?' · <span style="color:var(--green)">this week already logged — a new save updates it</span>':'')+'</p>';
+  h+='<div class="scCard"><h6>Right now I\'m…</h6><div class="seg-group">'+[["study","Studying only"],["work","Working / selling"],["business","Running a business"]].map(c=>'<button class="seg'+(wrDraft.ctx===c[0]?" on":"")+'" onclick="wrDraft.ctx=\''+c[0]+'\';renderMission()">'+c[1]+'</button>').join("")+'</div></div>';
+  h+=ta("wr_win","Most important win this week","The one thing that went right…");
+  h+=ta("wr_miss","What didn't get done","Be specific — no shame, just data…");
+  h+=ta("wr_problem","Biggest problem you hit","…");
+  if(work)h+=ta("wr_numUp","A number that improved","sales calls, jobs done, revenue, savings…")+ta("wr_numDown","A number that declined","…");
+  if(biz)h+=ta("wr_customer","What did customers teach you?","a complaint, a question, a pattern…");
+  if(work)h+=ta("wr_team","What did your team / your work teach you?","…");
+  h+=ta("wr_avoid","What decision are you avoiding?","the one you already know the answer to…");
+  h+=ta("wr_exp","What experiment did you run — and the result?","tried X → happened Y…");
+  h+='<div class="scCard"><h6>Main bottleneck right now</h6><div class="seg-group" style="flex-wrap:wrap">'+Object.entries(WR_BN).map(([k,v])=>'<button class="seg'+(wrDraft.bn===k?" on":"")+'" style="flex:0 0 auto" onclick="wrDraft.bn=\''+k+'\';renderMission()">'+esc(v.label)+'</button>').join("")+'</div>'+
+  (lastBn&&wrDraft.bn===lastBn?'<div class="scFlag" style="margin-top:8px"><span>🔁</span><span>Same bottleneck as last week. That\'s useful information, not a failure — this week\'s recommendations get more aggressive (a lab, not just a lesson).</span></div>':'')+'</div>';
+  h+='<div class="scCard"><h6>Next week</h6>'+
+  '<div class="planField"><label>THE one commitment (must be done before next review)</label><input class="setInput" id="wr_commit" placeholder="Specific and checkable — \'call 30 doors\' not \'do better\'" value="'+esc(wrDraft.wr_commit||"")+'"></div>'+
+  '<div class="planField"><label>Up to three supporting priorities</label>'+[1,2,3].map(i=>'<input class="setInput" id="wr_p'+i+'" style="margin-bottom:6px" placeholder="Priority '+i+'" value="'+esc(wrDraft["wr_p"+i]||"")+'">').join("")+'</div></div>';
+  h+='<button class="btn full" onclick="wrSubmit()">Save Weekly Review</button>'+
+  '<button class="btn ghost full" style="margin-top:9px" onclick="msView=msGet().active?\'dash\':\'setup\';renderMission()">← Back</button>';
+  el.innerHTML=h;
+  ["wr_win","wr_miss","wr_problem","wr_numUp","wr_numDown","wr_customer","wr_team","wr_avoid","wr_exp","wr_commit","wr_p1","wr_p2","wr_p3"].forEach(id=>{
+    const f=document.getElementById(id);if(f)f.addEventListener("input",()=>{wrDraft[id]=f.value});
+  });
+}
+function wrSubmit(){
+  const g=id=>{const f=document.getElementById(id);return f?f.value.trim():""};
+  const bn=wrDraft.bn||null;
+  if(!g("wr_commit")){toast("Set the one commitment — that's the whole point");return}
+  const w=wrGet();w.ctx=wrDraft.ctx;
+  const rec={id:"wr"+Date.now(),week:wrWeekId(),date:todayStr(),ctx:wrDraft.ctx,
+    win:g("wr_win"),miss:g("wr_miss"),problem:g("wr_problem"),numUp:g("wr_numUp"),numDown:g("wr_numDown"),
+    customer:g("wr_customer"),team:g("wr_team"),avoid:g("wr_avoid"),exp:g("wr_exp"),bn,
+    priorities:[g("wr_p1"),g("wr_p2"),g("wr_p3")].filter(Boolean),
+    commit:{text:g("wr_commit"),due:null,done:false},
+    recs:bn&&WR_BN[bn]?WR_BN[bn].recs.filter(r=>msResolve(r).ok).map(msItemKey):[]};
+  if(w.reviews.length&&w.reviews[0].week===rec.week)w.reviews[0]=rec;else w.reviews.unshift(rec);
+  wrSave(w);wrDraft=null;
+  toast("Review saved — streak: "+wrStreak()+" week"+(wrStreak()===1?"":"s"));
+  msView="reviewHist";renderMission();
+}
+function wrCommitDone(){
+  const w=wrGet();if(!w.reviews.length)return;
+  w.reviews[0].commit.done=true;w.reviews[0].commit.doneDate=todayStr();
+  wrSave(w);toast("Commitment completed ✓");
+  if(missionEl.classList.contains("open"))renderMission();
+  if(activeView==="home")renderHome();
+}
+function wrItemFromKey(key){const i=key.indexOf(":");const k=key.slice(0,i),id=key.slice(i+1);
+  if(k==="exam"){const [tr,lvid]=id.split(":");const tri=DATA.find(t=>t.id===tr);return {k,tr,lv:tri?tri.levels.findIndex(l=>l.id===lvid):0,id}}
+  if(k==="final")return {k,tr:id.split(":")[0],id};
+  return {k,id};
+}
+function wrRenderHistory(el){
+  const w=wrGet();
+  let h='<h2 style="font-family:var(--font-d);font-size:22px;margin:2px 0 4px">Weekly Reviews</h2>'+
+  '<p style="font-size:13px;color:var(--steel-2);margin-bottom:10px">Streak: <b>'+wrStreak()+'</b> · '+w.reviews.length+' review'+(w.reviews.length===1?"":"s")+' logged · commitments kept: <b>'+w.reviews.filter(r=>r.commit&&r.commit.done).length+' of '+w.reviews.length+'</b></p>'+
+  '<button class="btn full" onclick="msView=\'review\';renderMission()">'+(w.reviews.length&&w.reviews[0].week===wrWeekId()?"Update This Week's Review":"Start This Week's Review")+'</button>';
+  if(!w.reviews.length)h+='<div class="example" style="margin-top:12px">No reviews yet. The first one takes ten minutes and asks the questions a good business partner would.</div>';
+  w.reviews.slice(0,12).forEach(r=>{
+    h+='<div class="scCard" style="margin-top:12px"><h6>'+esc(r.week)+' · '+esc(r.date)+(r.bn?' · '+esc(WR_BN[r.bn]?WR_BN[r.bn].label:r.bn):'')+'</h6>'+
+    (r.win?'<div class="setRow"><div class="sl"><b>Win</b><span>'+esc(r.win)+'</span></div></div>':'')+
+    (r.problem?'<div class="setRow"><div class="sl"><b>Problem</b><span>'+esc(r.problem)+'</span></div></div>':'')+
+    '<div class="setRow"><div class="sl"><b>Commitment '+(r.commit.done?"✓":"·")+'</b><span>'+esc(r.commit.text)+(r.commit.done?' — done '+esc(r.commit.doneDate||""):'')+'</span></div>'+(!r.commit.done?'<button class="btn ghost" onclick="wrCommitDone()">Done ✓</button>':'')+'</div>'+
+    (r.recs&&r.recs.length?'<div style="margin-top:6px"><div style="font-size:10px;font-family:var(--mono);letter-spacing:.1em;color:var(--steel);margin-bottom:5px">BVU FOR THIS BOTTLENECK</div>'+r.recs.map(key=>{const it=wrItemFromKey(key);const rr=msResolve(it);return rr.ok?'<button class="card" style="box-shadow:none;border:none;padding:8px 10px;margin-bottom:3px" onclick="closeMission();(function(){'+'})();msWrNav(\''+key+'\')"><span class="num" style="width:20px;height:20px;font-size:9px">→</span><span class="ct"><b style="font-size:13px">'+esc(rr.title)+'</b><span>'+rr.type+' · ~'+rr.min+' min'+(rr.done?' · done ✓':'')+'</span></span></button>':""}).join("")+'</div>':'')+
+    '</div>';
+  });
+  if(aiKeyGet()&&w.reviews.length)h+='<button class="btn ghost full" style="margin-top:12px" onclick="wrAI()">✨ AI Coach: Read My Last Reviews</button>';
+  h+='<button class="btn ghost full" style="margin-top:9px" onclick="msView=msGet().active?\'dash\':\'setup\';renderMission()">← Back</button>';
+  el.innerHTML=h;
+}
+function msWrNav(key){const it=wrItemFromKey(key);const r=msResolve(it);if(r.ok&&r.nav){closeMission();r.nav()}}
+function wrAI(){
+  const w=wrGet();const rs=w.reviews.slice(0,4).map(r=>r.week+": win="+r.win+" | problem="+r.problem+" | bottleneck="+(r.bn||"-")+" | avoided="+r.avoid+" | commitment="+r.commit.text+" ("+(r.commit.done?"KEPT":"open")+")").join("\n");
+  openAI("You are my weekly operator coach inside BVU. My recent Weekly Operator Reviews, newest first:\n"+rs.slice(0,3000)+"\n\nDo four things, plainly: (1) name any repeating pattern across weeks; (2) tell me if my current commitment is specific and checkable — if not, rewrite it; (3) ask me ONE hard, useful question; (4) point me to the single most relevant thing to study from what we've discussed. You are a coach, not a therapist, CPA or attorney — say so if I drift there. Never invent BVU content.","Weekly Review coaching");
+}
+/* ---- home dashboard card (one dominant action; guards for load order) ---- */
+function msHomeCard(){
+  const m=msGet();if(!m.active)return null;
+  const p=msPath();if(!p)return null;
+  const w=wrGet();const commit=w.reviews.length&&w.reviews[0].commit&&!w.reviews[0].commit.done?w.reviews[0].commit:null;
+  const nxt=p.next?msResolve(p.next):null;
+  let h='<div class="heroDash"><div class="hd-body">'+
+  '<div class="hd-kicker">🎯 '+esc(p.tpl.title)+(m.active.paused?" · paused":" · day "+p.dayN+" of "+p.len+" · week "+p.curWeek)+'</div>'+
+  '<h2>'+(m.active.paused?"Mission paused":p.pct===100?"Mission complete 🎓":nxt?esc(nxt.title):"All required items done")+'</h2>'+
+  '<div class="hd-crumb">'+(m.active.paused?"Resume anytime — nothing is lost":p.pct===100?"Archive it and pick the next mission":nxt?nxt.type+" · ~"+nxt.min+" min · "+esc(p.next.why):"")+'</div>'+
+  '<div class="hd-cta">'+
+  (m.active.paused?'<button class="btn" onclick="msPauseToggle();renderHome()">Resume Mission</button>':
+   p.pct===100?'<button class="btn" onclick="openMission(\'dash\')">Finish Up →</button>':
+   '<button class="btn" onclick="msHomeGo()"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Start Now</button>')+
+  '<button class="btn ghost" onclick="openMission(\'dash\')">Mission HQ</button>'+
+  '</div>'+
+  '<div style="font-size:11.5px;color:var(--steel);margin-top:9px">Off-mission? <a href="javascript:void(0)" onclick="openLesson(resumeLesson().id)" style="color:var(--blue-2)">continue free learning →</a></div>'+
+  '</div><div class="hd-ring">'+ringSVG(92,40,p.pct/100,6)+'<b>'+p.pct+'%</b><span>Mission</span></div></div>';
+  if(commit)h+='<button class="card" style="margin:2px 0 14px" onclick="openMission(\'reviewHist\')"><span class="num" style="background:var(--amber,#c78d2c);color:#fff">📌</span><span class="ct"><b>This week: '+esc(commit.text)+'</b><span>Your operator commitment · tap to review or mark done</span></span><span style="color:var(--blue-2)">→</span></button>';
+  return h;
+}
+function msHomeGo(){const p=msPath();if(!p||!p.next){openMission('dash');return}const r=msResolve(p.next);if(r.nav)r.nav()}
+function msIntroCard(){
+  return '<button class="card tutorCard" style="margin:2px 0 14px" onclick="openMission()">'+
+  '<span class="num" style="background:var(--blue-face);color:#fff">🎯</span>'+
+  '<span class="ct"><b>Choose Your Business Mission</b><span>Tell BVU your goal — get a 30/60/90-day path built from real lessons, labs and roleplays, with one clear next action</span></span>'+
+  '<span style="color:var(--blue-2)">→</span></button>';
+}
+/* ---- dev integrity checker (console: bvuValidate()) ---- */
+function bvuValidate(){
+  const problems=[];
+  const lids=allLessons.map(l=>l.id);
+  if(new Set(lids).size!==lids.length)problems.push("Duplicate lesson ids");
+  const dupDom=[...document.querySelectorAll('[id]')].map(e=>e.id).filter((v,i,a)=>a.indexOf(v)!==i);
+  if(dupDom.length)problems.push("Duplicate DOM ids: "+[...new Set(dupDom)].slice(0,5).join(","));
+  MS_TEMPLATES.forEach(t=>{
+    t.items.forEach(it=>{if(!msResolve(it).ok)problems.push("Mission "+t.id+": unresolvable item "+msItemKey(it))});
+    (t.prereq||[]).forEach(p=>{if(!byId[p])problems.push("Mission "+t.id+": bad prereq "+p)});
+  });
+  Object.entries(WR_BN).forEach(([k,v])=>v.recs.forEach(r=>{if(!msResolve(r).ok)problems.push("WR_BN "+k+": unresolvable rec "+msItemKey(r))}));
+  const goalDup=MS_GOALS.filter(g=>!msTpl(g[1]));
+  if(goalDup.length)problems.push("Goals pointing at missing templates: "+goalDup.map(g=>g[1]).join(","));
+  console.log("bvuValidate:",problems.length?problems:"ALL CLEAR — "+MS_TEMPLATES.reduce((a,t)=>a+t.items.length,0)+" mission items + "+Object.values(WR_BN).reduce((a,v)=>a+v.recs.length,0)+" recs verified");
+  return problems;
+}
+/* view dispatch fix: path view */
+const _msRenderDash=msRenderDash;
+msRenderDash=function(el,m){if(msView==="path")return msRenderPath(el);return _msRenderDash(el,m)};
 /* ================= THEME ENGINE ================= */
 const FONT_OSWALD="'Oswald',system-ui,sans-serif";
 const FONT_SERIF="'Playfair Display',Georgia,serif";

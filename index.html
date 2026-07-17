@@ -9026,8 +9026,20 @@ function palRender(q){
   const acts=palActions().filter(a=>!q||(a.t+" "+a.s).toLowerCase().includes(q));
   items=acts.map(a=>({type:"act",...a}));
   if(q.length>=2){
-    const hits=allLessons.filter(l=>q.split(/\s+/).every(w=>lessonHay(l).includes(w))).slice(0,9);
-    items=items.slice(0,3).concat(hits.map(l=>({type:"lesson",t:l.t,s:l.track.name+" · "+l.level.tagline+" · "+l.module.name,k:done.has(l.id)?"✓":"Lesson",run:()=>openLesson(l.id)})));
+    /* universal search: one query sweeps the whole university */
+    const ws=q.split(/\s+/);
+    const M=s=>{s=String(s).toLowerCase();return ws.every(w=>s.includes(w))};
+    const hits=[];
+    allLessons.filter(l=>ws.every(w=>lessonHay(l).includes(w))).slice(0,6).forEach(l=>hits.push({type:"lesson",t:l.t,s:l.track.name+" · "+l.level.tagline+" · "+l.module.name,k:done.has(l.id)?"✓":"Lesson",run:()=>openLesson(l.id)}));
+    BOOKS.filter(b=>M(b.title+" "+b.author+" "+b.cat+" "+b.why+" "+(b.teaches||""))).slice(0,4).forEach(b=>hits.push({type:"lesson",t:b.title,s:b.author+" · "+b.cat+" · "+b.diff+" · full deep dive",k:"Book",run:()=>openBook(b.id)}));
+    PODCASTS.filter(p=>M(p.n+" "+p.h+" "+p.cat+" "+p.why+" "+(p.e||""))).slice(0,4).forEach(p=>hits.push({type:"lesson",t:p.n,s:p.cat+" · ▶ "+(p.e||p.why),k:"Podcast",run:()=>window.open(p.eu||p.u,"_blank","noopener")}));
+    CASES.filter(c=>M(c.title+" "+c.inspired+" "+c.cat)).slice(0,3).forEach(c=>hits.push({type:"lesson",t:c.title,s:c.inspired+" · "+c.cat+" · decision case",k:"Case",run:()=>openCase(c.id)}));
+    SIMS.filter(x=>M(x.title+" "+x.cat+" "+(x.intro||""))).slice(0,3).forEach(x=>hits.push({type:"lesson",t:x.title,s:x.cat+" · "+x.time+" · scored simulation",k:"Sim",run:()=>openSim(x.id)}));
+    ROLEPLAYS.filter(r=>M(r.title+" "+r.cat+" "+r.them+" "+r.goal)).slice(0,3).forEach(r=>hits.push({type:"lesson",t:r.title,s:r.cat+" · "+r.diff+" · live AI roleplay",k:"Roleplay",run:()=>openRoleplay(r.id)}));
+    LABS.filter(l=>M(l.title+" "+(l.goal||""))).slice(0,3).forEach(l=>hits.push({type:"lesson",t:l.title,s:(l.goal||"").slice(0,70),k:l.cap?"Capstone":"Lab",run:()=>openLab(l.id)}));
+    TOOLS.filter(t=>M(t.name+" "+(t.desc||"")+" "+t.cat)).slice(0,3).forEach(t=>hits.push({type:"lesson",t:t.name,s:t.cat+" · calculator",k:"Tool",run:()=>openTool(t.id)}));
+    allTerms.filter(x=>M(x.t)).slice(0,3).forEach(x=>hits.push({type:"lesson",t:x.t,s:(x.d||"").slice(0,70),k:"Term",run:()=>{dictQ=x.t;dictSel=x.id;openLibrary("terms")}}));
+    items=items.slice(0,2).concat(hits);
   }
   palItems=items;palSel=0;
   palList.innerHTML=items.length?items.map((it,i)=>

@@ -1,0 +1,14 @@
+{
+  "name": "Deal Vault — Business Acquisition Analysis",
+  "short_name": "Deal Vault",
+  "description": "Underwrite business acquisitions like a private-equity analyst. Deal scoring, financing modeling, scenario stress tests and acquisition reports — all private, on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1320",
+  "theme_color": "#1f3d5c",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

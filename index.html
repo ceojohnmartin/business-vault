@@ -492,6 +492,17 @@
   #score{position:fixed;inset:0;z-index:137;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
   #score.open{transform:translateY(0);visibility:visible}
   #score .sheetBar{flex-shrink:0}
+  #settings{position:fixed;inset:0;z-index:138;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
+  #settings.open{transform:translateY(0);visibility:visible}
+  #settings .sheetBar{flex-shrink:0}
+  .setRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid var(--edge)}
+  .setRow:last-child{border-bottom:none}
+  .setRow .sl{min-width:0}
+  .setRow .sl b{display:block;font-size:14px;font-weight:600}
+  .setRow .sl span{display:block;font-size:12px;color:var(--steel);margin-top:2px;line-height:1.5}
+  .setRow .btn{flex-shrink:0;padding:8px 14px;font-size:12.5px}
+  .setInput{width:100%;background:var(--bg);border:1.5px solid var(--edge);border-radius:11px;padding:10px 12px;font-size:14.5px;color:var(--text);font-family:inherit;outline:none}
+  .setInput:focus{border-color:var(--blue-3)}
   .scSpark{width:100%;height:44px;display:block}
   .scCard{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r-card);padding:13px 14px;margin-bottom:11px;box-shadow:var(--card-sh)}
   .scCard h6{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--steel);font-weight:700;margin:0 0 7px}
@@ -654,6 +665,9 @@
   </div>
   <div class="pageTitle" id="pageTitle">Dashboard</div>
   <div class="top-right">
+    <button class="iconBtn" onclick="openSettings()" aria-label="Settings" title="Settings">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
     <button class="iconBtn themeTop" onclick="openThemes()" aria-label="Theme gallery">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 0 0 0 20c1.2 0 2-.9 2-2 0-.6-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.4 0-1.1.9-2 2-2h2.4A4.6 4.6 0 0 0 22 10.6 8.9 8.9 0 0 0 12 2z"/><circle cx="7.5" cy="10.5" r="1.3"/><circle cx="12" cy="7.5" r="1.3"/><circle cx="16.5" cy="10.5" r="1.3"/></svg>
     </button>
@@ -841,6 +855,18 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
     </button>
   </div>
+</div>
+
+<div id="settings" role="dialog" aria-modal="true" aria-label="Settings">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeSettings()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb">Settings</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="planScroll" id="settingsScroll"><div class="planInner" id="settingsInner"></div></div>
 </div>
 
 <div id="score" role="dialog" aria-modal="true" aria-label="Owner's Scoreboard">
@@ -6765,6 +6791,7 @@ function buildSidebar(){
   h+='<button class="sb-item" id="sb-librp" onclick="openLibrary(\'rp\')">'+ICONS.rp+'Roleplay Arena<span class="n">'+ROLEPLAYS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-gym" onclick="openGym()">'+ICONS.gym+'Numbers Gym'+((store.gym||{}).best!==undefined?'<span class="n">'+store.gym.best+'/10</span>':'')+'</button>';
   h+='<button class="sb-item" id="sb-score" onclick="openScore()">'+ICONS.chart+'Owner\'s Scoreboard'+(scGet().length?'<span class="n">'+scGet().length+'</span>':'')+'</button>';
+  h+='<button class="sb-item" id="sb-settings" onclick="openSettings()">'+ICONS.gear+'Settings</button>';
   h+='<button class="sb-item" id="sb-liblabs" onclick="openLibrary(\'labs\')">'+ICONS.tool+'Operator Labs<span class="n">'+LABS.length+'</span></button>';
   h+='<button class="sb-item" id="sb-libterms" onclick="openLibrary(\'terms\')">'+ICONS.book+'Dictionary<span class="n">'+allTerms.length+'</span></button>';
   document.getElementById("sbNav").innerHTML=h;
@@ -8133,6 +8160,50 @@ function aiTeachBack(){
   openAI(p,"Teach it back: "+le.t);
 }
 
+/* ================= SETTINGS =================
+   One page for everything that was scattered: profile, appearance,
+   AI key, audio, data & privacy, danger zone, about. */
+const settingsEl=document.getElementById("settings");
+const APP_BUILD="July 2026";
+function openSettings(){settingsEl.classList.add("open");document.getElementById("settingsScroll").scrollTop=0;syncScrollLock();renderSettings()}
+function closeSettings(){settingsEl.classList.remove("open");syncScrollLock();renderAll()}
+function setName(v){v=(v||"").trim();if(v)localStorage.setItem("bvName_v1",v);else localStorage.removeItem("bvName_v1")}
+function setStorageKB(){let n=0;BACKUP_KEYS.concat([AI_KEY_STORE]).forEach(k=>{const v=localStorage.getItem(k);if(v)n+=v.length});return Math.max(1,Math.round(n/1024))}
+function renderSettings(){
+  const name=localStorage.getItem("bvName_v1")||"";
+  const key=aiKeyGet();
+  const lastBk=localStorage.getItem("bvLastBackup_v1");
+  const fontLbl=["Normal","Large","Extra large"][fontSize];
+  let h='<h2 style="font-family:var(--font-d);font-size:22px;margin:2px 0 14px">Settings</h2>';
+  h+='<div class="scCard"><h6>Profile</h6>'+
+    '<div class="setRow"><div class="sl" style="flex:1"><b>Your name</b><span>Printed on certificates and your diploma</span><input class="setInput" style="margin-top:8px" id="setName" value="'+esc(name)+'" placeholder="John Martin" onchange="setName(this.value);toast(\'Name saved\')"></div></div>'+
+    '<div class="setRow"><div class="sl"><b>Rank</b><span>'+bvuRank()+' · '+done.size+' of '+allLessons.length+' lessons · '+streak()+'-day streak</span></div><button class="btn ghost" onclick="closeSettings();setView(\'progress\')">Progress</button></div>'+
+    '</div>';
+  h+='<div class="scCard"><h6>Appearance</h6>'+
+    '<div class="setRow"><div class="sl"><b>Light / Dark</b><span>Switch the whole app\'s appearance</span></div><button class="btn ghost" onclick="toggleAppearance();renderSettings()">Toggle</button></div>'+
+    '<div class="setRow"><div class="sl"><b>Theme</b><span>16 premium themes, light and dark</span></div><button class="btn ghost" onclick="openThemes()">Gallery</button></div>'+
+    '<div class="setRow"><div class="sl"><b>Reading text size</b><span>Currently: '+fontLbl+' · applies in the lesson reader</span></div><button class="btn ghost" onclick="cycleFont();renderSettings()">Change</button></div>'+
+    '</div>';
+  h+='<div class="scCard"><h6>AI</h6>'+
+    '<div class="setRow"><div class="sl"><b>API key</b><span>'+(key?'Connected · '+esc(aiKeyMask()):'Not connected — AI buttons will offer setup')+'</span></div><button class="btn ghost" onclick="closeSettings();openAI();aiShowSetup()">Manage</button></div>'+
+    '<div class="setRow"><div class="sl"><b>What runs on it</b><span>Tutor, grading, roleplays and book coach (Claude Opus 4.8) · Game Plan (Claude Fable 5). Typical chat costs a few cents; a full game plan under a dollar.</span></div></div>'+
+    '<div class="setRow"><div class="sl"><b>Privacy</b><span>Your key lives only on this device, is never included in backups, and chats go straight from your phone to Anthropic — never through anyone else.</span></div></div>'+
+    '</div>';
+  h+='<div class="scCard"><h6>Data &amp; Privacy</h6>'+
+    '<div class="setRow"><div class="sl"><b>Backup everything</b><span>'+(lastBk?'Last backup: '+esc(lastBk):'No backup yet — one tap protects everything')+'</span></div><button class="btn" onclick="backupAll()">Backup</button></div>'+
+    '<div class="setRow"><div class="sl"><b>Restore from backup</b><span>Load a bvu-backup .json file</span></div><button class="btn ghost" onclick="document.getElementById(\'setRestore\').click()">Restore</button><input type="file" id="setRestore" accept=".json,application/json" style="display:none" onchange="restoreAll(this)"></div>'+
+    '<div class="setRow"><div class="sl"><b>Where your data lives</b><span>Everything — progress, notes, plans, scoreboard — is stored on this device only ('+setStorageKB()+' KB right now). No accounts, no servers, nothing leaves your phone except AI chats you start.</span></div></div>'+
+    '</div>';
+  h+='<div class="scCard"><h6 style="color:var(--red)">Danger zone</h6>'+
+    '<div class="setRow"><div class="sl"><b>Reset all progress</b><span>Lessons, quizzes, flashcards, notes and bookmarks. Cannot be undone — back up first.</span></div><button class="btn ghost" style="color:var(--red)" onclick="resetProgress();renderSettings()">Reset</button></div>'+
+    '</div>';
+  h+='<div class="scCard"><h6>About</h6>'+
+    '<div class="setRow"><div class="sl"><b>Business Vault University</b><span>'+APP_BUILD+' · '+allLessons.length+' lessons · '+BOOKS.length+' book deep dives · '+PODCASTS.length+' podcasts · '+TOOLS.length+' tools · '+CASES.length+' cases · '+SIMS.length+' sims · '+ROLEPLAYS.length+' roleplays · '+LABS.length+' labs · '+allTerms.length+' terms</span></div></div>'+
+    '<div class="setRow"><div class="sl"><b>How it\'s built</b><span>One file, no servers, works offline, installable from Safari via Share → Add to Home Screen. Education, not professional legal, tax or investment advice.</span></div></div>'+
+    '</div>';
+  document.getElementById("settingsInner").innerHTML=h;
+}
+
 /* ================= PROGRESS & MASTERY ================= */
 function badgeDefs(){
   const bests=Object.values(store.quiz).map(q=>q.best);
@@ -8554,7 +8625,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score","settings"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -8770,6 +8841,7 @@ function aiBook(){
 ICONS.rp='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
 ICONS.gym='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
 ICONS.chart='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>';
+ICONS.gear='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
 function rpState(id){return (store.rp||{})[id]||{}}
 function rpRow(s,i){
   const st=rpState(s.id);
@@ -9012,6 +9084,7 @@ function palActions(){
     {k:"Action",t:"Roleplay Arena",s:ROLEPLAYS.length+" live AI conversations",run:()=>openLibrary("rp")},
     {k:"Action",t:"Numbers Gym",s:"10 rapid-fire math reps · beat your best",run:()=>openGym()},
     {k:"Action",t:"Owner's Scoreboard",s:"Your real numbers, monthly — trends + AI review",run:()=>openScore()},
+    {k:"Page",t:"Settings",s:"Profile, appearance, AI key, backups, about",run:()=>openSettings()},
     {k:"Action",t:"The Daily Ten",s:"Your tracked 10-minute daily circuit",run:()=>setView("home")},
     {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
     {k:"Page",t:"Business Dictionary",s:allTerms.length+" terms",run:()=>openLibrary("terms")},
@@ -9085,6 +9158,7 @@ document.addEventListener("keydown",e=>{
   if(e.key==="Escape"){
     if(palEl.classList.contains("open"))closePalette();
     else if(aiEl.classList.contains("open"))closeAI();
+    else if(settingsEl.classList.contains("open"))closeSettings();
     else if(scoreEl.classList.contains("open"))closeScore();
     else if(planEl.classList.contains("open"))closePlanner();
     else if(quizEl.classList.contains("open"))closeQuiz();

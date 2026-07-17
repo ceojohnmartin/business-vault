@@ -5508,6 +5508,56 @@ const ROLEPLAYS=[
  persona:"You're a professional buyer running the standard playbook: big anchor (30% + net-60), artificial deadline ('I need pricing by Friday'), competitor pressure ('your competitor's already at this number' — a bluff; their bid is only 10% under standard and their service reviews are shaky), and flattery ('we want YOU, that's the point'). The truth: your last vendor failed on quality, your boss wants this fixed more than squeezed, and you have authority to sign at 12-15% off standard with a 2-year term and volume commitment, net-30 (net-45 at absolute most), and a phased rollout starting with 4 sites. You respect a vendor who knows their numbers and says 'at that price we lose money on every site' — you push twice more, then get real. If they cave fast on everything, you keep squeezing (add free extras, push net-90) because caving invites it. If they walk credibly, you call back with the real number.",
  open:"I'll cut to it — we like your operation, and I'm ready to hand you all fourteen sites this quarter. One number stands between us: I need thirty percent off rate card, net-sixty. Your competitor already said yes to it, so… make this easy for me."}
 ];
+/* ================= BEGINNER → ADVANCED ORDERING =================
+   One curriculum spine for every Library tab: everything reads
+   top-to-bottom from Level 1 (beginner) to Level 3 (advanced).
+   Runs after all content registries are built. */
+const LVL_NAMES={1:"Level 1 · Beginner — Start Here",2:"Level 2 · Operator — Core Skills",3:"Level 3 · Dealmaker — Advanced"};
+
+/* Books: curated reading order inside each difficulty tier */
+const BOOK_SEQ=[
+"personal-mba","emyth","psych-money","iwt","simple-path","millionaire-next-door","ymoyl","acct-simple","mom-test","lean-startup","100m-offers","influence","positioning","never-split","traction-eos","radical-candor","same-as-ever",
+"fin-intel","the-goal","scaling-up","high-output","mwm-okr","who-smart","hard-things","no-rules","effective-exec","good-strategy","zero-to-one","crossing-chasm","sci-advertising","spin-selling","100m-leads","blue-ocean","inspired","intelligent-investor","outsiders","buy-then-build","hbr-buy-small","king-capital",
+"7powers","competitive-strategy","breakthrough-adv","toyota-way","poor-charlie","valuation-mck","ib-rosenbaum","pe-gompers"];
+BOOKS.sort((a,b)=>BOOK_SEQ.indexOf(a.id)-BOOK_SEQ.indexOf(b.id));
+
+/* Podcasts: level by show (substring match, default Level 2) */
+const POD_L1=["millionaire university","$100 mba","the game with alex","how i built this","side hustle school","best one yet","morning brew","hustle daily","planet money","ramsey show","entreleadership","nerdwallet","money guy","money for couples","personal finance podcast","choosefi","biggerpockets money","upflip","business wars","ed mylett","rethinking","bit of optimism","nudge","duct tape","social media marketing","marketing school"];
+const POD_L3=["acquired","invest like the best","capital allocators","masters in business","we study billionaires","odd lots","meb faber","twenty minute vc","a16z","grit","equity","built to sell","acquisitions anonymous","acquiring minds","bigdeal","mckinsey","lenny","all-in"];
+PODCASTS.forEach(p=>{const n=p.n.toLowerCase();p.lvl=POD_L1.some(k=>n.includes(k))?1:POD_L3.some(k=>n.includes(k))?3:2;});
+
+/* Cases: decision training from single-concept to capital & governance */
+const CASE_LVL={
+1:["apple-brand","costco-model","mcd-realestate","dominos-honesty","cash-crisis","sidehustle-jump","laundromat-cash","netflix-keeper"],
+2:["toyota-andon","restaurant-turn","founder-trapped","hvac-scaling","starbucks-reset","southwest-people","lego-focus","misclass-audit","handshake-partners"],
+3:["berkshire-capital","amazon-reinvest","tesla-vertical","carwash-acq","pest-rollup","wework-governance","wash-rollup-exit"]};
+CASES.forEach(c=>{c.lvl=CASE_LVL[1].includes(c.id)?1:CASE_LVL[3].includes(c.id)?3:2;});
+CASES.sort((a,b)=>a.lvl-b.lvl);
+
+/* Simulations: run-a-lemonade-stand up to run-a-buyout */
+const SIM_LVL={
+1:["sim-zero","sim-launch","sim-price","sim-cash","sim-marketing"],
+3:["sim-buy","sim-capital","sim-termsheet","sim-decline"]};
+SIMS.forEach(s=>{s.lvl=SIM_LVL[1].includes(s.id)?1:SIM_LVL[3].includes(s.id)?3:2;});
+SIMS.sort((a,b)=>a.lvl-b.lvl);
+
+/* Labs: first deliverables to deal models; capstones follow the path */
+const LAB_LVL={
+1:["lab-pnl","lab-budget","lab-script"],
+3:["lab-acqmodel","lab-carwash","lab-pestroute"]};
+const CAP_SEQ=["cap-biz","cap-st","cap-money","cap-acct","cap-sales","cap-mkt","cap-ops","cap-lead","cap-ltr","cap-eq","cap-acq"];
+LABS.forEach(l=>{if(!l.cap)l.lvl=LAB_LVL[1].includes(l.id)?1:LAB_LVL[3].includes(l.id)?3:2;});
+LABS.sort((a,b)=>{
+  if(!!a.cap!==!!b.cap)return a.cap?1:-1;
+  if(a.cap)return CAP_SEQ.indexOf(a.id)-CAP_SEQ.indexOf(b.id);
+  return a.lvl-b.lvl;
+});
+
+/* Tools: everyday math first, deal machinery last */
+const TOOL_CAT_ORD=["Unit Economics","Statements & Cash","Money & Wealth","Operations","Deals & Acquisition"];
+
+/* Roleplays: warm-ups before boss fights */
+ROLEPLAYS.sort((a,b)=>(a.diff==="Hard"?1:0)-(b.diff==="Hard"?1:0));
 
 /* ================= DEEP-FORMAT BACKFILL =================
    Adds exx (five industry examples), check (mastery checklist) and books
@@ -7010,51 +7060,57 @@ function renderLibrary(){
      '<button class="seg'+(libSel==="terms"?" on":"")+'" onclick="openLibrary(\'terms\')">Terms <span class="mono">'+allTerms.length+'</span></button>'+
      '</div></div>';
   if(libSel==="pods"){
-    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Podcast University: '+PODCASTS.length+' shows, each opening a SPECIFIC hand-picked business episode straight in Apple Podcasts — no hunting through feeds. Organized by what you\'re studying.</p>';
-    const pcats=[...new Set(PODCASTS.map(p=>p.cat))];
-    pcats.forEach(cat=>{
-      h+='<div class="moduleName">'+cat+'</div><div class="cards">';
-      PODCASTS.filter(p=>p.cat===cat).forEach(p=>{
-        h+='<a class="card podCard" href="'+(p.eu||p.u)+'" target="_blank" rel="noopener" title="'+esc(p.why)+'"><span class="num">🎧</span><span class="ct"><b>'+esc(p.n)+'</b><span>▶ '+esc(p.e||p.why)+'</span></span><span style="color:var(--blue-2);flex-shrink:0">▶</span></a>';
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Podcast University: '+PODCASTS.length+' shows, each opening a SPECIFIC hand-picked business episode straight in Apple Podcasts. Ordered like the curriculum — start at Level 1 and climb.</p>';
+    [1,2,3].forEach(L=>{
+      h+='<div class="moduleName">'+LVL_NAMES[L]+'</div><div class="cards">';
+      PODCASTS.filter(p=>p.lvl===L).forEach(p=>{
+        h+='<a class="card podCard" href="'+(p.eu||p.u)+'" target="_blank" rel="noopener" title="'+esc(p.why)+'"><span class="num">🎧</span><span class="ct"><b>'+esc(p.n)+'</b><span>'+esc(p.cat)+' · ▶ '+esc(p.e||p.why)+'</span></span><span style="color:var(--blue-2);flex-shrink:0">▶</span></a>';
       });
       h+='</div>';
     });
   }else if(libSel==="books"){
-    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">The full deep dive on every book, free and in-app: the core argument, the big ideas explained with numbers, how to apply it, and where readers go wrong. Nothing to buy, nowhere to be redirected.</p>';
-    const cats=[...new Set(BOOKS.map(b=>b.cat))];
-    cats.forEach(cat=>{
-      h+='<div class="moduleName">'+cat+'</div><div class="cards">';
-      BOOKS.filter(b=>b.cat===cat).forEach((b,i)=>{h+=bookRow(b,i)});
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">The full deep dive on every book, free and in-app — nothing to buy, nowhere to be redirected. Read top to bottom: each level assumes the one before it.</p>';
+    [["Beginner",LVL_NAMES[1]],["Intermediate",LVL_NAMES[2]],["Advanced",LVL_NAMES[3]]].forEach(t=>{
+      h+='<div class="moduleName">'+t[1]+'</div><div class="cards">';
+      BOOKS.filter(b=>b.diff===t[0]).forEach((b,i)=>{h+=bookRow(b,i)});
       h+='</div>';
     });
   }else if(libSel==="tools"){
-    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Operator calculators — live results as you type. Estimates for education, not professional advice.</p>';
-    const cats=[...new Set(TOOLS.map(t=>t.cat))];
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Operator calculators — live results as you type, ordered from everyday math to deal machinery. Estimates for education, not professional advice.</p>';
+    const cats=TOOL_CAT_ORD.filter(c=>TOOLS.some(t=>t.cat===c)).concat([...new Set(TOOLS.map(t=>t.cat))].filter(c=>!TOOL_CAT_ORD.includes(c)));
     cats.forEach(cat=>{
       h+='<div class="moduleName">'+cat+'</div><div class="cards">';
       TOOLS.filter(t=>t.cat===cat).forEach(t=>{h+=toolRow(t)});
       h+='</div>';
     });
   }else if(libSel==="cases"){
-    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Decision training: read the situation, study the numbers, commit to a call — then compare against the instructor’s notes.</p>';
-    h+='<div class="cards">';
-    CASES.forEach((c,i)=>{h+=caseRow(c,i)});
-    h+='</div>';
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Decision training, easiest calls first: read the situation, study the numbers, commit — then compare against the instructor\'s notes.</p>';
+    [1,2,3].forEach(L=>{
+      h+='<div class="moduleName">'+LVL_NAMES[L]+'</div><div class="cards">';
+      CASES.filter(c=>c.lvl===L).forEach((c,i)=>{h+=caseRow(c,i)});
+      h+='</div>';
+    });
   }else if(libSel==="sims"){
-    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Run a business in fast-forward: five decisions, real consequences, a scored debrief. Retake anytime — the situations reward what the schools teach.</p>';
-    h+='<div class="cards">';
-    SIMS.forEach((s,i)=>{h+=simRow(s,i)});
-    h+='</div>';
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Run a business in fast-forward: five decisions, real consequences, a scored debrief. Start at Level 1 — the scenarios get meaner as you climb.</p>';
+    [1,2,3].forEach(L=>{
+      h+='<div class="moduleName">'+LVL_NAMES[L]+'</div><div class="cards">';
+      SIMS.filter(s=>s.lvl===L).forEach((s,i)=>{h+=simRow(s,i)});
+      h+='</div>';
+    });
   }else if(libSel==="rp"){
-    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">The Roleplay Arena: live conversations where the AI plays the other side — a stubborn supplier, a furious customer, a skeptical investor. Say your actual lines, then end the scene for an honest scorecard. Runs on your AI key.</p>';
-    h+='<div class="cards">';
-    ROLEPLAYS.forEach((s,i)=>{h+=rpRow(s,i)});
-    h+='</div>';
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">The Roleplay Arena: live conversations where the AI plays the other side. Warm up before the boss fights — say your actual lines, then end the scene for an honest scorecard. Runs on your AI key.</p>';
+    [["Moderate","Warm-Ups · Moderate"],["Hard","Boss Fights · Hard"]].forEach(t=>{
+      h+='<div class="moduleName">'+t[1]+'</div><div class="cards">';
+      ROLEPLAYS.filter(s=>s.diff===t[0]).forEach((s,i)=>{h+=rpRow(s,i)});
+      h+='</div>';
+    });
   }else if(libSel==="labs"){
-    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Operator Labs: build real deliverables — P&Ls, scripts, SOPs, deal models — with steps, a work area, and a grading rubric. Capstones are each school\'s final project.</p>';
-    h+='<div class="moduleName">Labs</div><div class="cards">';
-    LABS.filter(l=>!l.cap).forEach(l=>{h+=labRow(l)});
-    h+='</div><div class="moduleName">Capstone Projects</div><div class="cards">';
+    h+='<p style="font-size:12.5px;color:var(--steel-2);line-height:1.55;padding:0 2px">Operator Labs: build real deliverables — P&Ls, scripts, SOPs, deal models — in order of difficulty. Capstones follow the learning path, school by school.</p>';
+    [1,2,3].forEach(L=>{
+      const g=LABS.filter(l=>!l.cap&&l.lvl===L);
+      if(g.length){h+='<div class="moduleName">'+LVL_NAMES[L]+'</div><div class="cards">';g.forEach(l=>{h+=labRow(l)});h+='</div>'}
+    });
+    h+='<div class="moduleName">Capstone Projects · in path order</div><div class="cards">';
     LABS.filter(l=>l.cap).forEach(l=>{h+=labRow(l)});
     h+='</div>';
   }else{

@@ -498,6 +498,21 @@
   #mission{position:fixed;inset:0;z-index:139;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
   #mission.open{transform:translateY(0);visibility:visible}
   #mission .sheetBar{flex-shrink:0}
+  #nb{position:fixed;inset:0;z-index:139;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
+  #nb.open{transform:translateY(0);visibility:visible}
+  #nb .sheetBar{flex-shrink:0}
+  .nbHl{display:flex;align-items:flex-start;gap:8px;padding:8px 2px;border-bottom:1px solid var(--edge);font-size:13px;line-height:1.6}
+  .nbHl:last-child{border-bottom:none}
+  .nbHl span{flex:1;cursor:pointer;background:linear-gradient(transparent 55%,rgba(245,158,11,.28) 55%)}
+  .nbHl button{flex-shrink:0;background:none;border:none;color:var(--steel);font-size:13px;cursor:pointer;padding:2px 6px}
+  /* ---- digital textbook: highlights + TOC ---- */
+  mark.hlm{background:rgba(245,158,11,.32);color:inherit;border-radius:3px;padding:0 1px;cursor:pointer;box-shadow:0 1px 0 rgba(245,158,11,.5)}
+  #hlPill{display:none;position:fixed;z-index:145;align-items:center;gap:6px;background:var(--text);color:var(--bg);border:none;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;font-family:inherit;box-shadow:0 6px 20px rgba(0,0,0,.35);cursor:pointer}
+  .tocBar{display:flex;gap:6px;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:10px 0 4px;margin:6px 0 2px}
+  .tocBar::-webkit-scrollbar{display:none}
+  .tocLbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);font-weight:700;flex-shrink:0}
+  .tocChip{flex:0 0 auto;background:var(--surface);border:1px solid var(--edge);border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--blue-2);font-family:inherit;cursor:pointer;white-space:nowrap}
+  .tocChip:active{background:var(--hover)}
   .setRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid var(--edge)}
   .setRow:last-child{border-bottom:none}
   .setRow .sl{min-width:0}
@@ -727,7 +742,11 @@
       Library
     </button>
     <div class="crumb" id="bookCrumb"></div>
-    <div class="barBtns"></div>
+    <div class="barBtns">
+      <button class="iconBtn bmBtn" id="bmBook" onclick="tbBmToggle('book',curBook)" aria-label="Save to My Notebook" title="Save to My Notebook">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
+    </div>
   </div>
   <div class="sheetInner" id="bookInner"></div>
 </div>
@@ -739,7 +758,11 @@
       Tools
     </button>
     <div class="crumb" id="toolCrumb"></div>
-    <div class="barBtns"></div>
+    <div class="barBtns">
+      <button class="iconBtn bmBtn" id="bmTool" onclick="tbBmToggle('tool',curTool)" aria-label="Save to My Notebook" title="Save to My Notebook">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
+    </div>
   </div>
   <div class="sheetInner" id="toolInner"></div>
 </div>
@@ -751,7 +774,11 @@
       Cases
     </button>
     <div class="crumb" id="caseCrumb"></div>
-    <div class="barBtns"></div>
+    <div class="barBtns">
+      <button class="iconBtn bmBtn" id="bmCase" onclick="tbBmToggle('case',curCase)" aria-label="Save to My Notebook" title="Save to My Notebook">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+      </button>
+    </div>
   </div>
   <div class="sheetInner" id="caseInner"></div>
 </div>
@@ -898,6 +925,20 @@
     <div class="barBtns"></div>
   </div>
   <div class="planScroll" id="planScroll"><div class="planInner" id="planInner"></div></div>
+</div>
+
+<button id="hlPill" onclick="hlAdd()">✏️ Highlight</button>
+
+<div id="nb" role="dialog" aria-modal="true" aria-label="My Notebook">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeNotebook()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb">My Notebook</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="planScroll" id="nbScroll"><div class="planInner" id="nbInner"></div></div>
 </div>
 
 <div id="mission" role="dialog" aria-modal="true" aria-label="Business Mission">
@@ -7160,7 +7201,7 @@ let lastLesson=localStorage.getItem(LAST_KEY)||"";
    One versioned store for everything beyond lesson completion.
    Slots reserved for future phases: books, tools, cases, sims, assignments. */
 const STORE_KEY="bvStore_v1";
-const STORE_DEFAULT={v:1,notes:{},bookmarks:[],quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{},labs:{},rp:{},gym:{}};
+const STORE_DEFAULT={v:1,notes:{},bookmarks:[],hl:{},quiz:{},flash:{},books:{},tools:{},cases:{},sims:{},assignments:{},exams:{},labs:{},rp:{},gym:{}};
 let store=STORE_DEFAULT;
 try{store=Object.assign({},STORE_DEFAULT,JSON.parse(localStorage.getItem(STORE_KEY)||"{}"))}catch(e){store=STORE_DEFAULT}
 function saveStore(){localStorage.setItem(STORE_KEY,JSON.stringify(store))}
@@ -7384,6 +7425,7 @@ function buildSidebar(){
     h+='<button class="sb-item" id="sb-'+id+'" onclick="setView(\''+id+'\')">'+ICONS[id==="home"?"home":id==="courses"?"courses":id]+label+'</button>';
   });
   h+='<button class="sb-item" id="sb-mission" onclick="openMission()">'+ICONS.mission+'My Mission'+(msGet().active?'<span class="n">'+(msPath()?msPath().pct+'%':'')+'</span>':'')+'</button>';
+  h+='<button class="sb-item" id="sb-nb" onclick="openNotebook()">'+ICONS.bookmark+'My Notebook'+(store.bookmarks.length||hlCount()?'<span class="n">'+(store.bookmarks.length+hlCount())+'</span>':'')+'</button>';
   h+='<div class="sb-sec">The Path</div>';
   DATA.filter(t=>!t.playbook).forEach((tr,i)=>{
     const s=trackStats(tr);
@@ -7514,12 +7556,13 @@ function renderHome(){
     });
     h+='</div>';
   }
-  if(store.bookmarks.length){
-    h+='<div class="sectionHead"><i></i><h3>BOOKMARKED</h3><span class="mono">'+store.bookmarks.length+' saved</span></div><div class="cards">';
-    store.bookmarks.slice(0,3).forEach((id,i)=>{
-      const le=byId[id];if(le)h+=cardHTML(le,i+1,le.track.name+" · "+le.level.tagline+" · "+le.module.name);
+  if(store.bookmarks.length||hlCount()){
+    h+='<div class="sectionHead"><i></i><h3>MY NOTEBOOK</h3><span class="mono">'+(store.bookmarks.length+hlCount())+' saved</span></div><div class="cards">';
+    store.bookmarks.slice(0,3).forEach((k,i)=>{
+      if(k.indexOf(":")<0){const le=byId[k];if(le)h+=cardHTML(le,i+1,le.track.name+" · "+le.level.tagline+" · "+le.module.name)}
+      else{const r=tbBmResolve(k);if(r)h+='<button class="card" onclick="tbHomeBm('+i+')"><span class="num">'+r.ic+'</span><span class="ct"><b>'+esc(r.t)+'</b><span>'+r.ty+' · '+esc(r.s)+'</span></span><span style="color:var(--blue-2)">→</span></button>'}
     });
-    h+='</div>';
+    h+='</div><button class="btn ghost full" style="margin:2px 0 12px" onclick="openNotebook()">Open My Notebook — all highlights, saved items & notes →</button>';
   }
   const coreN=coreLessons.filter(l=>done.has(l.id)).length;
   h+='<div class="sectionHead"><i></i><h3>THE PATH</h3><span class="mono">'+coreN+' / '+coreLessons.length+'</span></div><div class="panel"><div class="snap">';
@@ -8033,7 +8076,8 @@ function renderDict(){
          '<span style="display:block;margin-top:8px;font-size:11.5px;color:var(--steel)">From: '+esc(t.le.t)+' ('+t.le.track.name+') · '+(flashBox(t.id)>=4?"✓ mastered":"box "+(flashBox(t.id)+1)+"/5")+'</span>'+
          '<span style="display:flex;gap:8px;margin-top:9px">'+
          '<button class="aiChip" style="flex:1" onclick="event.stopPropagation();aiTerm(\''+t.id+'\')">Explain Fully</button>'+
-         '<button class="aiChip" style="flex:1" onclick="event.stopPropagation();closePalette();openLesson(\''+t.le.id+'\')">Open the Lesson</button></span></span>':'')+
+         '<button class="aiChip" style="flex:1" onclick="event.stopPropagation();closePalette();openLesson(\''+t.le.id+'\')">Open the Lesson</button>'+
+         '<button class="aiChip" style="flex:1" onclick="event.stopPropagation();tbBmToggle(\'term\',\''+t.id+'\');renderDict()">'+(tbBmHas('term',t.id)?'★ Saved':'☆ Save Term')+'</button></span></span>':'')+
        '</button>';
   });
   h+='</div>';
@@ -8872,6 +8916,10 @@ function renderProgress(){
     '<div class="bigRing">'+ringSVG(132,58,pct,7)+'<b>'+score+'</b></div>'+
     '<div style="font-family:var(--font-d);font-weight:600;font-size:17px;letter-spacing:.04em;margin-top:14px">BVU MASTERY SCORE</div>'+
     '<div style="font-size:12.5px;color:var(--steel);margin-top:4px">Standing: <b style="color:var(--blue-2)">'+bvuRank()+'</b>'+(placed?' · placed as '+RANK_NAMES[placed.rank]:'')+' · '+streak()+'-day streak</div></div>';
+  h+='<button class="card tutorCard" style="margin:12px 0 2px" onclick="openNotebook()">'+
+     '<span class="num" style="background:var(--amber,#c78d2c);color:#fff">'+ICONS.bookmark+'</span>'+
+     '<span class="ct"><b>My Notebook</b><span>'+(store.bookmarks.length+hlCount())+' saved · '+Object.keys(store.notes).length+' notes — every highlight, bookmark and note in one place</span></span>'+
+     '<span style="color:var(--blue-2)">→</span></button>';
   h+='<div class="panel"><div class="snap">';
   bvuBreakdown().forEach(r=>{
     h+='<div class="snap-row"><span class="snap-label">'+r[0]+'</span><div class="snap-bar"><div class="snap-fill" style="width:'+(r[1]*100).toFixed(1)+'%"></div></div><span class="snap-n">'+Math.round(r[1]*r[2]*10)/10+'/'+r[2]+'</span></div>';
@@ -9108,7 +9156,7 @@ function openLesson(id){
     (related.length?'<div class="lsec"><i></i><h4>Related Lessons</h4></div><div class="cards">'+related.map((x,i)=>cardHTML(x,i+1,x.module.name+(done.has(x.id)?" · ✓ done":""))).join("")+'</div>':'')+
     '<div class="lsec"><i></i><h4>My Notes</h4></div>'+
     '<textarea class="noteBox" id="noteBox" placeholder="Write your own notes on this lesson — ideas, numbers for your business, questions to bring to the AI tutor…">'+esc(store.notes[id]||"")+'</textarea>'+
-    '<div class="noteHint">Saved automatically on this device · notes are searchable</div>'+
+    '<div class="noteHint">Saved automatically · searchable · collected in <a href="javascript:void(0)" onclick="openNotebook()" style="color:var(--blue-2)">My Notebook</a> · highlight any sentence above by selecting it</div>'+
     '<button class="btn full completeBtn'+(isDone?" green":"")+'" id="completeBtn" onclick="toggleComplete()">'+(isDone?"✓ Completed — Tap to Undo":"Mark Complete")+'</button>'+
     '<div class="pnRow">'+
       '<button class="btn ghost" '+(prev?'onclick="openLesson(\''+prev.id+'\')"':'disabled')+'>← Previous</button>'+
@@ -9242,7 +9290,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score","settings","mission"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score","settings","mission","nb"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -9705,6 +9753,7 @@ function palActions(){
     {k:"Action",t:"Owner's Scoreboard",s:"Your real numbers, monthly — trends + AI review",run:()=>openScore()},
     {k:"Action",t:"Choose Your Business Mission",s:msGet().active?"Mission HQ — your 30/60/90-day path":"Pick a goal, get a personalized 30/60/90-day path",run:()=>openMission()},
     {k:"Action",t:"Weekly Operator Review",s:"5-minute check-in: what worked, what's stuck, one commitment",run:()=>openMission("review")},
+    {k:"Page",t:"My Notebook",s:"All your highlights, saved items and lesson notes in one place",run:()=>openNotebook()},
     {k:"Page",t:"Settings",s:"Profile, appearance, AI key, backups, about",run:()=>openSettings()},
     {k:"Action",t:"The Daily Ten",s:"Your tracked 10-minute daily circuit",run:()=>setView("home")},
     {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
@@ -9780,6 +9829,7 @@ document.addEventListener("keydown",e=>{
     if(palEl.classList.contains("open"))closePalette();
     else if(aiEl.classList.contains("open"))closeAI();
     else if(settingsEl.classList.contains("open"))closeSettings();
+    else if(document.getElementById("nb").classList.contains("open"))closeNotebook();
     else if(document.getElementById("mission").classList.contains("open"))closeMission();
     else if(scoreEl.classList.contains("open"))closeScore();
     else if(planEl.classList.contains("open"))closePlanner();
@@ -10245,6 +10295,264 @@ function bvuValidate(){
 /* view dispatch fix: path view */
 const _msRenderDash=msRenderDash;
 msRenderDash=function(el,m){if(msView==="path")return msRenderPath(el);return _msRenderDash(el,m)};
+/* ================= DIGITAL TEXTBOOK LAYER =================
+   Highlights, universal bookmarks, My Notebook, in-lesson table of
+   contents, exact-position resume. All state lives in bvStore_v1
+   (store.hl + store.bookmarks) — already in backups, no keys renamed.
+   Legacy bookmarks are plain lesson ids; new types are "book:id",
+   "tool:id", "case:id", "term:id". */
+
+/* ---- highlights: store.hl = { lessonId: [snippet, ...] } ---- */
+if(!store.hl||typeof store.hl!=="object"||Array.isArray(store.hl))store.hl={};
+function hlList(id){return Array.isArray(store.hl[id])?store.hl[id]:[]}
+function hlCount(){return Object.values(store.hl).reduce((a,v)=>a+(Array.isArray(v)?v.length:0),0)}
+function hlWrap(container,snippet,idx){
+  const walker=document.createTreeWalker(container,NodeFilter.SHOW_TEXT,null);
+  const nodes=[];let text="";
+  while(walker.nextNode()){
+    const n=walker.currentNode;
+    if(n.parentElement&&n.parentElement.closest("mark.hlm,button,textarea,script,style"))continue;
+    nodes.push({n,start:text.length});text+=n.nodeValue;
+  }
+  const i=text.indexOf(snippet);
+  if(i<0)return false;
+  const end=i+snippet.length;
+  nodes.forEach(({n,start})=>{
+    const nEnd=start+n.nodeValue.length;
+    if(nEnd<=i||start>=end)return;
+    const s=Math.max(0,i-start),e=Math.min(n.nodeValue.length,end-start);
+    if(e<=s)return;
+    const r=document.createRange();r.setStart(n,s);r.setEnd(n,e);
+    const m=document.createElement("mark");m.className="hlm";
+    m.onclick=ev=>{ev.stopPropagation();if(confirm("Remove this highlight?"))hlRemove(idx)};
+    try{r.surroundContents(m)}catch(err){}
+  });
+  return true;
+}
+function hlClearDom(){
+  document.querySelectorAll("#sheetInner mark.hlm").forEach(m=>{
+    const p=m.parentNode;while(m.firstChild)p.insertBefore(m.firstChild,m);p.removeChild(m);p.normalize();
+  });
+}
+function hlApply(){
+  if(!currentId)return;
+  hlClearDom();
+  const lb=document.querySelector("#sheetInner .lbody");if(!lb)return;
+  hlList(currentId).forEach((s,i)=>hlWrap(lb,s,i));
+}
+function hlRemove(i){
+  const a=hlList(currentId);a.splice(i,1);
+  if(a.length)store.hl[currentId]=a;else delete store.hl[currentId];
+  saveStore();hlApply();toast("Highlight removed");
+}
+/* one block only: a selection across paragraphs can't be re-found reliably */
+function hlBlockOf(node){
+  const el=node.nodeType===1?node:node.parentElement;
+  return el?el.closest("#sheetInner p,#sheetInner li,#sheetInner .example,#sheetInner .term,#sheetInner h4,#sheetInner h2"):null;
+}
+let hlSelT=null;
+document.addEventListener("selectionchange",()=>{
+  clearTimeout(hlSelT);hlSelT=setTimeout(hlPillCheck,260);
+});
+function hlPillCheck(){
+  const pill=document.getElementById("hlPill");if(!pill)return;
+  const sel=window.getSelection();
+  const hide=()=>{pill.style.display="none"};
+  if(!sheetEl.classList.contains("open")||!sel||sel.isCollapsed||!sel.rangeCount)return hide();
+  const r=sel.getRangeAt(0);
+  const lb=document.querySelector("#sheetInner .lbody");
+  if(!lb||!lb.contains(r.commonAncestorContainer)&&r.commonAncestorContainer!==lb)return hide();
+  const b1=hlBlockOf(r.startContainer),b2=hlBlockOf(r.endContainer);
+  if(!b1||b1!==b2)return hide();
+  const t=sel.toString();
+  if(t.trim().length<3||t.length>600)return hide();
+  const rect=r.getBoundingClientRect();
+  pill.style.display="flex";
+  pill.style.top=Math.max(64,rect.top-46)+"px";
+  pill.style.left=Math.min(Math.max(10,rect.left+rect.width/2-62),window.innerWidth-134)+"px";
+}
+function hlAdd(){
+  const sel=window.getSelection();if(!sel||sel.isCollapsed||!currentId)return;
+  const raw=sel.toString();
+  if(!raw.trim())return;
+  const a=hlList(currentId);
+  if(a.includes(raw)){toast("Already highlighted")}
+  else{a.push(raw);store.hl[currentId]=a;saveStore()}
+  sel.removeAllRanges();
+  const pill=document.getElementById("hlPill");if(pill)pill.style.display="none";
+  hlApply();
+  toast("Highlighted — saved to My Notebook");
+}
+
+/* ---- in-lesson table of contents ---- */
+function tbToc(){
+  const inner=document.getElementById("sheetInner");
+  const old=inner.querySelector(".tocBar");if(old)old.remove();
+  const secs=[...inner.querySelectorAll(".lbody .lsec h4")];
+  if(secs.length<3)return;
+  secs.forEach((h,i)=>{h.parentElement.id="lsec-"+i});
+  const bar=document.createElement("div");bar.className="tocBar";
+  bar.innerHTML='<span class="tocLbl">Jump to</span>'+secs.map((h,i)=>
+    '<button class="tocChip" onclick="tbJump('+i+')">'+esc(h.textContent.split("—")[0].trim())+'</button>').join("");
+  const lb=inner.querySelector(".lbody");
+  lb.parentNode.insertBefore(bar,lb);
+}
+function tbJump(i){
+  const el=document.getElementById("lsec-"+i);if(!el)return;
+  const y=el.getBoundingClientRect().top+sheetEl.scrollTop-sheetEl.getBoundingClientRect().top-64;
+  sheetEl.scrollTo({top:y,behavior:"smooth"});
+}
+
+/* ---- exact reading-position resume ---- */
+const SCROLL_KEY="bvScrollPos_v1";
+let tbScrT=null;
+sheetEl.addEventListener("scroll",()=>{
+  if(!sheetEl.classList.contains("open")||!currentId)return;
+  clearTimeout(tbScrT);
+  tbScrT=setTimeout(()=>{try{localStorage.setItem(SCROLL_KEY,JSON.stringify({id:currentId,y:Math.round(sheetEl.scrollTop)}))}catch(e){}},300);
+},{passive:true});
+
+/* ---- post-render hook on the lesson reader ---- */
+function tbAfterOpen(id){
+  const le=byId[id];if(!le)return;
+  tbToc();
+  hlApply();
+  if(le.track.id==="ltr"){
+    const inner=document.getElementById("sheetInner");
+    if(!inner.querySelector(".ltrNote")){
+      const n=document.createElement("div");
+      n.className="example ltrNote";n.style.cssText="margin:10px 0 0;font-size:12.5px;line-height:1.6";
+      n.innerHTML="⚖️ <b>Educational, not advice.</b> Laws and tax rules change and vary by state. Last reviewed July 2026 — confirm current rules with a licensed professional before acting on anything here.";
+      const metas=inner.querySelectorAll(".lessonMeta");
+      if(metas.length)metas[metas.length-1].after(n);
+    }
+  }
+  try{
+    const s=JSON.parse(localStorage.getItem(SCROLL_KEY));
+    if(s&&s.id===id&&s.y>500&&!done.has(id)){sheetEl.scrollTop=s.y;toast("Resumed where you left off")}
+  }catch(e){}
+}
+const _tbOpenLesson=openLesson;
+openLesson=function(id){_tbOpenLesson(id);try{tbAfterOpen(id)}catch(e){}};
+
+/* ---- universal bookmarks ---- */
+function tbBmKey(type,id){return type==="lesson"?id:type+":"+id}
+function tbBmHas(type,id){return store.bookmarks.includes(tbBmKey(type,id))}
+function tbBmToggle(type,id){
+  if(!id)return;
+  const k=tbBmKey(type,id),i=store.bookmarks.indexOf(k);
+  if(i>=0){store.bookmarks.splice(i,1);toast("Removed from My Notebook")}
+  else{store.bookmarks.unshift(k);toast("Saved to My Notebook ⭐")}
+  saveStore();tbBmButtons();
+  if(activeView==="home")renderHome();
+  if(nbEl.classList.contains("open"))renderNotebook();
+}
+function tbBmButtons(){
+  const b1=document.getElementById("bmBook"),b2=document.getElementById("bmTool"),b3=document.getElementById("bmCase");
+  if(b1&&typeof curBook!=="undefined"&&curBook)b1.classList.toggle("on",tbBmHas("book",curBook));
+  if(b2&&typeof curTool!=="undefined"&&curTool)b2.classList.toggle("on",tbBmHas("tool",curTool));
+  if(b3&&typeof curCase!=="undefined"&&curCase)b3.classList.toggle("on",tbBmHas("case",curCase));
+}
+const _tbOpenBook=openBook;openBook=function(id){_tbOpenBook(id);tbBmButtons()};
+const _tbOpenTool=openTool;openTool=function(id){_tbOpenTool(id);tbBmButtons()};
+const _tbOpenCase=openCase;openCase=function(id){_tbOpenCase(id);tbBmButtons()};
+function tbBmResolve(k){
+  const ci=k.indexOf(":");
+  if(ci>=0){
+    const ty=k.slice(0,ci),id=k.slice(ci+1);
+    if(ty==="book"){const b=BOOKS.find(x=>x.id===id);return b?{ty:"Book",ic:"📖",t:b.title,s:b.author+" · "+b.cat,nav:()=>openBook(id)}:null}
+    if(ty==="tool"){const t=TOOLS.find(x=>x.id===id);return t?{ty:"Calculator",ic:"🧮",t:t.name,s:t.cat,nav:()=>openTool(id)}:null}
+    if(ty==="case"){const c=CASES.find(x=>x.id===id);return c?{ty:"Case Study",ic:"⚖️",t:c.title,s:c.cat,nav:()=>openCase(id)}:null}
+    if(ty==="term"){const tm=allTerms.find(x=>x.id===id);return tm?{ty:"Term",ic:"🔤",t:tm.t,s:(tm.d||"").slice(0,80),nav:()=>{dictQ=tm.t;dictSel=tm.id;openLibrary("terms")}}:null}
+    return null;
+  }
+  const le=byId[k];
+  return le?{ty:"Lesson",ic:"📘",t:le.t,s:le.track.name+" · "+le.module.name,nav:()=>openLesson(k)}:null;
+}
+
+function tbHomeBm(i){const r=tbBmResolve(store.bookmarks[i]);if(r)r.nav()}
+
+/* ---- My Notebook ---- */
+const nbEl=document.getElementById("nb");
+function openNotebook(){nbEl.classList.add("open");document.getElementById("nbScroll").scrollTop=0;syncScrollLock();renderNotebook()}
+function closeNotebook(){nbEl.classList.remove("open");syncScrollLock()}
+function nbGo(fn){closeNotebook();fn()}
+let nbNavs=[];
+function nbNav(i){const f=nbNavs[i];if(f)nbGo(f)}
+function nbOpenHl(id){nbGo(()=>openLesson(id))}
+function nbKillHl(id,i){
+  const a=hlList(id);a.splice(i,1);
+  if(a.length)store.hl[id]=a;else delete store.hl[id];
+  saveStore();renderNotebook();toast("Highlight removed");
+}
+function renderNotebook(){
+  nbNavs=[];
+  const el=document.getElementById("nbInner");
+  const notes=Object.entries(store.notes).filter(([id,n])=>byId[id]&&n);
+  const bms=store.bookmarks.map(k=>({k,r:tbBmResolve(k)})).filter(x=>x.r);
+  const hls=Object.entries(store.hl).filter(([id,a])=>byId[id]&&Array.isArray(a)&&a.length);
+  const hlN=hls.reduce((a,[,v])=>a+v.length,0);
+  let h='<div class="statGrid" style="margin-bottom:14px">'+
+    '<div class="stat"><b class="c-amber">'+bms.length+'</b><span>Saved Items</span></div>'+
+    '<div class="stat"><b class="c-blue">'+hlN+'</b><span>Highlights</span></div>'+
+    '<div class="stat"><b class="c-green">'+notes.length+'</b><span>Lesson Notes</span></div>'+
+    '<div class="stat"><b>'+(notes.length+hlN?'✓':'—')+'</b><span>In Backups</span></div></div>';
+  if(!bms.length&&!hlN&&!notes.length){
+    h+='<div class="example" style="line-height:1.7"><b>Your notebook is empty — here\'s how to fill it.</b><br>'+
+    '✏️ <b>Highlight:</b> press and hold any sentence inside a lesson, then tap <b>Highlight</b>.<br>'+
+    '⭐ <b>Save:</b> tap the bookmark icon on any lesson, book, calculator or case study — or ☆ Save Term in the dictionary.<br>'+
+    '📝 <b>Notes:</b> every lesson has a My Notes box at the bottom.<br><br>Everything lands here, in one place, and goes into your backups.</div>';
+  }
+  if(bms.length){
+    h+='<div class="sectionHead"><i></i><h3>SAVED ITEMS</h3><span class="mono">'+bms.length+'</span></div><div class="cards">';
+    bms.forEach(({k,r})=>{
+      const ni=nbNavs.push(r.nav)-1;
+      h+='<div class="card" style="cursor:pointer" onclick="nbNav('+ni+')"><span class="num">'+r.ic+'</span>'+
+      '<span class="ct"><b>'+esc(r.t)+'</b><span>'+r.ty+' · '+esc(r.s)+'</span></span>'+
+      '<button class="btn ghost" style="padding:6px 9px;font-size:11.5px;flex-shrink:0" onclick="event.stopPropagation();tbBmToggle(\''+(k.indexOf(":")>=0?k.slice(0,k.indexOf(":")):"lesson")+'\',\''+(k.indexOf(":")>=0?k.slice(k.indexOf(":")+1):k)+'\')">✕</button></div>';
+    });
+    h+='</div>';
+  }
+  if(hlN){
+    h+='<div class="sectionHead"><i></i><h3>HIGHLIGHTS</h3><span class="mono">'+hlN+'</span></div>';
+    hls.forEach(([id,arr])=>{
+      const le=byId[id];
+      h+='<div class="scCard"><h6 style="cursor:pointer" onclick="nbOpenHl(\''+id+'\')">'+esc(le.t)+' · '+esc(le.track.name)+' →</h6>'+
+      arr.map((s,i)=>'<div class="nbHl"><span onclick="nbOpenHl(\''+id+'\')">'+esc(s.length>220?s.slice(0,220).replace(/\s+\S*$/,"")+"…":s)+'</span>'+
+        '<button onclick="nbKillHl(\''+id+'\','+i+')" aria-label="Remove">✕</button></div>').join("")+'</div>';
+    });
+  }
+  if(notes.length){
+    h+='<div class="sectionHead"><i></i><h3>LESSON NOTES</h3><span class="mono">'+notes.length+'</span></div><div class="cards">';
+    notes.forEach(([id,n])=>{
+      const le=byId[id];
+      const ni=nbNavs.push(()=>openLesson(id))-1;
+      h+='<div class="card" style="cursor:pointer" onclick="nbNav('+ni+')"><span class="num">📝</span>'+
+      '<span class="ct"><b>'+esc(le.t)+'</b><span>'+esc(n.length>110?n.slice(0,110)+"…":n)+'</span></span><span style="color:var(--blue-2)">→</span></div>';
+    });
+    h+='</div>';
+  }
+  if(bms.length||hlN||notes.length){
+    h+='<button class="btn ghost full" style="margin-top:14px" onclick="nbExport()">⬇️ Export My Notebook (.txt)</button>'+
+    '<div class="noteHint" style="text-align:center">Notebook data lives in your backups — Settings → Back Up Everything</div>';
+  }
+  el.innerHTML=h;
+}
+function nbExport(){
+  let out="MY BVU NOTEBOOK\nExported "+new Date().toLocaleDateString()+"\n\n";
+  const bms=store.bookmarks.map(k=>tbBmResolve(k)).filter(Boolean);
+  if(bms.length){out+="════ SAVED ITEMS ════\n";bms.forEach(r=>{out+="• ["+r.ty+"] "+r.t+" — "+r.s+"\n"});out+="\n"}
+  let anyHl=false;
+  Object.entries(store.hl).forEach(([id,arr])=>{const le=byId[id];if(le&&Array.isArray(arr)&&arr.length){if(!anyHl){out+="════ HIGHLIGHTS ════\n";anyHl=true}out+="─ "+le.t+" ("+le.track.name+")\n";arr.forEach(s=>{out+='  "'+s.replace(/\s+/g," ").trim()+'"\n'});out+="\n"}});
+  let anyN=false;
+  Object.entries(store.notes).forEach(([id,n])=>{const le=byId[id];if(le&&n){if(!anyN){out+="════ LESSON NOTES ════\n";anyN=true}out+="─ "+le.t+" ("+le.track.name+")\n"+n+"\n\n"}});
+  if(out.length<60){toast("Nothing to export yet");return}
+  const blob=new Blob([out],{type:"text/plain"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="bvu-notebook.txt";
+  document.body.appendChild(a);a.click();a.remove();
+  toast("Notebook exported");
+}
 /* ================= THEME ENGINE ================= */
 const FONT_OSWALD="'Oswald',system-ui,sans-serif";
 const FONT_SERIF="'Playfair Display',Georgia,serif";

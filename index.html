@@ -513,6 +513,15 @@
   .tocLbl{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);font-weight:700;flex-shrink:0}
   .tocChip{flex:0 0 auto;background:var(--surface);border:1px solid var(--edge);border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--blue-2);font-family:inherit;cursor:pointer;white-space:nowrap}
   .tocChip:active{background:var(--hover)}
+  #cheatsheet{position:fixed;inset:0;z-index:139;background:var(--bg);display:flex;flex-direction:column;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden;background-image:radial-gradient(800px 400px at 90% -10%,var(--hero-glow),transparent 60%)}
+  #cheatsheet.open{transform:translateY(0);visibility:visible}
+  #cheatsheet .sheetBar{flex-shrink:0}
+  .csQ{border:1px solid var(--edge);border-radius:12px;margin-bottom:9px;background:var(--surface)}
+  .csQ summary{padding:12px 14px;font-size:13.5px;font-weight:600;cursor:pointer;list-style:none;position:relative;padding-right:34px;line-height:1.5}
+  .csQ summary::-webkit-details-marker{display:none}
+  .csQ summary::after{content:"+";position:absolute;right:14px;top:10px;font-size:17px;color:var(--blue-2);font-weight:700}
+  .csQ[open] summary::after{content:"–"}
+  .csQ>div{padding:0 14px 13px;font-size:13.5px;line-height:1.65;color:var(--steel-2);border-top:1px dashed var(--edge);padding-top:10px}
   .setRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 2px;border-bottom:1px solid var(--edge)}
   .setRow:last-child{border-bottom:none}
   .setRow .sl{min-width:0}
@@ -928,6 +937,18 @@
 </div>
 
 <button id="hlPill" onclick="hlAdd()">✏️ Highlight</button>
+
+<div id="cheatsheet" role="dialog" aria-modal="true" aria-label="School Cheat Sheet">
+  <div class="sheetBar">
+    <button class="backBtn" onclick="closeCheat()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      Close
+    </button>
+    <div class="crumb" id="cheatCrumb">Cheat Sheet</div>
+    <div class="barBtns"></div>
+  </div>
+  <div class="planScroll" id="cheatScroll"><div class="planInner" id="cheatInner"></div></div>
+</div>
 
 <div id="nb" role="dialog" aria-modal="true" aria-label="My Notebook">
   <div class="sheetBar">
@@ -5808,6 +5829,522 @@ brief:"Below are 20 numbered arguments. Work through AT LEAST 8 in the work area
 steps:["1. 'Our top competitor uses radio ads and they're the biggest in town — so radio ads clearly work and we should buy them.' (Watch for: causation vs. correlation, selection effect.)","2. 'Everyone I asked at the gym loved my business idea, so the market clearly wants it.' (Sampling, incentives to be polite, compliments-as-data.)","3. 'We've spent $30k on this software already — abandoning it now would waste all that money.' (Name the fallacy; write the forward-looking version.)","4. 'You're either with the new strategy or you want this company to fail.' (Name the pattern; list the excluded middle.)","5. 'My last three hires from that college worked out great; their graduates are simply better workers.' (Sample size, selection, alternative explanations.)","6. 'Revenue rose every month since we repainted the trucks — the new look is driving sales.' (What else changed? What evidence would isolate the cause?)","7. 'A famous billionaire said cold-calling is dead, so we should stop cold-calling.' (Authority's domain, incentives, base rates.)","8. 'If we let one employee work from home, soon nobody will ever come in and the company will collapse.' (Name the pattern; state the actual gradient and where lines CAN be drawn.)","9. 'Our service must be excellent — we've had almost no complaints.' (Silent evidence: who complains, who just leaves?)","10. 'He drives an expensive truck, so his landscaping business must be doing great — let's copy his pricing.' (Visible signals vs. balance sheets.)","11. 'Raising prices is greedy; keeping them low is how you respect customers.' (Fact vs. value; hidden assumptions about what customers value; margin as service-quality mechanism.)","12. 'Nobody in our family has ever run a business; it's just not something people like us can do.' (Identify the claim type; what evidence bears on it?)","13. 'The consultant has certifications, so her growth plan must be right for us.' (Credentials vs. context; what questions test fit?)","14. 'We tried marketing once in 2022 and it didn't work — marketing doesn't work in our industry.' (Definition problems: what is 'marketing'? what is 'work'? sample of one.)","15. 'Every successful owner I follow wakes at 5am, so waking at 5am is a key to success.' (Survivorship, reversed causation, visible-habit bias.)","16. 'Our people keep quitting for $2/hour more elsewhere — proof that loyalty is dead in this generation.' (Alternative explanation via incentives; whose assumption is doing the work?)","17. 'If the product were actually good, it would sell itself — needing salespeople means it's weak.' (Hidden premise about how buying decisions happen; find the counterexamples.)","18. 'The city report says foot traffic doubled downtown, so opening our second location there is a safe bet.' (From data to decision: what's missing between the premise and 'safe'?)","19. 'You can't trust his cost-cutting advice — he once ran a company that went bankrupt.' (Name the pattern; when IS track record relevant vs. ad hominem?)","20. FULL DISSECTION: 'Discipline is overrated. The most creative breakthroughs come from freedom and play, not rigid schedules. Companies with strict processes never innovate, which is why startups out-invent corporations. If you want innovation, remove the rules.' — Write: every claim; every premise; every hidden assumption; each fallacy by name; the STEELMAN (the strongest true thing this argument is reaching for); your rebuttal to the steelman; and a nuanced final verdict in 2-3 sentences that a fair judge would accept."],
 rel:["rh2","rh7","rh8"],
 rubric:["At least 8 arguments dissected, each with claim, premises, and hidden assumptions explicitly separated","Fallacies and gaps named precisely (sunk cost, false dichotomy, survivorship, correlation/causation…) — not just 'this is dumb'","At least one honest STEELMAN written for a position you disagree with, strong enough that its holder would sign it","Exercise #20 completed in full, ending in a nuanced verdict rather than a takedown","Tone throughout is composed and surgical — arguments dissected, nobody insulted"]});
+/* ================= SCHOOL CHEAT SHEETS (1/2) =================
+   One master review page per school. Concepts, formulas, frameworks,
+   summary and final review Q&A are curated here; key vocabulary and
+   common mistakes are pulled live from the school's own lessons so
+   they can never drift out of sync. */
+const CHEATS={};
+
+CHEATS.biz={
+sum:"A business is a repeatable promise kept at a profit. Revenue is vanity, profit is sanity, cash is survival — the three statements (P&L, balance sheet, cash flow) are one story told three ways. Every business lives or dies on unit economics: make one unit profitably, then buy customers for less than they're worth (LTV > 3× CAC), protect the profit with a moat, and allocate the cash like it's your job — because it is.",
+concepts:[
+["Revenue ≠ profit ≠ cash","Sales at the top, profit after all costs, cash only when money actually moves. Businesses die holding profits they can't spend."],
+["The three statements are linked","P&L shows performance, balance sheet shows position, cash flow shows truth. Net income flows into equity; cash reconciles everything."],
+["Unit economics first","If one customer, one job, or one unit loses money, scale just loses it faster. Fix the atom before growing the molecule."],
+["LTV : CAC is the growth equation","What a customer is worth over their life versus what they cost to acquire. 3:1 or better means step on the gas."],
+["Margins are the engine's gauge","Gross margin funds everything below it. A low-gross-margin business has no room for mistakes, marketing, or you."],
+["Moats make profits durable","Brand, switching costs, network effects, scale, and location decide whether competitors can take your lunch."],
+["Price is the most powerful lever","A 10% price increase usually beats a 10% cost cut or 10% more volume — it drops straight to profit."],
+["Cash flow timing kills","Profitable companies die when receivables lag payables. Manage the cash conversion cycle like your life depends on it."],
+["Debt vs. equity is a control decision","Debt is rented money you must repay; equity is a partner you never fully un-invite. Cheap capital is expensive if it costs control."],
+["Valuation is future cash, discounted","A business is worth its future owner earnings adjusted for risk — in practice, a multiple of profit that rises with quality, growth and durability."],
+["Capital allocation is the CEO's real job","Every dollar of profit competes: reinvest, acquire, pay down debt, or distribute. Compounding comes from allocating well, repeatedly."],
+["Systems beat hustle","SOPs, delegation and KPIs turn a job you own into a company you could sell. If it needs you daily, it's not yet a business."]],
+formulas:[
+["Profit","Revenue − All Costs"],
+["Gross Margin %","(Revenue − COGS) ÷ Revenue × 100"],
+["Net Margin %","Net Profit ÷ Revenue × 100"],
+["Breakeven Units","Fixed Costs ÷ (Price − Variable Cost per Unit)"],
+["CAC","Total Sales & Marketing Spend ÷ New Customers Acquired"],
+["LTV (simple)","Avg Monthly Profit per Customer ÷ Monthly Churn Rate"],
+["Health Check","LTV ≥ 3 × CAC"],
+["Churn Rate","Customers Lost in Period ÷ Customers at Start"],
+["EBITDA","Earnings Before Interest, Taxes, Depreciation & Amortization"],
+["Valuation (small biz)","SDE or EBITDA × Industry Multiple"],
+["ROI","(Gain − Cost) ÷ Cost × 100"],
+["Cash Runway","Cash on Hand ÷ Monthly Burn"]],
+frameworks:[
+["The 10 business models","Product, service, subscription, marketplace, franchise, licensing, advertising, brokerage, rental, and freemium — every company is one of these or a stack of two."],
+["Five Forces","Competition intensity = rivals + new entrants + substitutes + supplier power + buyer power. Enter where the forces are weak."],
+["The moat checklist","Ask: why would a customer stay if a competitor undercut me 20%? If the answer is 'nothing,' the profit is temporary."],
+["Fund it in order","Self-fund → customer-fund (deposits, prepays) → debt against cash flow → equity only when the upside needs fuel that cash flow can't provide."]],
+mistakes:[
+"Confusing revenue growth with business health while margins quietly collapse",
+"Pricing from your costs or your fear instead of the customer's alternatives",
+"Spending like profit is cash — then missing payroll while 'profitable'",
+"Scaling marketing before unit economics are proven",
+"Mixing personal and business money, wrecking both the books and the liability wall",
+"Choosing an entity (or none) without thinking about taxes and lawsuits",
+"Hiring to delegate chaos — systemize first, then hire into the system",
+"Ignoring the balance sheet because the P&L looks fine",
+"Competing on price with no cost advantage",
+"Treating negotiation as combat instead of joint problem-solving"],
+qs:[
+["A company shows $80k net profit this year but its bank account fell $30k. Name three places the cash could have gone.","Receivables grew (customers owe more), inventory grew, debt principal was repaid, equipment was bought (capex), or the owner took draws — none of which hit net profit directly."],
+["Gross margin is 20% and rent, payroll and everything else below the line run 25% of revenue. What has to happen?","The model is structurally unprofitable — raise prices, cut COGS, or change the model. No amount of volume fixes a negative spread."],
+["When is a 2:1 LTV:CAC acceptable?","Almost never as a steady state — but temporarily, when you're deliberately buying market share with funding, or when LTV is understated because referrals and repeat rates are still maturing."],
+["Why does a service business usually sell for a lower multiple than a software business?","Lower margins, owner dependence, less recurring revenue, and easier competition — multiples price durability and transferability, not just profit."],
+["You can reinvest at 25% return or pay down a 9% loan. What do you do, and what's the caveat?","Reinvest — the spread is 16 points. Caveat: only if the 25% is real and repeatable, and the debt load doesn't threaten survival if a bad quarter hits."],
+["What single number would you check first in a business you might buy?","Owner earnings (SDE/EBITDA) and whether the cash flow statement confirms it — reported profit means nothing until cash agrees."]]};
+
+CHEATS.st={
+sum:"Start boring, start small, start paid. Validate with real customers before real money (the $200 test and fifteen Mom-Test conversations beat any business plan), get to the first ten customers by announcing and asking, set up only the Day-One Seven, and run cash with discipline from the first dollar — pay yourself, feed the buffer. Year one is survived, not won: avoid the five killers and systemize before you scale.",
+concepts:[
+["Boring beats brilliant","Proven demand + fragmented competition + recurring need beats a novel idea nobody's paying for. You want customers, not applause."],
+["The three circles","Start where they overlap: what you can DO, what people PAY for, and who you can REACH. Two out of three is a hobby."],
+["Validation is behavior, not opinions","People lie kindly. Past behavior ('what did you do last time?') and actual payments are evidence; compliments are theater."],
+["The first ten come from announcing","Your network, neighborhood and niche groups — a clear announcement plus a direct ask outperforms a logo and a website every time."],
+["Minimum viable setup","Entity, bank account, one way to get paid, one way to deliver, insurance if the work can hurt someone. Everything else can wait."],
+["$10k months are an equation","Price × units, worked backward into weekly activity. The math tells you if the model can even get there before you grind."],
+["Pay yourself first, always","A business that can't pay its owner a wage is a job that costs money. Salary and buffer come out before growth spending."],
+["The first hire clones your hours","Hire for the tasks that eat your time but don't need your judgment. You're buying back hours to sell higher."],
+["Side-hustle until the math says jump","Leave the paycheck when the business covers your bare-bones life for 3+ consecutive months with a buffer behind it."],
+["Systemize or stall","What got you to $10k/mo — personal hustle — is exactly what caps you there. Checklists, prices, and processes are the way through."]],
+formulas:[
+["The $10k Equation","Monthly Target ÷ Avg Sale = Units Needed ÷ Close Rate = Leads Needed"],
+["Effective Hourly Rate","Money Actually Kept ÷ All Hours Actually Worked"],
+["Jump Test","Business Net Pay ≥ Bare-Bones Living Costs, 3 months running, + Buffer"],
+["Cash Buffer","2–3 × Monthly Business Expenses, untouched"],
+["Validation Budget","≤ $200 + 15 real customer conversations before bigger bets"]],
+frameworks:[
+["The Mom Test","Never pitch, ask about their life: What did you do last time? What did it cost? What annoyed you? Past behavior is evidence; 'I'd totally buy that' is not."],
+["The Day-One Seven","Entity → bank account → payment method → phone/email → insurance → simple offer → one acquisition channel. Charge strangers only after all seven exist."],
+["The Four-Account Flow","Income lands in one account, then splits on payday: operating costs, taxes, owner pay, profit/buffer. Discipline by architecture, not willpower."],
+["The Five Killers","Cash chaos, no customers, underpricing, partner disputes, and burnout — nearly every year-one death certificate lists one of these."]],
+qs:[
+["You have a business idea and $2,000. What do you spend in week one?","Almost nothing — run 15 Mom-Test conversations and a ≤$200 smoke test (flyer, landing page, pre-order). Spend real money only after strangers show real intent."],
+["Your friend says your idea is great. What has your validation proven?","Nothing. Friends are kind. Ask what they currently do about the problem, what it costs them, and whether they'll prepay — behavior over praise."],
+["First month brought $6k revenue. How much do you take home?","Decide by the four-account split, not the checkbook balance: cover operating costs, set aside taxes (~25-30%), pay yourself a fixed owner wage, bank the rest as buffer."],
+["When do you make the first hire?","When your calendar — not your ego — is the bottleneck: recurring low-judgment tasks eat 15+ hours a week that you could re-sell at a higher rate, and 2-3 months of their wages sit in the buffer."],
+["What's the honest signal that you should NOT quit your job yet?","The business hasn't paid your bare-bones personal costs for three consecutive months, or the buffer is thinner than 2-3 months of expenses. Runway, not optimism, buys the jump."],
+["Revenue is stuck at $8-12k/month for six months. Most likely cause?","You're the system. Undocumented delivery, ad-hoc pricing, no repeatable acquisition channel — systemize (SOPs, set prices, one reliable channel) or stay capped."]]};
+
+CHEATS.money={
+sum:"Run your life like a business: income statement (earn more than you burn), balance sheet (grow what you own, kill what you owe), and cash discipline (pay yourself first, automatically). Wealth is boring on purpose — high savings rate, index funds on autopilot, tax-advantaged accounts filled in order, insurance for catastrophes only, and a lifestyle that doesn't inflate with income. The pivot from earner to owner happens on your personal balance sheet.",
+concepts:[
+["You are a P&L","Income minus lifestyle equals what compounds. The gap — your savings rate — matters more than your income or your returns."],
+["Pay yourself first","Savings that wait for leftovers never happen. Automate transfers on payday; spend what remains, never the reverse."],
+["Emergency fund before everything","3–6 months of expenses in boring cash. It turns crises into inconveniences and stops debt spirals before they start."],
+["Credit is a tool with teeth","Utilization under 30%, on-time everything, old accounts kept open. A great score is cheap borrowing power; carried balances are a 25% wealth leak."],
+["Kill debt by math or momentum","Avalanche (highest rate first) saves the most; snowball (smallest first) keeps you going. The best method is the one you finish."],
+["Compounding needs time more than talent","Money doubles roughly every 72 ÷ return-rate years. Starting at 25 vs 35 can matter more than doubling your contributions."],
+["Index funds beat the pros","Low-cost broad-market funds outperform most professionals over decades. Diversification, low fees, and staying invested do the heavy lifting."],
+["Tax-advantaged accounts are free returns","401(k) match, HSA, Roth/traditional IRA — filling these in order is an instant, guaranteed boost most people skip."],
+["Insurance buys certainty, not returns","Insure catastrophes (liability, disability, life if others depend on you) with high deductibles; self-insure the small stuff."],
+["Lifestyle inflation is the silent killer","Every raise absorbed by lifestyle resets your wealth clock to zero. Bank at least half of every increase."],
+["Your house is shelter first","A home is a lifestyle asset with leverage, not a guaranteed investment. Buy what you can carry on one income if you can."],
+["The owner pivot","The endgame: assets (businesses, funds, property) pay your bills so your time stops being the product."]],
+formulas:[
+["Savings Rate","(Income − All Spending) ÷ Income × 100 — the number that decides everything"],
+["Net Worth","Everything You Own − Everything You Owe"],
+["Rule of 72","72 ÷ Annual Return % ≈ Years for Money to Double"],
+["Emergency Fund","3–6 × Monthly Essential Expenses"],
+["Credit Utilization","Card Balances ÷ Credit Limits (keep under 30%, best under 10%)"],
+["4% Guideline","Annual Spending × 25 ≈ Portfolio That Can Sustain It"],
+["Real Return","Nominal Return − Inflation — the only return that buys anything"]],
+frameworks:[
+["The filling order","Employer match (free money) → high-interest debt → emergency fund → HSA/Roth/401(k) → taxable investing. Deviate only with a reason you can defend."],
+["Avalanche vs. snowball","List every debt. Avalanche = order by interest rate, mathematically optimal. Snowball = order by balance, psychologically durable. Pick one, automate minimums plus one big payment."],
+["The automatic money system","Direct deposit splits on arrival: fixed costs account, savings/investing (untouchable), guilt-free spending. Decisions made once, executed forever."],
+["Insurance triage","Transfer risks that would ruin you (liability, disability, early death with dependents); retain risks you can absorb (phone screens, small dents). Never insure what you could pay cash for."]],
+mistakes:[
+"Budgeting from willpower instead of automation — the system always beats the mood",
+"Carrying credit card balances while 'investing' — a guaranteed 25% loss chasing a hoped-for 8%",
+"Skipping the employer 401(k) match — declining free money every payday",
+"Waiting for the 'right time' to start investing instead of starting small now",
+"Buying individual stocks with money that needed to be boring",
+"Upgrading car, home and habits with every raise — earning more, keeping nothing",
+"Treating the house as a retirement plan",
+"Being uninsured against the one event that would erase a decade of progress",
+"Ignoring taxes until April instead of planning the year",
+"Confusing income with wealth — the surgeon with nothing saved is still broke"],
+qs:[
+["You get a $12k raise. What's the wealth-preserving move?","Bank at least half — increase automatic investing by $500+/month before the lifestyle notices, and let the rest improve daily life guilt-free."],
+["$8k on a card at 24%, $5k in savings earning 4%, and a $6k emergency fund target. What order?","Keep a small cash cushion ($1-2k), throw the rest at the card immediately — paying 24% debt is a guaranteed 24% return — then rebuild the fund, then invest."],
+["Why do index funds beat picking stocks for almost everyone?","Costs, diversification and behavior: low fees compound, one bad pick can't sink you, and autopilot removes the panic-sell. Most professionals fail to beat the index after fees."],
+["When does a Roth beat a traditional account?","When your tax rate today is lower than you expect in retirement — pay the low rate now, withdraw tax-free later. Flip it if you're in peak earning years."],
+["What's wrong with 'my business is my retirement plan'?","Concentration: one asset, one industry, illiquid, and often unsellable without you. Pull money out along the way into boring diversified assets."],
+["Someone earns $300k and someone earns $70k. Who's wealthier?","Whoever's balance sheet says so. Wealth is assets minus liabilities and the years of freedom they buy — income is just the pipe, not the tank."]]};
+
+CHEATS.acct={
+sum:"Accounting is the language of business: Assets = Liabilities + Equity, always. Every transaction has two sides (debits = credits), revenue counts when earned — not when paid (accrual), and gross margin is the anatomy of survival. Close the books monthly so you can trust them, then read all three statements as one story. Ratios turn statements into judgment; red flags turn judgment into protection.",
+concepts:[
+["The accounting equation never breaks","Assets = Liabilities + Equity. Everything the business has is funded by someone — creditors or owners."],
+["Debits and credits are directions, not good/bad","Every transaction touches at least two accounts and balances. Debits increase assets/expenses; credits increase liabilities, equity and revenue."],
+["The chart of accounts is your filing system","Clean categories in, clean statements out. Garbage categorization makes every report a lie."],
+["Cash vs. accrual changes 'when'","Cash basis counts money when it moves; accrual counts it when earned/owed. Accrual shows performance; cash shows survival."],
+["Gross margin is the anatomy lesson","Revenue minus the direct cost of delivering it. Everything else — rent, payroll, profit — lives inside that gap."],
+["The month-end close builds trust","Reconcile bank accounts, book what's missing, review the drafts — monthly. Books you close monthly are books you can believe."],
+["The P&L is a movie","Performance over a period: revenue top, profit bottom, and every line between is a decision you can manage."],
+["The balance sheet is a photograph","What you own, owe, and keep at one instant. It's where problems hide while the P&L smiles."],
+["The cash flow statement is the lie detector","Operating, investing, financing — it reconciles profit to the bank account and exposes where money really went."],
+["Ratios are judgment, compressed","Liquidity, efficiency and leverage ratios turn three statements into 'can we pay our bills, are we getting faster, are we over-extended?'"]],
+formulas:[
+["Accounting Equation","Assets = Liabilities + Equity"],
+["Gross Margin %","(Revenue − COGS) ÷ Revenue × 100"],
+["Net Margin %","Net Income ÷ Revenue × 100"],
+["Current Ratio","Current Assets ÷ Current Liabilities (≥ 1.5 comfortable)"],
+["Quick Ratio","(Current Assets − Inventory) ÷ Current Liabilities"],
+["Working Capital","Current Assets − Current Liabilities"],
+["DSO","Accounts Receivable ÷ Revenue × Days — how long customers take to pay"],
+["Inventory Turns","COGS ÷ Average Inventory — how fast stock becomes cash"],
+["Debt-to-Equity","Total Liabilities ÷ Total Equity"]],
+frameworks:[
+["The month-end close checklist","Reconcile every bank/card account → book unbilled revenue and unpaid bills → review AR/AP aging → scan the draft P&L and balance sheet for anything weird → lock the month. Same order, every month."],
+["Three statements, one story","Net income (P&L) flows into equity (balance sheet); cash flow explains why the bank balance moved differently than profit. If the three don't reconcile, one is wrong."],
+["Fraud red flags","Revenue growing while cash shrinks, one person controlling money end-to-end, round numbers everywhere, missing documentation, margins wildly off industry norms — any two together deserve a hard look."]],
+qs:[
+["You invoice a client $10k in March; they pay in May. When is revenue recorded under each basis?","Accrual: March, when earned. Cash: May, when received. Accrual shows the P&L truth; cash shows the bank truth — you need to know which lens you're reading."],
+["Which side does a $5k equipment purchase paid in cash hit?","Debit equipment (asset up), credit cash (asset down). No expense yet — depreciation will expense it over its useful life."],
+["Revenue is up 30% but the current ratio fell from 1.8 to 0.9. Translate.","Growth is consuming liquidity — receivables or inventory are ballooning, or debt is funding the growth. The company is growing itself into a cash crisis."],
+["Why can't you judge a company from the P&L alone?","The P&L ignores timing and position: it can show profit while receivables rot, debt balloons and cash bleeds. The balance sheet and cash flow statement carry the risk story."],
+["Your books show a customer deposit as revenue. Why is that wrong and what is it?","It's not earned yet — it's a liability (you owe work or a refund). Booking it as revenue overstates profit and understates obligations."],
+["DSO went from 22 to 51 days in six months. What do you do?","Investigate collections: aging report, top offenders, invoicing speed and terms. Then act — deposits up front, due-on-receipt terms, follow-up cadence, stop-work rules for chronic late payers."]]};
+
+CHEATS.sales={
+sum:"People buy outcomes and certainty from someone they trust — selling is helping someone decide. Fill the pipeline daily (prospecting is a schedule, not a mood), diagnose before you prescribe (discovery is the sale), treat objections as questions, and ask for the business plainly. Then do what almost nobody does: follow up until yes or no, ask for referrals, and let the CRM tell the truth about your funnel.",
+concepts:[
+["People buy outcomes, not products","Nobody wants a drill or a pest treatment — they want the result and the relief. Sell the after-state."],
+["Trust is the real product","Buyers decide with emotion and justify with logic; both run on credibility. Show up, tell the truth, know your stuff."],
+["The pipeline is a machine","Revenue = conversations started, worked and closed at known rates. Prospecting daily — even when busy — prevents the feast-famine cycle."],
+["Discovery IS the sale","The rep who asks the best questions and listens hardest wins. Diagnose fully before prescribing anything."],
+["Objections are requests for help","'Too expensive' usually means 'I don't see the value yet.' Acknowledge, explore, answer — never argue."],
+["Closing is asking, plainly","After honest discovery and a matched solution, the close is a natural next step: 'Want to get started?' Silence after asking is your friend."],
+["The fortune is in the follow-up","Most sales take 5+ touches; most reps quit after 1-2. A boring, persistent follow-up system out-earns talent."],
+["Referrals are earned and asked for","Delighted customers refer when asked at the right moment — right after the win. Make asking a habit, not an accident."],
+["Metrics don't lie; memories do","Close rate, pipeline coverage, activity counts, cycle length — the CRM is a truth machine if you feed it honestly."],
+["A sales team runs on process","Hire for drive and coachability, train the process, inspect the numbers weekly. Stars help; systems scale."]],
+formulas:[
+["Pipeline Math","Revenue Target ÷ Avg Deal = Wins Needed ÷ Close Rate = Opportunities Needed"],
+["Close Rate","Deals Won ÷ Total Decided (won + lost) × 100"],
+["Pipeline Coverage","Open Pipeline Value ÷ Quota (healthy ≈ 3×)"],
+["Activity Math","Opportunities Needed ÷ Contact-to-Opportunity Rate = Outreach Required"],
+["Customer Acquisition Cost","Total Selling Cost ÷ New Customers Won"]],
+frameworks:[
+["The discovery ladder","Situation ('walk me through how it works today') → problem ('what's the hardest part?') → impact ('what does that cost you?') → payoff ('what would fixing it be worth?'). The prospect talks themselves into the value."],
+["Objection handling: A-E-A","Acknowledge ('fair question'), Explore ('help me understand what's behind that'), Answer (address the real concern, then confirm: 'does that settle it?'). Arguing wins debates and loses deals."],
+["The follow-up cadence","Day 1 recap → day 3 value touch → day 7 check-in → day 14 new angle → monthly until yes/no. Every touch adds value; none says 'just checking in.'"],
+["B2B: sell the committee","Map the economic buyer, users, technical gatekeepers and your champion. Sell each what they care about — the champion sells with you when you're not in the room."]],
+qs:[
+["Your close rate is 40% but you're missing quota. Where do you look first?","Top of funnel — 40% of too-few opportunities is the problem. Check prospecting activity and pipeline coverage (should be ~3× quota) before touching the pitch."],
+["Prospect: 'Your price is 20% higher than the other quote.' Respond.","Acknowledge and explore: 'Fair — can I ask what the other quote includes?' Then anchor on the difference in outcome, risk and service. If value is truly equal, price matters; it rarely is."],
+["Why do most reps' 'closing problems' turn out to be discovery problems?","A close only feels forced when value wasn't established. If discovery surfaced a real problem, its cost, and a payoff the prospect voiced themselves, the close is just scheduling."],
+["A deal has been 'thinking about it' for three weeks. What now?","A direct, respectful takeaway: recap the stakes, ask what's genuinely blocking, and offer an easy no — 'if the timing's wrong, tell me and I'll stop bugging you.' A fast no beats a slow maybe."],
+["What should a weekly sales meeting inspect?","Leading indicators first: new conversations, opportunities created, follow-ups completed; then pipeline movement and stuck deals; wins/losses and one coaching point. Activity predicts revenue."],
+["What's the highest-ROI moment to ask for a referral?","Immediately after delivered value — the customer just thanked you or the result landed. Ask specifically: 'Who else on this street deals with the same problem?'"]]};
+
+CHEATS.mkt={
+sum:"Marketing is finding people with a problem you solve and making choosing you feel obvious. Know the customer cold, position around one thing, build an offer so good the price feels small, and say it in words that move money. Then pick channels like an investor: track cost per lead and CAC, let winners scale, and remember the goal isn't attention — it's profitable customers who bring friends.",
+concepts:[
+["Marketing is matchmaking, not shouting","Find the people already feeling the problem, meet them where they look, and make the choice easy. Awareness without fit is expense."],
+["Know the customer cold","One avatar, described so precisely you can write their diary entry. Speaking to everyone converts no one."],
+["Position around ONE thing","Own a single idea in the mind: fastest, safest, cheapest, most premium, most local. Two positions equal none."],
+["The offer beats the ad","What you promise, guarantee, bonus and price is the campaign. Great creative can't save a weak deal; a great offer forgives average ads."],
+["Copy is salesmanship in print","Lead with their problem, promise the outcome, prove it, then tell them exactly what to do next. Clarity beats cleverness every time."],
+["The list is an asset","Email and SMS are the only channels you own. Capture contacts relentlessly; nurture them like the future revenue they are."],
+["Funnels leak by design","Stranger → lead → conversation → customer → repeat → referral. Measure each step; fix the biggest leak, not the loudest one."],
+["Paid ads are math with pictures","Cost per lead × conversion = CAC. If CAC < what a customer is worth, spend more; if not, fix the funnel before the budget."],
+["Content compounds; ads evaporate","Ads stop when spending stops. Reviews, local SEO, and helpful content keep pulling customers years after the work."],
+["Word of mouth is engineered","Remarkable service plus a deliberate referral ask plus review requests at the moment of delight — luck is not a growth channel."]],
+formulas:[
+["CAC","Total Marketing Spend ÷ New Customers"],
+["Cost per Lead","Spend ÷ Leads"],
+["Conversion Rate","Next-Step Count ÷ Current-Step Count × 100"],
+["ROAS","Revenue from Ads ÷ Ad Spend"],
+["LTV:CAC","Customer Lifetime Value ÷ Acquisition Cost (target ≥ 3)"],
+["List Value (rough)","Subscribers × Revenue per Subscriber per Year"]],
+frameworks:[
+["The value equation","Perceived value = (dream outcome × likelihood it works) ÷ (time to result × effort required). Raise the top, shrink the bottom, and price feels small."],
+["Positioning statement","For [avatar] who [problem], [business] is the [category] that [one thing], unlike [alternative]. If the blank sounds like every competitor, it isn't a position."],
+["The local marketing engine","Google Business Profile + reviews flywheel + local SEO + neighborhood proof (yard signs, wraps, door hangers) + referral program. Boring, compounding, and where local fortunes are made."],
+["AIDA for any ad or page","Attention (their problem, their words) → Interest (the mechanism) → Desire (proof + offer) → Action (one clear step). Kill anything that doesn't do one of the four."]],
+qs:[
+["You have $1,000 to market a new local service. Where does it go?","Not ads first: Google Business Profile + 10 reviews from early customers, a clean one-page site, yard signs/door hangers in target neighborhoods, and a referral offer. Buy ads once the funnel converts."],
+["Leads doubled but revenue didn't move. Diagnose.","A funnel leak below the lead stage: speed-to-contact, show rate, close rate, or lead quality. Track each step's conversion — more water into a leaking bucket is spend, not growth."],
+["Your ad gets tons of clicks but no calls. Most likely culprits?","The landing page or the offer: mismatch between ad promise and page, weak call to action, no proof, or an offer that asks too much too soon. The ad's job ended at the click."],
+["When is a discount the wrong move?","When the problem is trust or positioning, not price — discounting trains customers to wait, attracts switchers, and erodes the premium position. Add value (bonus, guarantee) before subtracting price."],
+["Why does 'we serve everyone' hurt a small business?","Generic messaging loses to specialists in every niche, ads target poorly, referrals can't describe you, and price becomes the only differentiator. One avatar, one position, then expand."],
+["ROAS is 4× — should you increase the budget?","Check margin first: 4× revenue on a 20% margin is losing money after costs. If contribution margin is positive at scale, raise spend gradually while watching CAC creep and capacity."]]};
+
+CHEATS.ops={
+sum:"Operations is keeping the promise marketing made — profitably, repeatably, without heroics. Write the SOPs (the business that runs on paper), hire like a marketer and onboard like a teacher, schedule to real capacity, and inspect quality with a scoreboard and a weekly rhythm. Find the bottleneck, fix the biggest waste, delegate outcomes instead of tasks — that's the road from doer to builder to owner.",
+concepts:[
+["Operations is the promise-keeping machine","Sales writes the check; ops cashes it. Every broken promise traces to a missing system, not a bad person."],
+["If it isn't written, it isn't a system","SOPs turn your best day into everyone's normal day. One page, steps, photos, owner — done beats perfect."],
+["Hire like a marketer","Great people are recruited with the same funnel discipline as customers: always-on postings, fast response, a real employer 'offer.'"],
+["Onboarding decides retention","The first two weeks set speed and standards for years. Structured checklists and shadowing beat 'ride along and figure it out.'"],
+["Schedule to capacity, not hope","Crews × jobs × drive time is physics. Overbooking makes every customer a little angrier and every tech a little sloppier."],
+["Quality is inspected, not assumed","Spot checks, photos, and customer follow-ups catch drift early. What you measure weekly stays fixed."],
+["Recover loudly when you fail","A complaint handled fast and generously creates more loyalty than no problem at all. Empower the front line to fix it now."],
+["The weekly scoreboard runs the company","A handful of numbers, reviewed at the same meeting every week, with owners. Problems surface in days, not quarters."],
+["Delegation is outcomes, not tasks","Hand over the result, the standard, and the authority — then inspect. Dumping tasks while keeping every decision is just supervision."],
+["The bottleneck sets the speed","Every system has exactly one constraint at a time. An hour saved anywhere else is an illusion; an hour saved at the bottleneck is growth."]],
+formulas:[
+["Daily Capacity","Crews × Jobs per Crew per Day (after drive time)"],
+["Utilization","Booked Hours ÷ Available Hours × 100"],
+["Labor %","Total Labor Cost ÷ Revenue × 100"],
+["Cost of a Redo","Labor + Materials + Drive + the Review You Didn't Get"],
+["Revenue per Route-Hour","Route Revenue ÷ Total Route Hours (density is profit)"]],
+frameworks:[
+["The SOP one-pager","Purpose → trigger ('when X happens') → numbered steps with photos → quality check → owner + last-updated date. If a new hire can't follow it alone, it's not done."],
+["The hiring funnel","Always-be-recruiting post → 5-minute screen → working interview/skills test → structured questions (past behavior) → reference call. Slow to hire where judgment matters, fast where process covers it."],
+["Service recovery: L-A-S-T","Listen fully, Apologize without excuses, Solve it now (front line empowered to spend up to a set amount), Thank them — then log the root cause so it never repeats."],
+["Theory of Constraints loop","Find the bottleneck → squeeze everything from it → subordinate other work to it → invest to expand it → find the new bottleneck. Repeat forever."]],
+qs:[
+["Complaints spiked this month. Where do you look before blaming anyone?","The system: what changed — new hires without full onboarding, overbooked schedule, skipped QC steps, a supplier swap? Root causes hide in process changes; people problems are usually process problems."],
+["A great tech keeps getting 'urgent' add-ons and now misses routes. Fix?","A scheduling rule, not a lecture: protected route capacity, an explicit buffer for urgents, and a dispatcher decision tree for what actually qualifies. Physics first."],
+["You do everything faster than your team. Why is delegating still right?","Your hour has an opportunity cost — sales, hiring, systems. Delegation trades 100% quality-by-you for 85% at one-third the cost, with a path to 100% through training and inspection."],
+["What belongs on a weekly ops scoreboard?","Leading + lagging: jobs completed vs booked, utilization, redos/callbacks, reviews received, labor %, revenue per route-hour. Few enough to fit one page, each with an owner."],
+["Two crews are fully booked for three weeks out. Hire a third?","Check the bottleneck first: is it truly crew capacity, or scheduling density, drive time and redos eating hours? Expand the constraint only after squeezing it — then hire ahead of the wave, not after it."],
+["A step in your process fails 1 time in 20. Cheap insurance?","A checklist item + photo verification at that step, and make the failure visible on the scoreboard. Inspection at the failure point beats re-training everyone on everything."]]};
+/* ================= SCHOOL CHEAT SHEETS (2/2) ================= */
+
+CHEATS.lead={
+sum:"Leadership is getting willing results through others — and culture is whatever you tolerate. Run real one-on-ones, give feedback that lands (behavior, impact, ask), hold accountability without hovering, and have the hard conversation early because it never improves with age. Communicate like an operating system, decide at the speed the door allows, and lead yourself first: the business can only grow as fast as the owner does.",
+concepts:[
+["Leadership is results through others","The scoreboard isn't how much you do — it's what your people do when you're not there."],
+["What you tolerate, you teach","Culture isn't the poster; it's the worst behavior you permit repeatedly. Every exception you allow becomes the new standard."],
+["One-on-ones are the engine room","A recurring 30 minutes, their agenda first. Problems surface months earlier and people stay years longer."],
+["Feedback lands when it's specific","Behavior, impact, request — within days, in private, about actions not character. Vague praise and vague criticism are equally useless."],
+["Accountability is clarity, not pressure","People miss expectations they never truly heard. Written outcomes, owners and dates first; consequences second."],
+["Hard conversations don't age well","The performance talk you delay costs the team's respect daily. Kind and early beats nice and never."],
+["Letting someone go is a system's last step","If it's a surprise to them, the failure is yours: expectations, feedback, and a fair chance came first — then act with dignity and speed."],
+["Recognition is fuel","People repeat what gets noticed. Specific, timely, public praise is the cheapest retention program ever built."],
+["Decide at door speed","Reversible decisions (two-way doors) deserve speed; irreversible ones (one-way doors) deserve rigor. Treating every choice like a one-way door stalls the company."],
+["Disagree and commit","Debate hard before the decision; align fully after it. Relitigating in the hallway is how teams rot."],
+["The owner is the ceiling","Your energy, focus and emotional regulation set the company's. Sleep, boundaries and a peer group are business infrastructure."],
+["Vision gives the work a spine","Annual goals → quarterly priorities → weekly scoreboard. People push harder when they can see where the ship is pointed."]],
+formulas:[
+["Feedback (SBI)","Situation + Behavior + Impact → Request"],
+["Accountability Chain","Written Expectation → Owner → Date → Review Cadence → Consequence"],
+["Meeting Test","Decision Made + Owner Assigned + Date Set — or it was an email"]],
+frameworks:[
+["The one-on-one template","Their items first → progress on commitments → one piece of feedback each way → career/growth pulse quarterly. Never cancelled, only rescheduled."],
+["The hard-conversation script","State the gap ('expectation was X, what's happening is Y') → listen genuinely → agree on a plan with a date → document. Two cycles without change = a different conversation."],
+["Two doors decision rule","Ask 'can we undo this cheaply?' Yes → decide today with 70% of the information. No → slow down, gather data, sleep on it, consult. Label the door out loud in meetings."],
+["The annual rhythm","Year: 3-5 goals. Quarter: rocks that serve them. Week: scoreboard + meeting. Day: the one thing. Each layer answers 'why' for the layer below."]],
+qs:[
+["Your best tech is now a struggling manager. What went wrong and what now?","Skill ≠ role: doing and leading are different jobs. Either train the leadership skills explicitly (delegation, feedback, running the scoreboard) with a clear ramp, or return them with dignity to the craft role they excelled at — a demotion handled well beats a slow public failure."],
+["An employee keeps missing deadlines but is well-liked. Walk the sequence.","Private SBI conversation → written expectations with dates → short review cadence → recognize improvement or escalate. Likability delays accountability; the team is watching whether standards are real."],
+["When should you overrule a team decision you disagree with?","Rarely — only one-way doors with material risk. Otherwise let two-way-door decisions run: overruling reversible calls teaches the team to stop deciding."],
+["What's the real cost of keeping a toxic high performer?","The output of everyone around them: quiet quitting, departures of your best people, and the daily lesson that results excuse behavior. The numbers they bring rarely cover what they burn."],
+["Your team goes quiet in meetings. Likely causes?","Someone got punished for candor, decisions get relitigated anyway, or the leader talks first and most. Fix: leader speaks last, thank dissent visibly, and show a changed outcome from someone's pushback."],
+["How do you keep a great employee you can't out-pay?","Growth, ownership and recognition: a real development path, authority over meaningful outcomes, flexibility, and specific public appreciation. People leave managers and stagnation more than salaries."]]};
+
+CHEATS.rhet={
+sum:"Think clearly, then speak so it lands. Strip ideas to their simplest true form, build arguments as claim–evidence–warrant, and steelman before you strike. Read the human in front of you (incentives, identity, emotion), ask Socratic questions that let people persuade themselves, and command the room with presence: pace, pause, and precision. Rhetoric is thinking made audible — win the idea first, the argument second.",
+concepts:[
+["Clarity before complexity","If you can't say it simply, you don't understand it yet. Simple language exposes weak thinking; jargon hides it."],
+["An argument has anatomy","Claim (what), evidence (why believe it), warrant (why the evidence supports the claim). Most disagreements are hidden warrant disputes."],
+["Steelman before you strike","State their position better than they did. It earns the right to disagree and reveals whether your objection survives their best case."],
+["Mental models are thinking leverage","Inversion, second-order effects, opportunity cost, incentives — a small kit of models beats raw intelligence in messy decisions."],
+["People argue interests through positions","The stated demand hides the underlying need. Argue the position and deadlock; address the interest and move."],
+["Emotion is data, not noise","What people feel tells you what they value. Logic convinces; emotion converts — you need both, honestly used."],
+["Questions outrank statements","A well-placed question lets someone walk to your conclusion on their own legs. People rarely resist their own reasoning."],
+["Words carry frames","'Estate tax' vs 'death tax' — the label smuggles the verdict. Notice frames before accepting them; reframe before arguing inside one."],
+["The pause is power","Silence after a point lets it land; silence after their point shows you weighed it. Rushing signals fear."],
+["Presence is preparation made visible","Slow pace, grounded posture, precise words. Confidence isn't volume — it's the absence of scramble."]],
+formulas:[
+["Argument","Claim + Evidence + Warrant (the bridge most people skip)"],
+["Persuasion Channels","Ethos (credibility) + Pathos (emotion) + Logos (logic) — all three or it wobbles"],
+["Clarity Test","Explain it to a smart 12-year-old without losing the truth"]],
+frameworks:[
+["The Socratic ladder","Clarify ('what do you mean by…?') → probe evidence ('how do we know?') → surface assumptions ('what must be true for that?') → explore implications ('if so, then what?') → invite the conclusion. Curiosity, never interrogation."],
+["Steelman protocol","Restate their view until they say 'exactly.' Then: 'given that, here's where I still land differently, and why.' Disagreement after understanding persuades; disagreement before it insults."],
+["The reframe","Name the current frame → question its hidden assumption → offer the alternative lens → let them try it on. You can't win inside a frame built to make you lose."],
+["Debate presence checklist","Slow down 20% → land one point, then stop → concede what's true immediately (it buys credibility) → return to your strongest ground → never chase every point; the audience remembers shape, not volume."]],
+qs:[
+["Someone says 'we can't raise prices, customers will leave.' Find the claim, evidence and warrant.","Claim: don't raise prices. Evidence: (usually missing — an assumption that demand is price-fragile). Warrant: losing some customers outweighs earning more per customer. Attack the warrant with math: how many could leave before the raise stops paying?"],
+["What's the difference between winning an argument and persuading someone?","Winning scores points against a person; persuading moves a mind. Public defeat hardens positions — persuasion gives the other person a dignified path to your conclusion, often via their own words."],
+["Turn 'your service is too expensive' into a Socratic exchange.","'Compared to what?' → 'what would it cost you if the problem stayed unsolved for a year?' → 'if the result were guaranteed, what would fair look like?' The questions surface value they compute themselves."],
+["Why steelman an obviously weak argument?","Because the audience holds a stronger version of it in their heads. Beating the weak version convinces no one; dismantling the strongest version closes the exits."],
+["You're losing a debate on a point you know is wrong. Best move?","Concede it cleanly and immediately — 'that's fair, I overstated' — then pivot to your strongest ground. Credibility spent defending the indefensible never comes back."],
+["What does 'the frame decides the fight' mean in a negotiation?","Whoever defines what the conversation is about — cost vs investment, risk vs opportunity, favor vs trade — has pre-decided most of it. Notice the frame first; negotiate the frame before the number."]]};
+
+CHEATS.ltr={
+sum:"Protect the machine: use lawyers and CPAs before problems (cheap) instead of after (ruinous), put every deal in writing, and keep the liability wall standing with real entity hygiene. Hire and fire by process, insure the catastrophic, and treat taxes as a calendar, not an April panic — documentation turns deductions from hope into fact. One annual risk review keeps the whole shield current. Educational, not legal advice — rules change and vary by state.",
+concepts:[
+["Advisors are cheapest before the problem","An hour of counsel before signing beats fifty hours of litigation after. Build the bench before you need it."],
+["If it's not written, it doesn't exist","Scope, price, timeline, and what happens when things go wrong — the contract is the deal's memory when memories conveniently differ."],
+["The liability wall needs maintenance","An LLC protects only if you treat it as real: separate money, sign as the company, keep it funded, and mind the formalities."],
+["Employment law is process law","Document performance, apply rules consistently, and fire for documented cause with dignity — lawsuits feed on surprise and inconsistency."],
+["Insure the ruinous, retain the routine","General liability, workers' comp where required, and umbrella coverage guard the downside. High deductibles keep premiums honest."],
+["Most disputes settle — act early","A firm, professional demand letter and a negotiated resolution beat court in time, cost, and blood pressure almost every time."],
+["Taxes are a calendar","Quarterly estimates, planned purchases, entity elections by deadline — the savings live in the year, never in April."],
+["Deductions are documentation","Ordinary and necessary, with receipts and business purpose recorded. The write-off you can't prove is a penalty waiting."],
+["The other taxes bite too","Payroll, sales and property taxes carry personal liability and penalties that dwarf income-tax mistakes. Automate remittance."],
+["Compliance is a checklist, not a mood","Licenses, permits, renewals, filings — one calendar with owners. Regulators forgive little and remember everything."]],
+formulas:[
+["Risk Priority","Likelihood × Severity — insure/fix the top-right quadrant first"],
+["S-Corp Rough Test","Savings ≈ (Profit − Reasonable Salary) × ~15.3% payroll-tax rate − added costs"],
+["Quarterly Estimates","Prior-Year Safe Harbor or ~25–30% of Profit, set aside monthly"]],
+frameworks:[
+["Contract must-haves","Parties → scope ('what's included AND excluded') → price and payment terms → timeline → change process → termination rights → dispute resolution → signatures. Plain English beats legalese that nobody reads."],
+["Entity hygiene checklist","Separate bank account and cards → sign everything 'as manager/officer' → adequate funding → annual filings current → real records of major decisions. Pierce-proofing is a habit, not a document."],
+["The dispute ladder","Direct conversation → written summary of the ask → formal demand letter (counsel's letterhead changes tone) → mediation → litigation as the last, priced-in resort. Escalate one rung at a time, papering each step."],
+["The annual risk review","Once a year: coverage vs current revenue/payroll, contracts in use vs how you actually work now, entity formalities, license renewals, employee classifications, data/records practices. One afternoon, calendar-blocked."]],
+qs:[
+["A client owes you $9k and stopped answering. Sequence?","Document the debt (contract, invoices, communications) → direct call and written summary → formal demand letter with a deadline → small-claims or counsel depending on amount and state. Keep every step professional — the file may become the exhibit."],
+["What behaviors let a plaintiff pierce your LLC?","Commingled funds, signing personally, an underfunded shell, ignored formalities, or using the entity for fraud. The wall stands only if the company is run as a genuinely separate thing."],
+["When does the S-corp election start making sense?","Roughly when profits comfortably exceed a reasonable salary for your role — the payroll-tax savings on the distribution slice must beat the added payroll/compliance costs. Run the numbers with a CPA; the answer changes with profit and state."],
+["An employee 'isn't working out.' What must exist before the termination?","Written expectations, documented feedback with dates, consistent application of the same rules to others, and a final conversation that's short, respectful and unsurprising. Ambush firings buy lawsuits."],
+["Contractor or employee — why does the label matter so much?","Misclassification triggers back payroll taxes, penalties and benefits claims. Control is the test: who sets hours, tools, methods and exclusivity. When in doubt, the safe answer is usually 'employee' — or restructure the relationship."],
+["Your CPA suggests a deduction that feels aggressive. Frame the decision.","Ask: is it ordinary and necessary, is the documentation real, and would I defend it comfortably in an audit? Tax avoidance is legal planning; anything needing a shredder is evasion. The signature on the return is yours."]]};
+
+CHEATS.eq={
+sum:"Equity is ownership made precise: who owns what, what it's worth, and who gets paid in what order when money finally moves. Split with vesting or regret it, track the cap table like a bank statement, and know your waterfall before you celebrate a headline price. Debt keeps ownership but demands payments; equity trades forever-upside for fuel. Every term sheet is priced in control as much as dollars.",
+concepts:[
+["Equity is the residual claim","Owners get what's left after everyone else is paid — which is why equity holds both the upside and the risk."],
+["Paper beats memory","Operating agreements and stock ledgers decide disputes, not recollections of a handshake. Write ownership down on day one."],
+["Vesting protects everyone","Four years with a one-year cliff means departed cofounders don't keep what they didn't build. No vesting = a time bomb."],
+["Valuation is a negotiation anchored by math","Multiples, comparables and DCF frame the range; scarcity, momentum and alternatives pick the point inside it."],
+["Dilution is arithmetic, not betrayal","New shares shrink your percentage but can grow your value — 20% of something big beats 100% of something stuck. Model it before signing."],
+["Debt vs equity is about who carries risk","Debt: keep ownership, owe payments regardless. Equity: share upside, owe nothing monthly. Match the money to the predictability of the cash flows."],
+["Preferred isn't just 'first' — it's terms","Liquidation preferences, participation, anti-dilution — the adjectives on investor shares decide who gets what long before percentages do."],
+["Employee equity buys ownership behavior","Options, profit shares or phantom equity — the instrument matters less than clear terms and real communication of value."],
+["Holdcos separate assets from operations","A holding company owning the building, the brand and the operating LLCs compartmentalizes risk and cleans up exits."],
+["Know your waterfall","Debt → preferences → participation → common. Run the payout math at three exit prices before you sign anything."]],
+formulas:[
+["Ownership %","Your Shares ÷ Total Shares Outstanding"],
+["Post-Money Valuation","Pre-Money + New Investment"],
+["Investor Stake","Investment ÷ Post-Money"],
+["Dilution","Old % × (Old Total ÷ New Total Shares)"],
+["Simple Waterfall","Exit Price − Debt − Liquidation Preferences → Split by Ownership"],
+["Small-Biz Value","SDE (or EBITDA) × Multiple"]],
+frameworks:[
+["The founder split conversation","Contribution (cash, time, idea, skills, network) → forward-looking roles → vesting for everyone → buy-back terms for departure → put it in the operating agreement while everyone still likes each other."],
+["Term sheet triage","Price matters less than: liquidation preference (1× non-participating is clean), board seats, protective provisions, anti-dilution, and option pool timing. A high valuation with heavy preferences can pay you less than a lower clean one."],
+["Raise-or-borrow decision","Predictable cash flows + collateral → debt. Unproven upside needing years of burn → equity. Somewhere between → revenue-based financing or seller notes. The cheapest capital is the kind the business can actually service."],
+["Exit waterfall dry run","At 1×, 2× and 5× your hoped-for price: subtract debt, apply each preference in order, then split the remainder. If the 1× case pays you nothing, you don't own what you think you own."]],
+qs:[
+["Two founders: one invests $50k, the other works full-time unpaid. How do you think about the split?","Price both contributions forward: cash is quantifiable; sweat is salary-forgone plus execution risk — and the future work matters more than the past. Whatever the split, vest both sides and write buy-back terms now."],
+["You own 60%. An investor offers $500k on a $2M pre-money. What do you own after?","Post-money is $2.5M; investor gets 20%. Your 60% dilutes to 48% — worth $1.2M on paper versus $1.2M before... but now with $500k of fuel in the company."],
+["A $10M exit, $2M debt, investor has $3M invested at 2× participating preference, owns 30%. Sketch the waterfall.","$10M − $2M debt = $8M. Preference: 2× = $6M to investor first. Participation: investor also takes 30% of remaining $2M = $600k. Common splits $1.4M. Investor: $6.6M; everyone else: $1.4M. The adjectives beat the percentages."],
+["When is taking on debt better than selling equity?","When cash flows can reliably service payments, the money buys assets or capacity (not survival), and the upside you'd give away is worth more than the interest — equity is forever; a loan ends."],
+["A key employee asks for equity. What are your options short of shares?","Profit sharing, phantom equity/SARs (value without ownership), or options with vesting — each trades off dilution, complexity and legal cost. Whatever you pick: written terms, clear value, real vesting."],
+["Why can a higher valuation be a worse deal?","Because terms claw back what price gave: multiple liquidation preferences, participation, ratchets and control provisions can make a $10M 'win' pay founders less than a clean $6M. Price is the headline; terms are the contract."]]};
+
+CHEATS.acq={
+sum:"Buying a business is buying verified cash flow with a story attached — your thesis picks the hunt, the funnel finds the deals, and skepticism does the diligence. Value on SDE with a DSCR the debt can survive, set a walk number before you fall in love, and structure with SBA, seller notes and earnouts so the seller keeps skin in the game. Then change nothing for 100 days: stabilize, learn, and only then improve.",
+concepts:[
+["Buy cash flow, not potential","'Upside' is the seller's asset to sell and your job to create. Price what it earns today, verified — the dream is free."],
+["The thesis narrows the hunt","Industry, size, geography, and why-you fit — a written thesis turns infinite listings into a manageable funnel."],
+["Deal flow is a numbers game","100 looked at, 10 seriously analyzed, 3 offers, 1 close is a normal funnel. Sourcing (brokers, direct outreach) is a weekly habit, not an event."],
+["The CIM is marketing","The seller's book presents the best year, adjusted generously. Rebuild the numbers yourself from tax returns and bank statements."],
+["SDE is the small-biz truth metric","Seller's Discretionary Earnings = profit + owner salary + personal add-backs. Challenge every add-back; 'one-time' expenses have a way of recurring."],
+["Your walk number is set before the dance","Decide the max price (and minimum DSCR) in cold blood, in writing, before negotiating. Deals are lost by falling in love, not by discipline."],
+["The LOI frames everything after","Price, structure, exclusivity, and diligence window — mostly non-binding, but it anchors the negotiation you'll live inside for months."],
+["Diligence is trust, then verify everything","Financial, legal, operational, customer, and people risk — every seller claim gets a document. Surprises found now are discounts; found later, disasters."],
+["Structure shares the risk","Seller notes, earnouts and holdbacks align the seller's story with your downside. A seller unwilling to finance any of it is telling you something."],
+["The first 100 days: earn the second 100","Keep people, promises and processes; learn everything; change almost nothing. Trust transfers before improvements do."]],
+formulas:[
+["SDE","Net Profit + Owner Salary + Owner Personal Add-Backs + True One-Times"],
+["Price Range","SDE × Multiple (most small businesses ≈ 2–4×)"],
+["DSCR","Annual Cash Flow ÷ Annual Debt Service (lenders want ≥ 1.25)"],
+["Debt Service Capacity","(SDE − Your Salary − Capex Reserve) ÷ 1.25 = Max Payment"],
+["Typical SBA Stack","~10% Buyer Equity + ~10–15% Seller Note + ~75–80% SBA 7(a)"],
+["Earnout","Contingent Price Paid Only if Agreed Targets Are Hit"]],
+frameworks:[
+["First-pass filter (10 minutes per deal)","Revenue trend 3 years → SDE and margin vs industry → owner hours and role → customer concentration (>20% one client = flag) → why selling, really. Two flags = pass; the funnel has more."],
+["Diligence domains","Financial (returns vs books vs bank), legal (contracts, liens, licenses, suits), operational (systems, equipment, leases), customers (concentration, contracts, churn), people (who leaves with the seller?). Every domain gets documents, not assurances."],
+["The financing stack conversation","Ask the seller to carry 10-20% early — it prices their honesty. Structure: SBA for the base, seller note standing behind it, earnout only for the disputed part of the story."],
+["First 100 days","Weeks 1-2: meet everyone, change nothing, pay flawlessly. Weeks 3-6: learn every process, shadow every role, map quick risks. Weeks 7-14: fix only what's breaking, keep score visibly. Improvements come after trust."]],
+qs:[
+["A listing shows $450k SDE at a $1.4M ask. First three questions?","(1) Does SDE survive rebuilding from tax returns and bank statements — what are the add-backs? (2) What does DSCR look like at realistic debt after your salary? (3) Why is a ~3.1× business really for sale — and what walks out the door with the owner?"],
+["The seller says revenue is 'about to jump' from a new contract. How does it affect your price?","It doesn't raise the multiple on today's earnings — if they believe it, structure it: an earnout pays for the jump when it actually happens. You price what's verified; contingent value gets contingent payment."],
+["Diligence finds the top customer is 35% of revenue on a handshake. Options?","Reprice for the risk, require a signed contract as a closing condition, holdback/earnout tied to that customer's retention, or walk. Concentration without contracts is the single most common small-biz landmine."],
+["Why do lenders insist on DSCR ≥ 1.25 — and why should you want more?","The 0.25 is the margin for reality: soft months, surprise capex, your learning curve. A deal that only works at 1.25 with perfect execution is priced for someone luckier than you."],
+["What belongs in the LOI vs the purchase agreement?","LOI: price, structure, exclusivity period, diligence scope, key conditions — a framework, mostly non-binding. Purchase agreement: reps and warranties, indemnities, exact terms, schedules — where lawyers earn their fee. Never skip the LOI stage; renegotiating without a frame is chaos."],
+["Day 3 of ownership: a key employee asks about changes. Script?","'Nothing changes this quarter — same pay, same roles, same promises the previous owner made, and I'm here to learn from you.' Then keep it, visibly. The first broken promise costs the whole transition."]]};
+
+CHEATS.wash={
+sum:"A car wash is a real-estate-anchored membership machine: the site (traffic counts, ingress, visibility) decides the ceiling, the model (express vs full-serve vs self-serve) decides the economics, and unlimited memberships decide the multiple. Watch per-car economics like a hawk — labor, water, chemicals per car — reclaim water, staff the tunnel to demand, and finance with SBA against strong DSCR. Valuations follow membership revenue.",
+concepts:[
+["The site is the strategy","Daily traffic counts, easy ingress/egress, visibility and the right side of the commute — a great operator can't fix a bad corner."],
+["Express is the compounding model","Express exterior with free vacuums: low labor, high throughput, membership-friendly — why it dominates new builds and roll-ups."],
+["Memberships change everything","Unlimited plans turn weather-dependent single tickets into predictable MRR — smoothing cash, funding debt, and raising the exit multiple."],
+["Per-car economics are the truth","Chemicals, water, power and labor per car against average ticket. Pennies per car times volume is the whole P&L."],
+["Throughput is revenue physics","Cars per hour through the tunnel on a peak Saturday sets your ceiling. Loading speed and stack length are money."],
+["Water is a managed cost","Reclamation systems cut the biggest utility line and keep regulators friendly — fresh-water-only washes bleed margin."],
+["Labor model follows wash model","Express runs lean (2-4 on shift); full-service is a payroll business wearing a wash's clothes. Know which you're buying."],
+["The dirt is under the dirt","Real estate: own the land when possible — the wash pays rent to you, and the exit can be business, property, or both."],
+["SBA loves washes — verify DSCR","Strong, financeable cash flows — but model debt service against membership revenue, not best-month single tickets."],
+["The boom cuts both ways","Private equity roll-ups raised multiples and competition. A three-mile trade area with two new expresses changes your math overnight."]],
+formulas:[
+["Revenue Engine","Traffic Count × Capture Rate × Average Ticket"],
+["Membership MRR","Members × Monthly Plan Price"],
+["Per-Car Cost","(Chemicals + Water + Power + Labor) ÷ Cars Washed"],
+["Breakeven Cars/Day","Daily Fixed Costs ÷ (Avg Ticket − Per-Car Variable Cost)"],
+["Member Value","Monthly Price × Avg Member Lifespan (months) vs Retail Visits Given Up"],
+["DSCR","Annual Net Cash Flow ÷ Annual Debt Service (≥ 1.25, on conservative volume)"]],
+frameworks:[
+["Site scorecard","20k+ daily traffic → going-home side of the road → full-motion ingress/egress → visibility 300+ feet out → anchor neighbors (grocery, fuel, QSR) → room to stack 10+ cars. Score every candidate the same way; walk from sub-par corners."],
+["Membership engine","Sell at the pay station and by the loader ('today's wash is free with the plan') → price the plan at ~2-2.5× a single ticket → onboard to autopay → watch churn monthly → win-back offers before cancellation finalizes."],
+["Model selection","Express exterior: volume, memberships, lean labor. Full-service: high ticket, high labor, detail upside. Self-serve: low revenue, low touch, land play. In-bay automatic: fuel-station bolt-on. Pick by land cost, labor market and competition — not preference."],
+["Buy-vs-build read","Existing wash: price = f(membership base, equipment age, site quality) — diligence the member file like an SaaS book. New build: land + $3-6M tunnel buildout + 12-24 month ramp — model the ramp on capture rate, not hope."]],
+mistakes:[
+"Buying the equipment story instead of the corner — tunnels move, traffic doesn't",
+"Modeling revenue on best-month single tickets instead of membership base + conservative capture",
+"Ignoring stack length — losing the Saturday line to the street loses the month",
+"Underpricing unlimited plans until heavy users wash away the margin",
+"Skipping water reclamation and donating the margin to the utility",
+"Staffing a full-service payroll onto express volume",
+"Financing at a DSCR that only works in a drought-free, competitor-free fantasy",
+"Not walking the three-mile trade area for permits and coming-soon signs",
+"Treating member churn as weather instead of a managed number",
+"Forgetting the land is half the investment thesis"],
+qs:[
+["Two sites: 28k traffic at $1.4M, or 14k traffic at $700k. How do you compare them?","Model both on capture rate × ticket against total project cost — traffic scales revenue while many costs are fixed, so the busier corner often wins despite double the land price. Then check ingress, stack room, and the competitor map before the spreadsheet decides."],
+["A wash for sale claims $840k revenue, 60% margin. What do you verify first?","The membership file: count, price mix, churn, and how much of revenue is MRR vs retail — then per-car costs and equipment age/refurb bill. A wash is priced on its member base; retail-heavy revenue deserves a lower multiple."],
+["Your unlimited plan is $19.99 and heavy users visit 9× a month. Problem?","At 9 visits your per-car costs may exceed the plan — check per-car math. Options: raise the plan price for new members, tier the plans (base vs premium), or accept heavy users as marketing if the average member profile still profits."],
+["A PE-backed express opens 1.5 miles away. Response plan?","Defend the member base first (lock-in offers, service speed, site cleanliness), sharpen the sales script at the loader, and audit your capture assumptions — then compete on the things a remote owner does badly: local presence, staff quality, community visibility."],
+["Why do washes command SBA-friendly financing, and where's the trap?","Predictable membership cash flow, real estate collateral, and essential-service demand — lenders like all three. The trap: leverage sized to peak revenue; model DSCR on conservative volume with a capex reserve for the 7-10 year equipment refresh."],
+["What makes membership churn the most important number on the dashboard?","Every point of monthly churn compounds against the MRR machine — it sets member lifetime, which sets LTV, which sets what you can spend to acquire members and ultimately the multiple a buyer will pay. Track it monthly, fight it with usage, not just discounts."]]};
+
+CHEATS.pest={
+sum:"Pest control is a route-density subscription business sold door-to-door: recurring service agreements are the asset, dense routes are the margin, and retention is the multiplier. Price contracts for the full season, plan for seasonality with cash and staffing, license techs properly (Texas has rules), and manage churn like the mortal threat it is. Buyers pay for MRR and density — build both and the exit builds itself.",
+concepts:[
+["Recurring agreements are the business","One-time jobs pay the bills; quarterly/bi-monthly service agreements build the asset. Everything bends toward recurring."],
+["Density is the profit engine","Ten customers on one street beat thirty scattered across town — drive time is unpaid payroll. Sell the neighbors."],
+["D2D is a solved system","Area saturation after service visits, scripts handling the same twelve objections, and daily rep scorecards — door-to-door is math wearing a smile."],
+["Price the agreement, not the visit","Initial treatment + recurring rate structured for the year; underpriced initials that 'buy' contracts get eaten by churn before breakeven."],
+["Churn decides everything downstream","Retention sets LTV, LTV sets allowable CAC, CAC sets growth speed, and all three set your exit multiple."],
+["Seasonality is a plan, not a surprise","Spring surge, winter trough — staff up with the bugs, bank cash for Q1, sell annual plans that smooth the curve."],
+["Licensing is a moat and a duty","Certified applicators, registered techs, continuing education (Texas Department of Agriculture rules) — compliance is table stakes and a barrier competitors must also pay."],
+["Chemical cost is a per-stop line","Product per stop is small but multiplied by thousands of stops — dilution discipline and inventory control are real money."],
+["Techs are the brand","The person at the door quarterly IS the company. Hiring, training and retention of techs is customer retention wearing a uniform."],
+["Buyers pay for MRR × density","Acquirers price recurring revenue, route density, retention rate and tech stability — the same four numbers you should manage weekly."]],
+formulas:[
+["MRR","Active Agreements × Average Monthly Rate"],
+["Monthly Churn","Cancellations ÷ Active Agreements at Start × 100"],
+["Customer LTV","Monthly Rate × Gross Margin % ÷ Monthly Churn Rate"],
+["Route Density Proxy","Revenue per Route-Hour (service + drive time)"],
+["Rep Math","Doors Knocked × Contact % × Close % = Agreements per Day"],
+["Valuation Rough Cut","~1-2 × Annual Recurring Revenue, or 4-6+ × EBITDA at scale"]],
+frameworks:[
+["The D2D operating system","Territory maps around existing customers → post-service saturation ('we just treated your neighbor's house') → script: intro, problem, social proof, assumptive close → daily scoreboard: doors, contacts, sales → weekly ride-alongs and script drills."],
+["The retention machine","Flawless first 90 days (that's where churn lives) → reminder texts before service → same tech, same yard, every time → immediate re-service guarantee on any complaint → win-back call script before any cancellation processes."],
+["Seasonality playbook","Q1: sell annual plans, train, maintain equipment. Spring: hire ahead of the surge, saturate D2D. Summer: maximize density, upsell (mosquito, termite). Fall/winter: collections clean-up, route optimization, banked cash from the plan."],
+["Route build math","New rep/tech pod targets one zip code → fill a day within a 15-minute drive radius before opening the next → measure revenue per route-hour monthly → re-cluster quarterly as agreements churn and grow."]],
+mistakes:[
+"Chasing one-time jobs while competitors lock up recurring agreements",
+"Selling scattered customers that turn routes into windshield time",
+"Underpricing the initial so hard that churned customers never reach breakeven",
+"Ignoring first-90-day onboarding — where most cancellations are born",
+"Staffing flat across a seasonal demand curve",
+"Letting unlicensed or barely-trained techs represent the brand at the door",
+"No win-back process — treating a cancellation call as final",
+"Measuring reps on sales while ignoring 90-day stick rate of what they sold",
+"Sloppy chemical dilution and inventory — margin evaporating a stop at a time",
+"Growing branches before the first route is dense and profitable"],
+qs:[
+["A rep sells 4 agreements a day but 40% cancel within 90 days. Diagnose.","Overselling or mis-setting expectations at the door — pay reps partially on 90-day retention, tighten the script's promises, and fix the onboarding visit. Four sticky sales beat six leaky ones."],
+["Two acquisition targets: $40k MRR scattered across a metro vs $28k MRR dense in three zips. Which earns the premium?","Usually the dense book — route economics make each dollar of MRR more profitable and the growth (neighbor saturation) cheaper. Scattered books get priced down or re-routed at the buyer's cost."],
+["Your churn is 2.5%/month. What's the LTV impact of cutting it to 1.5%?","Average customer life stretches from 40 to 67 months — LTV rises ~65% at the same rate and margin, which raises allowable CAC and route value everywhere. Retention is the highest-leverage number in the model."],
+["How do you price a $150 initial + $45/mo quarterly-service agreement against a $95 one-time competitor?","Sell the difference in product: guaranteed re-service, seasonal coverage, same-tech familiarity — the one-time job solves today; the agreement solves the year. Discount the initial only if the 90-day stick rate proves the payback."],
+["What does 'staff with the bugs' mean operationally?","Hire and train reps/techs in late winter so spring surge hits full capacity, then bank cash and trim hours as fall slows — seasonal capacity planned in January, not panicked in May."],
+["A buyer offers 1.3× ARR. What three numbers most move that multiple?","Retention/churn (the book's durability), route density (the book's margin), and tech/rep stability (the book's transferability). Improve those for four quarters and the same book prices dramatically higher."]]};
 /* ================= BUSINESS MISSIONS — DATA (Personalized Execution Upgrade) =================
    14 mission templates. EVERY item references real, verified BVU content:
    k: lesson|quiz|flash (lesson id) · exam (tr+lv) · final (tr) · lab|sim|case|rp|book|tool (registry id)
@@ -7639,6 +8176,13 @@ function renderTrack(tr){
   const dd=ls.filter(l=>done.has(l.id)).length;const pct=ls.length?dd/ls.length:0;
   h+='<div class="levelMeta"><div class="lm-ring">'+ringSVG(48,20,pct)+'<b>'+Math.round(pct*100)+'%</b></div>'+
      '<div class="lm-t"><b>'+lv.name+'</b><span>'+dd+' of '+ls.length+' lessons · '+lv.desc+'</span></div></div>';
+  if(typeof CHEATS!=="undefined"&&CHEATS[tr.id]){
+    h+='<button class="card" onclick="openCheat(\''+tr.id+'\')">'+
+       '<span class="num" style="background:var(--amber,#c78d2c);color:#fff">📋</span>'+
+       '<span class="ct"><b>Cheat Sheet — the whole school on one page</b>'+
+       '<span>Concepts, formulas, frameworks, mistakes, vocabulary & review questions — read it before every exam</span></span>'+
+       '<span style="color:var(--blue-2)">→</span></button>';
+  }
   const exKey=tr.id+":"+lv.id,exSt=store.exams[exKey];
   h+='<button class="card'+(exSt&&exSt.passed?" done":"")+'" onclick="openExam(\''+tr.id+'\','+(levelSel[tr.id]||0)+')">'+
      '<span class="num">'+ICONS.exam+'</span>'+
@@ -9290,7 +9834,7 @@ function toggleZen(){
 }
 /* body scroll lock shared by all overlays */
 function syncScrollLock(){
-  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score","settings","mission","nb"].some(x=>document.getElementById(x).classList.contains("open"));
+  const anyOpen=["sheet","themes","quiz","flash","gym","book","tool","case","sim","cert","lab","ai","plan","score","settings","mission","nb","cheatsheet"].some(x=>document.getElementById(x).classList.contains("open"));
   document.body.style.overflow=anyOpen?"hidden":"";
 }
 
@@ -9754,6 +10298,7 @@ function palActions(){
     {k:"Action",t:"Choose Your Business Mission",s:msGet().active?"Mission HQ — your 30/60/90-day path":"Pick a goal, get a personalized 30/60/90-day path",run:()=>openMission()},
     {k:"Action",t:"Weekly Operator Review",s:"5-minute check-in: what worked, what's stuck, one commitment",run:()=>openMission("review")},
     {k:"Page",t:"My Notebook",s:"All your highlights, saved items and lesson notes in one place",run:()=>openNotebook()},
+    ...DATA.filter(t=>typeof CHEATS!=="undefined"&&CHEATS[t.id]).map(t=>({k:"Review",t:t.name+" Cheat Sheet",s:"The whole school on one page — concepts, formulas, review questions",run:()=>openCheat(t.id)})),
     {k:"Page",t:"Settings",s:"Profile, appearance, AI key, backups, about",run:()=>openSettings()},
     {k:"Action",t:"The Daily Ten",s:"Your tracked 10-minute daily circuit",run:()=>setView("home")},
     {k:"Action",t:"Placement Test",s:placementInfo()?"Retake — currently "+RANK_NAMES[placementInfo().rank]:"Find your starting level",run:()=>openPlacement()},
@@ -9829,6 +10374,7 @@ document.addEventListener("keydown",e=>{
     if(palEl.classList.contains("open"))closePalette();
     else if(aiEl.classList.contains("open"))closeAI();
     else if(settingsEl.classList.contains("open"))closeSettings();
+    else if(document.getElementById("cheatsheet").classList.contains("open"))closeCheat();
     else if(document.getElementById("nb").classList.contains("open"))closeNotebook();
     else if(document.getElementById("mission").classList.contains("open"))closeMission();
     else if(scoreEl.classList.contains("open"))closeScore();
@@ -10289,6 +10835,7 @@ function bvuValidate(){
   Object.entries(WR_BN).forEach(([k,v])=>v.recs.forEach(r=>{if(!msResolve(r).ok)problems.push("WR_BN "+k+": unresolvable rec "+msItemKey(r))}));
   const goalDup=MS_GOALS.filter(g=>!msTpl(g[1]));
   if(goalDup.length)problems.push("Goals pointing at missing templates: "+goalDup.map(g=>g[1]).join(","));
+  if(typeof cheatValidate==="function")problems.push(...cheatValidate());
   console.log("bvuValidate:",problems.length?problems:"ALL CLEAR — "+MS_TEMPLATES.reduce((a,t)=>a+t.items.length,0)+" mission items + "+Object.values(WR_BN).reduce((a,v)=>a+v.recs.length,0)+" recs verified");
   return problems;
 }
@@ -10552,6 +11099,115 @@ function nbExport(){
   a.href=URL.createObjectURL(blob);a.download="bvu-notebook.txt";
   document.body.appendChild(a);a.click();a.remove();
   toast("Notebook exported");
+}
+/* ================= SCHOOL CHEAT SHEET ENGINE =================
+   One master review page per school. Curated content lives in CHEATS;
+   vocabulary and (where not curated) common mistakes are derived live
+   from the school's own lessons. Stateless — reading is the feature. */
+const cheatEl=document.getElementById("cheatsheet");
+let curCheat=null;
+function cheatLessons(tr){return tr.levels.flatMap(l=>l.modules.flatMap(m=>m.lessons))}
+function cheatMistakes(tr,c){
+  if(c.mistakes&&c.mistakes.length)return c.mistakes;
+  const out=[];
+  cheatLessons(tr).forEach(le=>{if(le.mistakes&&le.mistakes.length&&out.length<10)out.push(le.mistakes[0])});
+  return out;
+}
+function cheatVocab(tr){
+  const out=[];
+  cheatLessons(tr).forEach(le=>{(le.terms||[]).slice(0,2).forEach(t=>{if(out.length<18&&!out.some(x=>x[0]===t[0]))out.push(t)})});
+  return out;
+}
+function cheatFormulas(tr,c){
+  const list=(c.formulas||[]).slice();
+  cheatLessons(tr).forEach(le=>(le.formulas||[]).forEach(f=>{
+    if(!list.some(x=>x[0].toLowerCase()===f[0].toLowerCase()))list.push(f);
+  }));
+  return list;
+}
+function openCheat(trId){
+  const tr=DATA.find(t=>t.id===trId),c=CHEATS[trId];
+  if(!tr||!c){toast("No cheat sheet for this school yet");return}
+  curCheat=trId;
+  const s=trackStats(tr);
+  const formulas=cheatFormulas(tr,c),mistakes=cheatMistakes(tr,c),vocab=cheatVocab(tr);
+  const secs=[["Core Ideas","cs-concepts"]].concat(formulas.length?[["Formulas","cs-formulas"]]:[])
+    .concat([["Frameworks","cs-frameworks"],["Mistakes","cs-mistakes"],["Vocabulary","cs-vocab"],["Review Questions","cs-qs"]]);
+  document.getElementById("cheatCrumb").textContent=tr.name;
+  let h='<span class="lessonChip">Master Review · one page</span>'+
+  '<h2 style="font-family:var(--font-d);font-size:22px;margin:6px 0 4px">'+esc(tr.name)+' — Cheat Sheet</h2>'+
+  '<div class="lessonMeta"><span class="metaChip">'+s.done+' / '+s.total+' lessons done</span><span class="metaChip">'+c.concepts.length+' core ideas</span><span class="metaChip">'+c.qs.length+' review questions</span></div>';
+  h+='<div class="tocBar" style="margin:2px 0 8px"><span class="tocLbl">Jump to</span>'+secs.map(x=>'<button class="tocChip" onclick="cheatJump(\''+x[1]+'\')">'+x[0]+'</button>').join("")+'</div>';
+  h+='<div class="example" style="margin-bottom:14px"><b>If you remember nothing else.</b> '+esc(c.sum)+'</div>';
+  /* core ideas */
+  h+='<div class="lsec" id="cs-concepts"><i></i><h4>Essential Concepts</h4></div><ul class="takeaways">'+
+     c.concepts.map((x,i)=>'<li><i>'+(i+1)+'</i><b>'+esc(x[0])+'.</b> '+esc(x[1])+'</li>').join("")+'</ul>';
+  /* formulas */
+  if(formulas.length){
+    h+='<div class="lsec" id="cs-formulas"><i></i><h4>Key Formulas & Rules</h4></div><div class="terms">'+
+       formulas.map(f=>'<div class="term"><b class="mono">'+esc(f[0])+'</b><span>'+esc(f[1])+'</span></div>').join("")+'</div>';
+  }
+  /* frameworks */
+  h+='<div class="lsec" id="cs-frameworks"><i></i><h4>Decision Frameworks</h4></div>'+
+     c.frameworks.map(f=>'<div class="example" style="margin-bottom:10px"><b style="display:block;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue-2);margin-bottom:5px">'+esc(f[0])+'</b>'+esc(f[1])+'</div>').join("");
+  /* mistakes */
+  if(mistakes.length){
+    h+='<div class="lsec" id="cs-mistakes"><i></i><h4>Common Mistakes'+(c.mistakes?'':' — straight from the lessons')+'</h4></div><ul class="takeaways">'+
+       mistakes.map(m=>'<li><i>✕</i>'+esc(m)+'</li>').join("")+'</ul>';
+  }
+  /* vocabulary */
+  h+='<div class="lsec" id="cs-vocab"><i></i><h4>Key Vocabulary</h4></div><div class="terms">'+
+     vocab.map(t=>'<div class="term"><b>'+esc(t[0])+'</b><span>'+esc(t[1])+'</span></div>').join("")+'</div>'+
+     '<button class="btn ghost full" style="margin-top:8px" onclick="closeCheat();openLibrary(\'terms\')">All '+allTerms.filter(t=>t.le.track.id===trId).length+' '+esc(tr.name)+' terms → Dictionary</button>';
+  /* review questions */
+  h+='<div class="lsec" id="cs-qs"><i></i><h4>Final Review — Answer Before You Peek</h4></div>'+
+     c.qs.map(q=>'<details class="csQ"><summary>'+esc(q[0])+'</summary><div>'+esc(q[1])+'</div></details>').join("");
+  if(trId==="ltr")h+='<div class="example" style="margin-top:12px;font-size:12.5px">⚖️ <b>Educational, not advice.</b> Laws and tax rules change and vary by state — last reviewed July 2026. Confirm current rules with a licensed professional.</div>';
+  /* next steps */
+  h+='<div class="lsec"><i></i><h4>Now Prove It</h4></div><div class="actGrid">'+
+     '<button class="card" onclick="closeCheat();openExam(\''+trId+'\','+(levelSel[trId]||0)+')"><span class="num">'+ICONS.exam+'</span><span class="ct"><b>Level Exam</b><span>10 questions · pass at 80%</span></span></button>'+
+     '<button class="card" onclick="closeCheat();openFinal(\''+trId+'\')"><span class="num">'+ICONS.cert+'</span><span class="ct"><b>School Final</b><span>15 questions · pass at 85%</span></span></button></div>'+
+     '<button class="btn ghost full" style="margin-top:10px" onclick="cheatExport()">⬇️ Export This Cheat Sheet (.txt)</button>';
+  document.getElementById("cheatInner").innerHTML=h;
+  document.getElementById("cheatScroll").scrollTop=0;
+  cheatEl.classList.add("open");syncScrollLock();
+}
+function closeCheat(){cheatEl.classList.remove("open");syncScrollLock()}
+function cheatJump(id){
+  const el=document.getElementById(id);if(!el)return;
+  const sc=document.getElementById("cheatScroll");
+  sc.scrollTo({top:el.getBoundingClientRect().top+sc.scrollTop-sc.getBoundingClientRect().top-58,behavior:"smooth"});
+}
+function cheatExport(){
+  const tr=DATA.find(t=>t.id===curCheat),c=CHEATS[curCheat];if(!tr||!c)return;
+  let out=tr.name.toUpperCase()+" — CHEAT SHEET\nBusiness Vault University · exported "+new Date().toLocaleDateString()+"\n\n";
+  out+="IF YOU REMEMBER NOTHING ELSE\n"+c.sum+"\n\n";
+  out+="ESSENTIAL CONCEPTS\n"+c.concepts.map((x,i)=>(i+1)+". "+x[0]+" — "+x[1]).join("\n")+"\n\n";
+  const formulas=cheatFormulas(tr,c);
+  if(formulas.length)out+="KEY FORMULAS & RULES\n"+formulas.map(f=>"• "+f[0]+": "+f[1]).join("\n")+"\n\n";
+  out+="DECISION FRAMEWORKS\n"+c.frameworks.map(f=>"■ "+f[0]+"\n  "+f[1]).join("\n")+"\n\n";
+  out+="COMMON MISTAKES\n"+cheatMistakes(tr,c).map(m=>"✕ "+m).join("\n")+"\n\n";
+  out+="KEY VOCABULARY\n"+cheatVocab(tr).map(t=>"• "+t[0]+": "+t[1]).join("\n")+"\n\n";
+  out+="FINAL REVIEW\n"+c.qs.map((q,i)=>"Q"+(i+1)+". "+q[0]+"\nA. "+q[1]).join("\n\n")+"\n";
+  if(curCheat==="ltr")out+="\nEducational, not legal or tax advice. Rules change and vary by state — confirm with a licensed professional.\n";
+  const blob=new Blob([out],{type:"text/plain"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download="bvu-cheatsheet-"+curCheat+".txt";
+  document.body.appendChild(a);a.click();a.remove();
+  toast("Cheat sheet exported");
+}
+/* dev checker: every school has a complete sheet */
+function cheatValidate(){
+  const problems=[];
+  DATA.forEach(tr=>{
+    const c=CHEATS[tr.id];
+    if(!c){problems.push("No cheat sheet: "+tr.id);return}
+    ["sum","concepts","frameworks","qs"].forEach(k=>{if(!c[k]||!c[k].length)problems.push("Cheat "+tr.id+": missing "+k)});
+    if(!cheatFormulas(tr,c).length)problems.push("Cheat "+tr.id+": no formulas");
+    if(!cheatMistakes(tr,c).length)problems.push("Cheat "+tr.id+": no mistakes");
+    if(cheatVocab(tr).length<8)problems.push("Cheat "+tr.id+": thin vocab");
+  });
+  return problems;
 }
 /* ================= THEME ENGINE ================= */
 const FONT_OSWALD="'Oswald',system-ui,sans-serif";

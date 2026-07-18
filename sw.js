@@ -1,7 +1,7 @@
 /* Business Vault University — offline service worker.
    Network-first for the app (updates arrive when online),
    cache fallback when offline. Fonts cached on first use. */
-const CACHE = "bvu-v4";
+const CACHE = "bvu-v5";
 const CORE = ["./", "./index.html", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png"];
 
 self.addEventListener("install", e => {

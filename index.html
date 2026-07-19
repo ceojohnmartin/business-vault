@@ -417,7 +417,10 @@
   #lnBack.open{display:block}
   #lnotes{position:fixed;left:0;right:0;bottom:0;z-index:147;height:64dvh;max-height:64dvh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--edge);border-bottom:none;border-radius:20px 20px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.35);transform:translateY(105%);transition:transform .38s cubic-bezier(.22,1,.36,1),height .25s ease;visibility:hidden}
   #lnotes.open{transform:translateY(0);visibility:visible}
-  #lnotes.tall{height:92dvh;max-height:92dvh}
+  #lnotes.tall{height:100dvh;max-height:100dvh;border-radius:0;border:none}
+  #lnotes.tall .lnHead{padding-top:calc(10px + env(safe-area-inset-top))}
+  #lnotes.tall .lnGrip{display:none}
+  #lnotes.tall #lnTallBtn svg{transform:rotate(180deg)}
   .lnHead{flex-shrink:0;padding:8px 14px 0}
   .lnGrip{width:38px;height:4px;border-radius:99px;background:var(--edge);margin:2px auto 8px}
   .lnTitleRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -970,7 +973,7 @@
     <div class="lnTitleRow">
       <div class="lt"><b id="lnTitle">Lesson Notes</b><span id="lnSub">My Notes</span></div>
       <div class="lnBtns">
-        <button class="iconBtn" onclick="lnTall()" aria-label="Expand" title="Expand">
+        <button class="iconBtn" id="lnTallBtn" onclick="lnTall()" aria-label="Full screen" title="Full screen">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>
         </button>
         <button class="iconBtn" onclick="closeLessonNotes()" aria-label="Close" title="Close">

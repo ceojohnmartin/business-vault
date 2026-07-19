@@ -722,4 +722,184 @@ SMU_DATA.schools.push({
         }
       ]
     },
+    {
+      id: "strategy-3",
+      level: "Advanced",
+      title: "Growth Systems and the Analytics Loop",
+      description: "Go under the hood: distribution mechanics, retention diagnostics, disciplined iteration loops, compounding flywheels, and series design that trains both the algorithm and the audience.",
+      lessons: [
+        {
+          id: "strategy-3-1",
+          title: "Distribution Mechanics: Test Pools, Velocity, and Decay",
+          minutes: 10,
+          xp: 75,
+          skill: "strategy",
+          intro: "Your post's first few hours are a structured audition you can't see. Understanding the staging — pools, velocity windows, decay curves — changes how you publish, and when, and why.",
+          sections: [
+            {
+              h: "The Test Pool Ladder",
+              body: "When a post goes live, it doesn't meet the whole world — it meets a small initial audience: a blend of your followers and interest-matched non-followers, typically a few hundred impressions' worth. Call it the test pool.\n\nThe system watches how this pool behaves against expectations for similar content — not against the platform at large. Retain and convert better than your cohort, and the post is promoted into a larger pool with colder viewers. Perform again, promotion again. Distribution is a ladder of progressively larger, progressively colder auditions, and 'going viral' simply means climbing many rungs before missing.\n\nTwo strategic corollaries. First, your followers' engagement quality sets your launch trajectory — another reason bad-fit followers are expensive. Second, each rung tests colder audiences, so content that only insiders appreciate stalls early. Broad rungs demand broad legibility: context earned in three seconds, no inside references unexplained."
+            },
+            {
+              h: "Velocity: Rate, Not Just Totals",
+              body: "Inside each pool, the system reads engagement per impression per unit time — velocity — more than raw totals. Two hundred impressions converting hard in an hour beats two thousand converting weakly all day.\n\nThis is why early momentum matters, and why the first hours carry weight. But hold two truths together: early velocity accelerates climbs, and slow starts are not death sentences. Systems re-test content continuously; a post can sit quiet for days, then catch a topic spike, a search-demand bump, or a fresh audience cohort and climb late. Deleting slow posts destroys these second chances along with the classification data the post already earned.\n\nThe practitioner's rule: publish when your seed audience is genuinely active — your analytics show this, no guru chart does — and never stack two posts inside the same test window. Give each audition roughly four-plus hours of clean air before the next begins."
+            },
+            {
+              h: "Decay Curves and the Long Tail",
+              body: "Every post has a decay profile, and there are two archetypes worth designing for deliberately.\n\n**Feed-driven content** spikes fast and dies fast — most of its lifetime reach arrives inside 48-72 hours. It rides recommendation momentum, trends, and novelty. This is your reach engine, and its shelf life is a feature, not a flaw: it demands freshness, and freshness is what feeds reward.\n\n**Search-driven content** inverts the curve: modest launch, then months of steady compounding as queries keep pulling it up. 'How to' explainers, comparisons, definitive answers to evergreen questions. Keyword-titled, clearly-structured posts become assets that pay reach-rent indefinitely.\n\nA mature account runs both on purpose — roughly a spike portfolio for acquisition and a library portfolio for durable discovery. Creators who only chase spikes rebuild their reach from zero every single week. The library is what compounds underneath."
+            },
+            {
+              h: "Publishing Implications",
+              body: "Translate the mechanics into operating rules:\n\n- **Time to your seed audience, not to mythical golden hours.** The best posting time is when your actual followers are actively scrolling — pull it from your audience analytics quarterly, since it drifts.\n- **Space your launches.** Consecutive posts inside one test window split your seed audience's attention and muddy both auditions.\n- **Don't delete underperformers.** Deletion erases classification history and forfeits re-test upside. Archive only true errors — wrong file, factual mistakes, off-brand accidents.\n- **Front-load legibility.** Since every rung is colder than the last, assume zero context: name the topic in the first line of speech, text, and caption.\n- **Build for the tail on purpose.** One deliberately search-targeted post per week, titled with the exact query, quietly builds the library while your spikes chase the feed.\n\nMechanics are leverage: same effort, better physics."
+            }
+          ],
+          takeaways: [
+            "Distribution is a ladder of test pools — each rung larger and colder than the last.",
+            "Velocity (engagement per impression per hour) drives promotion; slow starts can still revive on re-tests.",
+            "Run a spike portfolio for reach and a search library for compounding discovery.",
+            "Time launches to your real seed audience, space them 4+ hours, and never delete slow posts."
+          ],
+          actions: [
+            "Pull your audience-activity chart and reset your publishing slots to its actual peaks.",
+            "Audit your last month: any posts published inside the same 4-hour window? Adjust the calendar.",
+            "Plan one search-targeted post this week titled with the exact phrase your audience types."
+          ],
+          quiz: [
+            {
+              q: "How does a post earn promotion beyond its initial test pool?",
+              options: ["Paying for a boost", "Outperforming similar content's expected engagement within the pool", "Having more hashtags", "Being posted at midnight"],
+              answer: 1,
+              why: "The ladder promotes posts that beat their cohort's expectations, rung by rung."
+            },
+            {
+              q: "Why is deleting a slow-starting post usually a mistake?",
+              options: ["It costs a deletion fee", "It erases earned classification data and forfeits future re-test upside", "It alerts your competitors", "It isn't — always delete flops"],
+              answer: 1,
+              why: "Systems re-test content; slow posts can climb late, but only if they still exist."
+            },
+            {
+              q: "What distinguishes search-driven content's decay curve?",
+              options: ["It spikes harder on day one", "Modest launch, then months of compounding reach as queries keep retrieving it", "It only works with paid ads", "It decays faster than feed content"],
+              answer: 1,
+              why: "Query demand is durable, so keyword-targeted content pays reach-rent long after launch."
+            }
+          ],
+          drill: "Classify your last 20 posts as spike or library. If library is under 20%, draft three search-query-titled posts to begin correcting the portfolio."
+        },
+        {
+          id: "strategy-3-2",
+          title: "The Iteration Loop: Post, Diagnose, Adjust",
+          minutes: 10,
+          xp: 75,
+          skill: "analytics",
+          intro: "Growth is not a content problem — it's a learning-rate problem. The account that extracts more lessons per post outgrows the account that merely posts more.",
+          sections: [
+            {
+              h: "One Variable at a Time",
+              body: "The amateur response to a flop is to change everything — new format, new topic, new style, all at once. The result is motion without learning: when the next post performs differently, nothing can be attributed to anything.\n\nIteration discipline borrows from experimental method. Hold the format constant and vary the hook. Hold the hook style constant and vary the topic. Each post becomes a controlled trial where one deliberate change maps to one observable outcome, and attribution becomes possible.\n\nThis demands patience that content culture actively discourages. A week of undisciplined pivoting feels productive and teaches nothing; a week of controlled variation feels slow and compounds forever. Advanced growth is less about brilliant individual posts and more about a superior learning rate — the speed at which observed results convert into upgraded defaults. Guard that rate like the asset it is."
+            },
+            {
+              h: "The Diagnosis Tree",
+              body: "When a post underperforms, walk the tree before touching anything:\n\n- **Low reach + weak early retention** → the audition failed at the door. Suspect the hook first, the topic's demand second. Everything downstream is noise until this is fixed.\n- **Strong reach, weak follows per 1,000** → the content works; the conversion doesn't. Suspect positioning: does the post connect to a repeatable promise, or was it an orphan hit? Check the profile next.\n- **High retention, low shares** → engaging but not send-able. It lacked an emotional or identity payload — nothing a viewer gains social credit for forwarding.\n- **High saves, low comments** → useful but conversationally closed. Add an open loop, a defensible take, or a genuine question.\n\nEach branch names a different craft lever. Skipping diagnosis and 'just making better content' is treating every symptom with the same pill."
+            },
+            {
+              h: "Loop Cadence and Sample Discipline",
+              body: "Run two loops at two speeds.\n\nThe **weekly micro-loop** operates at post level: log the five numbers, walk the diagnosis tree on the week's outliers in both directions, and set one deliberate variation for next week. One. Multiple simultaneous experiments re-create the attribution fog you're trying to escape.\n\nThe **monthly macro-loop** operates at portfolio level: format families, pillars, hook archetypes. This is where weightings shift — more b-roll, fewer question-hooks, a new series pilot.\n\nBetween the loops sits the discipline that separates analysts from mood-readers: minimum sample sizes. No verdict on any format or topic before five attempts. Single posts carry enormous variance — a great post can flop on an unlucky test pool, and a mediocre one can catch a trend. React to single posts and you will steer by noise. Five samples, then judgment."
+            },
+            {
+              h: "Write It Down or It Didn't Happen",
+              body: "Unrecorded lessons have a half-life of about two weeks. The fix is an iteration log — four lines per experiment:\n\n1. **Hypothesis:** 'Number-led hooks will beat question-led hooks on 3-second retention.'\n2. **Change:** what you actually varied, and what stayed fixed.\n3. **Result:** the numbers, against the relevant format median.\n4. **Decision:** the new default going forward, or the next test.\n\nThe log's compounding effect is hard to overstate. Six months in, you own a private playbook of verified findings about your audience — what they open for, stay for, share, and follow. That document cannot be bought, scraped, or copied, because it only applies to you. When people marvel at a veteran creator's 'instincts,' they are usually looking at several hundred logged experiments wearing a trench coat."
+            }
+          ],
+          takeaways: [
+            "Vary one variable per experiment; attribution is the whole point.",
+            "Diagnose with the tree — reach, follows, shares, and comments each implicate a different lever.",
+            "Run weekly micro-loops and monthly macro-loops; no verdicts before five samples.",
+            "Log hypothesis, change, result, decision — the log becomes your private playbook."
+          ],
+          actions: [
+            "Start your iteration log today; backfill the last two deliberate changes you remember making.",
+            "Walk your worst recent post through the diagnosis tree and name the failing branch.",
+            "Design next week's single variation: what changes, what stays fixed, what number will judge it."
+          ],
+          quiz: [
+            {
+              q: "Why change only one variable per iteration?",
+              options: ["It's faster to produce", "So results can be attributed to the change — otherwise motion produces no learning", "Platforms detect multiple changes", "To keep the audience comfortable"],
+              answer: 1,
+              why: "Multiple simultaneous changes make outcomes unexplainable, which wastes the experiment."
+            },
+            {
+              q: "High retention but almost no shares points to what deficiency?",
+              options: ["A weak hook", "Missing emotional or identity payload — nothing worth forwarding", "Bad posting time", "Too few hashtags"],
+              answer: 1,
+              why: "People share what makes them look or feel something; engagement alone isn't send-able."
+            },
+            {
+              q: "What is the minimum sample rule before judging a format?",
+              options: ["One post — first impressions count", "Two posts", "Five attempts before any verdict", "Fifty posts"],
+              answer: 2,
+              why: "Single posts carry huge variance from test-pool luck; five samples separate signal from noise."
+            }
+          ],
+          drill: "Write tomorrow's post as a formal experiment: hypothesis, variable, held constants, and the single metric that will decide it. Log the result Friday."
+        },
+        {
+          id: "strategy-3-3",
+          title: "Reading Retention Curves Like a Strategist",
+          minutes: 10,
+          xp: 75,
+          skill: "analytics",
+          intro: "The retention curve is your content's polygraph — it records the exact second every viewer stopped caring. Learning to read it is learning to see your own work honestly.",
+          sections: [
+            {
+              h: "Anatomy of the Curve",
+              body: "A retention graph plots what percentage of viewers remain at each second. Four features tell the story:\n\n- **The opening cliff** — the drop across seconds 0-3. Some cliff is universal physics; its depth is your hook grade.\n- **The slope** — the steady decline after the cliff. A gentle slope means the structure holds attention; a steep one means the content is leaking continuously.\n- **Dips** — localized drops mid-video. Each dip timestamps a moment where a specific decision lost people.\n- **Bumps** — spots where the line rises above 100% or ticks upward: rewatched moments, the strongest material you have.\n\nThe strategic reframe: stop reading the curve as a score and start reading it as a map. Every feature has a timestamp, every timestamp has a craft decision behind it, and every craft decision can be different next time."
+            },
+            {
+              h: "The First Three Seconds",
+              body: "On short-form, holding roughly 70-80% of viewers past the three-second mark is strong; falling below half by second three means the audition ended before the content began — nothing downstream can be evaluated yet.\n\nDiagnose deep cliffs across three hook channels. The **visual hook**: does the first frame present something worth resolving — motion, an unusual composition, a face mid-emotion — or a logo, a slow fade, someone settling into a chair? The **verbal hook**: does the first sentence open a loop, or is it throat-clearing ('hey guys, so today...')? The **text hook**: does the overlay make a claim a cold viewer instantly gets?\n\nThe classic fix list: cut everything before the first interesting frame, start mid-action, put the most visually arresting shot first even out of chronology, and open with the claim, never the context. Context is earned by curiosity, not the reverse."
+            },
+            {
+              h: "Mid-Roll Dips: Map Beats to Drops",
+              body: "This is the highest-leverage exercise in retention work: put your script beside the curve and align timestamps to beats. Every dip names its culprit.\n\nThe usual suspects, in rough order of frequency: the **second introduction** — restating the premise the hook already established ('so like I said, we're going to...'); the **slow bridge** — transitional filler between points where tension goes slack; the **overstayed shot** — b-roll or a static frame held seconds past its information value; and the **early payoff** — resolving the hook's question with a third of the runtime left, leaving no reason to stay.\n\nThe structural fixes are equally standard: delete bridges outright (hard cuts outperform verbal segues), re-space payoffs so a new loop opens before the current one closes, and defer the biggest reveal to the final quarter. Retention is architecture, not charisma."
+            },
+            {
+              h: "Bumps, Tails, and What They're Worth",
+              body: "The curve's happy features are underused intelligence.\n\n**Bumps mark rewatched moments** — a joke that landed, a visual worth a second look, an insight people replayed to absorb. Treat each bump as a validated asset: clip it into its own standalone post, and study what made it re-watchable for your next scripts.\n\n**A fat tail** — a high percentage surviving to the end — identifies your true believers and your CTA real estate. Viewers alive in the final seconds are the most persuadable audience you will ever address; posts with strong tails deserve deliberate asks (follow for the series, comment the keyword) where weak-tail posts should stay clean.\n\nAnd the loop technique: engineer the final frame to match the first, so completion flows invisibly into rewatch. Loops inflate completion rate — a heavy ranking signal — and the seam, done well, is genuinely artful rather than cheap."
+            }
+          ],
+          takeaways: [
+            "Read the curve as a timestamped map of decisions, not a score.",
+            "Cliff depth grades your hook across visual, verbal, and text channels — fix it before anything else.",
+            "Align script beats to dips; delete second intros, slow bridges, and early payoffs.",
+            "Bumps are clippable validated assets; fat tails are where CTAs belong."
+          ],
+          actions: [
+            "Pull curves for your last 5 videos and log cliff depth at 3 seconds for each.",
+            "Do one full beat-mapping: script beside curve, one culprit named per dip.",
+            "Find your biggest bump and clip that moment into a standalone post this week."
+          ],
+          quiz: [
+            {
+              q: "What does a mid-roll dip in the retention curve represent?",
+              options: ["A platform glitch", "A timestamped moment where a specific content decision lost viewers", "Viewers pausing the video", "Normal decay that means nothing"],
+              answer: 1,
+              why: "Dips localize failure to an exact beat, which makes them the most actionable data on the curve."
+            },
+            {
+              q: "Which is a strong 3-second survival rate for short-form?",
+              options: ["Around 20-30%", "Around 40%", "Around 70-80%", "Exactly 100%"],
+              answer: 2,
+              why: "Some opening drop is universal; keeping roughly three-quarters of viewers past second three is a strong hook."
+            },
+            {
+              q: "Why do posts with fat retention tails deserve explicit CTAs?",
+              options: ["CTAs boost the algorithm directly", "Viewers alive at the end are the most persuadable audience you'll ever address", "Tails mean the content was too long", "They don't — CTAs always hurt"],
+              answer: 1,
+              why: "End-of-video survivors have demonstrated maximum interest; asks convert best there."
+            }
+          ],
+          drill: "Take your worst-retaining recent video and re-edit only its first three seconds — new first frame, claim-first opening line, trimmed dead air. Repost the lesson learned into your iteration log."
+        },
 /*__CONTINUE__*/

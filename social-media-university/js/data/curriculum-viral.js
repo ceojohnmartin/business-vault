@@ -897,6 +897,180 @@ SMU_DATA.schools.push({
             }
           ],
           drill: "Take a story you've already posted chronologically and re-cut it in medias res with two nested loops. Compare the two retention curves after 48 hours."
+        },
+        {
+          id: "viral-3-4",
+          title: "The Seamless Loop: Videos That Rewatch Themselves",
+          minutes: 9,
+          xp: 75,
+          skill: "viral",
+          intro: "On loop-native platforms, the second viewing counts as retention too. A well-built loop turns 40 seconds of footage into 80 seconds of watch time — from the same viewer.",
+          sections: [
+            {
+              h: "Why loops out-rank longer videos",
+              body: "Short-form ranking leans on percentage watched, and loops break the ceiling: a viewer who watches your 30-second video 1.6 times registers as 160% retention. On TikTok and Reels especially, rewatch rate behaves as a super-signal — it says the video rewarded attention so well the viewer spent it twice. Loops win this in two ways. **Passive loops** exploit the autoplay restart: if your ending flows invisibly into your beginning, viewers often watch several extra seconds before realizing they've wrapped — and those seconds are banked. **Active loops** make the viewer *choose* to rewatch: a detail revealed at the end that recontextualizes the beginning ('watch his left hand'), a joke whose setup only becomes visible on pass two, a speed of information that demands a second pass. Passive loops are an editing trick. Active loops are a writing achievement. Build both."
+            },
+            {
+              h: "Engineering the passive loop",
+              body: "The seam is a craft object. The classic construction: shoot or select an ending shot that matches your opening shot in framing, motion direction, and energy, so the autoplay cut reads as just another edit. A pour that ends as a pour begins; a door closing that 'becomes' the door opening; a sentence whose final words grammatically precede the opening line — 'and that's the only reason...' looping into '...I ever got the deal.' Audio is half the illusion: keep music continuous across the seam by ending on the same bar the track enters on, and never let an outro cadence signal 'this is over.' The tells that break loops: fade-outs, end cards, a spoken 'follow for more,' any full-stop in energy. Test the seam honestly — play the video on repeat three times and watch someone else watch it. If they flinch at the join, the seam shows."
+            },
+            {
+              h: "Engineering the active rewatch",
+              body: "Active loops plant something the first viewing cannot fully collect. The toolbox: **the recontextualizing reveal** — an ending fact that changes the meaning of the opening ('the buyer was her landlord'), which sends viewers back to check; **the background plant** — a detail visible early but only meaningful late, ideally called out in a pinned comment ('nobody noticed the clock'); **the density overload** — a list or sequence delivered slightly faster than one viewing absorbs, honest because the value is real; and **the ambiguous frame** — an ending image that supports two readings, argued about in comments, resolved only by rewatching. Comments are the multiplier here: seed 'watch it again' energy by replying to early comments with hints, not answers. A caution — active loops must reward the second pass. Sending viewers back for nothing is loop debt with the same interest rate as clickbait."
+            },
+            {
+              h: "Where loops don't belong",
+              body: "Loop craft has a domain, and forcing it everywhere marks the amateur. Tutorial and save-first content should resolve cleanly: a viewer who saves your lighting setup wants an ending that consolidates, not a seam that dumps them back at step one mid-thought. Story content with a hard-earned emotional payoff can be cheapened by an instant restart — sometimes the kicker deserves a clean cut to black, and the send button matters more than the rewatch. And CTA-bearing videos face a real trade: a seamless loop erases the moment a follow-ask would live in. The decision rule: check the video's job from the distribution lesson ahead — share piece, save piece, or watch piece — and reserve loop engineering for watch pieces, where raw retention is the whole game. On watch pieces, though, be shameless about it. A strong loop is the closest thing short-form has to a legal cheat code."
+            }
+          ],
+          takeaways: [
+            "Loops break the retention ceiling — rewatches bank extra percentage on the same viewer.",
+            "Passive loops live in the seam: matched framing, continuous audio, zero 'ending' tells.",
+            "Active loops plant rewards only a second viewing collects — reveals, plants, density, ambiguity.",
+            "Loop only your watch pieces; tutorials, emotional payoffs, and CTA videos usually deserve clean endings."
+          ],
+          actions: [
+            "Storyboard your next watch piece with the final shot designed to match the opening shot's framing and motion.",
+            "Plant one background detail in an upcoming video and call it out in a pinned comment after posting.",
+            "Audit your last five videos: label each share/save/watch, and note where a loop would have helped or hurt."
+          ],
+          quiz: [
+            {
+              q: "Why do loops out-rank longer videos on loop-native platforms?",
+              options: ["Loops trigger a special hashtag", "Rewatches push percentage-watched past 100%, a super-signal of rewarded attention", "Short videos always win", "Autoplay is disabled for long videos"],
+              answer: 1,
+              why: "A viewer watching 1.6 times registers more retention than any single pass could."
+            },
+            {
+              q: "Which is a 'tell' that breaks a passive loop?",
+              options: ["Continuous music across the seam", "Matched framing between last and first shots", "A spoken 'follow for more' before the end", "A sentence that grammatically wraps to the opening"],
+              answer: 2,
+              why: "Any full-stop in energy — outros, fades, end cards — signals 'over' and snaps the illusion."
+            },
+            {
+              q: "When should you skip loop engineering entirely?",
+              options: ["On watch pieces", "On save-first tutorials where a clean consolidating ending serves the save", "On videos under 30 seconds", "On TikTok"],
+              answer: 1,
+              why: "Loop craft serves raw-retention plays; reference content and hard emotional payoffs deserve resolution."
+            }
+          ],
+          drill: "Build one passive loop this week: match your final and opening shots, run the music across the seam, and check rewatch behavior against your channel average after 48 hours."
+        },
+        {
+          id: "viral-3-5",
+          title: "Sequencing Emotion: The Arc Is the Content",
+          minutes: 10,
+          xp: 75,
+          skill: "viral",
+          intro: "Viewers don't remember information sequences — they remember feeling sequences. Advanced retention means scoring your video's emotions like a composer scores dynamics.",
+          sections: [
+            {
+              h: "Map beats by feeling, not by fact",
+              body: "Take any script you've written and label each beat with the emotion it should produce — not the information it contains. Curiosity, tension, relief, awe, amusement, indignation, satisfaction. Most creators discover their 'arc' is a flat line: curiosity at the top, then forty seconds of the same mild interest. Flat arcs retain poorly regardless of information quality, because feeling is what the nervous system uses to decide whether continuing is worth it. The fix is composing the emotional line first: sketch the sequence of feelings you want — curiosity, rising tension, false relief, shock, real relief, satisfaction — and only then assign facts and footage to produce each one. This inverts the amateur workflow, where information order is fixed and emotion is whatever happens to occur. Composers do not orchestrate first and hope a melody emerges. The melody — the feeling line — comes first, and every craft choice serves it."
+            },
+            {
+              h: "Contrast is the amplifier",
+              body: "Emotions register by contrast, not absolute intensity. A loud moment in a loud video is wallpaper; the same moment after two seconds of stillness detonates. This is why the rest beats from the pacing lesson matter emotionally as well as rhythmically — they are the negative space that gives the next feeling its edge. Practical contrast pairs to sequence deliberately: calm before shock (the serene drone shot before the reveal of the damage); dread before relief (let the worst outcome feel certain for a beat longer than comfortable); humor before sincerity (a laugh drops the guard through which a genuine moment enters). Editors control contrast with every tool at once — music dropping out before the payoff line, cutting from wide motion to a locked-off close-up, letting ambient sound replace the track. Audit your drafts for emotional dynamics the way you audit for information density: if three consecutive beats carry the same feeling at the same volume, the third one is not landing."
+            },
+            {
+              h: "The peak-end rule: engineer what they remember",
+              body: "Psychology's **peak-end rule**: people judge an experience almost entirely by its most intense moment and its final moment — duration and average quality barely register. For creators this is operational, not trivia. First, know your peak: decide which single moment of the video should hit hardest, and spend your best craft there — the punch-in, the music drop, the tightest writing. A video with one unforgettable peak outperforms a uniformly good one in shares and follows, because the peak is what gets described to a friend: 'wait till the part where—.' Second, protect the end: the final two seconds color the entire memory. Ending on a dead beat — a trailing 'so yeah,' a logo, an awkward pause — retroactively dims everything before it. End on the kicker, the laugh, the landed loop. When viewers try to describe your video later, they will reach for exactly two moments. Choose both on purpose."
+            },
+            {
+              h: "Sequencing for the send",
+              body: "The emotional arc also decides *when* engagement happens, and you can place those moments deliberately. Shares cluster at emotional peaks — the overflow moment when a feeling exceeds what one person can hold alone — so a peak placed too early gets shares from viewers who then leave, while a peak at the two-thirds mark converts high emotion into both a share and a finished watch. Comments cluster at unresolved tension and mild outrage: give viewers one beat that demands a verdict ('was he wrong for this?') and place it where you want the pause-and-type to happen. Follows cluster at the end, in the afterglow of a kept promise — which is why the follow-worthy feeling is not excitement but *trust*, and why the ending beat should embody your account's repeatable value: this is what it feels like here, every time. One arc, three conversions, each with an address. Stop hoping engagement happens. Schedule it."
+            }
+          ],
+          takeaways: [
+            "Compose the feeling sequence first; assign facts and footage to produce it second.",
+            "Emotion registers by contrast — engineer calm-before-shock, dread-before-relief, humor-before-sincerity.",
+            "Peak-end rule: choose your single hardest-hitting moment and your final two seconds on purpose.",
+            "Shares live at peaks, comments at unresolved tension, follows at the trusted ending — schedule all three."
+          ],
+          actions: [
+            "Label every beat of your next script with its target emotion before assigning any footage.",
+            "Find your current draft's peak and add contrast before it: silence, stillness, or a music drop.",
+            "Rewrite your ending to land the kicker in the final two seconds — delete everything after it."
+          ],
+          quiz: [
+            {
+              q: "The peak-end rule says viewers judge your video mostly by:",
+              options: ["Its average quality", "Its most intense moment and its final moment", "Its first three seconds only", "Its total length"],
+              answer: 1,
+              why: "Memory compresses experience to peak and ending — so both deserve deliberate craft."
+            },
+            {
+              q: "Why place the emotional peak around the two-thirds mark rather than the open?",
+              options: ["Early peaks are penalized", "It converts high emotion into shares and a finished watch", "Viewers ignore early emotion", "Music licensing requires it"],
+              answer: 1,
+              why: "A peak too early triggers shares from viewers who then leave; placed late-middle it earns both signals."
+            },
+            {
+              q: "Three consecutive beats carrying the same feeling at the same volume means:",
+              options: ["Strong consistency", "The third beat is not landing — emotion registers by contrast", "The video is well-paced", "The arc is complete"],
+              answer: 1,
+              why: "Without dynamics, even intense material flattens into wallpaper."
+            }
+          ],
+          drill: "Take a video you admire and chart its emotion per beat on paper — a literal line graph of feeling. Then chart your latest video beside it and compare the shapes."
+        },
+        {
+          id: "viral-3-6",
+          title: "Editing for Retention: The Cutter's Toolkit",
+          minutes: 11,
+          xp: 75,
+          skill: "editing",
+          intro: "Every retention principle in this course eventually becomes a cut. This lesson is the toolkit — the specific editing moves that hold eyes, named and drilled.",
+          sections: [
+            {
+              h: "Invisible joins: J-cuts, L-cuts, cutting on action",
+              body: "Retention editing begins with cuts the viewer never feels. The **J-cut** brings the next scene's audio in before its picture — the interviewee's voice starts over the tail of the B-roll, pulling the ear forward so the eye follows willingly. The **L-cut** is its mirror: audio lingers after the picture changes, smoothing the exit. Between them they erase the tiny 'new scene, re-decide' moment where viewers leak. **Cutting on action** hides the join inside movement — cut mid-reach, mid-turn, mid-pour, and the motion carries the eye across the splice; cut on stillness and the seam announces itself. These three moves are the difference between an edit that feels like watching and an edit that feels like being shown slides. Drill them consciously for a week and they become reflex: every scene change in your timeline should answer the question 'what is carrying the viewer across this cut — sound, motion, or nothing?' Nothing is the wrong answer."
+            },
+            {
+              h: "Emphasis tools: punch-ins, speed ramps, match cuts",
+              body: "Where invisible joins protect attention, emphasis tools direct it. The **punch-in** — a 20-30% digital zoom on the same shot — reads as 'this sentence matters'; alternate framings on alternating beats and a single-camera talking head gains a second camera for free. The **speed ramp** bends time around importance: rush through the repetitive middle of an action, snap to normal speed or slow motion at the moment of impact, and the velocity change itself is a pattern interrupt that re-spikes attention. The **match cut** joins two shots by shape or motion — the round wheel becomes the round watch face, the closing laptop becomes the closing car door — compressing transitions that would otherwise need narration, while rewarding the viewer with a tiny aesthetic 'click' that high-end commercial editing runs on. Deploy all three against your emotional map from the last lesson: emphasis spent on unimportant beats teaches viewers your emphasis means nothing."
+            },
+            {
+              h: "Sound is half the edit",
+              body: "Muted-viewer statistics tempt editors to treat audio as optional. Wrong conclusion: the viewers who *can* hear are your finishers and sharers, and sound is your most powerful subconscious retention tool for them. The toolkit: **SFX as punctuation** — a soft whoosh under each text reveal, a click on the punch-in, a riser under the escalation run; felt more than heard, these mark rhythm the way drums mark a song. **The dropout** — cutting music to silence one beat before the payoff is the single highest-leverage sound move in short-form; silence after sound is a spotlight. **Bed management** — music ducked 6-10 dB under speech, swelling in the gaps, so the track breathes with the voice instead of wrestling it. And **room-tone hygiene** — abrupt full-silence between cuts feels broken; a thin bed of ambience keeps the world continuous. Mix on phone speakers last: that is the venue where your audience actually sits."
+            },
+            {
+              h: "The retention pass: a repeatable finishing workflow",
+              body: "Assemble the toolkit into a final-mile routine run on every video after the story cut locks.\n\n1. **Join audit** — step through every cut: is sound, motion, or a match carrying it? Fix the naked ones.\n2. **Beat check** — play at full attention with the beat counter from the pacing lesson; any 7-second stretch without a new stimulus gets a punch-in, B-roll insert, or trim.\n3. **Emphasis alignment** — overlay your emotional map; confirm ramps, punch-ins, and dropouts sit on the peaks, and strip any emphasis squatting on filler.\n4. **Sound pass** — punctuation SFX, duck the bed, place the dropout, check room tone.\n5. **Seam or ending** — loop seam polished, or ending cut to within a breath of the kicker.\n6. **Phone test** — full watch on the actual device, at actual volume, ideally inside a feed of other content.\n\nTwenty minutes, every video. This checklist is where average footage becomes un-scrollable."
+            }
+          ],
+          takeaways: [
+            "Every cut needs a carrier — sound (J/L-cuts), motion (cutting on action), or shape (match cuts). Naked cuts leak viewers.",
+            "Punch-ins, speed ramps, and match cuts are emphasis currency — spend them only on beats that matter.",
+            "Sound is subconscious retention: SFX punctuation, the pre-payoff dropout, a ducked breathing bed.",
+            "Run the six-step retention pass on every video after the story cut locks."
+          ],
+          actions: [
+            "Recut your latest video's scene changes using J-cuts and cuts on action — no naked cuts allowed.",
+            "Place one music dropout exactly one beat before your next payoff and watch the retention graph there.",
+            "Write the six-step retention pass on a card and physically check it off on your next three edits."
+          ],
+          quiz: [
+            {
+              q: "A J-cut retains viewers across scene changes by:",
+              options: ["Speeding up the footage", "Bringing the next scene's audio in early so the ear pulls the eye forward", "Adding a flash transition", "Removing all music"],
+              answer: 1,
+              why: "Leading audio erases the 're-decide' moment where scene boundaries leak viewers."
+            },
+            {
+              q: "Why must emphasis tools sit only on beats that matter?",
+              options: ["They are expensive to render", "Emphasis spent on filler teaches viewers your emphasis means nothing", "Platforms limit zoom usage", "They break loops"],
+              answer: 1,
+              why: "Emphasis is a currency; inflation destroys its signaling power exactly when you need it."
+            },
+            {
+              q: "The single highest-leverage sound move before a payoff is:",
+              options: ["A louder music swell", "A bass boost", "Cutting music to silence one beat before it lands", "Adding reverb to the voice"],
+              answer: 2,
+              why: "Silence after sound functions as a spotlight — the dropout makes the payoff detonate."
+            }
+          ],
+          drill: "Edit the same 20-second sequence twice: once with naked cuts, once with J-cuts, cuts on action, and a dropout. Show both versions to someone and ask which felt shorter."
         }
       ]
     }

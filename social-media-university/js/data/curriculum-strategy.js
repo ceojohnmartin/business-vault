@@ -902,4 +902,781 @@ SMU_DATA.schools.push({
           ],
           drill: "Take your worst-retaining recent video and re-edit only its first three seconds — new first frame, claim-first opening line, trimmed dead air. Repost the lesson learned into your iteration log."
         },
-/*__CONTINUE__*/
+        {
+          id: "strategy-3-4",
+          title: "Growth Flywheels: Engineering Compounding",
+          minutes: 10,
+          xp: 75,
+          skill: "strategy",
+          intro: "Funnels consume; flywheels compound. The accounts that look unstoppable found a loop where every output makes the next input cheaper — then poured everything into spinning it.",
+          sections: [
+            {
+              h: "Funnels Drain, Flywheels Spin",
+              body: "A funnel is linear: attention enters the top, value exits the bottom, and tomorrow you pay full price to refill it. Necessary, but structurally exhausting — stop feeding it and it stops.\n\nA flywheel is circular: the output of each cycle becomes an input to the next, so each turn requires slightly less push than the last. Jim Collins popularized the mechanics in business strategy; in content, the principle is identical. The strategic question shifts from 'how do I get more reach this week?' to 'what loop can I build where this week's reach makes next week's cheaper?'\n\nMost creators run pure funnels without realizing it — every post a fresh cold start, every week beginning from zero. The tell is exhaustion without accumulation: working as hard in year two as in month two. Flywheel accounts feel different from the inside. Momentum is doing measurable work."
+            },
+            {
+              h: "The Content Flywheel",
+              body: "The core loop available to every account:\n\n1. An **outlier post** reveals a demand pocket.\n2. You expand it into a **named series**, capturing the demand repeatedly instead of once.\n3. The series accumulates into a **library** with search-driven tails.\n4. New viewers who arrive anywhere **binge backward** through the library.\n5. Binge depth drives follows and raises your baseline — a warmer, larger seed pool.\n6. Better seed data produces better classification and better odds on the next outlier. Return to step one, with the wheel already turning.\n\nEvery stage is a designable asset, and most creators break the chain at step two: they celebrate the outlier, post something unrelated, and let the demand pocket close. The discipline is unglamorous — when something works, do it again, systematically, until the data says stop."
+            },
+            {
+              h: "The Community Flywheel",
+              body: "The second great loop runs on people rather than posts.\n\nComments contain questions, objections, and stories. Turn the best ones into content — reply videos, 'you asked' episodes, on-screen answers naming the commenter. Featured commenters feel seen, and visibility is the strongest reward a community can distribute; they return, comment more, and bring the audience-of-the-comment-section with them. Comment volume rises, which feeds ranking. Richer comments produce richer content. The loop closes and tightens.\n\nWhat makes this flywheel special is its double payment: the machine reads conversation as a heavy engagement signal while the humans experience belonging — the same mechanics covered in superfan strategy, now running as a growth engine.\n\nOperationally it costs one deliberate habit: harvest your comment sections weekly as an ideation source, and always credit the person who asked. Attribution is the fuel."
+            },
+            {
+              h: "Find Yours in the Data",
+              body: "You likely have a proto-flywheel already spinning slowly. Find it forensically.\n\nTrace your last 100 follows: which posts produced them, and what did those followers consume next? Interview your last ten genuinely engaged commenters or DMs — what brought them, what made them stay? Somewhere a repeating path emerges: perhaps outliers in one topic drive profile visits, profile visitors binge one series, bingers follow and comment.\n\nThat repeating path is the wheel. Now remove its friction deliberately: if binge depth converts, make bingeing effortless — playlists, pinned series entry points, 'part one in bio,' consistent covers so the series is visually findable. If comment-to-content converts, systematize the harvest.\n\nThe discipline: one wheel, spun hard, beats three spun timidly. Identify the loop the data already endorses, and reallocate real production hours toward tightening it."
+            }
+          ],
+          takeaways: [
+            "Funnels pay full price for attention every week; flywheels make each turn cheaper than the last.",
+            "The content flywheel: outlier → series → library → binge → warmer baseline → better outliers.",
+            "The community flywheel turns comments into content into belonging into more comments.",
+            "Find the loop your data already endorses, remove its friction, and concentrate effort on one wheel."
+          ],
+          actions: [
+            "Trace your last 100 follows to their source posts and write down the repeating path you find.",
+            "Take your most recent outlier and design the series that captures its demand pocket.",
+            "Harvest your comment sections for 20 minutes: pull 5 questions worth answering as posts, with credit."
+          ],
+          quiz: [
+            {
+              q: "What structurally distinguishes a flywheel from a funnel?",
+              options: ["Flywheels require paid ads", "Each cycle's output feeds the next cycle's input, making every turn cheaper", "Funnels are for big accounts only", "Nothing — they're synonyms"],
+              answer: 1,
+              why: "Compounding comes from the loop: outputs becoming inputs is the whole mechanism."
+            },
+            {
+              q: "Where do most creators break the content flywheel?",
+              options: ["They post too many series", "They celebrate an outlier, then post something unrelated instead of building the series", "They use the wrong hashtags", "They reply to too many comments"],
+              answer: 1,
+              why: "Demand pockets close; the discipline is systematically repeating what worked."
+            },
+            {
+              q: "Why does featuring commenters by name accelerate the community flywheel?",
+              options: ["It's required by platform rules", "Visibility rewards belonging, so featured members return, engage more, and draw others in", "It reduces editing time", "It doesn't — anonymity works better"],
+              answer: 1,
+              why: "Recognition is the strongest currency a community distributes, and it compounds engagement."
+            }
+          ],
+          drill: "Draw your account's current loop on paper — actual arrows, actual stages, from post to follow to next post. Mark the weakest arrow. That arrow is next month's project."
+        },
+        {
+          id: "strategy-3-5",
+          title: "Series Strategy: Train the Algorithm and the Audience",
+          minutes: 10,
+          xp: 75,
+          skill: "strategy",
+          intro: "A great post earns a view. A great series earns a habit. Series are the single most reliable structure for converting random reach into returning audience.",
+          sections: [
+            {
+              h: "Why Series Outperform One-Offs",
+              body: "Series compound on both sides of the screen.\n\nFor the machine: every episode shares topic, format, vocabulary, and visual signature, so classification sharpens with each installment. The system learns precisely who wants this and routes with growing confidence — episode twelve launches into far better-matched test pools than episode one did.\n\nFor the human: a series converts your account from a slot machine into an appointment. 'Part 7 of restoring this barn' gives a stranger a reason to follow that no single post can — the fear of missing part 8. Series create binge paths for new arrivals, return viewership from existing fans, and the open-loop pull of any serialized story.\n\nThe numbers usually show it plainly: follows per 1,000 on series episodes routinely beat one-offs, because the value proposition of following is explicit. You are not asking someone to like a post. You are inviting them into a show already in progress."
+            },
+            {
+              h: "Designing the Container",
+              body: "A series is a container, and containers have load-bearing parts:\n\n- **A name** — short, ownable, promise-carrying. 'Zero to Rented' beats 'my property journey.' The name is the brand.\n- **A number** — 'Episode 14' or 'Day 23.' Numbering signals momentum, invites catch-up, and manufactures the sunk-cost pull of progress.\n- **A repeatable format skeleton** — same beat structure every episode: cold open, progress recap in one line, this episode's event, next-episode tease. Skeletons cut production cost and set audience rhythm.\n- **A consistent opener** — the same 1-2 second verbal and visual signature every time. Returning viewers recognize the show instantly; the classifier gets a clean repeating pattern.\n\nThe entire container must pass one test: can a stranger state the series' promise after one episode? If not, the container leaks."
+            },
+            {
+              h: "The Three-Episode Pilot",
+              body: "Never commit to a thirty-episode arc on faith. Television runs pilots; so should you.\n\nShip three episodes inside two weeks, then judge — and judge on the right numbers. Views mislead here; pilots are about container strength, not launch luck. Look at **retention** (does the skeleton hold attention?), **follows per 1,000** (does the serialized promise convert?), and **episode-over-episode return** (do episode-one viewers appear in episode two's audience — comments and profile-source data give the hint).\n\nThree outcomes. Strong signals: scale to a weekly slot and build the backlog. Mixed signals: iterate the container — usually the name, the opener, or the promise clarity — and pilot again; the concept often survives a container rebuild. Weak across all three: kill it cleanly and bank the learning. A dead pilot costs three posts. A dead thirty-episode commitment costs a quarter."
+            },
+            {
+              h: "Evolve or Retire",
+              body: "Series age, and the curve tells you when. Watch for declining retention across consecutive episodes, softening follows per 1,000, and your own creative tell: episodes assembling themselves without a single new decision. Predictability built the habit; pure predictability eventually kills it.\n\nEvery 20-30 episodes, refresh one major variable while preserving the container — a format twist, raised stakes, a guest dynamic, a new setting. Continuity keeps the habit; novelty keeps the pulse.\n\nWhen a series has genuinely run its course, retire it deliberately: announce the finale (finales are event episodes — expect a spike), cut a best-of compilation for new-arrival bingeing, and archive it as a pillar of the library where its search tail keeps working.\n\nPortfolio rule: one series scaling, one in pilot, always. The pipeline never sits empty, and no single show's decline can take the account down with it."
+            }
+          ],
+          takeaways: [
+            "Series sharpen classification for the machine and build appointment habits for the audience.",
+            "Design the container: name, number, format skeleton, and a 1-2 second consistent opener.",
+            "Pilot with three episodes; judge on retention, follows/1k, and return viewership — not views.",
+            "Refresh a major variable every 20-30 episodes; retire with a finale and a best-of; always keep one pilot in the pipeline."
+          ],
+          actions: [
+            "Design one series container this week: name, promise, skeleton, opener — written before episode one.",
+            "Ship the three-episode pilot inside 14 days and log the three judging metrics.",
+            "If you already run a series past episode 20, plan its refresh variable now, before the data forces you."
+          ],
+          quiz: [
+            {
+              q: "Why does a series convert follows better than equally good one-off posts?",
+              options: ["Series get a paid distribution boost", "The serialized promise makes following explicitly valuable — miss the follow, miss part 8", "Numbered titles rank higher in search", "It doesn't — one-offs convert better"],
+              answer: 1,
+              why: "A show in progress gives strangers a concrete reason to subscribe to the future."
+            },
+            {
+              q: "What should a three-episode pilot be judged on?",
+              options: ["Raw views on episode one", "Retention, follows per 1,000, and episode-over-episode return viewership", "Comment sentiment only", "Whether it trended"],
+              answer: 1,
+              why: "Pilots test container strength; views measure launch luck, not the habit-forming machinery."
+            },
+            {
+              q: "A healthy series at episode 25 shows slowly declining retention each episode. The move is:",
+              options: ["Cancel it immediately", "Refresh one major variable while preserving the container", "Post episodes more frequently", "Ignore it — retention always declines"],
+              answer: 1,
+              why: "Continuity keeps the habit while novelty restores the pulse; refresh before fatigue becomes churn."
+            }
+          ],
+          drill: "Find a creator in your niche running a strong series and dissect its container in writing: name, promise, skeleton beats, opener signature. Then design yours to be recognizably different in at least two of the four."
+        },
+        {
+          id: "strategy-3-6",
+          title: "The 80/20 Content Audit",
+          minutes: 10,
+          xp: 75,
+          skill: "analytics",
+          intro: "Once a quarter, the kindest thing you can do for your future content is put your past content on trial. The audit finds the 20% doing the work — and the deadweight dressed up as effort.",
+          sections: [
+            {
+              h: "Quarterly, Ruthless, Written",
+              body: "The 80/20 audit runs on a simple premise backed by every content dataset you'll ever own: a minority of posts produce the majority of results. The audit's job is to identify that minority precisely, extract why it works, and re-weight the next quarter toward it.\n\nThe protocol: export the last 90 days of posts with your five numbers. Sort by the metric closest to your current goal — follows per 1,000 for growth phases, saves+shares per 1,000 for authority phases. Mark the top 20% and bottom 20% by that metric.\n\nThree rules keep it honest. Quarterly cadence — more often over-fits noise, less often lets a bad quarter compound. Ruthless — your feelings about a post are not a metric. Written — the audit produces a one-page memo, because conclusions that live only in your head dissolve by Tuesday."
+            },
+            {
+              h: "Pattern Extraction",
+              body: "Now interrogate the top 20% as a group. For each winner, log five attributes: topic territory, hook archetype (number-led, contrarian claim, question, story cold-open), format family, length, and pillar. Then look across the rows for repetition.\n\nThe output must be written as an instruction, not an observation. 'First-person failure stories with number-led hooks, 25-35 seconds, talking-head' is an instruction you can execute twenty times next quarter. 'Authentic content does well' is a horoscope.\n\nRun the same extraction on the bottom 20% — anti-patterns are equally instructive, and usually more surprising. Watch especially for the confounds: winners that rode a trend spike, losers that shipped during a platform outage. Cross-check each candidate pattern against at least three examples before you trust it. Two data points is an anecdote wearing a lab coat."
+            },
+            {
+              h: "The Kill List",
+              body: "The audit's hardest output is the kill list — what stops next quarter.\n\nCriteria for the list: any format or topic with five-plus attempts sitting in the bottom quintile; anything you keep making because the production pipeline is comfortable rather than because the audience responds; and the pet content — posts you love that the data keeps declining.\n\nPet content deserves honesty rather than pretense. If a format matters to you personally, move it consciously into the 10% connection allocation and expect nothing from it — that is a legitimate choice. What corrodes strategy is pet content wearing a growth costume, absorbing prime slots and production hours while you explain away its numbers quarter after quarter.\n\nEvery kill frees capacity, and capacity is the only currency you actually spend. The kill list is not admitting failure. It is refusing to keep paying for it."
+            },
+            {
+              h: "From Audit to Plan",
+              body: "An audit that doesn't change the calendar was a nostalgia session. Close the loop in writing.\n\nThe one-page memo, four headings: **Keep** — the winning patterns, stated as instructions, now weighted to roughly 70% of next quarter's slots. **Kill** — the list, with one honest sentence each. **Scale** — the single best pattern, promoted: more slots, better production, possibly a series container around it. **Test** — one new bet earning about 10% of slots, chosen from your idea bank's highest scores.\n\nThen rebuild the calendar skeleton for the next quarter directly from the memo before the momentum fades — same week, not someday.\n\nRun this four times a year and the compounding is stark: each quarter starts from extracted knowledge instead of accumulated habit. Most accounts repeat their first year forever. Audited accounts actually have a second year."
+            }
+          ],
+          takeaways: [
+            "Quarterly: sort 90 days of posts by your goal metric; mark top and bottom quintiles.",
+            "Extract patterns as executable instructions, verified across 3+ examples — never vibes.",
+            "Kill formats with 5+ failed attempts; move pet content honestly into the connection allocation.",
+            "Close with the Keep/Kill/Scale/Test memo and rebuild the calendar the same week."
+          ],
+          actions: [
+            "Export your last 90 days and run the full sort today — top 20% and bottom 20% marked.",
+            "Write your winning pattern as one executable instruction sentence.",
+            "Name one piece of pet content and decide honestly: connection slot or kill list."
+          ],
+          quiz: [
+            {
+              q: "Why must extracted patterns be written as instructions rather than observations?",
+              options: ["Instructions are shorter", "'Number-led failure stories, 25-35s' can be executed twenty times; 'authentic does well' cannot be executed at all", "Observations are against the rules", "Instructions rank better in search"],
+              answer: 1,
+              why: "The audit's value is only realized when its output can directly generate next quarter's posts."
+            },
+            {
+              q: "What qualifies a format for the kill list?",
+              options: ["One bad post", "Five-plus attempts sitting in the bottom quintile", "Being hard to produce", "Being over six months old"],
+              answer: 1,
+              why: "Sample discipline applies to killing as much as scaling — five attempts is the verdict threshold."
+            },
+            {
+              q: "What's the honest way to handle 'pet content' the data keeps rejecting?",
+              options: ["Keep it in prime slots and hope", "Consciously move it to the 10% connection allocation and expect nothing from it", "Delete all of it retroactively", "Repackage it with trending audio"],
+              answer: 1,
+              why: "Loving a format is legitimate; letting it wear a growth costume while absorbing prime capacity is not."
+            }
+          ],
+          drill: "Run a miniature audit on just your last 15 posts tonight — top 3, bottom 3, one pattern from each group. Thirty minutes, and you'll never skip the full quarterly again."
+        }
+      ]
+    },
+    {
+      id: "strategy-4",
+      level: "Expert",
+      title: "Scale: Ecosystems, Demand Mining, and Testing Protocols",
+      description: "Operate like a media business: find content-market fit before scaling, architect a multi-platform ecosystem, mine demand from data, run 30-day growth sprints, and own the audience relationship.",
+      lessons: [
+        {
+          id: "strategy-4-1",
+          title: "Content-Market Fit: The Signal Before Scale",
+          minutes: 11,
+          xp: 90,
+          skill: "strategy",
+          intro: "Startups die from scaling before product-market fit. Creators burn out the same way — industrializing production around content the market never actually endorsed.",
+          sections: [
+            {
+              h: "Define It Precisely",
+              body: "Content-market fit is a repeatable combination of **topic × format × angle** that reliably outperforms your baseline with the audience you actually want. Every word is load-bearing.\n\n**Repeatable** — one viral post is weather; fit is climate. The bar is five-plus attempts in the territory with a median meaningfully above your account median, not a single lucky spike. **Reliably** — the territory's median, not its best day, carries the claim. **The audience you want** — reach among people who will never care about your deeper work fails the definition even at scale; a business builder going viral with generic prank content has found someone's fit, just not theirs.\n\nBorrow the founder's discipline here: before fit, every effort is search; after fit, every effort is scale. Confusing which phase you're in is the most expensive mistake available at this level — in either direction."
+            },
+            {
+              h: "Signs You Have It — and Signs You Don't",
+              body: "You have fit when:\n\n- Outliers **cluster** in one recognizable territory instead of scattering randomly across topics.\n- Follows per 1,000 in that territory run well above account median — the content converts, not just entertains.\n- Comments start using **your language**: your framework names, your phrases, quoted back at you.\n- DMs and comments explicitly request more — 'part 2?', 'do one on X' — unprompted.\n\nYou don't when:\n\n- Wins are one-offs with no repeatable pattern connecting them.\n- Growth arrives in spikes that fully flatten between hits — spike, plateau, spike, plateau.\n- Your audience demographics mismatch your intended direction or offer.\n- You cannot state, in one sentence, what your account reliably delivers.\n\nMost accounts sit in the uncomfortable middle: partial signals in a fuzzy territory. The move there is not more volume — it is sharper constraint, which is the next section's job."
+            },
+            {
+              h: "Finding Fit Through Constraint",
+              body: "The counterintuitive physics of the search phase: narrowing accelerates it. Spread across four pillars and five formats, you generate one or two samples per territory per month — statistically useless. Constrain to two pillars and two formats for thirty days and every territory accumulates real sample depth fast.\n\nThe protocol: pick your two most promising territories using existing outlier data, gut second. Commit the full month's calendar to them, varying angle and hook within each while holding the territory constant. Measure at territory level — the territory's median against account median — never at post level, where variance drowns everything.\n\nExpect the psychological resistance: constraint feels like risk, like boring your audience, like closing doors. The data says otherwise — audiences reward focus with recognition, and the classifier rewards it with routing. Breadth is how you hide from the verdict. Constraint is how you get one."
+            },
+            {
+              h: "Scale Only After Fit — Then Expand Adjacently",
+              body: "Scaling before fit amplifies noise: more posts, better cameras, bigger editing budgets, all multiplying a signal the market hasn't endorsed. Scaling after fit multiplies a verified one — the same investment, entirely different mathematics.\n\nOnce the territory median holds across five-plus attempts, scale in sequence: raise volume in the fit territory first, then systematize production around it (templates, batch pipelines, a series container), then raise production quality. Volume before polish — polish is the most seductive and least diagnostic upgrade.\n\nWhen expansion calls, expand **adjacently: same audience, neighboring topic** — the fitness-for-desk-workers account moves into ergonomics or sleep, not into general motivation. Same-topic-different-audience feels safer and almost always fails; the interest graph and your credibility both anchor to the audience you've already assembled. Re-verify fit in each new territory before it earns real calendar share. Fit is per-territory, never account-wide."
+            }
+          ],
+          takeaways: [
+            "Fit = topic × format × angle that reliably beats baseline with the audience you want — five-plus samples, judged on medians.",
+            "Clustered outliers, above-median follows, and your language in comments are the tells.",
+            "Search with constraint: two pillars, two formats, thirty days, territory-level measurement.",
+            "Scale volume → systems → polish, in that order; expand adjacently — same audience, neighboring topic."
+          ],
+          actions: [
+            "Judge honestly: search phase or scale phase? Write the one-sentence justification with numbers.",
+            "Map your outliers from the last 90 days — do they cluster? Name the territory.",
+            "If searching: draft the two-pillar, two-format constraint calendar for the next 30 days."
+          ],
+          quiz: [
+            {
+              q: "What is the minimum evidence bar for claiming content-market fit in a territory?",
+              options: ["One post over 1M views", "Five-plus attempts with the territory's median meaningfully above account median", "A verified badge", "Three months of daily posting"],
+              answer: 1,
+              why: "Fit is climate, not weather — repeatability at the median is the claim, not a lucky spike."
+            },
+            {
+              q: "Why does constraining to fewer territories speed up the search for fit?",
+              options: ["Platforms reward narrow accounts with bonuses", "Sample depth accumulates per territory fast enough to produce statistically meaningful verdicts", "It reduces editing costs", "It doesn't — breadth finds fit faster"],
+              answer: 1,
+              why: "Spread thin, every territory stays at anecdote-level samples forever; constraint buys verdicts."
+            },
+            {
+              q: "The safer expansion path after establishing fit is:",
+              options: ["Same topic, completely new audience", "Same audience, adjacent topic", "New topic and new audience simultaneously", "No expansion, ever"],
+              answer: 1,
+              why: "Your credibility and the interest graph both anchor to the assembled audience, so bring them somewhere nearby."
+            }
+          ],
+          drill: "Write your account's fit claim as a falsifiable sentence — 'my [format] content about [topic] for [audience] beats my baseline on [metric]' — then check it against your actual last 90 days. Keep, revise, or admit you're still searching."
+        },
+        {
+          id: "strategy-4-2",
+          title: "Designing a Multi-Platform Ecosystem",
+          minutes: 11,
+          xp: 90,
+          skill: "strategy",
+          intro: "Amateurs collect platforms like trophies. Operators assign each one a job, wire them into a single machine, and let the machine — not vanity — decide where the hours go.",
+          sections: [
+            {
+              h: "Roles, Not Copies",
+              body: "The defining error of multi-platform strategy is symmetry: treating every platform as another place to be present. Presence is not a strategy. An ecosystem assigns each platform one of four jobs:\n\n- **Discovery** — where strangers find you. Short-form feeds excel: TikTok, Reels, Shorts. High reach, low depth, rented entirely.\n- **Depth** — where interest becomes trust. Long-form YouTube, podcasts, newsletters. Lower reach, radically higher trust per minute.\n- **Relationship** — where trust becomes connection. Communities, DMs, broadcast channels, email.\n- **Monetization** — where connection becomes revenue. Sometimes its own surface, more often woven through the others.\n\nThe forcing question for every platform you touch: what is this platform's job in my machine? No answer means no job — and a platform without a job is not an asset. It is a distraction with a login."
+            },
+            {
+              h: "Choose Your Stack",
+              body: "Three filters, applied in order, choose the stack.\n\n**Where does your audience already live?** A B2B consultant's buyers scroll LinkedIn on workday mornings; a streetwear brand's buyers live on TikTok. Go where the fish are, not where the water looks nice.\n\n**Where do your format economics win?** If you're lethal on camera, short-form video discovery. If you think best in writing, X and LinkedIn make that a weapon instead of a workaround. Playing to format strength halves production cost per unit of quality.\n\n**What can you actually sustain?** Every platform added is a permanent tax on your weekly pipeline. Sustainability beats ambition every quarter of every year.\n\nThe minimum viable stack is three roles: one discovery platform, one depth platform, one owned channel. Fewer leaves a structural gap in the machine. More than four or five, and something is being quietly neglected — usually the one that pays."
+            },
+            {
+              h: "The Cross-Platform Funnel",
+              body: "An ecosystem earns the name only when attention flows between its parts by design.\n\nThe canonical route: discovery content reaches a stranger → strong posts push profile visits → the profile routes to depth (pinned series, channel link, 'full breakdown on YouTube') → depth content converts trust and offers the owned-channel hook — a lead magnet, community, or newsletter → the owned channel nurtures toward revenue.\n\nTwo design rules with sharp teeth. **Never send discovery traffic straight to a sale.** Cold viewers routed to checkout convert dismally and burn goodwill you can't yet afford; every stage exists to earn the next click, not the last one. **Measure the handoffs, not just the endpoints** — discovery-to-profile rate, profile-to-depth rate, depth-to-owned capture rate. Weekly totals hide sick junctions; junction metrics name exactly where the machine leaks, and machines get fixed at the leak."
+            },
+            {
+              h: "The 70/20/10 Allocation — and Sequencing",
+              body: "Allocate effort like a portfolio manager: **70%** to your proven primary platform, **20%** to your number-two, **10%** to scouting new surfaces. The 70 protects the core business; the 20 builds the hedge; the 10 buys optionality on the next wave without betting the account on it.\n\nSequencing matters as much as allocation. **Win one platform first.** Genuine traction on one surface — real fit, real audience, real data — travels: proven formats port with adaptation, and credibility compresses the cold start everywhere else. Simultaneous mediocrity on four platforms compounds into nothing.\n\nWhen you do expand, lead with the repurposing engine — native translations of proven winners, per the translation discipline from Intermediate — before committing to platform-original production. Let observed traction earn each platform a bigger slice. The ecosystem is a machine you tune with data, not a map you color in for completeness."
+            }
+          ],
+          takeaways: [
+            "Assign every platform one job — discovery, depth, relationship, or monetization — or drop it.",
+            "Stack by audience location, format economics, and sustainability; minimum viable = discovery + depth + owned.",
+            "Wire deliberate handoffs and measure junction rates; never route cold traffic to checkout.",
+            "Allocate 70/20/10, win one platform before expanding, and lead expansion with repurposing."
+          ],
+          actions: [
+            "Write each of your current platforms' jobs in one sentence each; any blank means cut or reassign.",
+            "Instrument one junction this week — e.g. depth-to-owned capture rate — and log its baseline.",
+            "Recompute your real hours per platform against the 70/20/10 target and rebalance."
+          ],
+          quiz: [
+            {
+              q: "What defines a 'minimum viable stack' in ecosystem design?",
+              options: ["Accounts on every major platform", "One discovery platform, one depth platform, one owned channel", "Two short-form platforms", "A website only"],
+              answer: 1,
+              why: "Those three roles cover the full journey from stranger to owned relationship; fewer leaves a structural gap."
+            },
+            {
+              q: "Why should discovery traffic never be routed directly to a sale?",
+              options: ["Platforms ban outbound links", "Cold viewers convert dismally and the burned goodwill costs more than the trickle of sales earns", "Sales pages load slowly", "It's fine — always link the checkout"],
+              answer: 1,
+              why: "Each funnel stage exists to earn the next click; skipping stages taxes trust you haven't built."
+            },
+            {
+              q: "The 10% in the 70/20/10 allocation exists to:",
+              options: ["Pad the schedule with rest", "Buy optionality on emerging surfaces without betting the core account", "Fund paid advertising", "Cover editing costs"],
+              answer: 1,
+              why: "Scouting new surfaces cheaply is how you catch the next wave early — a theme Master level develops fully."
+            }
+          ],
+          drill: "Sketch your ecosystem as a literal flow diagram: platforms as boxes, arrows as handoffs, one metric per arrow. Any box without arrows in and out is decoration — decide its fate in writing."
+        },
+        {
+          id: "strategy-4-3",
+          title: "Data-Driven Ideation: Mining Demand",
+          minutes: 11,
+          xp: 90,
+          skill: "analytics",
+          intro: "Expert creators don't brainstorm harder — they stop guessing entirely. Demand leaves fingerprints everywhere: comments, search bars, and other people's outliers. Learn to dust for them.",
+          sections: [
+            {
+              h: "Comments Are a Free Focus Group",
+              body: "Every comment section — yours and your competitors' — is unpaid market research running continuously. Mine four veins:\n\n- **Questions** — each is a pre-validated topic; one person asking publicly means hundreds wondering silently.\n- **Objections** — 'this won't work because...' hands you both a rebuttal post and a preview of your market's real hesitations.\n- **Explicit requests** — 'part 2?', 'do one on leasing' — demand stated in its own words. The lowest-hanging fruit in all of ideation.\n- **Misunderstandings** — when several people misread the same point, that confusion is a post, and usually a strong one.\n\nOperationalize it: a monthly one-hour mining session across your last thirty days of comments plus your three nearest competitors' most-engaged posts. Harvest into the idea bank verbatim — the audience's phrasing, not your paraphrase. Their words become your hooks, because their words are what they'll recognize."
+            },
+            {
+              h: "Search Mining",
+              body: "Platform search bars are demand databases with no login required. Autocomplete is the platform confessing what people already type: enter your niche's head terms — 'car negotiation', 'first rental property' — and harvest every suggested completion, each one a query with proven volume behind it.\n\nGo one layer deeper per platform. TikTok's search suggestions and 'others searched for' rows expose adjacent demand you'd never brainstorm. YouTube's autocomplete plus its related-search chips map an entire topic cluster in ten minutes. Google Trends arbitrates when you need relative volume between two candidate topics.\n\nThe execution discipline: answer the query **verbatim**. Title the post with the exact phrase, say it in the first two seconds, write it in the on-screen text. Retrieval systems match queries to transcribed and written text — paraphrase cleverness is retrieval sabotage. These posts become your library portfolio: modest launches, long compounding tails, and reach that arrives pre-qualified because it searched for you."
+            },
+            {
+              h: "Outlier Mining on Adjacent Accounts",
+              body: "Your own data is one account's worth of evidence. The niche's data is public, and reading it well is a core expert skill.\n\nThe method: track eight to twelve accounts adjacent to yours — similar size, overlapping audience. For each, learn its normal (typical engagement per post is visible in seconds), then hunt for posts running five-to-ten-times that account's own baseline. Account-relative outliers are the signal; a big account's routine numbers mean nothing, but a peer's 8x spike means the format-topic combination itself carried the post beyond its usual audience.\n\nLog each find in a swipe file with three mandatory fields: link, the mechanism (why it worked — hook construction, emotional payload, format novelty), and the adaptation (how the mechanism maps to your territory). The iron rule from earlier levels still governs: steal mechanisms, never content. The mechanism is transferable physics. The content is someone else's property and someone else's fit."
+            },
+            {
+              h: "Score, Validate Cheap, Then Schedule",
+              body: "Mining produces volume; scoring produces a queue. Grade every mined idea 1-5 on four axes: **demand** (how direct is the evidence?), **fit** (does it serve a pillar and the audience you want?), **proof** (can you speak to it with real credibility?), and **difference** (do you add an angle, or echo the niche?). Sixteen-plus jumps the calendar queue; twelve-and-under waits or dies.\n\nFor expensive ideas — multi-day shoots, new formats, produced series pilots — insert a validation step: test the premise in a cheap format first. A text-on-screen post or a talking-head take validates a hook's pull for an hour's work; if the cheap version's numbers endorse the premise, the expensive version is de-risked. Production capital follows demand evidence, never precedes it.\n\nThe compounding effect: an idea bank fed by all three mines, scored and validated, means planning day selects from evidence. Most creators guess weekly. You'll have stopped guessing entirely."
+            }
+          ],
+          takeaways: [
+            "Mine comments monthly — questions, objections, requests, and misunderstandings are pre-validated topics in the audience's own words.",
+            "Autocomplete is confessed demand; answer queries verbatim in title, speech, and on-screen text.",
+            "Hunt account-relative outliers (5-10x a peer's own baseline) and log mechanism + adaptation, never content.",
+            "Score ideas on demand/fit/proof/difference; validate expensive ideas with cheap formats first."
+          ],
+          actions: [
+            "Run a one-hour comment-mining session across your and three competitors' recent posts; bank 10 ideas verbatim.",
+            "Harvest 15 autocomplete queries for your niche's two head terms and draft three verbatim-answer posts.",
+            "Build the swipe file with its three mandatory fields and add your first five entries this week."
+          ],
+          quiz: [
+            {
+              q: "Why bank comment-derived ideas in the audience's exact phrasing?",
+              options: ["To avoid plagiarism claims", "Their words become hooks the audience instantly recognizes as their own question", "Paraphrasing takes too long", "Platforms index comments"],
+              answer: 1,
+              why: "People stop for their own language; your paraphrase is a translation they have to decode."
+            },
+            {
+              q: "What makes a peer account's post a meaningful outlier worth studying?",
+              options: ["It crossed 1M views", "It ran 5-10x that account's own baseline, showing the format-topic combo itself carried it", "It used a trending sound", "The account is verified"],
+              answer: 1,
+              why: "Account-relative performance isolates the content's contribution from the account's size."
+            },
+            {
+              q: "Before committing to an expensive produced series, an expert should:",
+              options: ["Buy better equipment", "Validate the premise with a cheap format and let its numbers de-risk the investment", "Poll followers in Stories", "Launch and hope"],
+              answer: 1,
+              why: "Production capital follows demand evidence; a one-hour cheap test protects a multi-day investment."
+            }
+          ],
+          drill: "Pick one competitor outlier from your new swipe file and write the full adaptation: your territory's version of its mechanism, hook drafted, format chosen. Schedule it within two weeks."
+        },
+        {
+          id: "strategy-4-4",
+          title: "The 30-Day Growth Sprint",
+          minutes: 11,
+          xp: 90,
+          skill: "strategy",
+          intro: "Ambient improvement is a myth — accounts get better in concentrated bursts of disciplined testing. The sprint is how experts manufacture those bursts on demand.",
+          sections: [
+            {
+              h: "Sprint Design",
+              body: "A growth sprint is thirty days, one goal metric, one variable class, fixed volume — every constraint chosen to make the ending interpretable.\n\n**One goal metric**, because a sprint chasing follows and retention and shares simultaneously optimizes nothing and attributes less. Pick the number that best serves this quarter's strategy: follows per 1,000 during audience-building, saves+shares per 1,000 during authority-building, capture rate when the owned channel is priority.\n\n**One variable class** — hooks, formats, topics, lengths — never several. The iteration-loop discipline from Advanced, scaled up to a formal protocol.\n\n**Fixed volume**, declared in advance: twenty posts, whatever your cadence supports. Volume decided upfront prevents the classic mid-sprint failure — quietly abandoning the test when week two disappoints. A well-formed sprint statement reads like this: 'Raise follows per 1,000 by 30% by testing four hook archetypes across twenty posts in thirty days.' One sentence, fully falsifiable."
+            },
+            {
+              h: "Structure the Test",
+              body: "Design the sprint like the experiment it is. Testing hook archetypes? Four archetypes — number-led, contrarian claim, story cold-open, direct question — at five posts each. Five per arm restates the minimum-sample rule; fewer per arm and the sprint ends in anecdotes.\n\nHold everything else as constant as production reality allows: same format family, same pillar rotation, same slots, same edit style. Every constant you maintain sharpens attribution; every one you let drift blurs it.\n\nThen the step that separates protocols from vibes: **predefine success before day one.** Write the thresholds — 'an archetype wins if its five-post median beats the sprint median by 20%+' — and the planned response to each outcome. Humans are spectacular post-hoc rationalizers; you will bend ambiguous results toward whatever you secretly wanted. Thresholds written in advance are the only known cure."
+            },
+            {
+              h: "Measurement Discipline",
+              body: "Thirty days of data invites overconfidence, so wear the statistician's humility.\n\n**Compare medians, never means** — one lucky post in an arm drags its average into fiction while the median holds. **Respect the confounds** and log them as they happen: a trend spike mid-sprint, a platform feature rollout, a holiday week distorting all traffic. A confound logged is context; a confound ignored becomes a false conclusion you'll build on for a year.\n\n**Accept directional confidence as the honest ceiling.** Five posts per arm cannot deliver statistical significance, and pretending otherwise is costume-jewelry science. What a well-run sprint delivers is a justified lean — 'number-led hooks probably outperform for this audience; weight toward them and keep watching.' Across four sprints a year, compounding justified leans beat both paralysis and guessing by miles. Directional, documented, compounding: that is the expert standard."
+            },
+            {
+              h: "Debrief and Institutionalize",
+              body: "The sprint's final deliverable is not the growth — it is the debrief memo. Five headings, one page:\n\n1. **Believed:** the hypothesis going in.\n2. **Ran:** what actually shipped, including deviations — honesty here is the memo's spine.\n3. **Happened:** the numbers, by arm, medians against thresholds.\n4. **Now believe:** the updated model of your audience.\n5. **Adopted:** what enters the playbook as a new default.\n\nThat playbook — the living document of every verified finding about your audience — is the account's most valuable asset. Sprints without debriefs leak their learnings within weeks; you'll retest the same hypothesis next year without noticing.\n\nThen the cadence: rest two or three weeks, run baseline content on the upgraded defaults, and pick the next sprint's variable from whatever the debrief exposed. Four to six sprints a year, each starting from the last one's verified endpoint. That staircase is what deliberate growth actually looks like."
+            }
+          ],
+          takeaways: [
+            "One metric, one variable class, fixed volume, thirty days — falsifiable by design.",
+            "Five posts per arm minimum; predefine success thresholds before day one.",
+            "Compare medians, log confounds live, and accept directional confidence as the honest ceiling.",
+            "The debrief memo institutionalizes findings into the playbook — the sprint's real deliverable."
+          ],
+          actions: [
+            "Write your sprint statement in one falsifiable sentence, thresholds included.",
+            "Design the arms: four variants, five posts each, constants named explicitly.",
+            "Create the playbook document today if it doesn't exist — even one verified finding starts it."
+          ],
+          quiz: [
+            {
+              q: "Why must success thresholds be defined before a sprint starts?",
+              options: ["Platforms require test registration", "Humans rationalize ambiguous results toward what they wanted; pre-written thresholds are the cure", "Thresholds improve reach", "To share with followers"],
+              answer: 1,
+              why: "Post-hoc interpretation bends data; predefinition keeps the verdict honest."
+            },
+            {
+              q: "What is the honest confidence level a 20-post sprint can deliver?",
+              options: ["Statistical significance", "Directional confidence — a justified, documented lean", "Absolute certainty", "None at all"],
+              answer: 1,
+              why: "Small samples can't prove; they can justify a lean you adopt and keep watching."
+            },
+            {
+              q: "A sprint's most durable output is:",
+              options: ["The follower bump it produced", "The debrief memo feeding verified findings into the playbook", "The content backlog", "A better posting schedule"],
+              answer: 1,
+              why: "Growth fades into baseline; institutionalized learning compounds across every future sprint."
+            }
+          ],
+          drill: "Write the debrief memo for the last informal 'test' you ran — from memory, all five headings. The gaps you can't fill are exactly what the sprint protocol exists to prevent."
+        },
+        {
+          id: "strategy-4-5",
+          title: "Own the Relationship: The Layer Beneath the Feed",
+          minutes: 11,
+          xp: 90,
+          skill: "marketing",
+          intro: "Every follower you have lives on rented land, one algorithm change from vanishing. The experts' quiet obsession is converting borrowed attention into relationships no platform can repossess.",
+          sections: [
+            {
+              h: "Rented Land, Owned Land",
+              body: "Platform reach is rented: the landlord sets the terms, changes them without notice, and can evict you outright. Every industry veteran carries a version of the same scar story — the algorithm shift that gutted a format overnight, the account lockout that severed years of audience in an afternoon. None of it requires wrongdoing. It requires only that the platform's incentives move, and they always eventually move.\n\nOwned channels — an email list, a community you administer, a subscriber base with direct contact — invert the power. Reach there is a standing asset: deliverability instead of distribution roulette.\n\nThe expert's operating maxim: **the feed is for harvesting attention; the owned layer is for keeping it.** Every mature strategy runs a continuous conversion pipeline from rented to owned, and measures it with the same seriousness beginners reserve for follower counts. Followers are leads. The list is the asset."
+            },
+            {
+              h: "The DM Layer",
+              body: "Between the public feed and the owned list sits the most underrated surface in social: direct messages — the highest-trust, highest-attention channel any platform offers, with read rates email marketers would trade careers for.\n\nThe mechanics start with keyword automation: 'comment SYSTEM and I'll send you the template.' One mechanism, three payoffs — a comment (heavy ranking signal), an opened DM thread (a persistent private channel), and a delivered asset that begins reciprocity. This is why keyword CTAs have conquered creator marketing: they convert public attention into private conversation at scale.\n\nBut automation is the door, not the room. The trust premium of DMs comes from their personal texture, and experts protect it: real replies to real responses, voice notes for high-value conversations, questions that invite an answer rather than broadcast at the reader. Automate the handshake. Never automate the relationship — audiences feel the difference in one exchange, and the premium evaporates."
+            },
+            {
+              h: "The Capture Offer",
+              body: "Nobody joins a list to 'stay updated.' They trade contact information for a specific, immediate win — so the capture offer is a product, and it deserves product-level design.\n\nThree properties govern conversion. **Mirror your authority pillar:** the lead magnet must extend the exact expertise people already follow you for — a car-negotiation account offers the dealership call script, not a generic finance guide. Alignment here also pre-qualifies the list. **Fast, specific value:** a checklist used today beats a five-day course completed never; consumption speed drives the reciprocity that makes the list responsive later. **A concrete promise in the CTA:** 'the exact 9-line script' outpulls 'my free guide' every time it's tested.\n\nPlacement is portfolio logic, not spray: put capture CTAs on proven posts. The retro-CTA is the expert's quiet weapon — when a post outperforms, edit the caption, pin a comment, add the keyword hook while distribution is still warm. Demand already proven, capture simply attached."
+            },
+            {
+              h: "Measure Capture, Not Just Reach",
+              body: "The owned layer earns its own metrics stack, and the headline number is **capture rate: owned contacts added per 1,000 reached**, tracked monthly. This single ratio reframes everything — a 60k-follower account capturing 2 per 1,000 is building a business; a 500k account capturing 0.1 is building a very impressive billboard.\n\nDownstream, watch engagement depth (open and reply rates for email, active-member share for communities) and revenue per owned contact annually. These reveal whether the pipeline captures genuine relationships or just addresses — a list that never replies is a spreadsheet, not an audience.\n\nThe compounding loop closes elegantly: the feed feeds the list, and the list funds the feed. Owned-channel revenue buys production quality, sponsors nothing can cancel, and the freedom to make content the algorithm merely tolerates. Platform-proof is not a place you arrive. It is a ratio you maintain — and it is the last metric standing when the algorithm has a bad year."
+            }
+          ],
+          takeaways: [
+            "Feed reach is rented; email, community, and DM relationships are owned assets.",
+            "Keyword automations convert public attention into private channels — automate the handshake, never the relationship.",
+            "Capture offers must mirror your authority pillar and deliver a fast, specific win; retro-CTA your proven outliers.",
+            "Track capture rate (owned contacts per 1,000 reached) monthly — it's the business metric hiding under the vanity ones."
+          ],
+          actions: [
+            "Set up one keyword automation this week tied to a genuinely valuable deliverable.",
+            "Design or upgrade your capture offer against the three properties: pillar mirror, fast win, concrete promise.",
+            "Retro-CTA your two best posts from last quarter — caption edit, pinned comment, keyword hook.",
+            "Compute your current capture rate and set a 90-day target."
+          ],
+          quiz: [
+            {
+              q: "Why does a keyword-comment automation ('comment SYSTEM') work so well strategically?",
+              options: ["Comments are easy to fake", "It stacks a ranking-boosting comment, an opened DM channel, and a reciprocity-starting delivered asset in one action", "It requires no deliverable", "Platforms pay for automations"],
+              answer: 1,
+              why: "One viewer action simultaneously feeds the algorithm, opens a private channel, and begins the relationship."
+            },
+            {
+              q: "The strongest capture offer for a car-negotiation account would be:",
+              options: ["A generic personal-finance ebook", "The exact 9-line dealership call script", "A monthly newsletter about the account", "A discount on merchandise"],
+              answer: 1,
+              why: "Pillar-mirrored, fast, specific value converts best and pre-qualifies the list."
+            },
+            {
+              q: "Which account is in the stronger business position?",
+              options: ["500k followers capturing 0.1 contacts per 1,000 reached", "60k followers capturing 2 contacts per 1,000 reached", "They're identical", "Whichever posts more often"],
+              answer: 1,
+              why: "Capture rate measures convertible relationship; the smaller account is building an asset, the bigger one a billboard."
+            }
+          ],
+          drill: "Audit your last 20 posts: how many contained any path to an owned channel? If under 5, write the retro-CTA plan for your three strongest posts tonight."
+        }
+      ]
+    },
+    {
+      id: "strategy-5",
+      level: "Master",
+      title: "Creative Direction: Strategy at Agency Level",
+      description: "The material agencies charge six figures for: strategy briefs, category design, portfolio theory applied to content, attention arbitrage, and the operating system that runs content like a company.",
+      lessons: [
+        {
+          id: "strategy-5-1",
+          title: "The Strategy Brief: Think Like a Creative Director",
+          minutes: 13,
+          xp: 110,
+          skill: "strategy",
+          intro: "Inside every great agency, nothing gets made without a brief — one page that does the thinking so the making can be brave. Masters write briefs for themselves, and it changes everything they ship.",
+          sections: [
+            {
+              h: "Why Agencies Write Briefs",
+              body: "The brief exists to separate two kinds of work that poison each other when mixed: deciding and making. Deciding is strategic — who is this for, what must it achieve, what single idea carries it. Making is creative — hooks, cuts, performances. Attempt both simultaneously and each corrupts the other: strategy drifts toward whatever is easy to shoot, craft gets hedged by second-guessing mid-edit.\n\nAgencies learned this over a century of expensive failures. When a campaign dies, the post-mortem almost always finds the corpse at the brief stage — the objective was fuzzy, the audience was 'everyone,' the proposition was three ideas wearing one sentence.\n\nCreators run the same failure loop without the vocabulary for it. The brief-in-your-head is not a brief; it is a mood, and moods drift daily. One page, written before production, is the discipline that lets execution be fearless — because the thinking is already done and survivable ideas have already killed the weak ones."
+            },
+            {
+              h: "Anatomy of the One-Page Brief",
+              body: "Six blocks, none optional:\n\n1. **Business objective** — the real-world outcome, not the content metric. 'Book 10 discovery calls this quarter,' which then selects the content metric that serves it.\n2. **Audience portrait and insight** — one vivid person, plus the tension section three will demand.\n3. **Single-minded proposition** — ONE idea in one sentence. The agency test is brutal: if the proposition contains an 'and,' it is two briefs. Cut or split.\n4. **Tone and mandatories** — the brand codes that must appear: phrases, visual signatures, the things repetition has made yours.\n5. **Success metric** — the number, the threshold, the review date. Prewritten, per sprint discipline.\n6. **Deliverables and deadline** — formats, counts, dates.\n\nBrief a quarter, a series, or a single flagship post — the scale changes, the anatomy doesn't. If a block resists being filled, you have located this project's actual problem early, at the cheapest possible price."
+            },
+            {
+              h: "The Insight Is the Hard Part",
+              body: "Five of the six blocks are administration. The insight is the craft — and it is what separates strategists from planners.\n\nAn insight is not a fact about the audience ('millennials value experiences'). It is a **tension** the audience feels but has never articulated: wants freedom, is addicted to the salary. Buys courses to postpone starting. Photographs the car to prove the years of being broke meant something. When an insight is right, the audience reaction is visceral — 'get out of my head' — and content built on it feels like recognition rather than reach.\n\nInsights are mined, not brainstormed: sales-call objections, DM confessions, comment sections at their most honest (especially on competitors' posts, where people say what they'd never say to your face), reviews of adjacent products. Then apply the stress test: does the reversed insight also sound plausible? 'People want convenience' reverses into nonsense — too weak to build on. A proposition without tension underneath it produces technically competent wallpaper, and wallpaper is the default output of this entire industry."
+            },
+            {
+              h: "From Proposition to Territories",
+              body: "One proposition can be carried by many creative directions — agencies call them territories, and generating them is where strategy hands the baton to craft.\n\nTake the proposition 'the salary is the trap.' Territory one: **proof-led** — documented escapes, real numbers, receipts. Territory two: **enemy-led** — autopsies of the system that builds the trap. Territory three: **transformation-led** — day-one versus day-four-hundred stories, identity arcs. Same idea, three distinct shows.\n\nChoose territories on strategic fit, not personal taste: which does your proof credibly support? Which is under-occupied in your niche? Which sustains fifty episodes? Run one primary and one secondary; a single territory is fragile, three is a blurred account.\n\nThen the brief becomes the review instrument. Every piece that ships gets one question — 'is this on-brief?' — which quietly replaces the amateur question, 'do I like it?' Liking is a mood. On-brief is a standard. Masters review against standards."
+            }
+          ],
+          takeaways: [
+            "Briefs separate deciding from making — mixed, each corrupts the other.",
+            "Six blocks: objective, audience + insight, single-minded proposition, tone/mandatories, success metric, deliverables.",
+            "An insight is an unarticulated tension, mined from objections and confessions — and it must survive the reversal test.",
+            "Carry one proposition through one primary territory; review everything with 'is this on-brief?', never 'do I like it?'"
+          ],
+          actions: [
+            "Write a full one-page brief for your next 30 days of content, all six blocks.",
+            "Mine for one genuine insight this week: 30 minutes in competitor comments, your DMs, and any sales conversations. Draft the tension in one sentence.",
+            "Generate three territories for your proposition and select primary and secondary with written reasoning."
+          ],
+          quiz: [
+            {
+              q: "What is the core function of a strategy brief?",
+              options: ["Impressing clients", "Separating strategic deciding from creative making so each can be done fully", "Replacing analytics", "Documenting past posts"],
+              answer: 1,
+              why: "Deciding-while-making corrupts both; the brief finishes the thinking so execution can be brave."
+            },
+            {
+              q: "Which of these is an insight rather than a fact?",
+              options: ["'Millennials value experiences'", "'They want freedom but are addicted to the salary'", "'Video outperforms photos'", "'Our audience is 25-34'"],
+              answer: 1,
+              why: "An insight is a felt, unarticulated tension — facts describe, tensions move."
+            },
+            {
+              q: "The proposition draft contains 'and.' The agency-standard response is:",
+              options: ["Keep it — comprehensive is better", "Cut or split it — an 'and' means two briefs pretending to be one", "Add a third idea for safety", "Move it to the mandatories"],
+              answer: 1,
+              why: "Single-minded means single: one idea per brief is what makes execution coherent."
+            }
+          ],
+          drill: "Take your three most recent posts and reverse-engineer the brief each was implicitly built on. Write the proposition you find. If you can't — or they're all different — you've diagnosed the account."
+        },
+        {
+          id: "strategy-5-2",
+          title: "Category of One: Advanced Positioning",
+          minutes: 13,
+          xp: 110,
+          skill: "branding",
+          intro: "Intermediate positioning fights for a better seat at the table. Master positioning builds a different table — a category where you are, by construction, the only option.",
+          sections: [
+            {
+              h: "Different Beats Better",
+              body: "'Better' is a losing war. It is subjective, contested by everyone in the niche, and audited by an audience with no time — every fitness creator claims better programming; every agency claims better results. Claims of better cancel each other into static.\n\n'Different' is winnable, because different is definitional. The strategist's move — category design — is to stop competing inside the existing frame and rename the game: not another 'financial advisor' but the first 'exit planner for agency owners.' Not a 'video editor' but 'the retention engineer.' Inside a category of one, comparison shopping is structurally impossible; the alternatives aren't worse, they're irrelevant.\n\nThe discipline this demands is subtraction. A category of one is built by what you refuse: audiences you won't serve, topics you won't touch, formats you won't make. Every refusal sharpens the definition. The generalist fights ten thousand rivals for scraps of preference. The category owner fights nobody, because nobody else fits the definition — the definition was drawn around them."
+            },
+            {
+              h: "The Three Category Moves",
+              body: "Category designers run a repeatable sequence:\n\n1. **Name the enemy.** Not a person — the old way. 'Hustle-culture fitness advice.' 'Spray-and-pray content marketing.' A named enemy imports instant clarity (you are its opposite) and instant energy (every enemy autopsy is a post).\n2. **Name the new way — and own the name.** Package your approach as branded IP: 'The Retention-First Method.' 'Silent Selling.' Named frameworks are compressible, teachable, and attributable — when the market repeats your term, every mention builds your category. Unnamed ideas get absorbed into the commons; named ones carry a return address.\n3. **Name the stakes.** Articulate what following the old way costs and what the new way unlocks. Stakes convert a preference into a decision.\n\nThen repeat the language with liturgical discipline — same terms, exact phrasing, across hundreds of posts. Vocabulary is the category. When strangers explain your framework to each other, using your words, in comment sections you've never visited: that is the finish line."
+            },
+            {
+              h: "Distinctive Assets",
+              body: "Brand science — Byron Sharp and the Ehrenberg-Bass school — gives masters a hard result: brands grow through **mental availability**, the probability of being recalled in a buying-or-viewing moment, and mental availability is built by distinctive assets — the sensory signatures that trigger recognition before comprehension.\n\nCodify yours in two registers. **Verbal codes:** a catchphrase opener, a signature sign-off, your framework vocabulary, even a characteristic sentence rhythm. **Visual codes:** a color that owns your covers, consistent framing, a wardrobe signature, a set element, a recurring gesture. Individually trivial; systematized, they become a recognition engine that fires in the first half-second of a scroll — before the hook even gets its chance.\n\nThe audit is beautifully simple: screenshot your latest post, cover the handle, show it to someone who knows your niche. Instant recognition means the codes are working. Hesitation means you are — in the only sense that matters — generic. Recall beats polish, every time they compete for budget."
+            },
+            {
+              h: "Stress-Test the Position",
+              body: "Master-level positions get audited like assets, on a schedule. Four tests:\n\n- **The substitute test.** Drop your name into a competitor's bio. Reads fine? The position is a commodity wearing your face.\n- **The premium test.** Would someone pay more — money or attention — for you specifically, by name, over a competent alternative? Categories of one command premiums; commodities compete on price.\n- **The sentence test.** Compare how strangers describe you (comments, introductions, shares) against how you describe yourself. Alignment means the position transmitted; divergence means the market filed you somewhere else — and the market's filing is the real position.\n- **The subtraction test.** List what you've publicly refused. A short list means the category boundary is soft.\n\nThen the hardest instruction in this school: once the tests pass, **freeze the language for twelve months.** No wordsmithing, no seasonal refresh. Repetition is what converts a positioning statement into a market position — and every 'improvement' quietly resets the meter."
+            }
+          ],
+          takeaways: [
+            "Compete on different, not better — category design renames the game instead of playing it harder.",
+            "Run the sequence: name the enemy, name and own the new way, name the stakes.",
+            "Build mental availability with codified verbal and visual codes; recall beats polish.",
+            "Audit with the substitute, premium, sentence, and subtraction tests — then freeze the language for a year."
+          ],
+          actions: [
+            "Draft your category in one line: the enemy, the new way's name, the stakes.",
+            "Codify your asset sheet: 3 verbal codes and 3 visual codes you'll repeat without exception.",
+            "Run the covered-handle audit with two people who know your niche and log the verdicts.",
+            "Write your public refusal list — audiences, topics, and formats that are officially not yours."
+          ],
+          quiz: [
+            {
+              q: "Why is 'different' strategically superior to 'better'?",
+              options: ["Better requires more skill", "Better is contested and cancels into static; different is definitional and makes comparison structurally irrelevant", "Audiences dislike quality", "Different is cheaper to produce"],
+              answer: 1,
+              why: "A category of one has no shelf to be compared on — that's the entire point of designing it."
+            },
+            {
+              q: "What makes a named framework ('The Retention-First Method') strategically powerful?",
+              options: ["Names are trademarkable", "Named ideas are compressible, teachable, and attributable — every market repetition builds your category", "Algorithms boost capitalized phrases", "It fills caption space"],
+              answer: 1,
+              why: "Unnamed ideas dissolve into the commons; named ones carry a return address back to you."
+            },
+            {
+              q: "Your positioning passes all four stress tests. The master-level move is:",
+              options: ["Refresh the wording to keep it exciting", "Freeze the language for twelve months and let repetition compound it", "Expand into three new categories", "Retire the positioning"],
+              answer: 1,
+              why: "Repetition converts statements into market positions; each rewrite resets the meter to zero."
+            }
+          ],
+          drill: "Write the enemy autopsy post: name the old way in your niche, dissect why it fails, and present your named alternative. This single post template is the category-design engine — draft it tonight."
+        },
+        {
+          id: "strategy-5-3",
+          title: "The Portfolio Approach: Program Content Like an Investor",
+          minutes: 13,
+          xp: 110,
+          skill: "strategy",
+          intro: "Fund managers stopped expecting every position to win a century ago. Masters program content the same way — allocations, kill criteria, and an honest relationship with the power law.",
+          sections: [
+            {
+              h: "Content Follows a Power Law",
+              body: "Pull any mature account's data and the same shape appears: a small fraction of posts generates the overwhelming majority of reach, follows, and revenue attribution. Not a rough 80/20 — often steeper. This is a power-law distribution, the same mathematics governing venture returns and box-office hits.\n\nAmateurs experience the power law as emotional whiplash — despair at the flops, superstition about the spikes. Masters accept it as the terrain and restructure their expectations around a portfolio question: not 'will this post win?' but 'is this collection of positions constructed so the winners more than pay for everything else?'\n\nThe operational shift is from maximizing hit rate to maximizing **expected value**: keep the cost of misses low (fast, systematized production), keep the upside of hits uncapped (formats that can travel, CTAs ready to catch the surge), and take enough intelligent shots for the distribution's tail to find you. You cannot schedule the outlier. You can absolutely be structured to deserve one."
+            },
+            {
+              h: "70/20/10 Capital Allocation",
+              body: "The allocation framework, borrowed from portfolio management and R&D budgeting:\n\n- **70% core holdings** — proven formats in verified fit territories. Predictable, median-reliable, the baseline that keeps the account compounding while experiments run. This is your index fund.\n- **20% calculated bets** — evidence-backed variations: a proven format aimed at an adjacent topic, a new hook archetype on a winning series, a second platform for a verified pillar. Underpriced upside with a thesis behind it.\n- **10% moonshots** — the weird ones. New formats, tonal risks, ideas with no precedent in your data. Most die quietly. The occasional one redefines the account — and it justifies the whole sleeve.\n\nThe ratios flex with strategy: post-audit conviction can push core to 80; a decaying niche argues for a fatter bet sleeve. What is never acceptable at master level is an unconscious allocation — drifting to 100% core out of comfort, or 50% moonshots out of boredom. Both are how accounts die: one slowly, one loudly."
+            },
+            {
+              h: "Kill Criteria and Position Sizing",
+              body: "Two investor disciplines transfer directly.\n\n**Predefined exits.** Before any new format enters the portfolio, write its kill criteria: 'five attempts; if the median sits below 0.6x account baseline, it exits.' Decided in advance, in cold blood — because after five posts you will be attached, and attachment negotiates. Sunk production cost is the creator's most expensive emotion; the hours already spent on a failing format are gone whether or not you spend more.\n\n**Position sizing by conviction.** Scale investment to evidence, not excitement. A moonshot gets the minimum viable version — one afternoon, phone-shot, existing setup. A bet earning promotion gets real production. A core format with quarters of data earns the full machine: series container, best slots, production budget. The classic amateur catastrophe is inverse sizing — blowing three weeks of production on an unvalidated concept because it felt destined. Feelings are not a data source. Fund evidence, starve hope."
+            },
+            {
+              h: "The Quarterly Portfolio Review",
+              body: "Once a quarter, write yourself a fund letter — the discipline that makes the whole approach real. Four sections:\n\n1. **Performance by holding:** every format and series against its benchmarks; medians, trends, notable outliers in both directions.\n2. **Attribution:** what actually drove the quarter's growth and revenue — traced honestly, which is regularly humiliating. The format you love and the format that pays are frequently not the same format.\n3. **Thesis updates:** what you now believe about your audience that last quarter's letter didn't know, with the evidence.\n4. **Next quarter's allocation:** the 70/20/10 named concretely — which holdings, which bets, which moonshots, and what got killed.\n\nWrite it even though nobody reads it. Especially because nobody reads it: prose forces the honesty that mental accounting endlessly defers. Fund managers write letters in losing quarters too — those are the ones where the discipline earns its keep."
+            }
+          ],
+          takeaways: [
+            "Content returns follow a power law — build for expected value, not hit rate.",
+            "Allocate consciously: 70% proven core, 20% evidence-backed bets, 10% moonshots.",
+            "Write kill criteria before launching any format; size production to conviction, never to excitement.",
+            "The quarterly fund letter — performance, attribution, thesis, allocation — is what makes portfolio thinking real."
+          ],
+          actions: [
+            "Classify your last 30 posts as core, bet, or moonshot and compute your actual current allocation.",
+            "Write kill criteria for every format currently running without them.",
+            "Draft your first fund letter this quarter — all four sections, one page."
+          ],
+          quiz: [
+            {
+              q: "Given the power law, what should a master maximize?",
+              options: ["Hit rate — fewer flops", "Expected value — cheap misses, uncapped wins, enough intelligent shots", "Posting volume alone", "Average production quality"],
+              answer: 1,
+              why: "When returns are power-law distributed, the tail pays for everything; structure to deserve the tail."
+            },
+            {
+              q: "Why must kill criteria be written before a format launches?",
+              options: ["Platforms require disclosure", "Attachment forms after launch and negotiates with the data; pre-commitment keeps exits honest", "It saves editing time", "To share with your audience"],
+              answer: 1,
+              why: "Sunk-cost emotion is strongest exactly when the kill decision arrives; cold-blooded rules beat warm-blooded rationalization."
+            },
+            {
+              q: "The correct production investment for an unvalidated moonshot concept is:",
+              options: ["Three weeks and full production value", "The minimum viable version — one afternoon, existing setup", "Zero — never try moonshots", "Whatever excitement dictates"],
+              answer: 1,
+              why: "Position sizing follows evidence; moonshots earn bigger budgets by surviving cheap tests first."
+            }
+          ],
+          drill: "Trace your last quarter's follower growth to its top 5 source posts and calculate what percentage of total growth they produced. Sit with the number — that's the power law you're allocating against."
+        },
+        {
+          id: "strategy-5-4",
+          title: "Attention Arbitrage: Reading Platform Shifts Early",
+          minutes: 13,
+          xp: 110,
+          skill: "strategy",
+          intro: "Every few years a window opens where reach is briefly underpriced — and the creators who walk through it early build in months what others grind toward for years. Windows announce themselves, if you know the tells.",
+          sections: [
+            {
+              h: "The Arbitrage Principle",
+              body: "Attention is a market, and reach is priced by competition: the more creators bidding for a surface's audience, the more skill and budget each impression costs. Arbitrage exists wherever that price is temporarily wrong — almost always because a platform is deliberately over-supplying distribution.\n\nThe mechanism is structural, not mystical. When a platform launches a strategic format or surface, it faces a cold-start problem: the new surface needs content before it can hold users. So the platform floods early suppliers with outsized reach — effectively paying creators in distribution to solve its inventory problem. Early Reels and early Shorts followed exactly this pattern, and the creators who moved in force built compounding audiences at a fraction of today's cost per follower.\n\nThe window closes on schedule: supply floods in, the subsidy tightens, price normalizes. Arbitrage is never a permanent strategy. It is a recurring event — and masters treat detecting it as a standing discipline, not a lucky break."
+            },
+            {
+              h: "Leading Indicators",
+              body: "Platform strategy telegraphs itself through observable moves. The checklist:\n\n- **Surface area** — the format gets its own tab, its own button, placement in the main navigation. Screen real estate is the sincerest form of corporate commitment.\n- **Money** — creator funds, bonuses, revenue-share programs aimed at one format. Platforms pay for exactly what they lack.\n- **First-party promotion** — the platform's own channels and keynotes push the format; executives demo it on stage.\n- **Competitive cloning** — a rival ships an imitation, confirming the category war and predicting distribution subsidies on both sides.\n- **Tooling investment** — analytics dashboards, editing suites, and APIs built for the format signal long-horizon commitment, not an experiment.\n\nAny single indicator is noise. Two is a hypothesis worth a probe. Three or more, moving in the same direction inside a quarter — the window is open, and it is already closing."
+            },
+            {
+              h: "The Scout Protocol",
+              body: "Detection without a deployment system is trivia. The scout protocol turns your portfolio's 10% moonshot sleeve into a standing frontier watch.\n\nWhen indicators trigger, run a **four-week probe**: eight to twelve native posts on the new surface, built by translating your proven mechanisms into the local grammar — never precious platform-original productions at this stage. Before the first post, predefine the promising threshold, exactly as sprint discipline demands: 'reach per hour invested beats my primary platform's median' or 'follower acquisition cost in effort terms runs materially cheaper.'\n\nJudge on effort-adjusted return, not raw numbers — an immature surface with modest absolute reach can still be wildly underpriced per hour. And expect dead probes; most frontiers are false. Ten cheap scouting failures are the fair market price of one open window, and the window, caught early, repays them all at multiples. Budget for the failures. They are the tuition."
+            },
+            {
+              h: "Entering and Exiting",
+              body: "When a probe confirms the window, escalate deliberately: promote the surface from the 10% sleeve into the 20% bet sleeve. Shift from translated content to genuinely native work — arbitrage rewards fluency in the new grammar, and the early-leader slots in an immature format are claimed by whoever defines its conventions. Immediately wire the new surface into your ecosystem's capture routes, because subsidized reach that never converts to owned contacts is a spectacle, not an asset.\n\nThen watch for closure with the same rigor you watched for opening: reach-per-effort trending down toward your primary platform's parity, sophisticated competitors flooding the surface, subsidy programs quietly sunsetting. At parity, downgrade to maintenance — the audience built there remains yours; only the acquisition subsidy has expired.\n\nThe complete skill is being early twice: early in, while attention is cheap, and early out, redeploying scouting capacity toward the next frontier while rivals over-invest in the closed one. Most creators manage neither. The masters you study managed both, repeatedly — that is what 'first-mover advantage' actually looked like from inside."
+            }
+          ],
+          takeaways: [
+            "Platforms over-supply distribution to cold-start strategic formats — that subsidy is the arbitrage.",
+            "Read the tells: dedicated surface area, creator money, first-party promotion, competitive clones, tooling. Two triggers a probe; three-plus means the window is open.",
+            "Probe with 8-12 translated native posts over four weeks, judged on predefined effort-adjusted thresholds.",
+            "Escalate winners into the bet sleeve and wire in capture; exit to maintenance at reach-parity. Early twice — in and out."
+          ],
+          actions: [
+            "Write your frontier watchlist: every new surface or format your platforms shipped in the last six months, scored against the five indicators.",
+            "If anything scores two-plus, design the four-week probe with its threshold predefined.",
+            "Audit your history honestly: which past window did you miss, and which indicator would have caught it? Add that indicator to your quarterly review."
+          ],
+          quiz: [
+            {
+              q: "Why do new platform surfaces temporarily over-distribute content?",
+              options: ["Engineering bugs inflate reach", "The platform pays creators in distribution to solve its cold-start inventory problem", "Early content is simply better", "Regulators require it"],
+              answer: 1,
+              why: "A new surface needs content before it can hold users, so early suppliers get subsidized reach."
+            },
+            {
+              q: "How many leading indicators justify running a probe?",
+              options: ["One is plenty", "Two — with three-plus meaning the window is already open", "Wait for five", "Indicators are unreadable in advance"],
+              answer: 1,
+              why: "Single signals are noise; convergence of two or more inside a quarter is a real hypothesis."
+            },
+            {
+              q: "The correct exit trigger for an arbitrage position is:",
+              options: ["Six months elapsed, regardless of data", "Reach-per-effort falling to parity with your primary platform", "The first competitor arriving", "Never exit — commit permanently"],
+              answer: 1,
+              why: "The position was justified by underpriced reach; at parity the subsidy is gone and scouting capacity belongs elsewhere."
+            }
+          ],
+          drill: "Study one historical window — early Reels, early Shorts, or early TikTok — through creators who caught it. Write the timeline: which indicators fired, when they entered, when the window closed, and what the late arrivals paid in extra effort."
+        },
+        {
+          id: "strategy-5-5",
+          title: "The Growth Operating System: Run Content Like a Company",
+          minutes: 14,
+          xp: 110,
+          skill: "analytics",
+          intro: "Strip the mystique from any账 great media operation and you find the same machinery: cadences, metrics with owners, separated roles, and written memos. This lesson hands you the machine.",
+          sections: [
+            {
+              h: "Cadences, Not Heroics",
+              body: "Amateur accounts run on heroics — bursts of inspiration, panic pivots, redemption arcs after every slump. Companies run on cadences: fixed rhythms that guarantee the right questions get asked at the right altitude, on schedule, regardless of mood.\n\nThe full stack: **daily** — a ten-minute signal check: yesterday's numbers, comments harvested, anomalies flagged, nothing more. **Weekly** — the iteration loop and pipeline review from Advanced, now non-negotiable ritual. **Monthly** — format and pillar performance against benchmarks; allocation micro-adjustments. **Quarterly** — the 80/20 audit, the portfolio fund letter, the strategy memo. **Annually** — positioning review: does the category still hold, has the market moved, is the enemy still the enemy?\n\nEach cadence owns its altitude, and the separation is the point: daily data is weather, quarterly data is climate, and reacting to weather with climate-level decisions — the panic pivot — is the amateur signature. The OS makes good process automatic precisely so bad weeks can't reach the strategy."
+            },
+            {
+              h: "The Metrics Stack",
+              body: "Companies run on one North Star supported by an input tree. Choose the North Star by business model, not availability: an audience business might pick owned contacts added per month; a service business, qualified conversations started; a media brand, deep-engagement hours. Follower count is almost never it — followers are an input to every one of those, not an end.\n\nBeneath the North Star, map the tree: reach × retention × conversion × capture. Each layer has its five-numbers instrumentation from earlier levels, and each layer now gets an **owner** — a cadence where it is reviewed and someone (you, wearing a specific hat) answerable for its trend. The operating rule: a metric without a meeting is a metric without an owner, and unowned metrics decay silently until the annual review finds the wreckage.\n\nThe tree also disciplines diagnosis: when the North Star dips, walk down the layers to find which input actually moved. Companies that skip the walk fix the wrong layer — so do creators."
+            },
+            {
+              h: "Hats, Even Solo",
+              body: "A one-person media company still contains four jobs, and naming them changes how each gets done:\n\n- **The strategist** decides what and why: briefs, allocations, kills. Works quarterly and monthly.\n- **The creator** performs and produces. Works in batch days.\n- **The editor** packages: cuts, covers, captions, QC against the brief's mandatories.\n- **The analyst** reads and reports: the rituals, the logs, the memos.\n\nThe rule that makes hats real: **never let one hat overrule another mid-shift.** Strategy decided in the edit chair at 11pm is mood wearing a lapel pin; creative choices second-guessed mid-performance produce hedged, lifeless takes. Each hat gets scheduled time and full authority inside it.\n\nAnd keep a **decision log** — date, decision, reasoning, review date. Its value is brutal and cumulative: six months later you will know whether your reasoning was sound or merely confident, which is the only way judgment actually improves. Teams get this feedback in meetings. Solo operators must manufacture it."
+            },
+            {
+              h: "The Strategy Memo",
+              body: "The OS's capstone is the quarterly strategy memo — one page, written even when (especially when) nobody but you will read it. Five sections: **state of the account** in numbers against last quarter's plan; **what we learned** — sprint debriefs, audit patterns, thesis updates, each with evidence; **the thesis** for next quarter, stated as falsifiable belief; **allocations** — the 70/20/10, named; **risks** — what could break, and the leading indicator you'll watch for each.\n\nWhy prose instead of a dashboard? Amazon's memo culture holds the answer: narrative forces linear, complete reasoning, and fuzzy thinking cannot survive being written in full sentences. Dashboards display; they never argue. The memo must argue with you.\n\nWritten over years, the memos become the institutional memory a company would have — and the difference between the account that posts and the media company that compounds. This is the whole school in one habit: strategy is not what you intend. Strategy is what you write down, execute, measure, and revise, on schedule, forever."
+            }
+          ],
+          takeaways: [
+            "Run cadences at five altitudes — daily, weekly, monthly, quarterly, annually — and never answer weather with climate-level decisions.",
+            "One North Star chosen by business model, an input tree beneath it, and every metric owned by a cadence.",
+            "Work in four hats — strategist, creator, editor, analyst — with scheduled authority and no mid-shift overrules.",
+            "The quarterly strategy memo argues in prose: state, learnings, thesis, allocations, risks. Written strategy compounds; intended strategy evaporates."
+          ],
+          actions: [
+            "Install the cadence stack in your calendar today: daily 10-minute check, weekly loop, monthly review, quarterly memo day.",
+            "Choose your North Star with one written sentence of justification, and sketch its input tree.",
+            "Start the decision log with the three biggest calls you've made this quarter, reasoning included.",
+            "Block half a day this month to write your first full strategy memo."
+          ],
+          quiz: [
+            {
+              q: "Why must daily signals never drive strategy-level decisions?",
+              options: ["Daily data is always wrong", "Daily data is weather; strategy answers climate — mixing altitudes produces panic pivots", "Strategy can only change annually", "Platforms penalize frequent changes"],
+              answer: 1,
+              why: "Each cadence owns an altitude; reacting to noise with structural change is the amateur signature."
+            },
+            {
+              q: "What does 'a metric without a meeting is a metric without an owner' prescribe?",
+              options: ["Hold more meetings", "Assign every tracked metric to a specific cadence where it is reviewed and answered for", "Track fewer metrics", "Outsource analytics"],
+              answer: 1,
+              why: "Unreviewed metrics decay silently; the cadence is what makes a number somebody's responsibility."
+            },
+            {
+              q: "Why does the strategy memo use prose instead of a dashboard?",
+              options: ["Prose is more impressive to clients", "Narrative forces complete, linear reasoning — fuzzy thinking can't survive full sentences, while dashboards display without arguing", "Dashboards are expensive", "Memos load faster"],
+              answer: 1,
+              why: "The memo's job is to argue with you; only written reasoning exposes the gaps a dashboard hides."
+            }
+          ],
+          drill: "Write this quarter's strategy memo tonight in draft form — all five sections, bullet-point quality allowed. The struggle to fill any section is a precise map of what your operation doesn't yet know about itself."
+        }
+      ]
+    }
+  ]
+});
+

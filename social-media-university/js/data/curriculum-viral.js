@@ -1073,6 +1073,602 @@ SMU_DATA.schools.push({
           drill: "Edit the same 20-second sequence twice: once with naked cuts, once with J-cuts, cuts on action, and a dropout. Show both versions to someone and ask which felt shorter."
         }
       ]
+    },
+    {
+      id: "viral-4",
+      level: "Expert",
+      title: "Engineered Distribution",
+      description: "Retention gets you watched; distribution gets you found. Save-ability, share triggers, CTA architecture, comment velocity, and repeatable formats — the mechanics that turn one viewer into three.",
+      lessons: [
+        {
+          id: "viral-4-1",
+          title: "Save-ability: Content as an Asset",
+          minutes: 10,
+          xp: 90,
+          skill: "viral",
+          intro: "A view is consumption. A save is a viewer filing your content into their future. Engineering for saves means building reference assets, not just videos.",
+          sections: [
+            {
+              h: "The save is a promise to return",
+              body: "Platforms weight saves so heavily because a save is a bet the viewer places on their own future behavior: I will need this again. That bet predicts return sessions — the platform's core business — and it reveals something a like never does: your content had *utility density* beyond one viewing. Engineering for saves therefore starts with a blunt question at the idea stage: is there any plausible future moment when a viewer would need this again? 'My thoughts on the market' has no such moment. 'The 7 questions to ask before signing any lease' has an obvious one — the day they sign a lease. Save-first content is anticipatory: it serves a situation the viewer expects to face, not just a feeling they have now. Audit your content calendar with this lens and most creators find they publish ten feeling-pieces for every situation-piece. Inverting even part of that ratio changes what the ranking system sees in you."
+            },
+            {
+              h: "The reference formats",
+              body: "Certain structures are save magnets because their shape announces future utility.\n\n- **The checklist**: 'everything to shoot at a car meet' — sequential, complete, situation-bound.\n- **The framework**: a named, numbered method ('the 3-2-1 lighting setup') — compresses expertise into a memorable object.\n- **The settings card**: exact numbers on screen — shutter, ISO, export bitrate. Nobody memorizes numbers; everybody saves them.\n- **The decision tree**: 'if X, do A; if Y, do B' — resolves a future dilemma the viewer knows is coming.\n- **The swipe file**: 'ten hooks that worked in real estate this month' — raw material for the viewer's own work.\n\nNote what they share: density beyond single-viewing absorption, and a clear retrieval moment. On carousel-native platforms, these formats also justify the carousel — a format viewers physically flip through, which is itself a retention signal."
+            },
+            {
+              h: "Design for the second viewing",
+              body: "Save-first content obeys different craft rules than watch-first content, and mixing the rulebooks weakens both. The saved video will be re-watched with intent — paused, scrubbed, screenshotted — so optimize for retrieval: put the complete list on screen at once near the end (the screenshot frame), number every item verbally and visually, keep each item's on-screen text self-sufficient without the voiceover, and front-load the video's promise but back-load its density. Yes, this mildly hurts linear retention — a settings card at the end invites a skip-ahead. Accept the trade deliberately: this piece's job is saves, and its ranking will ride the save rate. Then say the word. 'Save this for your next shoot day' is not begging; it is labeling — viewers genuinely forget the button exists mid-scroll, and naming the future moment ('for when you...') converts diffuse appreciation into a filed asset. The reminder consistently and measurably lifts save rate."
+            },
+            {
+              h: "The compounding library",
+              body: "Save-first pieces age differently from viral spikes: they keep working. A watch piece lives and dies in its distribution window; a reference asset accrues saves for months, resurfaces every time the platform detects fresh save velocity, and gets rediscovered through search — which increasingly matters as every platform leans into search behavior. The expert strategy is building a deliberate **reference library**: a core set of pieces that fully cover your niche's recurring situations, interlinked by your own comments and follow-ups ('the full lighting breakdown is pinned on my page'). This library becomes your account's balance sheet — the asset base that keeps producing views between hits — and your conversion engine, because a stranger who saves you once has flagged themselves as a future follower; they filed you into their life. When you plan a month of content, mark each idea watch, share, or save, and make sure the save column is never empty."
+            }
+          ],
+          takeaways: [
+            "A save is a bet on future need — build for situations viewers expect to face, not just feelings they have now.",
+            "Reference formats win saves: checklists, named frameworks, settings cards, decision trees, swipe files.",
+            "Design saved pieces for retrieval — screenshot frames, numbered items, self-sufficient text — and say 'save this' with the future moment named.",
+            "Reference assets compound for months and form the library that produces views between hits."
+          ],
+          actions: [
+            "Recast one upcoming feeling-piece as a situation-piece with a nameable retrieval moment.",
+            "Build one settings card or checklist video this week with a deliberate screenshot frame near the end.",
+            "Plan next month's calendar with watch/share/save labels — the save column may not be empty."
+          ],
+          quiz: [
+            {
+              q: "Why do platforms weight saves so heavily?",
+              options: ["Saves are rare", "A save predicts return sessions — future platform usage", "Saves generate ad revenue directly", "Saved videos use less bandwidth"],
+              answer: 1,
+              why: "The save is the viewer betting they'll come back — exactly the behavior the platform sells."
+            },
+            {
+              q: "Which idea is save-first by design?",
+              options: ["'My honest thoughts on the market'", "'The 7 questions to ask before signing any lease'", "'Day in my life as an agent'", "'Reacting to this listing'"],
+              answer: 1,
+              why: "It serves a specific future situation — lease-signing day — which is the retrieval moment that motivates the save."
+            },
+            {
+              q: "The 'screenshot frame' technique means:",
+              options: ["Watermarking every frame", "Putting the complete list or settings on screen at once near the end for capture", "Using vertical stills", "Freezing the first frame"],
+              answer: 1,
+              why: "Saved content is retrieved with intent; one complete, capturable frame serves that retrieval."
+            }
+          ],
+          drill: "Open your own saved folder and study the last ten things you saved. Write the retrieval moment you imagined for each — then design one video that would earn a slot in a stranger's folder."
+        },
+        {
+          id: "viral-4-2",
+          title: "Share Triggers: Designing the Send",
+          minutes: 10,
+          xp: 90,
+          skill: "viral",
+          intro: "Every share is a private broadcast: one person staking a little social capital on your content. Expert-level growth means designing that transaction before you shoot.",
+          sections: [
+            {
+              h: "The send is the atomic unit of virality",
+              body: "Strip virality to its physics and one event drives everything: a viewer converts into a distributor. Algorithmic reach is rented; sent reach is earned, and it arrives with an endorsement attached — a DM'd video from a friend gets watched with attention no feed placement can buy. This is why sends-per-reach predicts breakouts better than any other ratio, and why expert creators design the send as deliberately as beginners design the hook. Recall the four motives from the Beginner course — status, tribe, care, emotion overflow. The expert move is choosing the target motive *at the idea stage* and shaping every element toward it. A tribe-send needs hyper-specific recognition. A care-send needs consequence and a nameable recipient. A status-send needs scarcity of insight. An overflow-send needs a peak that exceeds one person's capacity to enjoy alone. Different machines, different blueprints. 'Making shareable content' is not a strategy; engineering a specific send between specific people is."
+            },
+            {
+              h: "Lower the social price of sharing",
+              body: "Every share has a price: the sender's judgment is now attached to your content. Expert share design lowers that price on three fronts. **Length**: a 25-second video is a smaller ask of the recipient than 90 seconds; senders pre-filter for their friend's patience, and short wins. **Risk**: the sender must be confident the video lands without caveats — inside jokes that need context, slow openings that need 'wait for it,' or anything embarrassing to be associated with all raise the price. The middle of your video matters here: people share what they finished and trust throughout, not what merely started well. **Framing effort**: the send needs a caption, and if the sender must compose one, some won't. Great share pieces come pre-captioned — the video's own text hook or title *is* the message ('this is why your reels die at 200 views'), forwarding friction reduced to zero. Watch your own sending behavior for a week; every hesitation you feel is a price your viewers pay too."
+            },
+            {
+              h: "The callout and the mirror",
+              body: "Two mechanisms convert passive enjoyment into an active send. **The callout** names the recipient class explicitly: 'send this to the friend who still shoots vertical video in horizontal mode.' It works because it converts a diffuse feeling ('ha, that's like Dave') into an instruction with an address — and specificity is everything; 'tag a friend' is wallpaper, while 'send this to the group chat that plans trips and never books one' fires because the viewer *has that exact chat*. **The mirror** works one level deeper: content so precisely observed that viewers send it as self-description — 'this is literally me.' Mirror content requires niche fluency no outsider can fake: the exact phrase the gym receptionist uses, the precise chaos of a listing photo shoot. The payoff compounds, because mirror sends recruit from the sender's tribe — people just like them — which is precisely the audience your account needs next. Comedy creators run on mirrors. Every niche has them waiting."
+            },
+            {
+              h: "Reading share data like an operator",
+              body: "Shares are measurable, and the numbers refine the craft. Watch **shares-per-reach** (not raw shares — a big video shares more by default) and compare across your own pieces to learn which motives your audience actually acts on: some audiences are tribe-senders, others care-senders, and two months of data will tell you which machine to build more of. Watch *where* shares spike within a video when platform analytics expose it — a share cluster at one moment tells you the peak that exceeded holding capacity, and that moment's DNA should inform your next five pieces. Watch the **share-to-follow ratio** on breakout videos: high shares with low follows means the piece traveled but didn't advertise the account — usually fixable with a stronger identity beat near the end. And treat anomalies as gold: the modest video with an outlier share rate found a nerve; interview it. Rebuild it bigger. Distribution data is your audience telling you what they're willing to stake their name on."
+            }
+          ],
+          takeaways: [
+            "The send is the atomic unit of virality — design the specific transaction (who sends, to whom, why) at the idea stage.",
+            "Lower the social price: short, caveat-free, and pre-captioned so forwarding costs nothing.",
+            "Callouts give the send an address; mirrors turn content into self-description that recruits the sender's tribe.",
+            "Read shares-per-reach, in-video share clusters, and share-to-follow ratio to learn which machine to build next."
+          ],
+          actions: [
+            "Choose the target share motive for your next three pieces before scripting them, and write the imagined DM for each.",
+            "Rewrite one 'tag a friend' impulse into a surgically specific callout with a real address.",
+            "Pull shares-per-reach for your last ten posts and rank them — interview the outlier."
+          ],
+          quiz: [
+            {
+              q: "Why does sent reach outperform algorithmic reach per view?",
+              options: ["It counts double in analytics", "It arrives with a personal endorsement attached", "It bypasses ads", "It always comes from bigger accounts"],
+              answer: 1,
+              why: "A friend's DM carries trust and attention no feed placement can rent."
+            },
+            {
+              q: "Which change most lowers the 'social price' of sharing a video?",
+              options: ["Adding a watermark", "Making the text hook function as the forward's caption", "Lengthening the video for more value", "Adding an inside joke"],
+              answer: 1,
+              why: "Pre-captioned content removes the sender's framing effort — friction at the exact moment of decision."
+            },
+            {
+              q: "A breakout video shows high shares but low follows. The likely fix is:",
+              options: ["Post it again", "A stronger identity beat near the end so the piece advertises the account", "Disable sharing", "Shorter captions"],
+              answer: 1,
+              why: "The piece traveled without telling travelers whose world they'd entered — that's a packaging gap at the ending."
+            }
+          ],
+          drill: "For one week, screenshot every video you personally send anyone. At week's end, classify each by motive and price — then score your own last five posts against what you learned."
+        },
+        {
+          id: "viral-4-3",
+          title: "CTA Architecture: Ask Less, Get More",
+          minutes: 9,
+          xp: 90,
+          skill: "marketing",
+          intro: "Every ask has a cost, and most creators spend attention they haven't earned on requests nobody honors. CTA architecture is the discipline of asking rarely, precisely, and at the exact right second.",
+          sections: [
+            {
+              h: "The attention budget of an ask",
+              body: "A call to action interrupts consumption to request labor — tiny labor, but real. Each ask draws from the goodwill the content just earned, which yields the first law of CTA architecture: **one video, one ask**. The triple-header — 'like, comment, subscribe, and hit the bell' — reads as a tax notice and converts worse than any single ask, because divided attention completes zero tasks and stacked requests signal neediness, the least attractive quality an account can broadcast. Choosing the one ask is a strategic decision made before scripting: what does *this* piece's job require? A watch piece wants nothing — its loop is the CTA. A save piece wants the save. A share piece wants the send. A conversion piece wants the comment or the profile visit. Expert accounts go whole videos asking nothing at all, and that restraint is itself a signal — confidence reads as status, and status converts better than pleading ever has."
+            },
+            {
+              h: "Placement: the ask lives where attention peaks",
+              body: "The end-of-video CTA is a graveyard — your retention graph proves most viewers never arrive, and those who do are mid-exit. Architecture means placing the ask where the graph says attention actually lives. The **mid-roll ask** rides peak engagement: one sentence, dropped right after a strong beat delivers ('if this is already useful, the follow button is free'), while goodwill is at its warmest. The **contextual ask** attaches to the moment its logic is self-evident — 'save this' the instant the settings card appears, 'send this to your business partner' right after the beat that describes them. The **post-payoff ask** occupies the two seconds of afterglow following your kicker, the one end-adjacent slot that works — gratitude is briefly at maximum and the watch is already banked. What died with the outro: 'before we start, make sure to subscribe.' Asking before delivering isn't architecture; it's a toll booth in front of a free road."
+            },
+            {
+              h: "Comment triggers and the engagement-bait line",
+              body: "Comments are the highest-value ask for distribution — they signal conversation and feed the ranking system's favorite metric, early velocity. The clean triggers: **the keyword ask** ('comment SYSTEM and I'll send the template') which converts wonderfully because the labor is one word and the payoff is concrete; **the verdict ask** ('overpriced or fair — one word') which works because judgment is pleasurable and one word is effortless; and **the completion ask** ('what's the one I missed?') which flatters expertise and generates content for your next piece. The line you must not cross is engagement bait: asks that manufacture interaction without value — 'comment YES if you're watching,' rage-baiting errors on purpose, 'like if you agree' spam. Platforms actively demote detected bait, but the deeper cost is brand: bait reads as desperation, and your commenting audience is your most valuable cohort — training them that interaction with you is hollow is strategic self-harm. Every trigger must deliver: keyword asks require you actually send the thing, verdict asks require you engage the verdicts."
+            },
+            {
+              h: "The conversion ladder: sequencing asks across a relationship",
+              body: "Zoom out from one video and CTA architecture becomes a ladder viewers climb over months. Rung one: watch again (the loop, the series pointer). Rung two: the micro-labors — save, send, one-word comment. Rung three: the follow, asked only when your account's repeatable value is legible ('I break down one listing like this every week'). Rung four: the destination — DM keyword, profile link, off-platform asset — asked only of viewers who've climbed the first three. Two ladder rules. **Never skip rungs with cold traffic**: a link-in-bio push on a viral video full of strangers converts a fraction of what a follow-ask does, and burns reach doing it — capture the audience first, monetize the relationship later. **Match the ask to the viewer's altitude**: your pinned comment can serve rung four while the video serves rung two, letting one piece ask at two levels without stacking. Map your last ten CTAs onto the ladder and the gaps will tell you exactly why conversion stalls where it does."
+            }
+          ],
+          takeaways: [
+            "One video, one ask — chosen at the scripting stage by the piece's job, and sometimes the strongest ask is none.",
+            "Place asks where attention peaks: mid-roll after a strong beat, contextually at self-evident moments, or in post-kicker afterglow.",
+            "Comment triggers must deliver real value — keyword, verdict, completion — and never cross into detected-and-demoted bait.",
+            "Sequence asks as a ladder across the relationship: watch, micro-labor, follow, destination. Never skip rungs with cold traffic."
+          ],
+          actions: [
+            "Choose the single ask for your next three pieces before scripting, and delete every other request from the drafts.",
+            "Move one CTA from your ending to a mid-roll position right after your strongest beat, and compare conversion.",
+            "Map your last ten CTAs onto the four-rung ladder and identify which rung you've been skipping."
+          ],
+          quiz: [
+            {
+              q: "Why does the 'like, comment, subscribe, bell' stack convert poorly?",
+              options: ["It's too short", "Divided attention completes zero tasks and stacked asks signal neediness", "Platforms mute those words", "Viewers can't do three things"],
+              answer: 1,
+              why: "Each ask taxes earned goodwill; stacking divides attention and broadcasts desperation."
+            },
+            {
+              q: "The best-performing end-adjacent CTA slot is:",
+              options: ["Before the hook", "During the payoff itself", "The two seconds of afterglow immediately following the kicker", "Ten seconds after the video ends"],
+              answer: 2,
+              why: "Post-payoff gratitude is at maximum and the watch is already banked — the one ending placement that works."
+            },
+            {
+              q: "A link-in-bio push on a viral video full of cold traffic underperforms because:",
+              options: ["Links are banned", "It skips ladder rungs — strangers haven't climbed to destination-level trust", "Viral videos disable profiles", "Bios convert only on weekends"],
+              answer: 1,
+              why: "Cold viewers convert at the follow rung; monetization asks belong to audiences who already climbed."
+            }
+          ],
+          drill: "Run a two-week test: week one, your usual CTAs; week two, one precisely placed ask per video and nothing else. Compare follow rate and comment quality, not just counts."
+        },
+        {
+          id: "viral-4-4",
+          title: "Comment Velocity: Engineering the Conversation",
+          minutes: 10,
+          xp: 90,
+          skill: "viral",
+          intro: "The comment section is not feedback on the video — it is part of the video. Expert creators design what happens below the frame as deliberately as what happens inside it.",
+          sections: [
+            {
+              h: "Velocity, not volume",
+              body: "Ranking systems care less about how many comments a video collects than how *fast* they arrive relative to reach — **comment velocity** in the first hours is read as evidence of conversation, and conversation is the strongest proof that a video matters to humans. This changes the design target: you are not trying to eventually accumulate comments; you are trying to make commenting feel urgent in the first viewing session. Urgency comes from unfinished business — a verdict demanded, an error to correct, an experience to confirm, a stake to claim ('first,' 'the Denver one is mine'). It also compounds: early comments are social proof that commenting here is normal and rewarded, which lowers the barrier for the next hundred. The first-hour section sets the culture for the whole run. A video that launches into silence usually stays silent; a video whose first ten minutes produce visible conversation trains every subsequent viewer that this is a place where people talk."
+            },
+            {
+              h: "The deliberate gap",
+              body: "The highest-leverage comment technique is leaving something almost complete. **The deliberate gap** is an omission your audience can feel and fix: name four of the five, and the fifth arrives in comments within minutes — along with arguments about which fifth is correct. **The confident near-miss** is its spicier sibling: a small, defensible imperfection your niche's experts cannot let stand ('every pro will tell you X' — when a visible minority swears by Y). Handle with precision: the gap must be genuinely arguable, never a factual error that damages authority, and never staged incompetence, which reads instantly as bait. Adjacent tools: **the ranked list** (any ordering of anything summons disagreement as a law of nature), and **the named dilemma** ('would you take the cash or the car — there's no right answer' — the phrase that guarantees everyone has one). The craft is calibrating incompleteness so precisely that finishing it is irresistible and correcting it is a pleasure, not a takedown."
+            },
+            {
+              h: "Polarization with a handrail",
+              body: "Divisive content generates comment storms, and most creators either avoid the tool entirely or blow their credibility using it. The expert version is **polarization with a handrail**: take a genuine position on a question where your niche legitimately splits — never manufactured outrage, never a strawman — and build safety into the frame. State the position with full conviction ('galleries beat single images, and I'll die on this hill'), steelman the other side in one honest sentence so its holders feel seen rather than mocked, and choose stakes that are professional, not personal — attack workflows, not people. The comment section becomes a structured debate where both camps recruit, argue, and return to check replies — return visits being a signal most creators never think to engineer. The handrail is what makes it sustainable: viewers on the losing side of your take still respect the frame, still follow, and still show up for the next debate. Rage-farming burns the field; principled polarization harvests it."
+            },
+            {
+              h: "The reply layer: your second content channel",
+              body: "Every reply you write is content with distribution — commenters return to read it, and platforms resurface active threads. Operate the layer deliberately. **The first hour is sacred**: fifteen minutes of replies immediately after posting multiplies velocity when it matters most; reply with questions, not periods ('good catch — which market are you seeing that in?'), because a question converts one comment into a thread. **Pin strategically**: the pinned comment is a second caption — use it to open a new loop ('nobody has noticed the detail at 0:14 yet'), seed the debate's frame, or serve the ladder's next rung. **Feed your pipeline**: the best comment sections write your next three videos — every recurring question is a validated concept with a pre-sold audience, and 'answering @user's question from Tuesday' is the warmest possible open. And breathe through disagreement: a sharp-but-fair critical comment, replied to with grace, does more for trust than ten compliments — the audience reads how you handle pressure and decides what kind of room you run."
+            }
+          ],
+          takeaways: [
+            "Comment velocity in the first hours — not eventual volume — is what ranking systems read as conversation.",
+            "Deliberate gaps, near-misses, ranked lists, and named dilemmas make commenting feel urgent and pleasurable.",
+            "Polarize with a handrail: genuine position, steelmanned opposition, professional stakes — never rage-farming.",
+            "Work the reply layer: sacred first hour, strategic pins, and a comment section that writes your next three videos."
+          ],
+          actions: [
+            "Build one deliberate gap into your next post and prepare your reply to whoever fills it first.",
+            "Block fifteen minutes immediately after your next three posts for question-form replies.",
+            "Rewrite your next pinned comment to open a loop or seed a debate rather than repeat the caption."
+          ],
+          quiz: [
+            {
+              q: "What do ranking systems primarily read from comments?",
+              options: ["Total lifetime count", "Velocity relative to reach in the early hours", "Average comment length", "Emoji density"],
+              answer: 1,
+              why: "Fast early conversation is proof the video matters to humans right now, which is what distribution rewards."
+            },
+            {
+              q: "The 'deliberate gap' must be:",
+              options: ["A factual error viewers will correct", "Staged incompetence for sympathy", "A genuinely arguable omission your audience can feel and fix", "Hidden in the caption"],
+              answer: 2,
+              why: "Arguable incompleteness invites completion; real errors damage authority and staged ones read as bait."
+            },
+            {
+              q: "Polarization 'with a handrail' requires:",
+              options: ["Attacking the opposing camp's members", "A manufactured controversy", "Full conviction plus a one-sentence steelman of the other side and professional stakes", "Deleting disagreeing comments"],
+              answer: 2,
+              why: "The handrail keeps the losing camp respected and returning — sustainable debate instead of a burned field."
+            }
+          ],
+          drill: "Study the comment sections of three recent breakouts in your niche. For each, identify the mechanism that started the conversation — gap, dilemma, position, or accident — and write the version you'd build on purpose."
+        },
+        {
+          id: "viral-4-5",
+          title: "Format Design: Vehicles That Compound",
+          minutes: 11,
+          xp: 90,
+          skill: "strategy",
+          intro: "One viral video is weather. A format is climate — a repeatable vehicle that gets easier to make, easier to recognize, and harder to compete with every single week.",
+          sections: [
+            {
+              h: "What a format actually is",
+              body: "A format is a fixed skeleton with a rotating payload: same structure, same rhythm, same recognizable signature — new subject every episode. 'Reviewing my subscribers' first reels.' 'Guess the price of this listing.' 'One pan, one hour, one dish.' The fixed elements do compounding work. For the audience, recognition arrives before the hook even fires — three episodes in, the format *is* the hook, and regulars click on the skeleton itself. For you, production collapses: the structure is pre-solved, so each episode is a payload swap instead of a blank page, which is how weekly output becomes sustainable without burnout. For the ranking system, formats generate consistent engagement patterns that make your next upload predictable — and predictably good content gets tested against warmer audiences. The craft error is confusing a format with a topic. 'Real estate content' is a topic. 'I tour the cheapest listing in a famous zip code every Friday' is a format: skeleton, cadence, signature, slot for infinite payloads."
+            },
+            {
+              h: "Format-market fit",
+              body: "Formats succeed on the same logic as products: fit between the vehicle and a repeatable audience appetite. Before committing weeks to a format, stress-test four dimensions. **Repeatability of supply** — are there 100 payloads available, or does the idea exhaust in six episodes? **Repeatability of demand** — does the audience's appetite renew (prices, transformations, verdicts renew forever; explainers of one niche event do not)? **Differentiated signature** — what makes episode three recognizable as *yours* in a feed of imitators: a catchphrase, a visual ritual, a structural quirk, a persona stance? **Escalation headroom** — can stakes, scale, or absurdity grow across episodes, giving long-term viewers a reason beyond ritual? Then prototype before committing publicly: produce three episodes, ship them without announcing a series, and read the data — completion rate episode over episode, returning-viewer signals, and comments that ask for more. Audiences vote formats into existence. Your job is to notice the election."
+            },
+            {
+              h: "The 70/30 rule: familiarity with a twist",
+              body: "Format episodes live on a knife's edge between comfort and boredom, and the working ratio is roughly 70% familiar, 30% novel. The 70% is the contract: skeleton, rhythm, signature phrases, the beats regulars quote to each other — violate these and you've broken the thing they subscribed to. The 30% is the payload plus one deliberate variation per episode: a guest, an inverted premise ('this time the cheap one is the trap'), a raised stake, a format-aware joke. Watch for the two failure signals. **Fatigue** shows as sliding completion rates from your *regulars* while new-viewer metrics hold — the payloads have gotten samey even though the skeleton stands; refresh the 30% harder. **Drift** is the opposite crime: variation creep that erodes the skeleton itself until episode twelve shares nothing with episode one, and regulars quietly leave because the contract dissolved. Run a format audit every five episodes: list what stayed fixed and what varied, and check the ledger against 70/30. The discipline sounds bureaucratic. It is how shows outlive trends."
+            },
+            {
+              h: "The portfolio: formats as an ecosystem",
+              body: "At expert level you stop thinking in videos and start running a portfolio of two or three formats with distinct jobs — a reach format (broad appeal, high shareability, built to recruit strangers), a depth format (serves the core audience, converts followers into believers, heavier on save mechanics), and one experimental slot (this quarter's bet, where new skeletons audition). The portfolio stabilizes both output and analytics: weekly cadence becomes a scheduling exercise instead of a creativity crisis, and every metric becomes interpretable because it has a format-specific baseline — a 'down week' might just be a depth-format week, which your reach numbers were never supposed to survive. Retire formats deliberately, not accidentally: when regulars' completion decays for three consecutive episodes despite refreshed payloads, sunset it with a finale — a format that ends on purpose leaves trust behind; one that fades out leaves doubt. Then promote the experiment that earned its slot. Weather becomes climate. Climate becomes a career."
+            }
+          ],
+          takeaways: [
+            "A format is a fixed skeleton with rotating payloads — recognition becomes the hook and production collapses to a payload swap.",
+            "Stress-test format-market fit: supply, renewing demand, differentiated signature, escalation headroom — then prototype three episodes quietly.",
+            "Run episodes at 70% familiar / 30% novel; audit every five episodes for fatigue (refresh payloads) and drift (restore the skeleton).",
+            "Operate a portfolio: a reach format, a depth format, one experiment — and retire formats with finales, not fade-outs."
+          ],
+          actions: [
+            "Write your current content as format statements — skeleton, cadence, signature, payload slot — and see which are actually just topics.",
+            "Prototype a format this month: three unannounced episodes, then read completion trends and comment demand before committing.",
+            "Assign jobs to your existing content: which format recruits strangers, which deepens the core, and what fills the experiment slot?"
+          ],
+          quiz: [
+            {
+              q: "What distinguishes a format from a topic?",
+              options: ["Formats are shorter", "A fixed skeleton, cadence, and signature with a slot for infinite payloads", "Formats require a co-host", "Topics get more views"],
+              answer: 1,
+              why: "'Real estate content' is a topic; a repeatable skeleton with a rotating payload is a vehicle that compounds."
+            },
+            {
+              q: "Regulars' completion is sliding while new-viewer metrics hold. This signals:",
+              options: ["Drift — the skeleton has eroded", "Fatigue — payloads have gotten samey; refresh the 30%", "Shadowban", "A platform bug"],
+              answer: 1,
+              why: "The skeleton still recruits strangers, but the novel fraction has stopped rewarding the faithful."
+            },
+            {
+              q: "Why retire a dying format with a finale rather than letting it fade?",
+              options: ["Finales get more ad revenue", "An intentional ending preserves audience trust; a fade-out leaves doubt", "Platforms require closure", "It resets the algorithm"],
+              answer: 1,
+              why: "How a format ends teaches your audience whether your next format is worth investing in."
+            }
+          ],
+          drill: "Deconstruct one long-running format you admire across five episodes: list every fixed element, every varied element, and compute its familiar/novel ratio. Steal the skeleton logic, not the skeleton."
+        }
+      ]
+    },
+    {
+      id: "viral-5",
+      level: "Master",
+      title: "The Creative Director's Operating System",
+      description: "How agencies and top creators manufacture repeatable virality: outlier deconstruction, concept selection, scripting the retention curve on paper, disciplined testing, and the taste that separates a hot account from a lasting one.",
+      lessons: [
+        {
+          id: "viral-5-1",
+          title: "Outlier Deconstruction: Studying the 1% Like an Agency",
+          minutes: 12,
+          xp: 110,
+          skill: "viral",
+          intro: "Agencies don't watch viral videos — they autopsy them. This lesson installs the deconstruction system that turns other people's outliers into your creative R&D department.",
+          sections: [
+            {
+              h: "Find true outliers, not big numbers",
+              body: "The first discipline is knowing what to study. A video with 2M views on a 5M-follower account is a Tuesday; the same number on a 20k account is a signal flare. Agencies normalize before they analyze: an **outlier score** — the video's views divided by the account's recent median — separates content that *earned* distribution from content that inherited it. A 40x outlier on a small account means the platform pushed that video to strangers on its metrics alone, which makes it a pure specimen: no brand halo, no subscriber base, no paid support contaminating the sample. Hunt these deliberately. Sort niche hashtags and competitor pages not by views but by views-relative-to-account-size, and keep a capture habit — the moment you feel the pull of a video, save it before analyzing why. Your own involuntary reaction is the rarest data you have access to, and it decays the instant you start intellectualizing. Collect first. Autopsy later."
+            },
+            {
+              h: "The deconstruction template",
+              body: "An autopsy without a template produces vibes. Run every specimen through the same fixed sheet so patterns can surface across specimens.\n\n- **Concept**: the idea in one sentence — and would that sentence alone have stopped you?\n- **Packaging**: hook channels used, gap width, promise made.\n- **Structure**: loop map with timestamps — where each question opens and closes.\n- **Pacing**: beats counted, longest coast, density per third.\n- **Peak**: the single hardest-hitting moment and every craft choice serving it.\n- **Distribution mechanics**: the built-in share motive, save utility, comment trigger.\n- **Signature**: what marks it as this creator's — and what's generic.\n- **The one thing**: if you could steal exactly one decision, which?\n\nTwenty minutes per specimen, written, filed. Ten sheets in, your file speaks: the same three mechanics will keep appearing, and those three are your niche's current physics."
+            },
+            {
+              h: "Concept-driven versus execution-driven wins",
+              body: "The most consequential judgment in any autopsy is attribution: did this video win on **concept** (the idea would have worked filmed on a potato) or **execution** (an ordinary idea elevated by extraordinary craft)? Misattribution is the classic agency junior's error — copying the lighting and pacing of a video that actually won on premise, or copying a premise that only worked because of a once-in-a-career performance. Run the substitution test both ways. Imagine the same concept executed at average quality: still an outlier? Then the concept carried it, and the concept's *shape* — not its surface — is what transfers. Imagine the same execution applied to an average concept: still an outlier? Then study the craft frame by frame. Concept wins transfer across niches almost losslessly ('guess the price' works for listings, watches, PCs, weddings). Execution wins transfer only through skill acquisition — slower, but they compound into moats no one can screenshot. Your file should tag every specimen with its attribution, because the two categories feed different pipelines: one feeds your idea bank, the other your training plan."
+            },
+            {
+              h: "From autopsy to adaptation: the transfer protocol",
+              body: "Deconstruction earns its cost only at the transfer step, and transfer is where taste separates professionals from copycats. The protocol: extract the specimen's **mechanism** — stated abstractly enough that no surface detail survives ('authority figure reveals the gap between public price and insider cost'). Then re-instantiate the mechanism inside your niche, your voice, and your production reality, changing every visible element while preserving the invisible physics. The imitator copies the video; the professional copies the *reason the video worked*. Two governance rules keep the pipeline honest. First, the 48-hour rule: never adapt a specimen the same day you found it — adjacency is still plagiarism's neighborhood, and a two-day gap forces reconstruction from the mechanism rather than memory of the surface. Second, one mechanism per piece: stacking three stolen mechanics into one video produces the content equivalent of a face made of celebrities' features — each proven, the whole uncanny. Run this pipeline weekly and you have what agencies bill retainers for: a systematic intake of what's working now, filtered through a signature that stays unmistakably yours."
+            }
+          ],
+          takeaways: [
+            "Normalize before analyzing: outlier score (views over account median) finds videos that earned distribution rather than inherited it.",
+            "Run every specimen through a fixed deconstruction template — patterns surface across sheets, not within one.",
+            "Attribute every win to concept or execution via the substitution test; the two feed different pipelines.",
+            "Transfer mechanisms, never surfaces: abstract the physics, wait 48 hours, one mechanism per piece."
+          ],
+          actions: [
+            "Build your specimen file today: find five true outliers in your niche by views-relative-to-account-size.",
+            "Run the full template on one specimen this week — twenty minutes, written, filed.",
+            "Take your best-performing video ever and autopsy it with the same template; attribute your own win honestly."
+          ],
+          quiz: [
+            {
+              q: "Why is a 40x outlier on a small account a purer specimen than a hit on a huge one?",
+              options: ["Small accounts make better content", "It won on metrics alone — no brand halo, subscriber base, or paid support contaminating the sample", "Large accounts buy views", "Small accounts get algorithm boosts"],
+              answer: 1,
+              why: "Normalization isolates content that earned cold distribution, which is the physics you want to study."
+            },
+            {
+              q: "The substitution test determines:",
+              options: ["Which platform to post on", "Whether a win was concept-driven or execution-driven", "The video's outlier score", "Whether to use the same music"],
+              answer: 1,
+              why: "Imagining the concept at average execution (and vice versa) reveals which element actually carried the video."
+            },
+            {
+              q: "The 48-hour rule exists because:",
+              options: ["Trends expire in two days", "Platforms detect same-day copies", "A gap forces you to rebuild from the abstract mechanism instead of the remembered surface", "Editing takes two days"],
+              answer: 2,
+              why: "Time decay strips surface detail from memory, leaving only the transferable physics."
+            }
+          ],
+          drill: "Autopsy three outliers from three different niches this week and write each one's mechanism in a single abstract sentence. Then design one piece for your niche from your favorite of the three mechanisms."
+        },
+        {
+          id: "viral-5-2",
+          title: "Concept Is 80%: The Idea Stress Test",
+          minutes: 11,
+          xp: 110,
+          skill: "viral",
+          intro: "No edit saves a dead concept, and a live one survives mediocre execution. Creative directors spend their hours where the leverage is — before anything gets shot.",
+          sections: [
+            {
+              h: "The packaging-first inversion",
+              body: "Amateur workflow: have an idea, make the video, then figure out the hook, title, and cover. Master workflow runs the arrow backward: write the packaging *first* — the hook line, the cover text, the one-sentence premise as a stranger would meet it — and only greenlight production if the packaging alone generates pull. The logic is brutal arithmetic. The packaging is what 100% of potential viewers judge; the execution is experienced only by those the packaging already won. A brilliant video inside dead packaging performs identically to a dead video — nobody opens the box. Working packaging-first also exposes concept weakness while it costs nothing: if you cannot write a compelling hook for the idea, the idea has no hook, and you've spent ten minutes discovering what production would have taught you for ten hours. The discipline scales up from solo creators to writers' rooms: pitch the packaging, argue about the packaging, kill on the packaging. The video is downstream."
+            },
+            {
+              h: "The stranger test and the aggressive-summary test",
+              body: "Two filters kill weak concepts fast. **The stranger test**: state the premise to someone with zero investment in you — not 'would you watch this?' (politeness contaminates it) but watching for the involuntary tells: do they ask a follow-up question? Does the eyebrow move? A premise that needs your enthusiasm as life support dies in the feed, where your enthusiasm isn't attached. **The aggressive-summary test** is self-administered: compress the concept to one sentence and then attack it — 'so what?' three times in a row. 'I tour a penthouse' — so what? 'It's worth $30M' — so what? 'The listing agent won't say why the price dropped $8M in a month' — *there* it survives, because the third answer contains a mystery with stakes. Concepts that survive three so-whats have depth beyond their surface; concepts that die on the first were only ever a setting. Most ideas die in these two tests. That is the point. Production time is your scarcest resource, and these filters spend minutes to save days."
+            },
+            {
+              h: "Idea tournaments: volume before selection",
+              body: "Great concepts are not summoned; they are *selected* — from a pool large enough that selection means something. The writers'-room mechanic, portable to a solo operation: generate twenty premises per session, packaging-first, judgment suspended. Quantity is the mechanism, not a warm-up — ideas one through eight are what everyone in your niche would think of, and clearing them from your head is the tax you pay to reach the ideas nobody else surfaces. Then run the tournament: stranger test and three-so-whats on each survivor, ranking by pull rather than by production convenience. Notice what this kills: the tyranny of the adequate idea, the one you'd have produced simply because it arrived first and you'd already started liking it. Creative directors are ruthless here in a way solo creators find uncomfortable — an idea's seniority in your notebook earns it nothing. Keep the fallen on a bench, though: a dead premise is often a live mechanism wearing the wrong payload, and next month's session may re-dress it."
+            },
+            {
+              h: "The greenlight memo",
+              body: "The final master habit borrows from agencies literally: no concept enters production without a one-page **greenlight memo** — five lines that force every downstream decision to be made once, upstream, where changes are free.\n\n1. **Premise**: one sentence, survivor of the tournament.\n2. **Packaging**: hook line per channel, cover text, first-frame description.\n3. **Job**: watch, share, or save piece — and the single metric this piece exists to move.\n4. **Peak and kicker**: the moment that will be described to a friend, and the final two seconds.\n5. **Kill criteria**: what result within 48 hours marks this concept for iteration versus abandonment.\n\nThe memo takes ten minutes and ends the two failure patterns that consume unstructured creators: mid-production drift, where the shoot slowly forgets what the piece was for, and post-hoc rationalization, where any result gets narrated as intended. Write it down before. Judge against it after. That loop — not talent — is what makes virality repeatable."
+            }
+          ],
+          takeaways: [
+            "Write packaging before production — 100% of viewers judge the box; only the persuaded ever see inside.",
+            "Kill concepts with the stranger test and three consecutive so-whats; survivors have depth beyond their setting.",
+            "Generate twenty premises to earn one — the first eight are everyone's ideas, and seniority in your notebook earns nothing.",
+            "No production without a greenlight memo: premise, packaging, job, peak, kill criteria — decided upstream where changes are free."
+          ],
+          actions: [
+            "Run one twenty-premise session this week, packaging-first, and tournament it down to three greenlights.",
+            "Write the greenlight memo for your next piece before shooting a single frame.",
+            "Take your last underperformer and run its premise through three so-whats — write down where it died."
+          ],
+          quiz: [
+            {
+              q: "Why write packaging before producing the video?",
+              options: ["Captions take longest", "Packaging is judged by 100% of potential viewers; execution only by those it already won", "Platforms index packaging first", "It's faster to film that way"],
+              answer: 1,
+              why: "A brilliant video inside dead packaging performs like a dead video — nobody opens the box."
+            },
+            {
+              q: "A premise 'survives three so-whats' when:",
+              options: ["It can be said in three words", "Three people approve it", "Each successive answer reveals deeper stakes or mystery beyond the setting", "It trends for three days"],
+              answer: 2,
+              why: "The test digs past surface novelty; a concept that dies on the first so-what was only a setting."
+            },
+            {
+              q: "The kill-criteria line in the greenlight memo exists to prevent:",
+              options: ["Overspending on gear", "Post-hoc rationalization, where any result gets narrated as intended", "Copyright strikes", "Long shoots"],
+              answer: 1,
+              why: "Deciding in advance what failure looks like is the only way results can actually teach you."
+            }
+          ],
+          drill: "For seven days, write three packaging-first premises every morning — 21 total. On day seven, tournament them and note which day of the week produced your finalists. (It's rarely day one.)"
+        },
+        {
+          id: "viral-5-3",
+          title: "Scripting the Retention Curve",
+          minutes: 12,
+          xp: 110,
+          skill: "viral",
+          intro: "Masters don't hope for a good retention curve — they draw it first, then write a script whose only job is to produce that drawing. This is pre-production as retention engineering.",
+          sections: [
+            {
+              h: "Draw the curve before the script",
+              body: "Start the way a composer starts with dynamics: sketch, on paper, the retention curve you intend — the ski jump from the Advanced course, annotated. Mark where the hook cliff must flatten (second 3), where the commitment zone must lock (second 8), where you'll place the midpoint bomb, where the payoff and kicker land. Now every scripting decision has a target to serve, and 'is this line good?' becomes the answerable 'does this line hold the curve at second 14?' This inversion sounds ceremonial; it is deeply practical. Scripts written forward — sentence after sentence, each locally fine — produce curves nobody chose, because no sentence was ever asked to defend its timestamp. Scripts written against a drawn curve treat runtime as real estate: every second is a parcel with a job, and a sentence that can't state its job loses its lease. Agencies storyboard commercials to the second for the same reason. Thirty airtime seconds cost too much to improvise — and in your economy, viewer seconds are the airtime."
+            },
+            {
+              h: "The beat sheet: writing in retention units",
+              body: "Translate the drawn curve into a **beat sheet** before any prose: a table of 5-7 second parcels, each row carrying four entries — timestamp, what the viewer *learns*, what the viewer *feels*, and which loop opens or closes. Only when every row is full do you write dialogue, and the dialogue must fit the rows rather than the rows stretching for the dialogue. This is where the earlier courses compound into one artifact: but/therefore connectives between rows, a stimulus per beat, contrast engineered into the feelings column, loops staggered so the tension line never touches zero. The beat sheet also exposes structural disease before production can bake it in — three consecutive rows with the same feeling (flatline), a row where nothing is learned (coast), a loop that opens and never closes (debt). Fixing a row costs a pencil stroke; fixing the same flaw in an edit costs a reshoot. Masters are not faster editors than intermediates. They simply arrive at the edit with fewer problems to solve."
+            },
+            {
+              h: "The hook matrix: nine opens, one survivor",
+              body: "The single highest-leverage parcel — seconds zero through three — gets its own pre-production ritual. Build a **hook matrix**: three verbal hook candidates across the top, three visual open candidates down the side, nine cells of combinations. Write all nine as full executions (line + shot description + text overlay), because combinations behave nonlinearly — a modest line over the right image outperforms your best line over the wrong one, and you cannot know which until they're concrete. Then audition the matrix the way the feed will: mock each cell as a two-second experience, mute-test the visual+text pairs, read the verbal candidates cold to someone who hasn't seen the footage. Shoot the winner *and* the runner-up — the marginal cost of a second open is minutes on set, and it buys you a genuine A/B option at publish time or a rescue if the winner dies in context. One matrix per piece, every piece. It is the cheapest insurance in this business: three seconds decide the fate of everything downstream, and the matrix makes those seconds a decision instead of a default."
+            },
+            {
+              h: "The table read: testing on paper's last stop",
+              body: "The final pre-production gate is borrowed from television: the **table read**. Perform the script out loud, at pace, with a stopwatch running and the beat sheet beside you — not in your head, where every draft sounds brilliant, but in the air, where flab is audible. You are timing parcels against their leases (that '8-second' explanation runs nineteen out loud; now you know before the shoot, not in the edit), catching written-language artifacts your mouth refuses ('utilize,' subordinate clauses, anything you stumble on twice gets rewritten as speech), and testing the feel of the rhythm — rest beats where you drew them, the kicker landing inside its two seconds. Read it twice: once as yourself, once as a skeptical stranger scrubbing for the moment they'd leave. Mark every wince. A table read costs eight minutes and routinely saves the two worst outcomes in production: shooting a script that was never going to fit its curve, and discovering in the edit that your peak — the moment the whole piece exists for — reads flat when spoken. Paper is where problems are cheap. Spend lavishly there."
+            }
+          ],
+          takeaways: [
+            "Draw the intended retention curve first; every scripting decision then has a timestamp-level target to serve.",
+            "Write in beat-sheet parcels — learn/feel/loop per 5-7 seconds — and make dialogue fit the rows, never the reverse.",
+            "Build a 3x3 hook matrix per piece and shoot the top two cells; combinations behave nonlinearly.",
+            "Table-read at pace with a stopwatch before shooting — flab is audible, and paper is where problems are cheap."
+          ],
+          actions: [
+            "Draw the target curve for your next piece and annotate the bomb, payoff, and kicker timestamps before writing.",
+            "Build the full beat sheet for that piece and audit it for flatlines, coasts, and unclosed loops.",
+            "Run a stopwatch table read of your current script and cut every parcel that overruns its lease."
+          ],
+          quiz: [
+            {
+              q: "Why draw the retention curve before writing the script?",
+              options: ["Curves are required by platforms", "It gives every sentence a timestamp-level job to defend, instead of producing a curve nobody chose", "It shortens editing time only", "Analytics tools require it"],
+              answer: 1,
+              why: "Forward-written scripts are locally fine and globally shapeless; a drawn curve makes runtime real estate."
+            },
+            {
+              q: "The hook matrix pairs verbal and visual candidates because:",
+              options: ["Nine hooks are better than one in the final video", "Combinations behave nonlinearly — the right pairing can beat the best individual element", "Platforms test all nine", "It fills the beat sheet faster"],
+              answer: 1,
+              why: "A modest line over the right image can outperform your best line over the wrong one — only concrete pairings reveal this."
+            },
+            {
+              q: "The table read primarily catches:",
+              options: ["Spelling errors", "Copyright issues", "Parcels overrunning their timed leases and written-language flab the mouth refuses", "Lighting problems"],
+              answer: 2,
+              why: "Out loud and against a stopwatch, pacing and speech problems surface while they still cost nothing."
+            }
+          ],
+          drill: "Reverse-engineer a top performer from your specimen file into a beat sheet — timestamps, learn, feel, loops. Then draw the curve their sheet implies and compare it to your last video's actual curve."
+        },
+        {
+          id: "viral-5-4",
+          title: "The Testing Machine: Volume, Variables, Kill Criteria",
+          minutes: 11,
+          xp: 110,
+          skill: "analytics",
+          intro: "Agencies don't guess what works — they run a machine that finds out. This lesson builds your version: disciplined volume, isolated variables, and the courage to kill what the data condemns.",
+          sections: [
+            {
+              h: "Volume is the price of signal",
+              body: "One video is an anecdote; the machine needs samples. The uncomfortable master-level truth: at low posting volume, you cannot distinguish craft from luck, because any single result is dominated by noise — the hour's competition, one big account's share, a platform hiccup. Testing requires enough throughput that patterns outvote accidents; for most operations, that means a floor of several pieces per week, sustained for a quarter. This is precisely what formats and beat sheets were for: they collapse per-piece cost so volume stops requiring heroism. But volume alone is motion, not science — the machine's second component is that every piece carries a *question*. Not 'will this work?' (unanswerable, unfalsifiable) but 'does a question-form hook beat a statement-form hook for my audience?' A quarter of question-bearing volume produces a private dataset about your audience that no guru, course, or competitor can sell — and that asymmetry, compounded annually, is the moat."
+            },
+            {
+              h: "One variable at a time",
+              body: "The cardinal sin of creator testing is changing five things and learning nothing. If the new video has a new hook style, new length, new format, and new posting time, its result — up or down — attributes to nothing; you have spent a data point and bought zero information. The discipline is **isolation**: hold the skeleton constant, vary exactly one element, and repeat the variation across at least three pieces before trusting the direction. Practical isolations that pay quickly: same script, two different opens (your hook-matrix runner-up finally earns its keep); same format, two lengths, three episodes each; same content, cover text as question versus statement. Accept the honest limits of the environment — you cannot control the feed's mood on a Tuesday, so single comparisons stay suggestive, never conclusive; direction emerges from repetition. And log everything in one place: variable tested, hypothesis, result, verdict. The log *is* the machine. Memory is a liar with a survivorship bias, and it will quietly rewrite last month's loss into this month's strategy."
+            },
+            {
+              h: "Kill criteria and the iterate-or-abandon fork",
+              body: "The greenlight memo's kill-criteria line comes due here. Every test needs a pre-committed threshold — written before publishing — that sorts results into three bins. **Scale**: the piece beat its format baseline on the metric it existed to move; produce the next iteration bigger, faster, within days while the signal is warm. **Iterate**: the piece underperformed but the diagnostics localize the failure (hook rate fine, mid-video cliff at the reveal — a fixable structure problem); re-make with the single flaw repaired. **Abandon**: the piece failed at the concept layer — packaging never pulled, or the stranger test was right all along — and no edit resurrects a dead premise; return the mechanism to the bench and move on. The fork matters because unstructured creators default to the two worst behaviors: abandoning fixable pieces one flaw short of working, and lovingly re-polishing dead concepts for weeks. Pre-committed criteria outsource the decision to a version of you who wasn't emotionally invested yet. Trust that person. They were sober."
+            },
+            {
+              h: "The learning library: where tests become doctrine",
+              body: "The machine's output is not views — it is **doctrine**: your accumulated, written record of what your audience reliably responds to. Structure it as three tiers. **Laws**: findings confirmed across five-plus tests ('my audience holds for receipts-on-screen; abstractions bleed them out') — these become defaults baked into every beat sheet, no longer spending test capacity. **Theories**: directional findings at two or three confirmations, still earning their promotion. **Bench**: mechanisms and premises that failed in one context but carry transferable physics. Review the library quarterly with a creative director's skepticism — audiences drift, platforms re-weight, and last year's law can quietly expire; a stale doctrine is more dangerous than none, because it feels like knowledge while behaving like superstition. Retire laws that stop replicating. This library is also your succession plan: the day you hire an editor or a writer, doctrine is what makes them produce *your* results instead of generic ones. The machine, documented, is the business."
+            }
+          ],
+          takeaways: [
+            "Volume is the price of signal — formats and beat sheets exist to make testing throughput affordable.",
+            "Isolate one variable, repeat it across three-plus pieces, and log everything; memory is a liar with survivorship bias.",
+            "Pre-commit kill criteria that fork results into scale, iterate, or abandon — decided by the sober, uninvested you.",
+            "Compound tests into a tiered learning library — laws, theories, bench — and audit it quarterly for expired doctrine."
+          ],
+          actions: [
+            "Write the single question your next piece is designed to answer, and the kill criteria, before publishing.",
+            "Design one clean A/B for this month: same piece, two opens, and log the comparison.",
+            "Start your learning library today with three candidate 'laws' from your existing analytics — then mark each honestly as law, theory, or hunch."
+          ],
+          quiz: [
+            {
+              q: "Why does changing five things at once waste a test?",
+              options: ["Platforms penalize experimentation", "The result attributes to nothing — a data point spent, zero information bought", "Five changes take too long to edit", "Viewers notice the changes"],
+              answer: 1,
+              why: "Attribution requires isolation; unattributed results cannot update your doctrine."
+            },
+            {
+              q: "A piece underperformed, but hook rate was strong and the failure localizes to a mid-video cliff. The correct fork is:",
+              options: ["Abandon the concept", "Scale immediately", "Iterate — repair the single localized flaw and re-make", "Delete the account of the test"],
+              answer: 2,
+              why: "Diagnosable, localized failures are one fix from working; abandonment is reserved for concept-layer death."
+            },
+            {
+              q: "Why audit your learning library quarterly?",
+              options: ["Storage limits", "Audiences and platform weightings drift — stale doctrine feels like knowledge but behaves like superstition", "Libraries must be published", "To increase XP"],
+              answer: 1,
+              why: "A law that stopped replicating is more dangerous than ignorance because it's still trusted."
+            }
+          ],
+          drill: "Pick one belief you hold about your audience ('they prefer short videos') and design the three-piece isolated test that would confirm or kill it. Run it over two weeks and record the verdict."
+        },
+        {
+          id: "viral-5-5",
+          title: "Taste, Restraint, and the Long Game",
+          minutes: 12,
+          xp: 110,
+          skill: "viral",
+          intro: "Every technique in this school can be executed perfectly in service of an account nobody respects. The final master skill is judgment — knowing what not to make, and playing a decade-long game in a week-long industry.",
+          sections: [
+            {
+              h: "Taste is a portfolio decision",
+              body: "Creative directors are paid less for what they approve than for what they decline. Every viral mechanic in this school has a maximum-extraction version — the widest gap, the loudest trigger, the most polarizing take — and an account that always chooses maximum extraction becomes, within months, indistinguishable from every other account making the same locally-optimal choices. Taste is the willingness to leave short-term reach on the table to protect the long-term asset: the account's meaning. Operationalize it with the **body-of-work test**: before greenlighting any piece, place it imaginatively beside your last twenty. Does it deepen what the account means, or dilute it? A piece can pass every stress test from Lesson 5-2 — real pull, real payoff — and still fail this one, because it wins attention for an account you don't want to be running in a year. Reach makes you bigger. Only coherence makes you *someone*. The feed forgets big accounts weekly; it does not forget what a name stands for."
+            },
+            {
+              h: "Audience debt: the balance sheet nobody shows you",
+              body: "Alongside the trust flywheel runs its shadow ledger: **audience debt** — accumulated small withdrawals that analytics report as wins. The inflated hook that technically paid off. The manufactured urgency. The trend chased a niche away from home. The third repost of the format everyone felt going stale. Each earns its video's numbers while quietly borrowing against the audience's regard, and the debt compounds invisibly because dashboards measure each video, never the relationship. The symptoms surface late: softening returning-viewer rates, comments shifting from conversation to consumption, hooks converting worse with no craft explanation — by then, servicing the debt costs quarters, not weeks. Masters run the shadow ledger consciously. Some content exists to *repay*: over-delivered value with no ask attached, the honest 'I got this wrong,' the piece made purely because the core audience deserved it. These score mediocre dashboards and rebuild the balance sheet that every future hook draws against. Budget them deliberately — roughly one repayment piece per content cycle — the way agencies budget brand spend against performance spend, and for the same reason."
+            },
+            {
+              h: "Trend judgment: surf, skip, or subvert",
+              body: "Trends are leverage and trap in identical packaging, and the master decision is a triage. **Surf** when the trend's mechanism serves your positioning — you can execute it in your voice within 48 hours, and a stranger seeing only that piece still learns what your account is. **Skip** when participation costs identity: the trend is fun, the numbers beckon, but the piece beside your last twenty reads as someone else's account — one good week of borrowed attention is a bad trade for a confused audience. **Subvert** — the highest-value option and the least used — when your differentiated take can use the trend's built-in distribution against its own premise: the luxury account doing the yacht trend from the crew's quarters. Subversion inherits the trend's discovery reach while manufacturing the thing trends erase: distinction. Codify the triage as a standing decision rule your team — even a team of one — can execute at trend speed, because the surf window is measured in days and deliberation is a cost. The rule, not the mood, decides."
+            },
+            {
+              h: "The decade view: compounding what platforms can't take",
+              body: "Finish where honest creative direction has to finish: platforms reweight, formats die, and every mechanic in this school will be commoditized by the time it appears in courses like this one. What survives reweighting is what you compounded that no platform controls — the doctrine library, the trained taste, the audience relationship with a positive balance, and the name that means one thing. The decade view changes daily decisions in specific, unromantic ways. You stop chasing every distribution shift at the cost of your center, because the center is the business. You underweight metrics that flatter (raw views) and overweight the ones that compound (returning viewers, saves, the follower who's watched for three years). You develop successors for your own attention — formats that run without your daily genius, doctrine an editor can execute. And you accept this school's closing paradox: the creators who last stop optimizing for virality at all. They optimize for *being worth returning to*, and virality arrives as a side effect, again and again, the way profit arrives to businesses that obsess over the product. Attention is engineered — you now know the machinery. What you build with it is taste. That part was never teachable. It is, however, choosable — twenty posts at a time."
+            }
+          ],
+          takeaways: [
+            "Taste is declining maximum extraction: run the body-of-work test — deepen or dilute — on every greenlight.",
+            "Audience debt compounds invisibly; budget deliberate repayment pieces the way agencies budget brand spend.",
+            "Triage every trend — surf, skip, or subvert — by standing rule, not mood; subversion inherits reach while buying distinction.",
+            "Play the decade: compound doctrine, taste, and audience trust — the assets no platform reweighting can confiscate."
+          ],
+          actions: [
+            "Run the body-of-work test on your next three planned pieces; kill or reshape any that dilute.",
+            "Schedule one repayment piece this cycle — over-delivered value, zero asks — and judge it by comments, not reach.",
+            "Write your trend triage rule as three sentences (surf if... skip if... subvert if...) and pin it where you plan."
+          ],
+          quiz: [
+            {
+              q: "The body-of-work test asks of every new piece:",
+              options: ["Will it outperform the channel average?", "Placed beside the last twenty posts, does it deepen or dilute what the account means?", "Is it cheaper than the last piece?", "Does it use a trending sound?"],
+              answer: 1,
+              why: "A piece can win attention and still damage the asset — coherence, not reach, is what a name compounds."
+            },
+            {
+              q: "Audience debt is dangerous chiefly because:",
+              options: ["Platforms fine indebted accounts", "Dashboards measure each video but never the relationship, so the debt compounds invisibly", "It appears in analytics immediately", "It only affects small accounts"],
+              answer: 1,
+              why: "Every withdrawal registers as a win in the moment; the cost surfaces late as softening trust metrics."
+            },
+            {
+              q: "Subverting a trend outperforms merely surfing it when:",
+              options: ["The trend is already dead", "Your differentiated take uses the trend's built-in distribution while manufacturing distinction", "You post it faster than anyone", "You use the original sound"],
+              answer: 1,
+              why: "Subversion inherits discovery reach and simultaneously buys the one thing trends erase — being unmistakably yours."
+            }
+          ],
+          drill: "Write the one-sentence meaning of your account ('this name stands for ___'). Then audit your last twenty posts against it, marking each deepen/neutral/dilute — and plan next month to shift the ratio."
+        }
+      ]
     }
   ]
 });

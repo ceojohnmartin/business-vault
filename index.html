@@ -411,6 +411,31 @@
   #sheet.fs2 .example,#sheet.fs2 .takeaways li,#sheet.fs2 .term span,#sheet.fs2 .term b{font-size:17px;line-height:1.8}
   .fontBtn{font-family:var(--font-d);font-weight:700;font-size:13px;letter-spacing:.02em}
   .fontBtn.on{color:var(--blue-2);border-color:var(--blue-3);background:var(--blue-soft)}
+  .noteBtn.on{color:var(--amber);border-color:var(--amber);background:rgba(245,158,11,.12)}
+  /* ---- lesson notes panel (bottom sheet over the reader) ---- */
+  #lnBack{display:none;position:fixed;inset:0;z-index:146;background:rgba(8,14,26,.45);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+  #lnBack.open{display:block}
+  #lnotes{position:fixed;left:0;right:0;bottom:0;z-index:147;height:64dvh;max-height:64dvh;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--edge);border-bottom:none;border-radius:20px 20px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.35);transform:translateY(105%);transition:transform .38s cubic-bezier(.22,1,.36,1),height .25s ease;visibility:hidden}
+  #lnotes.open{transform:translateY(0);visibility:visible}
+  #lnotes.tall{height:92dvh;max-height:92dvh}
+  .lnHead{flex-shrink:0;padding:8px 14px 0}
+  .lnGrip{width:38px;height:4px;border-radius:99px;background:var(--edge);margin:2px auto 8px}
+  .lnTitleRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .lnTitleRow .lt{min-width:0}
+  .lnTitleRow .lt b{display:block;font-family:var(--font-d);font-size:15.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lnTitleRow .lt span{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);margin-top:1px}
+  .lnBtns{display:flex;gap:6px;flex-shrink:0}
+  .lnChips{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:9px 0 8px}
+  .lnChips::-webkit-scrollbar{display:none}
+  .lnChip{flex:0 0 auto;background:var(--bg);border:1px solid var(--edge);border-radius:999px;padding:6px 12px;font-size:11.5px;font-weight:600;color:var(--blue-2);font-family:inherit;cursor:pointer;white-space:nowrap}
+  .lnChip:active{background:var(--hover)}
+  #lnText{flex:1;min-height:0;margin:0 14px;background:var(--bg);border:1.5px solid var(--edge);border-radius:14px;padding:13px 14px;font-size:15.5px;line-height:1.65;color:var(--text);font-family:inherit;outline:none;resize:none;-webkit-overflow-scrolling:touch}
+  #lnText:focus{border-color:var(--blue-3)}
+  .lnFoot{flex-shrink:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom))}
+  .lnMeta{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-bottom:8px}
+  .lnMeta .ok{color:var(--green)}
+  .lnActs{display:flex;gap:8px}
+  .lnActs .btn{flex:1;padding:11px 8px;font-size:12.5px}
 
   /* ================= QUIZ & FLASHCARDS ================= */
   #quiz,#flash,#gym{position:fixed;inset:0;z-index:130;background:var(--bg);overflow-y:auto;-webkit-overflow-scrolling:touch;transform:translateY(100%);transition:transform .42s cubic-bezier(.22,1,.36,1);visibility:hidden}
@@ -938,6 +963,34 @@
 
 <button id="hlPill" onclick="hlAdd()">✏️ Highlight</button>
 
+<div id="lnBack" onclick="closeLessonNotes()"></div>
+<div id="lnotes" role="dialog" aria-modal="true" aria-label="Lesson Notes">
+  <div class="lnHead">
+    <div class="lnGrip"></div>
+    <div class="lnTitleRow">
+      <div class="lt"><b id="lnTitle">Lesson Notes</b><span id="lnSub">My Notes</span></div>
+      <div class="lnBtns">
+        <button class="iconBtn" onclick="lnTall()" aria-label="Expand" title="Expand">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>
+        </button>
+        <button class="iconBtn" onclick="closeLessonNotes()" aria-label="Close" title="Close">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="lnChips" id="lnChips"></div>
+  </div>
+  <textarea id="lnText" placeholder="Your notes on this lesson — ideas, numbers for your business, questions for the tutor…&#10;&#10;Tip: tap the mic on your keyboard to dictate."></textarea>
+  <div class="lnFoot">
+    <div class="lnMeta"><span id="lnCount">0 words</span><span id="lnSaved" class="ok"></span></div>
+    <div class="lnActs">
+      <button class="btn" onclick="lnShare()">📤 Apple Notes</button>
+      <button class="btn ghost" onclick="lnCopy()">Copy</button>
+      <button class="btn ghost" onclick="closeLessonNotes();closeLesson();openNotebook()">Notebook</button>
+    </div>
+  </div>
+</div>
+
 <div id="cheatsheet" role="dialog" aria-modal="true" aria-label="School Cheat Sheet">
   <div class="sheetBar">
     <button class="backBtn" onclick="closeCheat()">
@@ -985,7 +1038,9 @@
       <button class="iconBtn bmBtn" id="bmBtn" onclick="toggleBookmark()" aria-label="Bookmark" title="Bookmark this lesson">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4.5L5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
       </button>
-      <button class="iconBtn fontBtn" id="fontBtn" onclick="cycleFont()" aria-label="Text size" title="Text size">aA</button>
+      <button class="iconBtn noteBtn" id="noteBtn" onclick="openLessonNotes()" aria-label="Lesson notes" title="Notes">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      </button>
       <button class="iconBtn zenBtn" id="zenBtn" onclick="toggleZen()" aria-label="Focus mode" title="Focus mode — pure reading">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
@@ -10374,6 +10429,7 @@ document.addEventListener("keydown",e=>{
     if(palEl.classList.contains("open"))closePalette();
     else if(aiEl.classList.contains("open"))closeAI();
     else if(settingsEl.classList.contains("open"))closeSettings();
+    else if(document.getElementById("lnotes").classList.contains("open"))closeLessonNotes();
     else if(document.getElementById("cheatsheet").classList.contains("open"))closeCheat();
     else if(document.getElementById("nb").classList.contains("open"))closeNotebook();
     else if(document.getElementById("mission").classList.contains("open"))closeMission();
@@ -11080,12 +11136,14 @@ function renderNotebook(){
     h+='</div>';
   }
   if(bms.length||hlN||notes.length){
-    h+='<button class="btn ghost full" style="margin-top:14px" onclick="nbExport()">⬇️ Export My Notebook (.txt)</button>'+
-    '<div class="noteHint" style="text-align:center">Notebook data lives in your backups — Settings → Back Up Everything</div>';
+    h+='<div style="display:flex;gap:8px;margin-top:14px">'+
+    '<button class="btn" style="flex:1" onclick="nbShare()">📤 Send to Apple Notes</button>'+
+    '<button class="btn ghost" style="flex:1" onclick="nbExport()">⬇️ Export .txt</button></div>'+
+    '<div class="noteHint" style="text-align:center">Sharing opens your phone\'s share sheet — pick Notes. Notebook data also lives in your backups.</div>';
   }
   el.innerHTML=h;
 }
-function nbExport(){
+function nbBuildText(){
   let out="MY BVU NOTEBOOK\nExported "+new Date().toLocaleDateString()+"\n\n";
   const bms=store.bookmarks.map(k=>tbBmResolve(k)).filter(Boolean);
   if(bms.length){out+="════ SAVED ITEMS ════\n";bms.forEach(r=>{out+="• ["+r.ty+"] "+r.t+" — "+r.s+"\n"});out+="\n"}
@@ -11093,7 +11151,11 @@ function nbExport(){
   Object.entries(store.hl).forEach(([id,arr])=>{const le=byId[id];if(le&&Array.isArray(arr)&&arr.length){if(!anyHl){out+="════ HIGHLIGHTS ════\n";anyHl=true}out+="─ "+le.t+" ("+le.track.name+")\n";arr.forEach(s=>{out+='  "'+s.replace(/\s+/g," ").trim()+'"\n'});out+="\n"}});
   let anyN=false;
   Object.entries(store.notes).forEach(([id,n])=>{const le=byId[id];if(le&&n){if(!anyN){out+="════ LESSON NOTES ════\n";anyN=true}out+="─ "+le.t+" ("+le.track.name+")\n"+n+"\n\n"}});
-  if(out.length<60){toast("Nothing to export yet");return}
+  return out.length<60?null:out;
+}
+function nbExport(){
+  const out=nbBuildText();
+  if(!out){toast("Nothing to export yet");return}
   const blob=new Blob([out],{type:"text/plain"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);a.download="bvu-notebook.txt";
@@ -11208,6 +11270,130 @@ function cheatValidate(){
     if(cheatVocab(tr).length<8)problems.push("Cheat "+tr.id+": thin vocab");
   });
   return problems;
+}
+/* ================= PRO LESSON NOTES + APPLE NOTES SHARE =================
+   The reader's notes panel: same storage as always (store.notes[lessonId],
+   inside bvStore_v1 → already in backups) — a much better door into it.
+   "Send to Apple Notes" uses the iOS native share sheet (navigator.share):
+   the user taps Notes in the sheet and iOS appends it to their real notes.
+   No login, no API, nothing leaves the device except what they share. */
+const lnEl=document.getElementById("lnotes"),lnBackEl=document.getElementById("lnBack"),lnText=document.getElementById("lnText");
+let lnSaveT=null;
+function lnWords(s){s=(s||"").trim();return s?s.split(/\s+/).length:0}
+function lnMeta(saved){
+  document.getElementById("lnCount").textContent=lnWords(lnText.value)+" words";
+  document.getElementById("lnSaved").textContent=saved===undefined?"":(saved?"Saved ✓":"typing…");
+}
+function lnChips(){
+  const hls=hlList(currentId);
+  const chips=[
+    ["💡 Insight","\n💡 Insight — "],
+    ["🎯 Action","\n🎯 Action — "],
+    ["❓ Ask tutor","\n❓ Ask the tutor — "],
+    ["🔢 Number","\n🔢 My number — "],
+    ["• Bullet","\n• "],
+    ["📅 Today","\n— "+new Date().toLocaleDateString()+" —\n"]
+  ];
+  let h=chips.map((c,i)=>'<button class="lnChip" onclick="lnIns('+i+')">'+c[0]+'</button>').join("");
+  if(hls.length)h='<button class="lnChip" style="color:var(--amber)" onclick="lnPullHl()">✏️ Pull in my '+hls.length+' highlight'+(hls.length>1?'s':'')+'</button>'+h;
+  document.getElementById("lnChips").innerHTML=h;
+  lnEl.dataset.chips=JSON.stringify(chips.map(c=>c[1]));
+}
+function lnIns(i){
+  const chips=JSON.parse(lnEl.dataset.chips||"[]");
+  const t=chips[i];if(t===undefined)return;
+  const s=lnText.selectionStart||lnText.value.length;
+  lnText.value=lnText.value.slice(0,s)+t+lnText.value.slice(lnText.selectionEnd||s);
+  const pos=s+t.length;
+  lnText.focus();lnText.setSelectionRange(pos,pos);
+  lnSave();
+}
+function lnPullHl(){
+  const hls=hlList(currentId);if(!hls.length)return;
+  const block="\n✏️ My highlights:\n"+hls.map(s=>'“'+s.replace(/\s+/g," ").trim()+'”').join("\n")+"\n";
+  lnText.value=(lnText.value.trim()?lnText.value.replace(/\s+$/,"")+"\n":"")+block;
+  lnSave();lnMeta(true);
+  toast("Highlights added to your note");
+}
+function lnSave(){
+  if(!currentId)return;
+  clearTimeout(lnSaveT);lnMeta(false);
+  lnSaveT=setTimeout(()=>{
+    const v=lnText.value.trim();
+    if(v)store.notes[currentId]=lnText.value;else delete store.notes[currentId];
+    saveStore();lnMeta(true);lnBadge();
+    const nb=document.getElementById("noteBox");
+    if(nb&&nb.value!==lnText.value)nb.value=lnText.value;
+  },380);
+}
+function lnBadge(){
+  const b=document.getElementById("noteBtn");
+  if(b)b.classList.toggle("on",!!(currentId&&store.notes[currentId]));
+}
+function openLessonNotes(){
+  if(!currentId)return;
+  const le=byId[currentId];
+  document.getElementById("lnTitle").textContent=le?le.t:"Lesson Notes";
+  document.getElementById("lnSub").textContent=(le?le.track.name+" · ":"")+"saved on this device · in your backups";
+  lnText.value=store.notes[currentId]||"";
+  lnChips();lnMeta(true);
+  lnEl.classList.remove("tall");
+  lnEl.classList.add("open");lnBackEl.classList.add("open");
+}
+function closeLessonNotes(){
+  clearTimeout(lnSaveT);
+  if(currentId){const v=lnText.value.trim();if(v)store.notes[currentId]=lnText.value;else delete store.notes[currentId];saveStore();lnBadge();
+    const nb=document.getElementById("noteBox");if(nb)nb.value=lnText.value;}
+  lnEl.classList.remove("open");lnBackEl.classList.remove("open");
+}
+function lnTall(){lnEl.classList.toggle("tall")}
+lnText.addEventListener("input",lnSave);
+function lnBuildShare(){
+  const le=byId[currentId];
+  const hls=hlList(currentId);
+  let t=(le?le.t:"BVU note")+" — BVU Notes\n"+(le?le.track.name+" · ":"")+new Date().toLocaleDateString()+"\n\n";
+  if(lnText.value.trim())t+=lnText.value.trim()+"\n";
+  if(hls.length)t+="\n✏️ Highlights:\n"+hls.map(s=>'“'+s.replace(/\s+/g," ").trim()+'”').join("\n")+"\n";
+  return t;
+}
+async function bvuShare(title,text){
+  if(navigator.share){
+    try{await navigator.share({title,text});toast("Shared — pick Notes to save it there");return true}
+    catch(e){if(e&&e.name==="AbortError")return true}
+  }
+  try{await navigator.clipboard.writeText(text);toast("Copied — open Apple Notes and paste")}
+  catch(e){
+    const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+    try{document.execCommand("copy");toast("Copied — open Apple Notes and paste")}catch(err){toast("Couldn't copy — select and copy manually")}
+    ta.remove();
+  }
+  return false;
+}
+function lnShare(){
+  if(!lnText.value.trim()&&!hlList(currentId).length){toast("Write something first — the note is empty");return}
+  bvuShare((byId[currentId]||{}).t||"BVU note",lnBuildShare());
+}
+function lnCopy(){
+  if(!lnText.value.trim()){toast("Nothing to copy yet");return}
+  bvuShareCopy(lnBuildShare());
+}
+async function bvuShareCopy(text){
+  try{await navigator.clipboard.writeText(text);toast("Copied to clipboard")}
+  catch(e){const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();try{document.execCommand("copy");toast("Copied to clipboard")}catch(err){toast("Couldn't copy")}ta.remove()}
+}
+/* badge state + keep panel in sync when a lesson opens */
+const _lnOpenLesson=openLesson;
+openLesson=function(id){
+  if(lnEl.classList.contains("open"))closeLessonNotes();
+  _lnOpenLesson(id);lnBadge();
+};
+const _lnCloseLesson=closeLesson;
+closeLesson=function(){if(lnEl.classList.contains("open"))closeLessonNotes();_lnCloseLesson()};
+/* share the whole notebook to Apple Notes too */
+function nbShare(){
+  const t=nbBuildText();
+  if(!t){toast("Nothing in the notebook yet");return}
+  bvuShare("My BVU Notebook",t);
 }
 /* ================= THEME ENGINE ================= */
 const FONT_OSWALD="'Oswald',system-ui,sans-serif";

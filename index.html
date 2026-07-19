@@ -421,6 +421,9 @@
   #lnotes.tall .lnHead{padding-top:calc(10px + env(safe-area-inset-top))}
   #lnotes.tall .lnGrip{display:none}
   #lnotes.tall #lnTallBtn svg{transform:rotate(180deg)}
+  #lnotes.dock{border-radius:14px 14px 0 0}
+  #lnotes.dock .lnGrip{display:none}
+  #lnDockBtn.on{color:var(--blue-2);border-color:var(--blue-3);background:var(--blue-soft)}
   .lnHead{flex-shrink:0;padding:8px 14px 0}
   .lnGrip{width:38px;height:4px;border-radius:99px;background:var(--edge);margin:2px auto 8px}
   .lnTitleRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -973,6 +976,9 @@
     <div class="lnTitleRow">
       <div class="lt"><b id="lnTitle">Lesson Notes</b><span id="lnSub">My Notes</span></div>
       <div class="lnBtns">
+        <button class="iconBtn" id="lnDockBtn" onclick="lnDock()" aria-label="Video + notes" title="Video + notes" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="9" rx="2"/><path d="M4 16h16M4 20h10"/></svg>
+        </button>
         <button class="iconBtn" id="lnTallBtn" onclick="lnTall()" aria-label="Full screen" title="Full screen">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>
         </button>
@@ -11340,7 +11346,9 @@ function openLessonNotes(){
   document.getElementById("lnSub").textContent=(le?le.track.name+" · ":"")+"saved on this device · in your backups";
   lnText.value=store.notes[currentId]||"";
   lnChips();lnMeta(true);
-  lnEl.classList.remove("tall");
+  lnEl.classList.remove("tall");lnUndock();
+  const db=document.getElementById("lnDockBtn");
+  if(db)db.style.display=document.querySelector("#sheet .videoBox .frame")?"":"none";
   lnEl.classList.add("open");lnBackEl.classList.add("open");
 }
 function closeLessonNotes(){
@@ -11348,8 +11356,38 @@ function closeLessonNotes(){
   if(currentId){const v=lnText.value.trim();if(v)store.notes[currentId]=lnText.value;else delete store.notes[currentId];saveStore();lnBadge();
     const nb=document.getElementById("noteBox");if(nb)nb.value=lnText.value;}
   lnEl.classList.remove("open");lnBackEl.classList.remove("open");
+  lnUndock();
 }
-function lnTall(){lnEl.classList.toggle("tall")}
+function lnTall(){lnUndock();lnEl.classList.toggle("tall")}
+/* video + notes: dock the playing video at the top, notes fill the rest */
+let lnDockTok=0;
+function lnUndock(){
+  lnDockTok++;
+  lnEl.classList.remove("dock");lnEl.style.height="";lnEl.style.maxHeight="";
+  const b=document.getElementById("lnDockBtn");if(b)b.classList.remove("on");
+  if(lnEl.classList.contains("open"))lnBackEl.classList.add("open");
+}
+function lnDock(){
+  if(lnEl.classList.contains("dock")){lnUndock();return}
+  const vb=document.querySelector("#sheet .videoBox .frame");
+  if(!vb){toast("This lesson has no embedded video");return}
+  lnEl.classList.remove("tall");
+  const bar=document.querySelector("#sheet .sheetBar");
+  const barH=bar?bar.getBoundingClientRect().height:59;
+  const y=vb.getBoundingClientRect().top+sheetEl.scrollTop-sheetEl.getBoundingClientRect().top-barH-6;
+  sheetEl.scrollTo({top:Math.max(0,y)});
+  const tok=++lnDockTok;
+  requestAnimationFrame(()=>{
+    if(tok!==lnDockTok)return;
+    const r=vb.getBoundingClientRect();
+    const h=Math.max(200,window.innerHeight-r.bottom-8);
+    lnEl.style.height=h+"px";lnEl.style.maxHeight=h+"px";
+    lnEl.classList.add("dock");
+    lnBackEl.classList.remove("open"); /* keep the video bright and tappable */
+    const b=document.getElementById("lnDockBtn");if(b)b.classList.add("on");
+    toast("Video + notes — tap the video to play or pause");
+  });
+}
 lnText.addEventListener("input",lnSave);
 function lnBuildShare(){
   const le=byId[currentId];

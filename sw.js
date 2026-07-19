@@ -1,3 +1,4 @@
+/* deploy kick */
 /* Business Vault University — offline service worker.
    Network-first for the app (updates arrive when online),
    cache fallback when offline. Fonts cached on first use. */

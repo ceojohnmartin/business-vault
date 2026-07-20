@@ -109,7 +109,8 @@ SMU.ui = (function () {
     keys.forEach((k, i) => {
       const [x, y] = pt(i, 1);
       spokes += '<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="rgba(255,255,255,.05)"/>';
-      const [lx, ly] = pt(i, 1.17);
+      let [lx, ly] = pt(i, 1.17);
+      lx = Math.max(34, Math.min(size - 34, lx));
       labels += '<text class="radar-label" x="' + lx.toFixed(1) + '" y="' + (ly + 3).toFixed(1) + '" text-anchor="middle">' + esc(SMU.SKILL_LABELS[k]) + "</text>";
     });
     const valPts = keys.map((k, i) => {

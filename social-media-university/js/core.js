@@ -300,8 +300,9 @@ window.SMU = window.SMU || {};
     daily, challengeDone, completeChallenge,
     isSaved, toggleSave, saveText,
     exportData, importData, resetAll,
-    get route() { return currentRoute || parseHash(); },
   });
+  // A real getter — Object.assign would freeze a one-time snapshot instead.
+  Object.defineProperty(SMU, "route", { get() { return currentRoute || parseHash(); } });
 
   SMU.SKILL_LABELS = {
     strategy: "Strategy", viral: "Viral", video: "Video", photo: "Photo",

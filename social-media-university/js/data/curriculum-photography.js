@@ -1344,7 +1344,183 @@ SMU_DATA.schools.push({
           ],
           drill: "Find a real campaign you admire and reverse-engineer its treatment: write the problem, the territory it chose, and describe five of its hero frames as if you had pitched them."
         },
-// @@CHUNK@@
+        {
+          id: "photography-5-3",
+          title: "Run the Set: Producing and Directing the Shoot Day",
+          minutes: 13,
+          xp: 110,
+          skill: "photo",
+          intro: "A master on set is closer to a film director than a camera operator: the frames are half-decided before arrival, and the day is a system for protecting them. This is how professionals run shoot days that finish on time with the campaign intact.",
+          sections: [
+            {
+              h: "Pre-Production: The Day Is Won Before It Starts",
+              body: "Amateurs show up and figure it out; directors arrive with the day already solved on paper. Three documents do the solving.\n\nThe **call sheet** — who, where, when: arrival times, contacts, addresses, weather, sunset time. It reads bureaucratic until the first shoot where someone's lost and golden hour is burning.\n\nThe **shot list ordered by light, not story** (lesson 4-5's rule, now absolute): every setup with its location, lens, lighting plan, and a priority letter — A-shots the campaign dies without, B-shots that elevate, C-shots if the day is kind.\n\nThe **tech scout**: walk the location at the shoot's hour, days before. Find the power outlets, the parking, the sun's actual path, the noise that will ruin any video. Every surprise you eliminate in the scout is ten minutes you keep on the day. Then plan the schedule to 80% capacity — the unplanned 20% is where the best frame usually lives."
+            },
+            {
+              h: "The First Hour Sets the Ceiling",
+              body: "Sets mirror their director. Walk in scattered and the crew scatters; walk in calm and specific and everyone's shoulders drop. The first hour is where that transfer happens, so engineer it.\n\nStart with a stand-up: thirty seconds on the concept ('we're making quiet, expensive morning light — everything unhurried'), then the day's map — first three setups, lunch time, the must-haves. People execute better inside a story than a task list.\n\nThen open with a **banker**: the easiest A-priority setup, pre-lit if possible, that produces an excellent frame within the first forty minutes. Show it to the client and the talent on the monitor. That one frame buys you the day — clients stop hovering, talent stops doubting, and you've converted anxiety into momentum.\n\nNever let the first setup be the hardest one. Directors who open with the trickiest shot spend the day chasing a morale deficit they created themselves."
+            },
+            {
+              h: "Direct Departments, Not Details",
+              body: "Once a set has more than three people, your job changes from doing to deciding. Masters direct through **owners**: styling owns wardrobe, the assistant owns the light per your plan, the producer owns the clock. You watch the frame.\n\nGive direction in each craft's own language, and always as outcomes, not fixes you'd perform yourself: 'the collar is fighting the jawline' to styling; 'shadow side one stop deeper' to the assistant; 'quieter hands' to talent — then let the owner solve it. Grabbing tasks yourself is faster once and slower forever, because it teaches the set to wait for you.\n\nProtect a review cadence: every setup, thirty seconds on the monitor at full brightness before moving on — checking edges, continuity, and the style bible. The most expensive sentence in production is 'we'll catch it in the next setup.' On a two-person shoot the structure survives in miniature: same roles, same cadence — one of the people is simply you, twice."
+            },
+            {
+              h: "Decision Velocity and the Kill Call",
+              body: "The scarcest resource on any set is not light or money — it's decisions per hour. Every stalled choice ('should we try the other jacket?') costs minutes multiplied by everyone standing around it. Masters cultivate **decision velocity**: strong opinions delivered instantly and revised cheaply. 'Blue jacket. Next.' A wrong fast call costs one setup; a slow set loses the afternoon.\n\nThe hardest discipline is the **kill call**. When a setup isn't working — the light won't cooperate, the location underdelivers — you get ten minutes of honest effort, then you kill it and reallocate its time to an A-shot. Sunk cost is the set's silent killer; the frame you fought ninety minutes for is almost never the one that runs.\n\nEnd every day with the last ten minutes reserved: review the shot list, grab safety frames of anything thin, and shoot one wild frame nobody planned. Then wrap on time — crews and clients remember directors who land the plane."
+            }
+          ],
+          takeaways: [
+            "Solve the day on paper: call sheet, light-ordered shot list with A/B/C priorities, and a tech scout at the shoot hour.",
+            "Open with a banker — an easy A-shot on the monitor in the first forty minutes buys the whole day.",
+            "Direct through owners in their craft's language, and review the monitor after every setup.",
+            "Cultivate decision velocity: fast calls revised cheaply beat slow consensus.",
+            "Kill failing setups after ten honest minutes and give their time to A-shots."
+          ],
+          actions: [
+            "Build a reusable one-page template: call sheet fields on top, A/B/C shot list below. Save it where you plan every shoot.",
+            "On your next shoot, deliberately open with your easiest A-priority setup and show the best frame within 40 minutes.",
+            "Write your personal kill-call rule — the minutes a failing setup gets before you cut it — and enforce it once this month."
+          ],
+          quiz: [
+            {
+              q: "Why should a shoot day open with the 'banker' setup?",
+              options: ["It uses the least equipment", "An early excellent frame on the monitor converts client and talent anxiety into momentum", "It's traditionally required by crews", "The light is always best in the morning"],
+              answer: 1,
+              why: "One strong frame in the first forty minutes buys trust for the whole day — clients stop hovering and talent stops doubting."
+            },
+            {
+              q: "A setup has fought you for ten minutes and still isn't working. The master move?",
+              options: ["Push through — quitting reads as unprofessional", "Kill it and reallocate its time to an A-priority shot", "Extend the day until it works", "Lower the standard for the rest of the set"],
+              answer: 1,
+              why: "Sunk cost is the set's silent killer; the frame you fight ninety minutes for is almost never the one that runs."
+            },
+            {
+              q: "How should a director handle a wardrobe problem on a crewed set?",
+              options: ["Fix the collar themselves to save time", "Name the outcome to the styling owner — 'the collar is fighting the jawline' — and let them solve it", "Ignore it and repair it in retouching", "Ask the client to decide"],
+              answer: 1,
+              why: "Directing through owners in outcome language keeps the set fast; grabbing tasks teaches everyone to wait for you."
+            }
+          ],
+          drill: "Direct a two-person micro-production: one friend, three setups, a written call sheet and A/B/C list, banker first, a monitor review after each setup — wrapped inside 90 minutes."
+        },
+        {
+          id: "photography-5-4",
+          title: "The Luxury Codes: Why Expensive Looks Expensive",
+          minutes: 12,
+          xp: 110,
+          skill: "branding",
+          intro: "Luxury imagery is a learned language with strict grammar — and once you can read it, you can write it for any brand at any budget. This lesson decodes the visual signals that make a frame whisper 'expensive' before the logo is ever seen.",
+          sections: [
+            {
+              h: "The Grammar of Restraint",
+              body: "Every luxury code descends from one economic fact: scarcity signals value, and abundance signals discount. Translate that into pictures and the grammar writes itself.\n\n**Space** — the hero occupies a fraction of the frame; emptiness is the most expensive material in the composition. **Restraint in color** — muted, controlled palettes with at most one owned accent; saturation is the visual equivalent of shouting, and luxury never shouts. **Fewness** — one product, one gesture, one idea; a crowded frame implies inventory to move. **Stillness** — luxury imagery is slow: static compositions, unhurried subjects, nothing mid-scramble.\n\nStudy any top-tier fashion or watch campaign and count what ISN'T there: no starbursts, no urgency copy, no crowding, often no smile. The absence is the point. Discount visual language exists to trigger action now; luxury language exists to build desire that compounds. Every element you remove raises the perceived price of what remains."
+            },
+            {
+              h: "Light and Material: Render the Surface",
+              body: "Luxury brands are materials businesses — what the customer actually buys is leather, sapphire, cashmere, milled aluminum — so luxury photography is, at its core, **material rendering**. The camera must make surfaces feel touchable and flawless at once.\n\nThe toolkit is everything from the product lessons, elevated to philosophy: gradient highlights that follow form; raking side light that raises the grain of linen or the stitch of a lapel; controlled specularity so metal glints rather than glares. Skin is treated as a material too — lit with the same sculpted care as the product, never flattened.\n\nThe discipline is the shadow. Luxury light always has direction and falloff; flat, even, shadowless illumination is the language of catalogs and returns departments. A single soft source with real falloff, black-card negative fill deepening one side — that chiaroscuro is half the genre.\n\nTest every frame with one question: can the viewer feel the surface? If not, the light isn't finished."
+            },
+            {
+              h: "Casting, Gesture, and the Refusal to Persuade",
+              body: "Luxury never persuades — persuasion admits need. The people in luxury frames embody that refusal.\n\nCasting favors composure over approachability: subjects are absorbed in their own moment — fastening a cuff, looking past the camera, mid-thought — rather than grinning outward for approval. The direct-to-lens beam of retail advertising is replaced by self-containment; the viewer is permitted to observe, never courted. Gesture is minimal and precise: one hand adjusting a collar outsells jazz hands in this language every single time.\n\nStyling follows the same law — nothing loud, nothing legible from across the street, quality signaled through fit and texture rather than logos. The quieter the branding, the higher the tier; the industry calls it quiet luxury for a reason.\n\nWhen you direct, prompt inward states, not expressions: 'you just closed the deal and nobody knows yet.' That micro-expression of private satisfaction is the single most-repeated face in the genre."
+            },
+            {
+              h: "Borrowing the Codes on a Creator Budget",
+              body: "The codes are free — that is the master's secret. Nothing in the grammar requires money: negative space costs nothing, restraint costs nothing, one window plus negative fill costs forty dollars. What the codes demand is discipline, and discipline is exactly what most feeds lack — which is why applying them separates you instantly.\n\nThe creator translation: post fewer, better frames — a feed of three immaculate posts a week outranks daily clutter in this register. Hold one muted palette across the grid. Give every hero image the material-rendering treatment. Write captions in the same restrained voice: no exclamation points, no begging for engagement.\n\nOne warning separates taste from cringe: borrow the craft codes, not the wealth props. A rented jet for a day reads as costume; a perfectly lit espresso in real morning light reads as taste. Audiences forgive you for not being rich and never forgive pretending. Signal standards, not possessions — that's the code that actually converts."
+            }
+          ],
+          takeaways: [
+            "Scarcity is the master code: space, muted color, fewness, and stillness all whisper value.",
+            "Luxury photography is material rendering — directional light with real falloff that makes surfaces touchable.",
+            "Subjects never court the viewer: composure, inward gesture, and quiet styling replace persuasion.",
+            "Flat shadowless light is catalog language; sculpted chiaroscuro is luxury language.",
+            "Borrow craft codes, not wealth props — signal standards, not possessions."
+          ],
+          actions: [
+            "Deconstruct three luxury campaigns: for each, list five things a discount ad would include that are deliberately absent.",
+            "Reshoot one product you own using the codes: 60%+ negative space, one directional light, negative fill, muted grade.",
+            "Rewrite your last three captions in the luxury register — no exclamation points, no asks, half the length."
+          ],
+          quiz: [
+            {
+              q: "What is the underlying logic of luxury visual codes?",
+              options: ["Bright colors attract wealthy buyers", "Scarcity signals value — space, restraint, and stillness imply nothing needs to be sold", "Expensive cameras produce luxury images automatically", "Luxury requires celebrity casting"],
+              answer: 1,
+              why: "Every code — negative space, muted palette, fewness — translates scarcity into composition; abundance and urgency read as discount."
+            },
+            {
+              q: "Why is flat, shadowless lighting avoided in luxury work?",
+              options: ["It consumes too much power", "It's catalog language — luxury light needs direction and falloff to render material and depth", "Shadows are cheaper to add in editing", "It always causes overexposure"],
+              answer: 1,
+              why: "Sculpted light with real falloff makes surfaces feel touchable and dimensional; even flatness reads as commodity photography."
+            },
+            {
+              q: "A creator wants the luxury look without a luxury budget. The correct move?",
+              options: ["Rent visible wealth props for a weekend", "Apply the craft codes — space, one directional light, muted palette, restraint — to what they genuinely own", "Watermark images with a designer-style logo", "Post more frequently to look established"],
+              answer: 1,
+              why: "The codes are compositional, not financial — audiences reward signaled standards and punish pretended possessions."
+            }
+          ],
+          drill: "Take the cheapest object in your kitchen and make it read expensive: window light with negative fill, one gradient highlight, 60% negative space, muted grade. Shoot a 'discount language' version of the same object and post the pair."
+        },
+        {
+          id: "photography-5-5",
+          title: "The Content Engine: One Shoot, Thirty Days of Assets",
+          minutes: 13,
+          xp: 110,
+          skill: "strategy",
+          intro: "At the creative-director level, a shoot is not an event — it's an inventory acquisition for a publishing system. This lesson builds the engine: planning, capturing, and processing one shoot day so it feeds a month of content without ever looking repetitive.",
+          sections: [
+            {
+              h: "Shoot Days Are Inventory Events",
+              body: "Reframe the economics. A well-run shoot day costs the same whether it produces six posts or thirty — the difference is entirely in planning, and the margin lives in the multiple.\n\nStart from the publishing calendar, not the location: how many feed posts, Reels covers, Stories, and carousels does the next month need, in what mix of hero, detail, process, and personality content? That demand becomes a **capture matrix** — scenes down one axis, formats and ratios across the other. It's the deliverables-grid logic of the brand-shoot lesson, pointed at your own brand.\n\nThen design scenes for **yield**: three outfit or styling changes against the same light multiplies one setup into three 'different days' on the feed; two locations with four looks each outperforms five locations with one look. Wardrobe changes are cheap; location moves are expensive. The amateur shoots until the card is full; the engine shoots until the matrix is full."
+            },
+            {
+              h: "Modular Capture: Shoot Assets, Not Photos",
+              body: "Publishing systems consume modules, so capture in modules. For every scene, bank five asset classes beyond the hero: **details** (hands, textures, objects — carousel and Story material), **plates** (clean backgrounds and negative-space frames that become quote cards and text posts), **process** (behind-the-scenes of the setup itself — the content about the content), **motion micro-clips** (three to eight seconds of the same scene, shot vertically; one scene's B-roll covers a month of Reels), and **variants** (each key frame in 4:5, 1:1, and 9:16, composed natively rather than cropped).\n\nThe ratio to internalize: for every hero you plan, capture four supporting modules. Heroes get the likes; modules keep the calendar alive between them.\n\nDiscipline on the day: the matrix is the shot list, checked off setup by setup. Leaving a scene with the hero but not its modules is the engine's most common failure — you will never rebuild that light for a missing 9:16."
+            },
+            {
+              h: "The Assembly Line: From Card to Library",
+              body: "The engine's second half is post-production as workflow, not sessions of mood. Run four stages, batched:\n\n1. **Cull once, ruthlessly** — the three-pass system from the beginner course, applied the day after the shoot while context is fresh. Rate keepers by the matrix slot they fill.\n2. **Grade in batch** — style-bible baseline synced across the take, then per-frame refinement. One shoot, one consistent grade; the feed depends on it.\n3. **Crop and export the full ratio set** per keeper, named to a convention (shoot-scene-format, like 'mar-espresso-45') so anything is findable in seconds.\n4. **Bank into a library** — a dated, tagged folder structure separating ready-to-post from raw. The library IS the asset; a drive of unnamed RAW files is a liability with a cable.\n\nTwo hours of assembly line per shoot day is the realistic budget. Skip it, and week three becomes 'we have nothing to post' — with eight hundred frames sitting on the drive."
+            },
+            {
+              h: "Sequence, Measure, Reload",
+              body: "A month of assets still fails if published as a lump. Sequence for the feeling of abundance: lead with the strongest hero while the shoot is fresh, then interleave — detail, process clip, plate-with-text, second hero — so consecutive posts never share a look. Space siblings from the same scene at least four or five posts apart; the audience should sense a world, not a dump from one afternoon. Hold two heroes in reserve for slow weeks — the library doubles as insurance.\n\nThen close the loop with data. After the month, read the numbers against the matrix: which scenes, formats, and asset classes actually earned reach, saves, and profile taps? That readback writes the next shoot's capture matrix — double the winning scene types, cut the class nobody watched, test one new one.\n\nThis is the full loop of the master: direct the look, run the set, harvest the inventory, publish the system, measure, reload. The camera is the smallest part of it."
+            }
+          ],
+          takeaways: [
+            "Plan shoots from the publishing calendar backwards — a capture matrix of scenes × formats × ratios.",
+            "Design for yield: styling changes multiply one setup into many 'different days' on the feed.",
+            "Capture four supporting modules per hero: details, plates, process, and vertical micro-clips.",
+            "Run the assembly line within 48 hours: cull, batch grade, ratio exports, and a named asset library.",
+            "Sequence siblings apart, then read performance back into the next capture matrix — the engine improves every cycle."
+          ],
+          actions: [
+            "Draft next month's publishing calendar, then derive the capture matrix your next shoot must fill.",
+            "Define your file naming convention and library folder structure today, and migrate your last shoot into it.",
+            "Block the two-hour assembly-line session into your calendar for the day after your next shoot."
+          ],
+          quiz: [
+            {
+              q: "Why plan a shoot from the publishing calendar backwards?",
+              options: ["Locations book faster that way", "The month's content demand defines the capture matrix — the shoot exists to fill it", "It reduces storage costs", "Algorithms favor scheduled posts"],
+              answer: 1,
+              why: "A shoot day costs the same regardless of yield; planning from demand is what turns one day into thirty days of assets."
+            },
+            {
+              q: "What is the capture ratio to aim for per planned hero frame?",
+              options: ["One backup exposure of the hero", "Roughly four supporting modules — details, plates, process, motion clips", "Ten identical variations for safety", "None — strong heroes are sufficient"],
+              answer: 1,
+              why: "Heroes earn the attention, but modules keep the calendar alive between them; leaving with only heroes starves the system."
+            },
+            {
+              q: "How should assets from one scene be sequenced when publishing?",
+              options: ["All in one day for maximum momentum", "Spaced four or five posts apart and interleaved with other asset classes", "In the exact order they were shot", "Only after all other content runs out"],
+              answer: 1,
+              why: "Separation and interleaving create the feeling of abundance and hide that the material shares one afternoon."
+            }
+          ],
+          drill: "Run one complete engine cycle at small scale: a 90-minute shoot against a capture matrix of two scenes, the 48-hour assembly line, and a 10-post sequenced calendar drawn only from that session."
+        }
       ]
     }
   ]

@@ -53,8 +53,8 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "A retention graph shows a sharp dip at 0:14 of an otherwise steady video. What is the editor's correct move?",
-              options: ["Shorten the whole video by 20 percent", "Find the exact cut at 0:14 and study what happened there", "Add background music", "Change the thumbnail"],
-              answer: 1,
+              options: ["Find the exact cut at 0:14 and study what happened there", "Shorten the whole video by 20 percent", "Add background music", "Change the thumbnail"],
+              answer: 0,
               why: "A localized dip points at a specific moment — the graph is telling you precisely which cut lost viewers."
             },
             {
@@ -107,20 +107,20 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "What should you set before making a single cut in a CapCut project?",
-              options: ["The export bitrate", "A color filter", "The 9:16 aspect ratio", "Background music"],
-              answer: 2,
+              options: ["The export bitrate", "A color filter", "Background music", "The 9:16 aspect ratio"],
+              answer: 3,
               why: "Editing in the wrong ratio means recomposing every shot later — format comes before content."
             },
             {
               q: "Why detach audio from a clip?",
-              options: ["It reduces export time", "It lets you cut sound and picture independently, enabling J-cuts and L-cuts", "It improves microphone quality", "CapCut requires it for captions"],
-              answer: 1,
+              options: ["It reduces export time", "It improves microphone quality", "It lets you cut sound and picture independently, enabling J-cuts and L-cuts", "CapCut requires it for captions"],
+              answer: 2,
               why: "Separated audio and video can be trimmed on different frames, which is the mechanical basis of J- and L-cuts."
             },
             {
               q: "In the four-pass workflow, what is the only job of the first pass?",
-              options: ["Adding captions and hook text", "Split-deleting mistakes, retakes, and dead air", "Color grading", "Choosing music"],
-              answer: 1,
+              options: ["Split-deleting mistakes, retakes, and dead air", "Adding captions and hook text", "Color grading", "Choosing music"],
+              answer: 0,
               why: "The rough cut removes everything unusable first — polishing before the structure exists wastes time on footage you may delete."
             }
           ],
@@ -165,8 +165,8 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "In an L-cut, what happens at the edit point?",
-              options: ["The next shot's audio starts before its picture", "The previous shot's audio continues under the new picture", "Both audio and picture cut on the same frame", "The picture freezes while audio continues"],
-              answer: 1,
+              options: ["The next shot's audio starts before its picture", "The picture freezes while audio continues", "Both audio and picture cut on the same frame", "The previous shot's audio continues under the new picture"],
+              answer: 3,
               why: "The L shape on a timeline is outgoing audio extending under the incoming clip's video."
             },
             {
@@ -219,20 +219,20 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "A luxury property montage feels cheap after editing. The most likely pacing cause is:",
-              options: ["Shots held too long", "Cutting too fast for the format — mood pieces need 2-4 seconds per shot to breathe", "Too many J-cuts", "Music that is too quiet"],
-              answer: 1,
+              options: ["Shots held too long", "Music that is too quiet", "Too many J-cuts", "Cutting too fast for the format — mood pieces need 2-4 seconds per shot to breathe"],
+              answer: 3,
               why: "Cinematic content depends on composition having time to register; machine-gun pacing signals low value."
             },
             {
               q: "What does the long-short-short pattern accomplish?",
-              options: ["It reduces render time", "The held shot after quick cuts becomes an emphasis beat the audience feels", "It matches the platform's preferred bitrate", "It hides continuity errors"],
-              answer: 1,
+              options: ["The held shot after quick cuts becomes an emphasis beat the audience feels", "It reduces render time", "It matches the platform's preferred bitrate", "It hides continuity errors"],
+              answer: 0,
               why: "Changing rhythmic gear is what creates emphasis — the contrast marks the moment as important."
             },
             {
               q: "Why should cuts feel slightly too tight inside the editing app?",
-              options: ["Editors always play footage slower", "Feed viewing adds impatience the editing suite lacks, so editor-comfortable pacing plays slow on phones", "Export always adds frames", "It compensates for caption reading time"],
-              answer: 1,
+              options: ["Editors always play footage slower", "Export always adds frames", "Feed viewing adds impatience the editing suite lacks, so editor-comfortable pacing plays slow on phones", "It compensates for caption reading time"],
+              answer: 2,
               why: "The consumption context is a distracted feed — pacing must be calibrated to it, not to focused editing-room attention."
             }
           ],
@@ -273,14 +273,14 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "Why keep captions out of the bottom 25 percent of a vertical frame?",
-              options: ["Viewers read top to bottom", "Platform UI and the description overlay bury that zone", "It renders slower there", "Fonts blur near frame edges"],
-              answer: 1,
+              options: ["Platform UI and the description overlay bury that zone", "Viewers read top to bottom", "It renders slower there", "Fonts blur near frame edges"],
+              answer: 0,
               why: "The feed interface covers the lower frame — text placed there is unreadable in the wild even though it looks fine in the editor."
             },
             {
               q: "The main reason to write hook text before editing is:",
-              options: ["It speeds up captioning", "The overlay is a promise the edit must be structured to keep", "Fonts load faster", "Platforms index text in the first frame"],
-              answer: 1,
+              options: ["It speeds up captioning", "Fonts load faster", "The overlay is a promise the edit must be structured to keep", "Platforms index text in the first frame"],
+              answer: 2,
               why: "Hook text sets a payoff contract — the cut structure has to deliver on it fast, so it must exist first."
             },
             {
@@ -327,8 +327,8 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "Why export at a high bitrate when platforms recompress anyway?",
-              options: ["It skips platform re-encoding", "A cleaner master gives the platform encoder better input, so the final result degrades less", "It increases resolution", "It improves audio sync"],
-              answer: 1,
+              options: ["It skips platform re-encoding", "It improves audio sync", "It increases resolution", "A cleaner master gives the platform encoder better input, so the final result degrades less"],
+              answer: 3,
               why: "Compression artifacts compound — recompressing an already-artifacted file looks far worse than recompressing a clean one."
             },
             {
@@ -339,8 +339,8 @@ SMU_DATA.schools.push({
             },
             {
               q: "Two seconds of dead air after your last line mainly damages:",
-              options: ["Export file size", "Completion rate, since viewers swipe before the video technically ends", "Caption timing", "Audio loudness"],
-              answer: 1,
+              options: ["Completion rate, since viewers swipe before the video technically ends", "Export file size", "Caption timing", "Audio loudness"],
+              answer: 0,
               why: "Completion is measured to the final frame — trailing air guarantees viewers leave before the end."
             }
           ],
@@ -393,8 +393,8 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "What do proxies change about a 4K editing workflow?",
-              options: ["They export faster at lower quality", "You scrub lightweight copies while export still uses full-resolution originals", "They convert footage to vertical", "They reduce audio file size"],
-              answer: 1,
+              options: ["They export faster at lower quality", "They reduce audio file size", "They convert footage to vertical", "You scrub lightweight copies while export still uses full-resolution originals"],
+              answer: 3,
               why: "Proxies are edit-time stand-ins only — playback gets light, and the render pulls the real files."
             },
             {
@@ -451,20 +451,20 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "A whip-pan transition fails and the seam is visible. The most likely craft error is:",
-              options: ["The whoosh SFX was too loud", "The incoming shot pans in a different direction or speed than the outgoing shot", "The clips were different resolutions", "The pan lasted too long"],
-              answer: 1,
+              options: ["The whoosh SFX was too loud", "The pan lasted too long", "The clips were different resolutions", "The incoming shot pans in a different direction or speed than the outgoing shot"],
+              answer: 3,
               why: "Whips depend on motion vector continuity — mismatched direction or speed breaks the shared momentum that hides the cut."
             },
             {
               q: "When is a cross-dissolve professional rather than amateur?",
-              options: ["Between every clip in a montage", "Never — it is always amateur", "Used sparingly to communicate time passing", "Only on text layers"],
-              answer: 2,
+              options: ["Used sparingly to communicate time passing", "Never — it is always amateur", "Between every clip in a montage", "Only on text layers"],
+              answer: 0,
               why: "The dissolve is a legitimate time-passage tool; density, not the effect itself, is the amateur tell."
             },
             {
               q: "What makes a foreground pass the most invisible transition?",
-              options: ["It renders at higher quality", "The cut hides behind a real object fully occluding the frame", "It requires no editing software", "Platforms favor natural motion"],
-              answer: 1,
+              options: ["It renders at higher quality", "It requires no editing software", "The cut hides behind a real object fully occluding the frame", "Platforms favor natural motion"],
+              answer: 2,
               why: "When a moving object covers the lens, the world can change behind it — the seam is physically concealed."
             }
           ],
@@ -509,20 +509,20 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "Music is sitting at the same level as the voice and words are hard to catch. The correct fix is:",
-              options: ["Raise the VO until it wins", "Duck music to roughly -15 to -20 dB under speech", "Mute the music entirely", "Add compression to everything"],
-              answer: 1,
+              options: ["Duck music to roughly -15 to -20 dB under speech", "Raise the VO until it wins", "Mute the music entirely", "Add compression to everything"],
+              answer: 0,
               why: "The hierarchy puts dialogue on top — music under speech belongs well below, rising only in gaps."
             },
             {
               q: "Why does an audio J-cut improve scene changes?",
-              options: ["It reduces file size", "Hearing the next location before seeing it makes the change feel anticipated rather than abrupt", "It fixes sync drift", "It masks compression artifacts"],
-              answer: 1,
+              options: ["It reduces file size", "It fixes sync drift", "Hearing the next location before seeing it makes the change feel anticipated rather than abrupt", "It masks compression artifacts"],
+              answer: 2,
               why: "Sound leading picture bridges the transition — one sense carries continuity while the other changes."
             },
             {
               q: "What is the master reference for checking a social mix?",
-              options: ["Studio monitors", "Closed-back headphones", "A phone speaker", "The editor's laptop speakers at full volume"],
-              answer: 2,
+              options: ["Studio monitors", "A phone speaker", "Closed-back headphones", "The editor's laptop speakers at full volume"],
+              answer: 1,
               why: "The audience consumes on phones — a mix must survive the smallest, worst speaker it will actually play on."
             }
           ],
@@ -563,8 +563,8 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "Why place a cut 1-2 frames before the beat rather than on it?",
-              options: ["Software timing is inaccurate", "So the incoming shot is present when the beat lands, matching how perception syncs sound and image", "It compensates for export frame loss", "Beats are quieter than downbeats"],
-              answer: 1,
+              options: ["Software timing is inaccurate", "Beats are quieter than downbeats", "It compensates for export frame loss", "So the incoming shot is present when the beat lands, matching how perception syncs sound and image"],
+              answer: 3,
               why: "The image should already be there as the beat hits — cutting exactly on the beat perceptually lands the shot late."
             },
             {
@@ -575,8 +575,8 @@ SMU_DATA.schools.push({
             },
             {
               q: "A hard musical button at the final frame protects which metric?",
-              options: ["Click-through rate", "Completion rate, by signaling the video is definitively over", "Follower conversion", "Share rate"],
-              answer: 1,
+              options: ["Completion rate, by signaling the video is definitively over", "Click-through rate", "Follower conversion", "Share rate"],
+              answer: 0,
               why: "A decisive ending keeps viewers to the last frame; a fade invites the swipe before the video technically ends."
             }
           ],
@@ -617,8 +617,8 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "Why does 60fps footage ramp more smoothly than 30fps footage?",
-              options: ["Higher resolution", "Slowing down needs surplus real frames, which 60fps provides and 30fps lacks", "It exports at a higher bitrate", "Platforms decode it faster"],
-              answer: 1,
+              options: ["Higher resolution", "Platforms decode it faster", "It exports at a higher bitrate", "Slowing down needs surplus real frames, which 60fps provides and 30fps lacks"],
+              answer: 3,
               why: "Slow motion is frame redistribution — without surplus frames, the software must stutter or invent them."
             },
             {
@@ -671,20 +671,20 @@ SMU_DATA.schools.push({
           quiz: [
             {
               q: "The script says 'this is where the deal fell apart' with visible emotion. Where should the picture be?",
-              options: ["B-roll of the location", "A text card", "On the speaker's face", "A slow-motion insert"],
-              answer: 2,
+              options: ["B-roll of the location", "A text card", "A slow-motion insert", "On the speaker's face"],
+              answer: 3,
               why: "Emotion needs eyes — information plays over b-roll, but emotional beats belong on the face."
             },
             {
               q: "Why edit from a selects bin rather than raw footage?",
-              options: ["Raw footage cannot be color graded", "Pre-filtered best takes make every future edit start from quality, not from scrubbing", "Selects bins export faster", "Raw clips lose audio sync"],
-              answer: 1,
+              options: ["Pre-filtered best takes make every future edit start from quality, not from scrubbing", "Raw footage cannot be color graded", "Selects bins export faster", "Raw clips lose audio sync"],
+              answer: 0,
               why: "Selects are a one-time filtering investment that removes the scrubbing tax from every subsequent edit."
             },
             {
               q: "What defines decorative (bad) b-roll?",
-              options: ["Clips shorter than one second", "Footage unrelated to what the voice is saying at that moment", "Shots without camera movement", "Vertical footage in a horizontal edit"],
-              answer: 1,
+              options: ["Clips shorter than one second", "Shots without camera movement", "Footage unrelated to what the voice is saying at that moment", "Vertical footage in a horizontal edit"],
+              answer: 2,
               why: "B-roll's job is proof of the current claim — generic unrelated coverage is wallpaper the audience feels disconnected from."
             }
           ],
@@ -692,6 +692,905 @@ SMU_DATA.schools.push({
         }
       ]
     },
-    // __MORE__
+    {
+      id: "editing-3",
+      level: "Advanced",
+      title: "Color: Correct, Grade, Signature Look",
+      description: "The discipline that makes footage feel expensive: correction with scopes instead of eyes, the DaVinci Resolve node workflow, building a signature look, protecting skin, and grading for the small screen.",
+      lessons: [
+        {
+          id: "editing-3-1",
+          title: "Correction vs Grade: Two Different Jobs",
+          minutes: 10,
+          xp: 75,
+          skill: "editing",
+          intro: "Most 'bad color' online is not a bad grade — it is a missing correction underneath a grade. Separating the two jobs is the single decision that makes color work professional.",
+          sections: [
+            {
+              h: "Correction Makes It True, Grading Makes It Yours",
+              body: "**Color correction** is a technical job with a right answer: neutral whites, accurate skin, correct exposure, consistent contrast. Its goal is footage that looks like reality looked. **Color grading** is a creative job with no right answer: pushing that neutral image toward a mood — warm nostalgia, teal-shadowed luxury, clean commercial brightness.\n\nThe order is law: correct first, grade second, always. A grade applied to uncorrected footage bakes the errors in — push a warm look onto a clip that was already too warm and skin goes orange; add contrast to an underexposed shot and shadows turn to mud. Then every fix requires dismantling the look.\n\nWork in two mental modes with a hard boundary between them. Mode one asks 'is this accurate?' Mode two asks 'is this us?' Editors who blend the modes produce grades that fall apart the moment footage from a different camera or lighting setup enters the timeline."
+            },
+            {
+              h: "Scopes: Because Your Eyes Lie",
+              body: "Your eyes adapt within seconds — stare at a warm image and it starts reading neutral; grade at night and everything skews. Monitors lie too. Scopes do not.\n\nTwo instruments cover most work. The **waveform** graphs brightness: bottom is black (0), top is white (100 IRE). Read exposure from it — diffuse white around 90, shadows retaining detail above 0, and skin luminance typically sitting near 50-70 IRE depending on complexion and lighting. If the waveform hugs the middle, the image is flat; stretch it. The **vectorscope** graphs color: distance from center is saturation, direction is hue. Its famous feature is the skin-tone line — an angle on which human skin of every complexion falls when hue is accurate. Skin plotting off that line means white balance needs work, whatever your adapted eyes claim.\n\nHabit: glance at scopes before every correction decision, the way a pilot checks instruments over instinct."
+            },
+            {
+              h: "The Order of Operations",
+              body: "Professional color runs the same sequence on every project:\n\n1. **Balance each clip.** Neutralize white balance and tint — use a gray or white reference in frame if one exists, or align skin to the vectorscope line.\n2. **Set exposure and contrast.** Blacks near but not at 0, whites bright without clipping, midtones placed for the subject.\n3. **Match shots.** Every clip in a scene should cut together invisibly — compare adjacent shots directly and align their waveforms and palettes. Mismatched shots break immersion harder than a globally imperfect grade.\n4. **Grade the look.** Now, and only now, the creative layer goes on top — ideally as one adjustment over the whole timeline so it stays uniform and removable.\n\nThe sequence matters because each step assumes the previous one. Matching ungraded shots is easy; matching two differently-graded shots is a nightmare of fighting adjustments. Discipline in this order is most of what 'being good at color' means."
+            }
+          ],
+          takeaways: [
+            "Correction is a technical job with a right answer; grading is a creative job on top — never blend the modes.",
+            "Read exposure on the waveform and hue on the vectorscope; the skin-tone line beats your adapted eyes.",
+            "Run the sequence: balance, exposure, shot match, then look — every step assumes the last.",
+            "Apply the creative look as one global layer so it stays uniform and removable."
+          ],
+          actions: [
+            "Open the waveform and vectorscope in your editor today and correct three clips using scopes only.",
+            "Take one badly-graded old video, strip the look, correct properly, then re-grade on top.",
+            "Practice shot matching: correct two adjacent clips from different angles until they cut invisibly."
+          ],
+          quiz: [
+            {
+              q: "Skin in your shot plots off the vectorscope's skin-tone line. This most likely indicates:",
+              options: ["White balance or tint is off and hue needs correcting", "The subject needs makeup", "Saturation is too low", "The footage is overexposed"],
+              answer: 0,
+              why: "Skin of all complexions falls along that hue line when color is accurate — deviation means a balance error."
+            },
+            {
+              q: "Why must correction precede grading?",
+              options: ["Grading software requires it", "Correction renders faster", "A look applied over errors bakes them in, and every fix then fights the grade", "Grades cannot adjust exposure"],
+              answer: 2,
+              why: "Grading assumes a neutral foundation — errors underneath compound with the look instead of being fixable."
+            },
+            {
+              q: "Which mismatch damages a viewer's immersion most?",
+              options: ["A slightly imperfect global look", "Adjacent shots in one scene that visibly differ in color and brightness", "Undersaturated b-roll", "A missing vignette"],
+              answer: 1,
+              why: "Shot-to-shot inconsistency breaks the illusion of continuous reality at every cut — worse than any uniform imperfection."
+            }
+          ],
+          drill: "Correct five clips from one shoot using scopes, then play them as a sequence and fix every visible jump at the cuts."
+        },
+        {
+          id: "editing-3-2",
+          title: "The Resolve Color Page: Node Thinking",
+          minutes: 12,
+          xp: 75,
+          skill: "editing",
+          intro: "DaVinci Resolve's free version contains the same color toolset used on feature films. The price of entry is one mental shift: thinking in nodes instead of layers.",
+          sections: [
+            {
+              h: "Nodes Are Layers With Plumbing",
+              body: "On the Resolve color page, each clip gets a node graph: boxes connected left to right, image flowing through them. Each node is one adjustment stage, and order matters — a node sees the image only as delivered by everything upstream. That upstream/downstream logic is the whole trick: a saturation boost placed after a blue-push saturates the blue; placed before, it feeds the blue-push a more saturated source.\n\nWhy this beats sliders-on-a-clip: isolation and discipline. One job per node, labeled, means any adjustment can be toggled, weakened, or deleted without unpicking the rest. When a client wants 'the look but less,' you drop one node's opacity instead of re-balancing five sliders.\n\nStart every grade by adding serial nodes (Alt+S) and labeling them before touching a wheel. An unlabeled graph becomes unreadable in a week — including to you."
+            },
+            {
+              h: "A Five-Node Starter Tree",
+              body: "Use the same skeleton on every clip until it is reflex:\n\n1. **Balance** — neutralize white balance and tint against the scopes.\n2. **Exposure/contrast** — set the tonal range: blacks placed, whites bright, midtones serving the subject.\n3. **Skin** — a secondary isolating skin (next lesson) so faces are protected from everything downstream.\n4. **Look** — the creative push: palette bias, split-toning, creative LUT at reduced strength.\n5. **Finish** — vignette, subtle sharpening or softening, final saturation trim.\n\nThe fixed order encodes the correct workflow physically — correction upstream, creativity downstream, finish last. And because the skeleton is identical on every clip, copying grades between shots actually works: the structure matches, so a pasted grade needs only small per-shot balance tweaks rather than a rebuild."
+            },
+            {
+              h: "Primaries: Wheels, Log, and the Pivot",
+              body: "The primary wheels — **lift** (shadows), **gamma** (midtones), **gain** (highlights), plus **offset** (everything) — are your core instruments. Their ranges overlap smoothly and broadly, which makes them forgiving for correction: pull lift down to seat blacks, ride gamma for subject brightness, push gain for sparkle.\n\nThe **log wheels** are the same idea with narrower, steeper ranges — surgical pushes into just the deep shadows or just the top highlights without dragging the midtones along. Correction favors primaries; look-building often favors log for its precision.\n\nFor contrast, use the **contrast + pivot** pair instead of bending curves early: contrast stretches the image around a fulcrum, and pivot places that fulcrum. Raise pivot and the stretch darkens the image overall; lower it and contrast brightens. One knob and one fulcrum produce cleaner results than five separate moves — and cleaner is faster to match across a timeline."
+            },
+            {
+              h: "Stills, Wipes, and Matching at Speed",
+              body: "Resolve's gallery is the shot-matching engine. Grab a still of your hero shot (the graded reference), then wipe it over any other clip — a split-screen comparison of reference versus current shot, live. Match the waveforms first (exposure), then the palettes (balance), and slide the wipe line across to check the seam. Matching by memory is guessing; matching against a wiped still is measuring.\n\nCopying grades: click the target clip, then middle-click the source clip to paste its full grade across. With the five-node skeleton, most pasted grades need only a balance tweak on node one.\n\nBuild a habit of saving stills of every finished look into labeled albums — 'client X look,' 'moody teal,' 'clean commercial.' That gallery becomes your personal look library: every past grade is a starting point you can reapply, which is how colorists get faster every single project."
+            }
+          ],
+          takeaways: [
+            "Nodes are ordered adjustment stages — each sees only what upstream delivers, so structure is meaning.",
+            "Run a fixed five-node skeleton: balance, exposure, skin, look, finish — labeled, every clip.",
+            "Primaries for broad correction, log wheels for surgical pushes, contrast+pivot for clean tonal stretch.",
+            "Match shots against wiped stills and middle-click to copy grades — measure, never memorize."
+          ],
+          actions: [
+            "Install DaVinci Resolve (free) and grade five clips through the five-node skeleton today.",
+            "Practice the still-and-wipe match on two shots from different lighting until the seam disappears.",
+            "Start your look library: save a labeled still of every grade you finish this week."
+          ],
+          quiz: [
+            {
+              q: "A saturation node placed after a heavy blue-push node will:",
+              options: ["Ignore the blue entirely", "Only affect highlights", "Cancel the blue-push", "Saturate the already-blue image it receives from upstream"],
+              answer: 3,
+              why: "Nodes process the image as delivered by everything upstream — order changes the outcome."
+            },
+            {
+              q: "What advantage does a consistent five-node skeleton give when copying grades between shots?",
+              options: ["Faster rendering", "It removes the need for scopes", "Pasted grades land on a matching structure, needing only small balance tweaks", "It locks white balance automatically"],
+              answer: 2,
+              why: "Identical structure means a copied grade maps cleanly — only the per-shot correction node needs adjusting."
+            },
+            {
+              q: "Raising the pivot while adding contrast will:",
+              options: ["Darken the image, since the stretch happens around a higher fulcrum", "Brighten the image overall", "Only affect saturation", "Clip the highlights"],
+              answer: 0,
+              why: "Pivot sets the fulcrum of the contrast stretch — a higher pivot pushes more of the image downward."
+            }
+          ],
+          drill: "Grade one clip through the five-node skeleton, save a still, then match a second clip from different light against the wiped still."
+        },
+        {
+          id: "editing-3-3",
+          title: "Building a Signature Look",
+          minutes: 11,
+          xp: 75,
+          skill: "editing",
+          intro: "A signature look is why some feeds feel like a brand and others feel like a camera roll. It is not a filter you found — it is a small set of decisions you repeat on purpose.",
+          sections: [
+            {
+              h: "A Look Is a Set of Repeated Decisions",
+              body: "Deconstruct any recognizable feed aesthetic and you find the same four dials set consistently:\n\n- **Contrast curve** — crushed cinematic blacks, or lifted faded shadows, or clean commercial linearity.\n- **Palette bias** — where neutrals lean: teal shadows and warm skin, golden everything, cool clinical.\n- **Saturation discipline** — muted with one hero color, or rich throughout, or near-monochrome.\n- **Texture** — clinical sharpness, or soft halation and grain.\n\nDefine your four settings in a sentence before touching a wheel: 'lifted blacks, warm bias, muted palette with saturated brand-blue, soft highlights.' That sentence is your look; the grade merely implements it. Steal the sentence from three references — screenshot frames from films or feeds you admire, extract what their four dials are doing, and write your own recipe. Consistency across every post is what converts a nice grade into brand recognition."
+            },
+            {
+              h: "Split-Toning and Color Contrast",
+              body: "The engine inside most premium looks is **split-toning**: pushing shadows toward one hue and highlights toward its rough complement. Teal shadows with warm highlights is the famous pairing because skin lives in the warm range — the cool surroundings make faces pop through complementary contrast. Luxury looks often run subtler versions: slate-blue shadows under golden highlights for automotive, deep green shadows under cream highlights for heritage-brand mood.\n\nExecution in the look node: nudge the lift wheel toward the shadow hue, gain wheel toward the highlight hue — and keep both pushes subtle. On a 0-100 mental scale, most premium looks live at 5-15 percent strength; at 30 the image reads 'filtered' and trust drops.\n\nGuard rail: after split-toning, re-check skin on the vectorscope. If faces drifted off the skin line, protect them with the skin node — the world can be teal, but people must stay human."
+            },
+            {
+              h: "LUTs Done Right",
+              body: "Two species of LUT get confused constantly. A **technical LUT** converts one color space to another — log footage to Rec.709 — and belongs early in the chain as math, not taste. A **creative LUT** is someone's saved look, and belongs late, after your correction, as a starting point rather than a destination.\n\nThree rules keep creative LUTs professional. First, correct before the LUT: a LUT built on balanced footage will do something ugly and unpredictable to unbalanced footage — it is a fixed transform, not an intelligent filter. Second, apply at reduced intensity: drop the LUT node's opacity to 40-70 percent and most 'too much' problems vanish. Third, adjust after: trim skin, saturation, and contrast downstream to make the borrowed look yours.\n\nThe honest framing: a LUT is a look *seed*. Buying a famous colorist's pack does not produce their images — their correction discipline underneath it does."
+            },
+            {
+              h: "Film Emulation Cues — With Restraint",
+              body: "Why does 'shot on film' read as premium? Because film's imperfections are organic: **halation** (a warm glow bleeding around bright highlights), **grain** (structured, luminance-weighted texture, heavier in shadows), and a **soft highlight rolloff** (whites that shoulder gently into brightness instead of clipping hard).\n\nEach cue is reproducible. Halation: isolate the brightest highlights, blur that isolation, tint it warm-orange, blend at low opacity. Rolloff: bend the top of the curve into a shoulder rather than a hard ceiling. Grain: apply a film-grain overlay or Resolve's grain tool — coarse and subtle, at 35mm-like scale — never the fine dense noise that platform compression smears into mush.\n\nThe restraint rule governs all three: emulation should be *felt*, not seen. If a viewer says 'nice film look,' it is likely too strong; the target is 'this feels expensive and I cannot say why.' Test at feed size — effects visible at full screen often vanish or turn to noise at phone scale."
+            }
+          ],
+          takeaways: [
+            "A look is four repeated decisions: contrast curve, palette bias, saturation discipline, texture — write the sentence first.",
+            "Split-tone shadows and highlights toward complements at 5-15 percent strength; skin stays protected.",
+            "Correct before any creative LUT, apply it at 40-70 percent opacity, and adjust downstream.",
+            "Film emulation — halation, coarse grain, soft rolloff — should be felt, never seen, and tested at feed size."
+          ],
+          actions: [
+            "Write your look sentence from three reference frames and implement it as a saved node or preset.",
+            "Build one split-toned grade and A/B it at 10 percent versus 30 percent strength on your phone.",
+            "Take any creative LUT you own and re-apply it correctly: correction first, 50 percent opacity, downstream trims."
+          ],
+          quiz: [
+            {
+              q: "A creative LUT makes footage look broken — green shadows, blown skin. The most likely cause is:",
+              options: ["The LUT file is corrupted", "LUTs require log footage", "The footage is 60fps", "It was applied to uncorrected footage it was never built for"],
+              answer: 3,
+              why: "A LUT is a fixed transform expecting balanced input — feed it uncorrected footage and it amplifies every error."
+            },
+            {
+              q: "Why does teal-and-warm split-toning make faces pop?",
+              options: ["Teal increases sharpness", "Skin sits in the warm range, so cool surroundings create complementary contrast around it", "It raises skin brightness", "Platforms boost teal content"],
+              answer: 1,
+              why: "Complementary color contrast — warm subject against cool field — is the mechanism, since skin is inherently warm."
+            },
+            {
+              q: "The right target strength for a signature look is:",
+              options: ["Strong enough that viewers name the effect", "Felt but not seen — noticeable as quality, not as a filter", "Maximum, to differentiate the brand", "Different on every post for variety"],
+              answer: 1,
+              why: "Premium reads as unexplainable quality; once the audience sees 'a filter,' trust and polish both drop."
+            }
+          ],
+          drill: "Grade the same clip in three looks — clean commercial, teal-warm luxury, faded film — and screenshot each. Pick the one your brand will repeat forever."
+        },
+        {
+          id: "editing-3-4",
+          title: "Skin First: Qualifiers and Selective Color",
+          minutes: 10,
+          xp: 75,
+          skill: "editing",
+          intro: "Audiences forgive a purple wall; they never forgive a gray face. Skin is the anchor of every grade, and secondaries are how you protect it while the rest of the image goes wherever the look demands.",
+          sections: [
+            {
+              h: "Skin Is the Anchor",
+              body: "Human vision is ruthlessly calibrated to faces. A viewer cannot tell you the walls are 200 kelvin too warm, but skin that is slightly green, gray, or radioactive-orange registers instantly as *wrong* — and wrong transfers to the brand. This is why professional grading is skin-first: establish accurate, flattering skin, then build the look around it, never through it.\n\nThe measurement tool is the vectorscope's skin-tone line: skin of every complexion falls along that hue angle when color is accurate — complexions differ in saturation and brightness along the line, not in hue across it. Saturation for healthy-looking skin typically sits moderate; drained skin reads ill, oversaturated skin reads sunburned.\n\nPractical sequence: balance the shot until skin sits on the line, *then* apply the look, then check the line again. If the look dragged skin off-hue, you do not weaken the look — you isolate skin and restore it. That isolation is the qualifier's job."
+            },
+            {
+              h: "The Qualifier Workflow",
+              body: "A **qualifier** selects pixels by color instead of by shape. In Resolve: on your skin node, take the qualifier eyedropper and drag across a midtone patch of skin — cheek or forehead, avoiding shadows and hotspots. Toggle the matte view and refine: widen the hue and saturation ranges until all skin is selected, tighten luminance to exclude similar-colored surfaces, then always soften — denoise the matte and blur its edge so the selection never flickers or outlines.\n\nPremiere's equivalent is the Lumetri HSL Secondary panel: same eyedropper, same refine-and-soften logic.\n\nWith skin isolated, adjustments touch only faces: nudge hue toward the skin line, ride saturation to healthy, lift midtone brightness slightly — a half-stop of extra luminance on faces is an old cinematography trick that draws the eye to people. The test of a good qualifier is invisibility in motion: play the clip and watch edges; a chattering matte is worse than no secondary at all."
+            },
+            {
+              h: "Selective Color for Brand Palettes",
+              body: "The same qualifier logic runs in reverse for everything that is not skin. Luxury and commercial grades often mute the world and let one hero color carry the frame: qualify the car's paint, the product, the brand color — boost its saturation a touch — then suppress competing colors globally. The result reads instantly as 'commercial': controlled, intentional, art-directed.\n\nTwo disciplines keep it believable. First, **stay inside plausibility** — a boosted red car still looks like paint; a neon red car looks like a render. Push saturation and luminance in small moves and stop before the material stops being material. Second, **mute, don't murder** — pulling background saturation down 15-30 percent quiets distractions; pulling it to zero creates the dated selective-color gimmick of one red rose in a gray world.\n\nCombine the two secondaries — skin protected, hero color lifted, world quieted — and you have the skeleton of essentially every high-end commercial grade on your feed."
+            }
+          ],
+          takeaways: [
+            "Grade skin-first: viewers detect face errors instantly and forgive everything else.",
+            "All complexions share the vectorscope skin line in hue — differing along it, not across it.",
+            "Qualify skin, soften the matte, and restore faces after the look — never weaken the look instead.",
+            "Selective color means hero color lifted plausibly and the world muted 15-30 percent, never zeroed."
+          ],
+          actions: [
+            "Qualify skin on one clip today, view the matte, and refine until it holds clean in motion.",
+            "Apply a strong creative look, then restore skin through the qualifier — compare against the unprotected version.",
+            "Build one hero-color grade: your brand color qualified and lifted, background saturation muted 20 percent."
+          ],
+          quiz: [
+            {
+              q: "A strong teal look has dragged faces off the skin-tone line. The professional fix is:",
+              options: ["Reduce the whole look's strength", "Add warmth to the entire image", "Raise global saturation", "Qualify skin and restore its hue downstream of the look"],
+              answer: 3,
+              why: "The look stays at full strength for the world — skin is isolated and corrected separately, which is the qualifier's purpose."
+            },
+            {
+              q: "What is the test of a well-refined qualifier matte?",
+              options: ["It stays invisible in motion — no flicker or edge chatter during playback", "It selects the entire frame", "It renders in real time", "It includes shadows and hotspots"],
+              answer: 0,
+              why: "A matte judged on a still can chatter in motion — playback stability is the real acceptance test."
+            },
+            {
+              q: "Why mute background saturation 15-30 percent instead of fully desaturating it?",
+              options: ["Full desaturation increases file size", "Platforms reject grayscale footage", "Partial muting quiets distractions while avoiding the dated one-color-in-gray gimmick", "It preserves the waveform"],
+              answer: 2,
+              why: "The goal is a quieter world that still reads as reality — zeroed backgrounds turn a grade into a gimmick."
+            }
+          ],
+          drill: "On one automotive or product clip: qualify and protect skin, lift the hero color, mute the world 20 percent, and play it back watching only the matte edges."
+        },
+        {
+          id: "editing-3-5",
+          title: "Grading for Small Screens",
+          minutes: 9,
+          xp: 75,
+          skill: "editing",
+          intro: "Your grade will be judged on a six-inch OLED at full brightness in a distracted feed — not on your calibrated monitor. Grading for that reality is its own discipline.",
+          sections: [
+            {
+              h: "The Phone Changes the Math",
+              body: "Three things happen between your editing suite and the viewer's hand. Phone OLEDs run vivid: saturation displays hotter than your monitor shows, so a grade that looks rich on the desktop can read radioactive in the feed — grade a touch under where instinct says. Shadows crush: subtle dark detail that reads on a desktop display disappears on a phone in a bright room, so keep essential detail out of the deepest 10 percent of the range and grade your mids slightly brighter than cinema taste suggests. And compression bites: platform re-encoding posterizes smooth gradients — skies, vignettes, out-of-focus backgrounds — into visible banding, which heavy grading pushes further.\n\nThe non-negotiable habit: check every grade on an actual phone, in the actual app if possible, before calling it done. Send yourself the export, watch it in a bright room and a dark one. The phone is not a preview of the deliverable — it *is* the deliverable."
+            },
+            {
+              h: "Contrast Reads as Quality at Feed Size",
+              body: "At thumbnail and feed scale, fine detail is gone — what survives is tonal structure. Images with confident contrast (deep, placed blacks; bright, clean highlights; clear subject-background separation) look premium at any size, while flat, low-contrast grades that seem sophisticated at full screen just look muddy and gray at three inches.\n\nThis is why the 'crushed but not clipped' convention dominates high-end social: blacks seated firmly near the floor with a hint of detail, a healthy midtone stretch, and highlights with room to sparkle. On the waveform: signal using the full height without slamming either boundary.\n\nA second small-screen lever is **micro-contrast** — local contrast in the midtones (clarity-type adjustments, or a gentle midtone-detail push in Resolve). It gives texture presence at small sizes. Apply with restraint: over-pushed clarity produces the crunchy HDR-look halo that reads cheap instantly. Squint-test the frame; if the subject still separates, the tonal structure works."
+            },
+            {
+              h: "Consistency Across a Series",
+              body: "One well-graded video is a video; thirty consistently-graded videos are a brand. Engineering that consistency:\n\n- **Save the look as an asset** — a PowerGrade in Resolve, a Lumetri preset in Premiere, a preset in CapCut — and apply the identical asset to every project. Never rebuild by eye.\n- **Keep reference stills** of your three best graded frames; open them beside every new grading session and match toward them.\n- **Control your environment** — grade in the same room lighting at the same monitor brightness. A grade made at midnight in a dark room will not match one made at noon by a window.\n- **Beware iPhone HDR** — footage shot in HDR formats looks blown-out and washed in an SDR pipeline. Either shoot SDR for social, or let Resolve tone-map the conversion properly, and never mix the two unmanaged in one timeline.\n\nConsistency is unglamorous, and it is the difference between a grade and an identity."
+            }
+          ],
+          takeaways: [
+            "Grade slightly under-saturated and brighter in the mids — phone OLEDs run vivid and crush shadows.",
+            "Confident contrast survives feed size; flat 'sophisticated' grades read as mud at three inches.",
+            "Micro-contrast adds small-screen presence, but over-pushed clarity reads instantly cheap.",
+            "Save the look as a preset, grade beside reference stills, and manage HDR footage deliberately."
+          ],
+          actions: [
+            "Send your current graded edit to your phone and view it in bright and dark rooms — log what changed.",
+            "Save your finished look as a PowerGrade or preset today and delete the temptation to rebuild by eye.",
+            "Check your camera settings: if you shoot HDR for social, decide now — switch to SDR or build the tone-map step into your pipeline."
+          ],
+          quiz: [
+            {
+              q: "A grade looks perfect on a desktop monitor but garish and oversaturated in the feed. The likely reason is:",
+              options: ["Phone OLED displays run more vivid than the editing monitor", "Platform compression adds saturation", "The export bitrate was too high", "Captions altered the colors"],
+              answer: 0,
+              why: "Vivid phone displays amplify saturation — grades must be calibrated to the consumption screen, slightly under desktop instinct."
+            },
+            {
+              q: "Why does confident contrast matter more at feed size than fine detail?",
+              options: ["Detail increases file size", "Platforms sharpen automatically", "At small scale only tonal structure survives — separation and placed blacks read as quality", "Contrast prevents banding"],
+              answer: 2,
+              why: "Small screens erase fine detail; what remains legible is the tonal architecture of the frame."
+            },
+            {
+              q: "iPhone HDR footage dropped into an unmanaged SDR timeline typically looks:",
+              options: ["Too dark and crushed", "Blown-out and washed", "Oversharpened", "Identical to SDR footage"],
+              answer: 1,
+              why: "HDR values displayed without tone mapping exceed the SDR range — highlights wash out and the image reads flat and bright."
+            }
+          ],
+          drill: "Grade one clip to look perfect on your desktop, send it to your phone, then re-grade until it looks perfect there instead. Compare the two grades' settings."
+        }
+      ]
+    },
+    {
+      id: "editing-4",
+      level: "Expert",
+      title: "Motion Graphics and VFX for Editors",
+      description: "The layer above the cut: animation principles that make graphics feel expensive, kinetic type systems, invisible cuts and clones, motion tracking, and compositing fundamentals — all inside an editor's toolkit.",
+      lessons: [
+        {
+          id: "editing-4-1",
+          title: "Motion Principles: Easing Is Everything",
+          minutes: 11,
+          xp: 90,
+          skill: "editing",
+          intro: "The gap between amateur and agency graphics is rarely the design — it is the movement. Two identical text layers, two sets of keyframes, and one feels like a template while the other feels like money.",
+          sections: [
+            {
+              h: "Linear Keyframes Look Cheap",
+              body: "Nothing in the physical world moves at constant speed. Objects accelerate, coast, decelerate — mass and momentum are visible in every real motion. Linear keyframes ignore physics, moving at robotic constant velocity, and the eye reads them instantly as 'computer.'\n\nThe fix is **easing**: shaping the speed curve between keyframes. Ease-out (fast start, gentle landing) suits elements arriving; ease-in (gentle start, accelerating exit) suits elements leaving; ease-both suits repositioning. In Premiere and After Effects: select keyframes, apply Easy Ease, then open the graph editor and steepen the curve's middle so the move spends most of its time near its endpoints. CapCut exposes curve handles on keyframes for the same shape.\n\nBorrow two principles from classical animation: **anticipation** — a tiny move opposite before the main move (text dips 2 pixels before rising) — and **overshoot** — passing the endpoint slightly and settling back. Both add the illusion of mass, and mass is what expensive feels like."
+            },
+            {
+              h: "Timing: The Numbers That Feel Right",
+              body: "Motion timing has working conventions worth memorizing as starting points:\n\n- **Text and UI entrances:** 10-15 frames at 30fps (roughly a third to half a second). Faster feels jumpy; slower feels sluggish.\n- **Exits:** quicker than entrances — 6-10 frames. Attention has already moved on; the exit should not demand it back.\n- **Stagger:** when several elements animate, offset their starts by 2-4 frames each. Simultaneous arrival reads mechanical; a cascade reads designed.\n- **Holds:** on-screen text needs reading time — roughly a half-second per word or so at feed pace — before its exit begins.\n\nAnd the emphasis frame trick: a scale pop to about 110 percent that settles to 100 over 4-6 frames turns a static word into a beat. None of these numbers is law; all of them are the difference between guessing and starting from craft. Adjust by feel, at full speed, on a phone-sized preview — motion judged in slow scrubbing always lies."
+            },
+            {
+              h: "Every Move Directs the Eye",
+              body: "Expert motion design earns a stricter rule: no decoration. Every animation exists to steer attention — toward the next word, the price, the product, the CTA. Before adding any keyframe, name what the move is pointing at. If the answer is 'it just looks dynamic,' delete it; unmotivated motion competes with your content for the same attention it should be serving.\n\nThis converts animation into information design. A slide-in from the left implies sequence: this follows that. Scale-up implies importance. A wipe implies replacement. Motion toward the product carries the eye to the product — and motion away leaks attention off-frame with it.\n\nPractical audit: play your graphic-heavy edit muted at full speed and track your own eyes. Wherever they land is where the motion sent them. If they missed the key information, the choreography — not the viewer — failed. Recut the moves until the eye-path lands on your message in order."
+            }
+          ],
+          takeaways: [
+            "Ease everything — linear keyframes read as 'computer' because nothing real moves at constant speed.",
+            "Starting numbers: 10-15 frame entrances, 6-10 frame exits, 2-4 frame staggers, half-second-per-word holds.",
+            "Anticipation and overshoot add the illusion of mass, and mass is what expensive feels like.",
+            "Every move must direct the eye at something nameable — unmotivated motion is deleted, not kept."
+          ],
+          actions: [
+            "Re-animate one text entrance three ways — linear, eased, eased with overshoot — and compare at full speed.",
+            "Take your most graphic-heavy video and delete every animation that does not point at anything.",
+            "Build one staggered three-element entrance with 3-frame offsets and save it as a preset."
+          ],
+          quiz: [
+            {
+              q: "Why do linear keyframes read as amateur?",
+              options: ["They render at lower quality", "They only work at 60fps", "They cannot be staggered", "Constant velocity ignores the acceleration and mass visible in all real motion"],
+              answer: 3,
+              why: "The eye expects physics — easing restores the acceleration profile real objects have, and its absence flags 'computer.'"
+            },
+            {
+              q: "Three callout labels animate in simultaneously and the result feels mechanical. The standard fix is:",
+              options: ["Slow all three down equally", "Use linear interpolation", "Stagger their starts by 2-4 frames each", "Make them larger"],
+              answer: 2,
+              why: "A short cascade reads as designed choreography; simultaneous arrival reads as one mechanical event."
+            },
+            {
+              q: "The expert test for whether an animation belongs in the edit is:",
+              options: ["Whether you can name what it directs the eye toward", "Whether it loops cleanly", "Whether it uses overshoot", "Whether it is under 15 frames"],
+              answer: 0,
+              why: "Motion is information design — a move that points at nothing competes with the content instead of serving it."
+            }
+          ],
+          drill: "Animate the word 'SOLD' landing on screen with anticipation, overshoot, and a settle — tune it until it feels like it has weight."
+        },
+        {
+          id: "editing-4-2",
+          title: "Kinetic Type Systems for Hooks",
+          minutes: 10,
+          xp: 90,
+          skill: "editing",
+          intro: "Top accounts do not animate text video by video — they run a type system: a small set of moves, styles, and rules that make every video recognizable and every edit fast.",
+          sections: [
+            {
+              h: "Hook Text Architecture",
+              body: "Kinetic type for social follows a spoken-word logic: the screen shows what the voice says, chunked for reading at feed speed. The architecture rules:\n\n- **One idea per screen.** A text beat carries 3-5 words; the next thought gets its own beat. Cramming a sentence into one card forces re-reading and kills pace.\n- **Time to the VO cadence.** Each chunk appears as its words are spoken — the sync between ear and eye is itself a retention mechanic, giving the brain two matched inputs to fuse.\n- **Position with intent.** Keep the text block anchored in one zone (upper-middle for hooks, center for emphasis cards) rather than bouncing around the frame; the viewer's eye should never hunt.\n- **Contrast always wins.** Stroke or shadow, checked against the brightest and darkest frames the text sits over.\n\nStoryboard the first ten seconds as text beats before animating anything — the chunking decisions matter more than the moves."
+            },
+            {
+              h: "Build the System: Three Moves, Two Emphases, One Pair",
+              body: "An agency type system is deliberately small. Define, then reuse forever:\n\n- **Three entrance animations.** For instance: a quick eased pop for standard beats, a directional slide for sequenced ideas, a blur-in for dramatic reveals. Every text element in every video uses one of the three.\n- **Two emphasis styles.** A scale-pop with color for the operative word; a full-screen card for the structural moment. Nothing else.\n- **One font pair.** A workhorse for captions and a display face for hooks — locked weights, locked sizes, locked accent color.\n\nThen make the system mechanical: save it as CapCut text presets, Premiere .mogrt templates, or Final Cut title presets, so applying your entire brand typography is a drag, not a rebuild.\n\nThe constraint is the point. Infinite options make every edit a design project; a closed system makes every edit an assembly — faster, and cumulatively recognizable in a way novelty never is."
+            },
+            {
+              h: "Word-Level Emphasis Synced to Speech",
+              body: "The highest-grade version of kinetic type works at the word level: as the voice hits the operative word — 'this apartment was **underpriced**' — that word pops 105-115 percent, flips to the accent color, and a soft SFX tick lands on the same frame. Ear, eye, and meaning converge on one syllable.\n\nExecution: find the word's exact frame on the audio waveform (transient peaks make spoken emphasis easy to spot), place the pop there, and keep the scale settle short — 3-5 frames — so the motion punctuates rather than distracts. One to three emphasized words per sentence, maximum; emphasis inflation is real, and a paragraph of popping words is a paragraph with no emphasis at all.\n\nChoose operative words like a copywriter: the number, the contrast word, the emotional peak — not random nouns. The pop tells the viewer 'this is the word the sentence exists for.' Choose wrong and you actively teach the audience to misread you; choose right and even muted viewers feel your inflection."
+            }
+          ],
+          takeaways: [
+            "Chunk hooks at 3-5 words per screen, timed to VO cadence, anchored in one screen zone.",
+            "Lock a closed system: three entrances, two emphasis styles, one font pair — saved as presets.",
+            "Word-level pops (105-115 percent, accent color, SFX tick) land on the exact spoken frame.",
+            "Emphasize one to three operative words per sentence — emphasis inflation erases emphasis."
+          ],
+          actions: [
+            "Define your type system on paper today: three moves, two emphases, one font pair, one accent color.",
+            "Build the system as presets or .mogrt templates in your editor of choice.",
+            "Recut the first 10 seconds of an old video with word-level emphasis on the true operative words."
+          ],
+          quiz: [
+            {
+              q: "Why chunk hook text at 3-5 words per screen?",
+              options: ["Fonts render faster with fewer characters", "It saves timeline tracks", "Platforms truncate longer overlays", "Feed-speed reading needs one idea per beat — full sentences force re-reading and kill pace"],
+              answer: 3,
+              why: "Text beats mirror spoken cadence — small chunks are read in a glance, keeping eye and ear in sync."
+            },
+            {
+              q: "The strategic value of limiting yourself to three entrance animations is:",
+              options: ["Lower export sizes", "Edits become fast assembly and the repetition compounds into brand recognition", "It avoids software bugs", "Viewers prefer slides to pops"],
+              answer: 1,
+              why: "A closed system converts design decisions into reusable mechanics — speed now, recognizability over time."
+            },
+            {
+              q: "In word-level emphasis, the pop should land:",
+              options: ["One second before the word is spoken", "On the exact frame the word's audio transient hits", "At the end of the sentence", "On every noun in the sentence"],
+              answer: 1,
+              why: "The power is convergence — ear, eye, and meaning hitting one frame; early or late placement breaks the fusion."
+            }
+          ],
+          drill: "Take one spoken sentence with a number in it and build the full treatment: chunked text beats, one word-level pop on the number, SFX tick on the frame."
+        },
+        {
+          id: "editing-4-3",
+          title: "Masks, Clones, and Invisible Cuts",
+          minutes: 11,
+          xp: 90,
+          skill: "editing",
+          intro: "Masking is the gateway from editing into VFX — and the highest-leverage version is invisible: seams the audience never sees, clones they cannot explain, and cuts that read as one continuous shot.",
+          sections: [
+            {
+              h: "Masking Fundamentals",
+              body: "A mask defines which pixels of a layer are visible. Every serious editor's toolkit has them: pen and shape masks in Premiere's opacity controls, the Power Windows on Resolve's color page, mask tools on CapCut's overlay layers. Three fundamentals govern all of them.\n\n**Feather everything.** A hard mask edge screams composite; 5-20 pixels of feather melts the boundary into the image. **Track or keyframe.** The camera and subject move, so a static mask slides off its target within frames — keyframe the mask by hand on short moves, or use built-in tracking (Resolve's window tracker is excellent) for longer ones. **Check edges in motion.** Like qualifier mattes, masks are judged during playback, not on stills — a crawling edge betrays the effect instantly.\n\nStart applying masks for mundane wins: darken a distracting corner, vignette attention toward the subject, blur a license plate. The craft you build on boring masks is exactly what invisible cuts will spend."
+            },
+            {
+              h: "The Invisible Cut",
+              body: "An invisible cut joins two shots so they play as one continuous take — the one-take feel without the one-take risk. The editor's toolkit holds four reliable seams:\n\n1. **The whip.** Both shots whip-pan the same direction; cut at maximum blur.\n2. **The occlusion pass.** A wall, pillar, person, or your own hand fully crosses the lens; the cut hides during total coverage.\n3. **The push into darkness or texture.** The camera pushes into a shadow, a jacket, a doorframe until the frame fills; the next shot pulls out of a matching fill.\n4. **The masked wipe.** No natural coverage? Draw one — mask the incoming shot to a moving vertical edge in the frame and let it wipe the outgoing shot away.\n\nAll four are planned on set: matching camera direction, matching speed, deliberate coverage moments. The edit merely collects what the shoot designed. One planning habit — begin and end every shot with a potential seam — turns ordinary coverage into one-take material."
+            },
+            {
+              h: "Clone Yourself",
+              body: "The clone effect — two of you in one frame, arguing, interviewing yourself, handing an object across the cut — is the highest-retention trick you can build with a mask and a tripod.\n\nThe method: lock the camera absolutely (tripod, manual exposure, manual focus, manual white balance — any auto setting will shift between takes and break the illusion). Perform take one on the left of frame, take two on the right. Stack the takes; mask down the middle with a generous feather through empty background, never through a body. Match your own eyelines to where your other self stands, and leave response gaps in each take so the dialogue interleaves.\n\nThe seam's enemies: lighting shifts between takes (shoot both within minutes), shadows crossing the mask line, and auto-exposure drift. The retention logic is the pattern interrupt of the impossible — a self-conversation format routinely holds attention simply because the brain keeps checking how it works."
+            },
+            {
+              h: "Foreground Wipes as Rescue and Style",
+              body: "The masked foreground wipe deserves its own drilling because it doubles as a rescue tool. Two takes with a continuity error between them? Wipe the seam behind a passer-by. Need to compress a 20-minute process into two shots that feel continuous? Let a foreground object carry the time jump. The audience reads occlusion as continuity — whatever emerges after the pass is accepted as the same world.\n\nBuilding one from footage without natural coverage: find any strong vertical edge moving through frame — a person, a pole during a pan, a door — mask the incoming clip to that edge, and keyframe the mask across with it. Feather the edge a few pixels, add a subtle whoosh, and grade both sides to match (a brightness jump at the seam is what usually betrays it).\n\nStyle emerges from repetition: an account that hides every location change behind a wipe develops a seamless, dreamlike signature — a brand feel built entirely from one mask technique."
+            }
+          ],
+          takeaways: [
+            "Feather every mask, track or keyframe it, and judge edges in motion — never on stills.",
+            "Four invisible seams: matched whips, occlusion passes, pushes into darkness, and masked wipes.",
+            "Clones need a locked camera, all-manual settings, a feathered seam through empty background, and matched eyelines.",
+            "Begin and end every shot with a potential seam — coverage becomes one-take material by planning."
+          ],
+          actions: [
+            "Build one masked foreground wipe today from existing footage with any moving vertical edge.",
+            "Shoot a clone conversation: locked tripod, manual everything, two takes, center mask.",
+            "On your next shoot, deliberately capture three occlusion passes as edit gifts."
+          ],
+          quiz: [
+            {
+              q: "A clone effect keeps breaking at the seam. The most common cause is:",
+              options: ["The mask is too feathered", "The tripod was too low", "The takes are different lengths", "Auto exposure or white balance shifted between takes"],
+              answer: 3,
+              why: "Any auto setting drifts between takes — the background mismatch reveals the seam no matter how good the mask is."
+            },
+            {
+              q: "Where should the clone mask's seam run?",
+              options: ["Through empty background between the two performances", "Directly down the speaker's body", "Along the top of frame", "Wherever the mask tool defaults"],
+              answer: 0,
+              why: "A feathered seam through featureless background is undetectable; a seam through a moving body is impossible to hide."
+            },
+            {
+              q: "Why does an occlusion pass create an accepted time jump?",
+              options: ["It resets the platform's attention timer", "It increases motion blur", "Viewers read full-frame coverage as continuity and accept whatever emerges as the same world", "It forces a higher frame rate"],
+              answer: 2,
+              why: "Occlusion exploits perceptual continuity — the brain bridges the covered moment rather than questioning it."
+            }
+          ],
+          drill: "Film yourself twice at a locked table — asking a question, then answering from the other seat — and composite the clone conversation with a center mask."
+        },
+        {
+          id: "editing-4-4",
+          title: "Tracking and Screen Magic",
+          minutes: 10,
+          xp: 90,
+          skill: "editing",
+          intro: "Motion tracking pins graphics to the moving world — labels that ride on cars, callouts locked to products, replaced phone screens. It is the effect that makes viewers ask 'how,' built with tools already in your editor.",
+          sections: [
+            {
+              h: "Point, Planar, and When Tracks Slip",
+              body: "Two tracker species cover editor-level work. A **point tracker** follows one small pattern of pixels — ideal for pinning a label to a car's badge or a callout to a person walking. A **planar tracker** follows an entire flat surface through perspective changes — the tool for screens, signs, and walls (Mocha in After Effects is the reference; Resolve's tracker handles most social-grade cases).\n\nTracks slip for predictable reasons: the feature loses contrast, exits frame, gets occluded, or motion-blurs into mush. The countermeasures are equally predictable — choose a high-contrast corner or intersection as your feature (never a smooth area), track through the shortest usable section instead of the whole clip, and when a track drifts, stop at the last good frame, re-anchor, and track the next section fresh. Stitching three short clean tracks beats fighting one long dirty one.\n\nAnd when tracking truly fails — extreme blur, wild motion — keyframe by hand every 2-4 frames. Twenty manual keyframes take five minutes and never slip."
+            },
+            {
+              h: "Screen Replacements That Sell",
+              body: "Replacing a phone or laptop screen with your clean UI recording is a four-corner problem: **corner pin** the insert to the screen's four corners, tracked through the shot (planar tracking shines here). But the pin is the easy half — believability comes from matching the insert to the scene:\n\n- **Brightness and color.** A pasted screenshot at full brightness over a dim room glows like a lightbox. Grade the insert down toward the scene's exposure and temperature.\n- **Screen glow.** Real screens spill light; add a faint soft glow from the insert onto surrounding fingers or face in dark scenes.\n- **Reflection and texture.** A whisper of the original screen's reflection layered at low opacity over the insert — or a subtle gradient — kills the 'sticker' look instantly.\n- **Motion blur.** If the device moves fast, the insert must blur with it; a sharp screen on a blurred phone is the giveaway.\n\nThe test: nobody comments on the screen at all. Comments mean it failed."
+            },
+            {
+              h: "Callout Systems for Authority Content",
+              body: "Tracked callouts — arrows, boxes, underlines, spec labels pinned to moving subjects — are the signature of high-authority niches: horsepower figures riding on a car through a corner, square-footage labels on a property walkthrough, form-check arrows on a lift. They convert passive footage into annotated expertise, and annotation reads as authority.\n\nSystem rules: design callouts inside your type system (same fonts, same accent color, same entrance animation) so they read as brand, not clip-art; animate them in with a 6-10 frame eased entrance and out before they overstay; and attach each to a track so it moves *with* the world — a static label over a moving shot reads as a mistake, while a tracked label reads as production value.\n\nRestraint rule, as always: one callout on screen at a time, each earning its place by carrying a fact the voice is not saying. Track-and-label is seasoning. Season; do not bury."
+            }
+          ],
+          takeaways: [
+            "Point trackers pin small features; planar trackers own flat surfaces through perspective shifts.",
+            "Stitch short clean tracks and re-anchor at drift — or hand-keyframe every 2-4 frames when tracking fails.",
+            "Screen replacements sell through matching: brightness, glow, reflection, and motion blur — not the corner pin.",
+            "Tracked callouts read as authority when they share your type system and carry facts the voice omits."
+          ],
+          actions: [
+            "Track one callout label onto a moving object in your editor today and study where it drifts.",
+            "Perform one full screen replacement including the glow-and-reflection pass.",
+            "Design a callout template inside your existing type system and save it as a preset."
+          ],
+          quiz: [
+            {
+              q: "A point track keeps drifting halfway through a shot. The professional response is:",
+              options: ["Stop at the last good frame, re-anchor the tracker, and stitch short clean sections", "Abandon the effect", "Blur the graphic to hide the drift", "Track the full clip repeatedly until it works"],
+              answer: 0,
+              why: "Tracks are stitched, not endured — sectioned tracking with re-anchoring beats one long degrading pass."
+            },
+            {
+              q: "A replaced phone screen looks pasted-on despite a perfect corner pin. What is most likely missing?",
+              options: ["Higher insert resolution", "A drop shadow", "Scene-matching: graded brightness, screen glow, a trace of reflection, and matched motion blur", "A tighter crop"],
+              answer: 2,
+              why: "Believability lives in light interaction — a full-brightness sticker over a dim scene fails no matter how accurate the pin."
+            },
+            {
+              q: "Why do tracked callouts outperform static labels over moving footage?",
+              options: ["They render at higher quality", "Moving with the world reads as production value, while static overlays on motion read as mistakes", "Platforms detect tracking and boost reach", "They are faster to build"],
+              answer: 1,
+              why: "Attachment to the scene integrates the graphic into the world; a floating static label visibly belongs to a different layer."
+            }
+          ],
+          drill: "Shoot a slow pan across any object with specs (car, gadget, room) and pin two tracked spec callouts to it using your brand type system."
+        },
+        {
+          id: "editing-4-5",
+          title: "Compositing Basics: Keys, Blends, Glow",
+          minutes: 11,
+          xp: 90,
+          skill: "editing",
+          intro: "Compositing is convincing multiple layers to become one image. Green screens, blend modes, and a finishing polish stack cover 90 percent of what social content ever needs from VFX.",
+          sections: [
+            {
+              h: "Green Screen Without the Cheap Look",
+              body: "Bad keying is 90 percent a lighting problem. The screen must be lit **evenly** (wrinkles and hotspots become keying noise) and the subject must stand **6-10 feet in front of it** — distance kills the green spill that contaminates hair and shoulders, and lets you light subject and screen independently.\n\nThe post workflow, in order: draw a **garbage matte** first, cropping away everything that is not subject-plus-screen (light stands, floor edges, C-stands) so the keyer solves a smaller problem. Then key — Premiere's Ultra Key, Resolve's 3D keyer or Delta Keyer — sampling the screen near the subject. Then refine: **spill suppression** to neutralize green bounce on skin and hair, a pixel or two of **edge choke**, and light edge feather.\n\nThe step everyone skips is the one that sells it: **relight to the destination**. Match the subject's grade — exposure, temperature, contrast — to the background plate, and add a faint edge glow on the side the background's light comes from. A perfect key with mismatched light still reads fake."
+            },
+            {
+              h: "Blend Modes Are Free VFX",
+              body: "Blend modes combine layers mathematically, and three of them do most of the work in social compositing.\n\n- **Screen** drops black and keeps bright: any light element on a black background — lens flares, light leaks, dust particles, rain, sparks — composites instantly with no keying at all. This is why VFX overlay packs ship on black.\n- **Multiply** drops white and keeps dark: watermark a logo, deepen a sky, lay a texture's shadows into a wall.\n- **Overlay** (and Soft Light, its gentler sibling) pushes contrast while blending: film grain, paper texture, and grime layers integrate at low opacity.\n\nThe universal craft move is restraint via opacity — a light leak at 100 percent is an effect; at 30-40 percent it is an atmosphere. Stack a screened dust layer, a soft-light grain, and a graded background and you are compositing — no green screen, no plugins, just multiplication and addition dressed up with taste."
+            },
+            {
+              h: "The Polish Stack",
+              body: "The last stage of any composite — and honestly, of any high-end edit — is a finishing stack that unifies every layer into one photographic image. The order matters:\n\n1. **Unifying grade.** One adjustment over everything — a gentle contrast shape and palette bias applied to all layers at once, so foreground and background stop being separately-colored objects.\n2. **Selective glow.** Isolate the brightest highlights and bloom them slightly; light that blooms across layer boundaries stitches those layers together.\n3. **Vignette.** Subtle, feathered, barely conscious — it directs the eye inward and adds finish.\n4. **Grain last.** A fine unified grain over the entire frame is compositing glue: every layer inherits identical noise, and identical noise reads as one camera. Grain applied per-layer or before the grade does nothing.\n\nThe stack takes five minutes and is the difference between 'layers on a timeline' and 'a shot.' Composites feel real when everything degrades together."
+            }
+          ],
+          takeaways: [
+            "Keying is lighting: even screen, subject 6-10 feet forward, then garbage matte, key, spill suppression, choke.",
+            "Relight the keyed subject to the background plate — mismatched light betrays a perfect key.",
+            "Screen, Multiply, and Overlay blend modes are free VFX; opacity restraint turns effects into atmosphere.",
+            "Finish with the polish stack in order: unifying grade, selective glow, vignette, grain last."
+          ],
+          actions: [
+            "Composite one screened overlay (light leak, dust, or rain on black) into a real shot at 30-40 percent opacity.",
+            "Run the four-step polish stack on your most recent layered edit and A/B the before and after.",
+            "If you own a green screen, shoot a test with the subject 8 feet forward and key it with the full refine chain."
+          ],
+          quiz: [
+            {
+              q: "Why should a keyed subject stand 6-10 feet in front of the green screen?",
+              options: ["The camera focuses more easily", "Keying software requires depth data", "It increases the screen's saturation", "Distance kills green spill and allows independent lighting of subject and screen"],
+              answer: 3,
+              why: "Proximity causes green bounce onto hair and shoulders and couples the lighting — distance solves both."
+            },
+            {
+              q: "A lens-flare overlay ships on a black background because:",
+              options: ["Black compresses better", "It hides watermarks", "The Screen blend mode drops black, compositing bright elements with no keying", "Black backgrounds preserve color accuracy"],
+              answer: 2,
+              why: "Screen mode mathematically removes darkness — anything bright on black integrates instantly."
+            },
+            {
+              q: "Why must grain come last in the polish stack?",
+              options: ["A single grain pass over all layers gives them identical noise, which reads as one camera", "Grain renders slowest", "Earlier grain increases banding", "Grain interferes with tracking"],
+              answer: 0,
+              why: "Unified noise is compositing glue — layers that degrade identically are perceived as photographed together."
+            }
+          ],
+          drill: "Build one composite from three layers — footage, a screened light element, an overlay texture — then run the full polish stack and export a phone test."
+        }
+      ]
+    },
+    {
+      id: "editing-5",
+      level: "Master",
+      title: "The Pro Pipeline",
+      description: "Creative-director-level operations: Final Cut mastery, choosing the right app per job, bulletproof project architecture, the selects-and-stringout method, a template machine that multiplies output, and QC systems that scale beyond one editor.",
+      lessons: [
+        {
+          id: "editing-5-1",
+          title: "Final Cut Pro and the Magnetic Mindset",
+          minutes: 11,
+          xp: 110,
+          skill: "editing",
+          intro: "Final Cut Pro is the fastest NLE on the planet for a solo editor who accepts its philosophy. Fight the magnetic timeline and it fights back; think in its terms and edits fall together at speeds Premiere users disbelieve.",
+          sections: [
+            {
+              h: "The Magnetic Timeline Is a Philosophy",
+              body: "Final Cut has no tracks. It has a **primary storyline** — the spine of your edit — and **connected clips** that attach to spine clips and travel with them. Delete ten seconds from the spine and everything downstream closes the gap automatically, with every connected b-roll shot, title, and sound effect riding along, still attached to its moment. The entire category of sync errors that track-based editors manage by hand — the gap, the orphaned SFX, the drifted caption — simply does not exist.\n\nThe mindset shift: stop protecting position, start protecting *relationships*. A whoosh belongs to a cut, so connect it to that clip; hook text belongs to the opening, so connect it there. Structure the radio edit as the spine, hang everything else off it, and restructure fearlessly — the magnetism maintains the relationships.\n\nAdd **roles** (dialogue, music, effects as color-coded lanes) and you get track-style visual organization without track-style bookkeeping."
+            },
+            {
+              h: "Keyword Ranges and Smart Collections",
+              body: "Final Cut's library is its second superpower: organization happens at the *range* level, not the clip level. Skim a 10-minute interview, select the 40 seconds that matter, and tag just that range with keywords — 'hook candidate,' 'b-roll gold,' 'kitchen.' One clip can carry a dozen keyword ranges, and each Keyword Collection gathers its ranges from everywhere in the library.\n\nAdd ratings — favorite the great ranges, reject the garbage (rejected footage vanishes from view) — and **Smart Collections** that gather live queries: all favorited 120fps clips keyworded 'exterior,' say.\n\nThe compounding effect: log footage once, on ingest day, and every future edit begins with a search instead of a scrub. Editors who log in Final Cut open a project and have their selects waiting; editors who skip logging pay the scrubbing tax on every single video, forever. Master-level speed is mostly this — decisions made once, retrieved instantly."
+            },
+            {
+              h: "The FCP Social Workflow",
+              body: "The pipeline that makes Final Cut sing for short-form:\n\n1. **Ingest and log** — import to the library, skim everything once at speed (L key doubles playback), keyword ranges and favorite the gold.\n2. **Spine the radio edit** — pull favorited talking ranges into the primary storyline and cut the audio story tight.\n3. **Hang the layers** — connect b-roll over claims, titles from your saved presets, SFX to their cuts. Use **auditions** to stack alternate b-roll takes in one placeholder and cycle through them in context — instant A/B testing inside the timeline.\n4. **Version with compounds and snapshots** — collapse the finished edit into a compound clip for the 9:16 master, then snapshot-duplicate before every client revision so each version is frozen and recoverable.\n\nBackground rendering and phone-fast exports close the loop. The whole system rewards preparation and punishes improvisation — precisely backwards from how amateurs edit, precisely why it is fast."
+            }
+          ],
+          takeaways: [
+            "The magnetic timeline protects relationships, not positions — connect clips to the moments they serve.",
+            "Keyword ranges plus ratings mean you log once and search forever; scrubbing is a tax you stop paying.",
+            "Auditions let you cycle alternate shots inside the timeline — A/B testing in context.",
+            "Compound clips and snapshot duplicates make versioning instant and every revision recoverable."
+          ],
+          actions: [
+            "If you have Final Cut, log one shoot completely with keyword ranges and favorites before editing a frame.",
+            "Rebuild your last edit spine-first: radio edit in the primary storyline, everything else connected.",
+            "Create one audition from three alternate b-roll shots and cycle it in context to pick the winner."
+          ],
+          quiz: [
+            {
+              q: "In Final Cut, deleting ten seconds from the primary storyline causes connected clips downstream to:",
+              options: ["Become orphaned and require re-syncing", "Stay at their original timecode positions", "Convert into compound clips", "Ride along with their spine clips, keeping every relationship intact"],
+              answer: 3,
+              why: "Connections attach clips to spine moments — the magnetism closes gaps while preserving every relationship automatically."
+            },
+            {
+              q: "The main economic argument for keyword-range logging on ingest day is:",
+              options: ["Smaller library files", "One-time logging converts every future edit's scrubbing time into instant search", "It improves export quality", "It is required for auditions"],
+              answer: 1,
+              why: "Logging is a single investment that removes the recurring scrubbing tax from all subsequent edits of that footage."
+            },
+            {
+              q: "What does an FCP audition enable that a normal timeline does not?",
+              options: ["Higher frame rates", "Cycling stacked alternate shots inside one placeholder, in full context", "Automatic color matching", "Multi-user editing"],
+              answer: 1,
+              why: "Auditions hold alternates in a single timeline position so you compare candidates in the actual edit, not in the browser."
+            }
+          ],
+          drill: "Log a 10-minute batch of footage in Final Cut with keyword ranges, favorites, and one Smart Collection — then time how fast you can assemble a 30-second cut from search alone."
+        },
+        {
+          id: "editing-5-2",
+          title: "Choosing Your Weapon: App per Job",
+          minutes: 10,
+          xp: 110,
+          skill: "editing",
+          intro: "Editors argue apps like religions. Directors choose apps like tools — per deliverable, per team, per deadline. Here is the honest matrix and the pipeline logic behind it.",
+          sections: [
+            {
+              h: "The Honest Matrix",
+              body: "Each major NLE has a genuine center of gravity:\n\n- **CapCut** — speed to native-feeling social. Auto-captions, trending templates and effects, phone-to-post in minutes. Weaknesses: shallow color tools, project fragility, and template aesthetics that read as CapCut.\n- **Premiere Pro** — the ecosystem professional. Deep graphics via After Effects and .mogrts, team projects, plugin universe, handles every format. Costs: subscription and a heavier, occasionally temperamental machine.\n- **DaVinci Resolve** — finishing power. The industry's color suite plus Fairlight audio, and the free version covers almost everything a creator needs. Cost: a steeper interface and a real GPU appetite.\n- **Final Cut Pro** — solo velocity on a Mac. Magnetic speed, one-time price, exceptional performance on Apple silicon. Cost: Mac-only, and its timeline philosophy resists team handoffs to track-based apps.\n\nNo winner exists. There are only fits — and the matrix is how you find yours per job."
+            },
+            {
+              h: "Pipelines: One App or Two, Never Four",
+              body: "Feature films cut in one app and finish color in another, roundtripping through interchange formats — XML, AAF, EDL. That pipeline exists for social too: cut in Premiere or Final Cut, export an XML, conform in Resolve for the grade. And for most social work, it is the wrong call — interchange is where relink errors, dropped effects, and lost hours live, and a 45-second vertical rarely justifies the friction.\n\nThe master-level decision rule: **minimize handoffs.** For daily short-form, one app end-to-end wins — Resolve's edit page has matured precisely so the grade-critical work never leaves the building. Reserve the two-app pipeline for jobs where finishing quality is the product: the brand film, the commercial, the flagship YouTube piece. And if you do roundtrip, roundtrip clean — bake nothing into the edit that will not survive the XML, keep effects minimal until after conform, and lock picture before the handoff. A picture that keeps changing after conform is the most expensive mistake in post."
+            },
+            {
+              h: "Master One, Be Conversant in Two",
+              body: "The career math: mastery of one NLE — reflex-level shortcuts, template libraries, a thousand solved problems — is worth more than shallow competence in four. Every app switch resets your speed by months, and speed is what funds volume, and volume is what compounds an account.\n\nSo choose deliberately, once: your platform (Mac or not), your team (whose projects must you open?), your deliverables (daily shorts, or graded brand films?), your budget. Then commit for a year minimum. Be *conversant* in a second app where your primary is weak — a Premiere-native editor who can run a Resolve grade session, a CapCut-native creator who can rebuild a project properly in Resolve when a client needs finishing.\n\nThe identity shift this lesson exists for: stop being 'a Premiere editor' or 'a CapCut person.' Be an editor. The craft — cuts, rhythm, sound, color, story — transfers completely. The buttons are the least interesting part of the job."
+            }
+          ],
+          takeaways: [
+            "CapCut for native-fast social, Premiere for graphics and teams, Resolve for finishing, Final Cut for solo Mac velocity.",
+            "Minimize handoffs: one app end-to-end for daily content; reserve roundtrips for flagship finishing work.",
+            "If you roundtrip, lock picture first and keep effects out of the interchange.",
+            "Master one NLE, stay conversant in a second — the craft transfers, the buttons do not matter."
+          ],
+          actions: [
+            "Write your fit profile — platform, team, deliverables, budget — and name your primary NLE for the next year.",
+            "List the three tasks your primary app handles worst, and identify which second app covers them.",
+            "If you have never opened Resolve, install the free version and grade one clip this week."
+          ],
+          quiz: [
+            {
+              q: "A solo creator ships two graded shorts daily. The pipeline recommendation is:",
+              options: ["Cut in Premiere, roundtrip every video to Resolve via XML", "Alternate apps to stay sharp", "Edit in CapCut, finish in After Effects", "One app end-to-end — daily volume does not justify interchange friction"],
+              answer: 3,
+              why: "Roundtrips cost relink errors and hours — for daily short-form, minimizing handoffs beats theoretical finishing gains."
+            },
+            {
+              q: "What must happen before a clean edit-to-color roundtrip?",
+              options: ["Picture lock — the cut stops changing before the conform", "All effects finalized in the edit app", "The grade must be pre-built", "Proxies must be deleted"],
+              answer: 0,
+              why: "A conform is a snapshot of the cut; changes after it force expensive re-conforms and version chaos."
+            },
+            {
+              q: "Why does mastering one NLE beat shallow competence in four?",
+              options: ["Software licenses are cheaper", "Employers only check one app", "Reflex-level speed funds volume, and each app switch resets that speed for months", "Multi-app editing corrupts projects"],
+              answer: 2,
+              why: "Editing income and growth compound on throughput — deep fluency in one tool is what produces it."
+            }
+          ],
+          drill: "Take one 30-second edit you made in your primary app and rebuild it in a second NLE. Note which skills transferred instantly and which were just buttons."
+        },
+        {
+          id: "editing-5-3",
+          title: "Project Architecture and Media Management",
+          minutes: 12,
+          xp: 110,
+          skill: "editing",
+          intro: "Nobody hires an editor because their folders are clean — but every editor who scales has clean folders. Architecture is invisible until the drive fails, the client calls, or the team doubles. Then it is everything.",
+          sections: [
+            {
+              h: "The Folder Template and Naming Law",
+              body: "Every project gets the identical skeleton, cloned from a template folder in seconds:\n\n- **01_FOOTAGE** (subfoldered by camera/date), **02_AUDIO** (VO, music, SFX), **03_GFX** (logos, titles, overlays), **04_PROJECTS** (the NLE files), **05_EXPORTS** (masters and deliverables), **06_DOCS** (scripts, briefs, notes).\n\nNaming is law, not preference: `YYMMDD_client_project_v01` on every project file and export. The date sorts chronologically forever, the client and project make any file findable out of context, and the version number ends the 'final_final_FINAL2' catastrophe permanently — there is no 'final,' only the highest version number.\n\nThe payoff compounds: any project opens six months later and explains itself; any collaborator finds any asset without asking; relinking after a drive move takes minutes because media lives where the structure says it lives. Architecture is a one-time decision that deletes a thousand future decisions."
+            },
+            {
+              h: "The Ingest Ritual",
+              body: "Professional media management happens on shoot day, as ritual:\n\n1. **Offload with verification.** Copy cards using checksummed transfer (Hedge, ShotPut Pro, or Resolve's Clone tool) — a checksum proves every byte arrived, where a drag-and-drop copy can silently corrupt. Cards do not get formatted until two verified copies exist.\n2. **Apply the 3-2-1 rule.** Three copies of everything, on two different media, one off-site or in cloud storage. Footage that exists in one place does not exist.\n3. **Rename and file** into the template — camera and date subfolders, audio split from video.\n4. **Build the selects the same day.** Skim everything while the shoot is fresh, star the gold, reject the trash, keyword what your NLE supports.\n\nThe same-day discipline matters because context evaporates: tonight you know which take was the good one. In two weeks, that knowledge is gone and only the logging remains."
+            },
+            {
+              h: "Versions, Archives, and the 20-Minute Head Start",
+              body: "**Version discipline:** duplicate the project file at every milestone — v01 assembly, v02 rough, v03 fine, v04 picture lock — and export a dated master at each client-facing step. Old versions are never deleted during the project; they are the undo history of your judgment, and the escape hatch when a client says 'actually, the version from Tuesday.'\n\n**Archive discipline:** when a project ships, archive by policy, not mood — keep masters, project files, selects, and graphics; purge raw footage on a defined schedule unless the client pays for retention (put that in writing). A documented archive spec turns 'do we still have that?' from panic into a lookup.\n\n**The template project:** beyond template folders, maintain a template *project* — sequence presets, caption styles, your SFX bin, export presets, color assets pre-loaded. Every new edit clones it and starts 20 minutes ahead. Master editors are not faster at editing so much as they have pre-decided everything that is not editing."
+            }
+          ],
+          takeaways: [
+            "One cloned folder skeleton and the YYMMDD_client_project_v01 naming law — no exceptions, no 'final.'",
+            "Ingest is ritual: checksummed offload, 3-2-1 backup, rename, and same-day selects while context is fresh.",
+            "Version at every milestone and keep the chain — old versions are the escape hatch clients will ask for.",
+            "Maintain a template project with presets pre-loaded; every edit should start 20 minutes ahead."
+          ],
+          actions: [
+            "Build your template folder skeleton and template project file today.",
+            "Adopt checksummed offloading on your very next shoot — download a verification tool now.",
+            "Write your one-paragraph archive spec: what you keep, what you purge, and when."
+          ],
+          quiz: [
+            {
+              q: "Why offload cards with checksum verification instead of drag-and-drop?",
+              options: ["A checksum proves every byte copied intact — drag-and-drop can corrupt silently", "It transfers faster", "It compresses footage", "It auto-organizes folders"],
+              answer: 0,
+              why: "Verification is the only proof of a complete copy; silent corruption discovered at edit time is unfixable."
+            },
+            {
+              q: "The 3-2-1 rule specifies:",
+              options: ["Three edits, two reviews, one export", "Three folders, two drives, one project file", "Three copies, two different media, one off-site", "Three backups made over one week"],
+              answer: 2,
+              why: "Redundancy across copies, media types, and locations is what makes footage survivable rather than lucky."
+            },
+            {
+              q: "Why build selects on shoot day rather than at edit time?",
+              options: ["Selects bins export faster", "Context evaporates — tonight you know the good take; in two weeks only the logging remains", "NLEs require same-day import", "It reduces storage needs"],
+              answer: 1,
+              why: "Logging captures fresh knowledge that cannot be recovered later at any price."
+            }
+          ],
+          drill: "Take your messiest past project and rebuild it into the template skeleton with law-compliant names — time the job, then never need to do it again."
+        },
+        {
+          id: "editing-5-4",
+          title: "Selects, Stringouts, and the Radio Edit",
+          minutes: 11,
+          xp: 110,
+          skill: "editing",
+          intro: "Master editors never edit from raw footage. They edit from a refined pyramid — raw, selects, stringout, cut — and the pyramid is why their first assembly looks like everyone else's third revision.",
+          sections: [
+            {
+              h: "The Selects Pyramid",
+              body: "The method, top of funnel to bottom:\n\n1. **The selects pass.** Skim every clip at 1.5-2x. Rate as you go — star or color-label the usable, reject the unusable. Judgment only, no cutting. A 60-minute card typically yields 10-15 minutes of selects.\n2. **The stringout.** Lay all selects into one sequence, grouped by topic or story beat. This stringout — not the raw bin — is now your editing source. Duplicate it before touching anything.\n3. **The pull.** Build the actual cut by pulling from the stringout into your edit sequence.\n\nEach stage shrinks the decision space, which is the entire point: choosing the best of twelve good takes is fast; scrubbing ninety minutes hunting for a maybe is slow — and worse, it interleaves *judging* with *building*, two modes that poison each other. The pyramid separates them. You judge once, cleanly, and then you build from pre-judged material at full creative speed."
+            },
+            {
+              h: "The Radio Edit, Mastered",
+              body: "The radio edit deserves elevation from technique to doctrine: **perfect the story with your eyes closed before you touch a single visual.** Build the spoken spine from stringout selects, then literally look away from the monitor — or minimize it — and listen top to bottom. Does the argument build? Does the hook promise something the middle delivers and the end pays? Would this hold you as a podcast clip?\n\nCut at the level of ideas, not sentences: reorder whole beats, delete redundant points, move the strongest claim to the front. Speech edits hide inside natural pause points and breaths — cut there and reordering becomes inaudible.\n\nThe discipline pays because audio is the retention spine of talking content: viewers tolerate a visually rough cut with a gripping story and abandon a gorgeous cut with a flabby one. Every hour spent on the radio edit saves two downstream — nothing gets b-roll, graphics, or grading spent on it that later dies in a story revision."
+            },
+            {
+              h: "Milestone Sequences: Never Edit Without a Net",
+              body: "Sequence bloat — one timeline endlessly reworked for days — is how good versions get destroyed by later ideas with no path back. The countermeasure is milestone duplication: before each new phase, duplicate the sequence and rename by state — `assembly`, `rough_v01`, `fine_v02`, `picture_lock`. The old sequence freezes forever; work continues on the copy.\n\nNow the edit has an undo history at the *decision* level, not the keystroke level. When Thursday's restructure turns out worse than Tuesday's instinct, Tuesday still exists, intact, one click away. When a client resurrects a killed section, it is sitting in `rough_v01` rather than in the trash.\n\nCombined with the pyramid, this is the full master workflow: selects once, stringout once, radio edit until the story is inevitable, then milestone forward through visuals and polish — every stage recoverable, every decision reversible, nothing precious ever lost to enthusiasm."
+            }
+          ],
+          takeaways: [
+            "Never edit from raw: selects pass, then stringout, then pull — shrink the decision space at every stage.",
+            "Judging and building are different modes; the pyramid separates them so each runs at full speed.",
+            "Perfect the radio edit with eyes off the monitor — audio is the retention spine of talking content.",
+            "Duplicate sequences at every milestone; the edit needs an undo history at the decision level."
+          ],
+          actions: [
+            "Run a full selects pass and stringout on your next shoot before opening an edit sequence.",
+            "Radio-edit your next talking video and play it eyes-closed top to bottom before adding any visual.",
+            "Adopt milestone naming today: duplicate your current sequence as assembly and work on the copy."
+          ],
+          quiz: [
+            {
+              q: "Why does editing from a stringout beat editing from raw bins?",
+              options: ["Stringouts render faster", "Stringouts auto-sync audio", "Raw bins cannot be color-labeled", "The decision space is pre-shrunk to judged material, and judging stays separated from building"],
+              answer: 3,
+              why: "Choosing among pre-judged selects is fast; hunting raw footage interleaves two mental modes that poison each other."
+            },
+            {
+              q: "The radio edit is validated by:",
+              options: ["Watching with captions on", "Checking the waveform for gaps", "Listening top to bottom with eyes off the monitor — it must hold as pure audio", "A/B testing thumbnails"],
+              answer: 2,
+              why: "If the spoken story grips without visuals, the spine is sound; visuals then amplify rather than rescue."
+            },
+            {
+              q: "A client asks for a section you deleted four days ago. With milestone sequences, that section is:",
+              options: ["Intact in the frozen earlier sequence it was cut from", "Gone unless auto-save caught it", "Recoverable only from the raw footage", "In the system trash"],
+              answer: 0,
+              why: "Milestone duplicates freeze each decision state — killed material survives in the sequence where it last lived."
+            }
+          ],
+          drill: "Take 20 minutes of raw footage through the full pyramid — selects at 2x, topic-grouped stringout, radio edit — and clock each stage."
+        },
+        {
+          id: "editing-5-5",
+          title: "The Template Machine: Editing at 10x",
+          minutes: 10,
+          xp: 110,
+          skill: "editing",
+          intro: "The volume of a top account is not produced by heroic effort — it is produced by systems that make each video cheaper than the last. The master editor is a machine that builds machines.",
+          sections: [
+            {
+              h: "Preset Everything You Do Twice",
+              body: "The rule is absolute: any styling or configuration performed twice becomes an asset. Caption styles, hook-text templates, your three entrance animations, transition presets with the whoosh already attached, the five-node grade as a PowerGrade, ducking settings, export recipes — every one saved, named, and filed.\n\nThe math is why. A caption style rebuilt by hand costs five minutes and small inconsistencies every video; across 200 videos that is seventeen hours and a visibly wobbly brand. The preset costs five minutes once. Multiply across a dozen recurring tasks and presets return whole working weeks per year — funding either more output or more craft per output.\n\nThere is a second-order effect: presets *are* your brand consistency. Identical treatments across every video is precisely what makes a feed feel like a channel rather than a pile of clips — the system enforces what discipline alone cannot."
+            },
+            {
+              h: "The Kit Project",
+              body: "One level above presets sits the **kit project**: a pre-built, cloneable edit that contains the skeleton of your format before any footage exists. Inside: your sequence preset; placeholder hook text parked at frame one in brand styling; caption track configured; the music bed lane with your standard fade preset; an SFX bin stocked with your twenty sounds; the end-card with CTA already animated; export preset attached.\n\nStarting a video means cloning the kit and dropping footage into a structure that already knows what your videos are. The blank-timeline problem — twenty minutes of setup and a hundred micro-decisions before the first cut — simply disappears.\n\nMaintain one kit per recurring format: the talking-head kit, the montage kit, the tutorial kit. And version them upward: whenever an edit improves the format, fold the improvement back into the kit. The kit compounds — every video you make makes every future video better."
+            },
+            {
+              h: "Batching: Pay the Context Tax Once",
+              body: "Context switching is the invisible tax on solo creators: cutting, then designing, then mixing, then grading, each switch dumping one mental mode and loading another. Masters batch by *mode* across videos instead of finishing videos one at a time:\n\n- Monday: radio edits for all four videos of the week.\n- Tuesday: visual pass on all four — b-roll, punch-ins, text.\n- Wednesday: sound and grade on all four, then QC and export as a set.\n\nEach mode loads once and runs at full depth across the batch. Editors who adopt this consistently report the same edit taking meaningfully less time — with the quality *rising*, because the fourth radio edit of the day is sharper than the first, and the improvement lands inside the same week's work.\n\nBatching also stabilizes output: a sick day breaks a daily pipeline but barely dents a weekly batch. Volume without batching is willpower; volume with batching is infrastructure."
+            }
+          ],
+          takeaways: [
+            "Anything done twice becomes a preset — the returns are measured in working weeks per year.",
+            "Presets enforce brand consistency that discipline alone cannot sustain across hundreds of videos.",
+            "Build kit projects per format and fold every improvement back in — the kit compounds.",
+            "Batch by mode across videos: all radio edits, then all visuals, then all sound and grade."
+          ],
+          actions: [
+            "List every task you performed twice this month and convert the top five into presets today.",
+            "Build your first kit project for your most common format, end-card and SFX bin included.",
+            "Batch next week's videos by mode and compare total hours against your normal one-at-a-time pace."
+          ],
+          quiz: [
+            {
+              q: "Beyond speed, what is the second-order benefit of presetting all recurring treatments?",
+              options: ["Smaller project files", "Automatic captions", "Faster renders", "Enforced visual consistency that makes a feed read as a channel, not a pile of clips"],
+              answer: 3,
+              why: "Identical treatments across every video are the mechanical basis of brand recognition — the system guarantees it."
+            },
+            {
+              q: "A kit project primarily eliminates:",
+              options: ["The need for b-roll", "Blank-timeline setup and the hundred micro-decisions before the first cut", "Client revisions", "Color grading"],
+              answer: 1,
+              why: "The kit pre-answers every structural question, so editing starts at the first creative decision instead of at setup."
+            },
+            {
+              q: "Why does batching by mode raise quality as well as speed?",
+              options: ["Software caches effects between projects", "Each mental mode loads once and deepens across the batch — the fourth radio edit of the day is sharper than the first", "Batched videos share one export", "It prevents auto-save conflicts"],
+              answer: 1,
+              why: "Skill within a mode warms up with repetition, and batching keeps that warmed-up depth inside a single session."
+            }
+          ],
+          drill: "Build your talking-head kit project, then produce two videos from it back to back. Note every missing piece and fold it into the kit."
+        },
+        {
+          id: "editing-5-6",
+          title: "Review Cycles, QC, and Shipping at Scale",
+          minutes: 12,
+          xp: 110,
+          skill: "editing",
+          intro: "The last mile decides the reputation: how work gets checked, how feedback gets managed, and how quality survives when you are no longer the one pushing every button.",
+          sections: [
+            {
+              h: "The QC Pass Is a Checklist, Not a Vibe",
+              body: "Every deliverable runs the same gate before it ships, in writing:\n\n1. **Full-screen watch at 1x** — no scrubbing; scrubbing hides flash frames, audio pops, and gaps that playback exposes.\n2. **Phone watch, muted** — captions carry the video? Hook text readable at arm's length?\n3. **Phone watch, sound on** — mix survives the small speaker? No word fights the music?\n4. **Frame checks** — first frame strong, last frame intentional, no black gaps, no orphaned frames at cuts.\n5. **Detail sweep** — caption spelling (names especially), safe zones clear of UI, aspect ratio and export settings against the delivery spec.\n\nThe checklist exists because tired eyes miss what fresh process catches — every item on it is a real shipped mistake somebody made. Professionals do not trust their attention; they trust their gate. Five minutes per video, and the reputation for 'their stuff is always clean' compounds into the most valuable asset an editor owns."
+            },
+            {
+              h: "Feedback Protocol: Manage the Notes or the Notes Manage You",
+              body: "Unmanaged review cycles destroy margins and sanity. The protocol that prevents it:\n\n- **Timecoded notes only.** Feedback arrives pinned to timestamps — through a review tool (Frame.io and its kin) or a simple shared doc with timecodes. 'Make it pop' is not a note; '0:14 — hold the wide two beats longer' is.\n- **Consolidated rounds.** All stakeholders merge their notes into one list per round; contradictions get resolved on their side before reaching the timeline. Included rounds are defined in the agreement — two is standard — with extra rounds billable.\n- **Versioned delivery.** Every revision ships as a new numbered export against the milestone sequences from your pipeline; nothing is ever overwritten.\n\nClients give bad notes because nobody taught them the protocol — teaching it is a service, and the good ones are grateful. Scope creep is rarely malice; it is almost always the absence of structure, and structure is the editor's job to provide."
+            },
+            {
+              h: "Scaling Beyond Your Own Hands",
+              body: "Volume eventually exceeds one editor. Scaling quality means transferring taste, and taste transfers through documents, not vibes:\n\n1. **Write the style guide.** Fonts and sizes, caption rules, pacing law ('no shot over 4 seconds without motion'), SFX kit and when each fires, grade assets attached, three annotated reference edits that define 'us.' If it is not written, it does not exist at scale.\n2. **Delegate stages before whole videos.** Hand off the mechanical layers first — selects, captions, assembly — while you keep the radio edit and final polish, the two stages where taste lives. Expand their scope as calibration proves out.\n3. **Review on a schedule, not forever.** Start reviewing 100 percent of output against the checklist and the guide; as an editor calibrates, drop to sampling.\n\nOwn the final 5 percent — the last pass that makes it *yours* — longer than feels efficient. The system produces the volume; that owned edge is the standard."
+            }
+          ],
+          takeaways: [
+            "QC is a written five-point gate — full-screen 1x watch, muted and loud phone passes, frame checks, detail sweep.",
+            "Demand timecoded, consolidated feedback with defined rounds; teaching clients the protocol is a service.",
+            "Taste transfers through a written style guide and annotated references, never through vibes.",
+            "Delegate mechanical stages first, review 100 percent then sample — and keep owning the final 5 percent."
+          ],
+          actions: [
+            "Write your five-point QC checklist and tape it where you export.",
+            "Draft one page of your style guide today: fonts, caption rules, pacing law, SFX kit.",
+            "Set up a timecoded review flow — a review tool or a timecode doc template — before your next client round."
+          ],
+          quiz: [
+            {
+              q: "Why must the QC pass include a full watch at 1x rather than a scrub-through?",
+              options: ["Scrubbing corrupts the export", "Scrubbing skips the audio track", "1x playback checks the bitrate", "Flash frames, pops, and gaps reveal themselves in playback and hide during scrubbing"],
+              answer: 3,
+              why: "Single-frame and audio errors live between the moments a scrub touches — only continuous playback exposes them."
+            },
+            {
+              q: "The correct response to a client note that says 'make it pop more' is:",
+              options: ["Translate it into the protocol: ask for timecoded, specific notes in one consolidated round", "Increase saturation and re-export", "Ignore it until round two", "Add more transitions"],
+              answer: 0,
+              why: "Vague notes produce revision loops — the editor's job includes teaching the structure that makes feedback actionable."
+            },
+            {
+              q: "When scaling to a second editor, what should be delegated first?",
+              options: ["The radio edit and final polish", "Client communication", "Mechanical stages like selects, captions, and assembly", "The entire video end to end"],
+              answer: 2,
+              why: "Taste lives in story and polish — hand off the calibratable mechanical layers first and expand scope as trust builds."
+            }
+          ],
+          drill: "Run your full five-point QC gate on your next three exports and log every catch — the log is the proof the gate pays for itself."
+        }
+      ]
+    }
   ]
 });

@@ -907,6 +907,601 @@ SMU_DATA.schools.push({
         }
       ]
     },
-    // __APPEND__
+    {
+      id: "cinema-4",
+      level: "Expert",
+      title: "The Commercial Engine",
+      description: "Commercial filmmaking as a repeatable discipline: turning briefs into boards, engineering the luxury look on command, sculpting with hard light, shooting product like a still-life master, and running a one-day shoot that delivers every frame it owes.",
+      lessons: [
+        {
+          id: "cinema-4-1",
+          title: "From Brief to Board",
+          minutes: 11,
+          xp: 90,
+          skill: "marketing",
+          intro: "Commercial work is cinematography with a job description. Before a frame is exposed, the best shooters translate a business objective into one idea, one treatment, and one board — and that translation is a learnable process.",
+          sections: [
+            {
+              h: "The Brief Is the Real Client",
+              body: "Every commercial project — a paying client or your own offer — starts with a brief, and weak films come from weak briefs, not weak shooters. Before you think about images, force four answers onto one page:\n\n1. **Audience:** who exactly is watching, and on which platform?\n2. **Single-minded proposition:** the ONE thing this film must communicate. One. A brief that lists five messages is five briefs.\n3. **Feeling:** the emotional residue the viewer should carry away — desire, trust, urgency, calm.\n4. **Action:** what the viewer should do next.\n\nThen lock the **deliverables matrix**: every format, duration, and aspect ratio you owe — a 30-second 9:16 hero, three 8-second cutdowns, a 16:9 site version. Shooting without the matrix is how you end up center-punching nothing and reshooting everything.\n\nIf a client cannot give you these answers, writing them yourself and getting a sign-off is the first creative act of the production."
+            },
+            {
+              h: "One Idea, Stated in Pictures",
+              body: "A commercial concept is not a list of pretty shots — it is one idea a stranger could repeat after one viewing. 'The watch survives what the day throws at it.' 'This kitchen is where the family actually lives.' 'The car turns commuting into theater.'\n\nTest every concept two ways. First, the **one-sentence test**: describe the film without naming a single shot. If you can only describe footage — 'slow-motion shots of the product with nice light' — you have a mood, not an idea, and moods are what everyone else is posting. Second, the **picture test**: can the idea be proven in images alone, muted? Concepts that live entirely in voiceover are radio.\n\nThe idea then makes decisions for you. It picks the location, casts the hands, sets the pace, chooses the palette. When a shot decision feels arbitrary, you have drifted from the concept; go back and let it vote."
+            },
+            {
+              h: "Treatments and Boards That Sell the Film",
+              body: "A **treatment** is the short document that sells the film before it exists — to a client, a collaborator, or your own future self. Professional treatments are visual and brief: the idea in two sentences, tone references (three to five frames pulled from work you admire), a beat-by-beat description of the film in present tense, and the practical facts — location, talent, duration, deliverables.\n\nThe **board** translates beats into frames. You do not need drawing skills: shoot rough stills on your phone at the actual location — the scout-frame board is standard practice and doubles as a lighting recce. For each frame, note size, movement, and lens.\n\nThe discipline this buys you is agreement: a client who approved a board cannot be surprised by the film, and a shooter holding a board makes decisions on set instead of discoveries. Every minute spent boarding repays ten on the shoot day."
+            },
+            {
+              h: "Reverse-Engineering Reference",
+              body: "Expert shooters maintain a reference practice: pulling frames from commercials and breaking them into decisions someone made. Screenshot ten frames from an ad in your product's category and interrogate each: what focal length renders space this way? Where is the key, and how soft? What is the ratio? Is the camera moving, and what motivates it? What was removed from frame?\n\nRules for using reference honestly. Steal **principles**, never frames — 'long lens, 4:1 ratio, one warm practical in a cool room' is craft; recreating a competitor's shot is karaoke. Reference across categories: a perfume ad can teach a real-estate film patience; a sneaker ad can teach a watch film texture. And build a permanent library organized by problem — 'openings,' 'product reveals,' 'transitions' — so reference is a tool you consult, not a scramble the night before.\n\nDeconstruction is how taste becomes technique."
+            }
+          ],
+          takeaways: [
+            "A usable brief fits on one page: audience, single-minded proposition, feeling, action — plus a locked deliverables matrix.",
+            "A concept must pass the one-sentence test and the picture test; a mood is not an idea.",
+            "Treatments sell the film before it exists; phone-shot scout boards turn shoot days into execution instead of discovery.",
+            "Steal principles from reference, never frames — and file reference by problem, not by brand."
+          ],
+          actions: [
+            "Write a one-page brief for your next video: audience, single message, feeling, action, and every deliverable format.",
+            "Screenshot ten frames from one commercial in your niche and log lens, key direction, ratio, and movement for each.",
+            "Build a phone-shot board for your next piece at the actual location — one still per beat with size and movement noted."
+          ],
+          quiz: [
+            {
+              q: "A client lists five messages the film must communicate. What is the professional response?",
+              options: ["Plan five films' worth of shots in one", "Push back to a single-minded proposition — one film, one message", "Add a voiceover to cover all five", "Extend the duration to fit everything"],
+              answer: 1,
+              why: "A brief with five messages is five briefs; commercial film works by driving one idea deep, not five wide."
+            },
+            {
+              q: "What does the one-sentence test check?",
+              options: ["Whether the film is short enough", "Whether the concept is an idea a stranger could repeat, not just a description of footage", "Whether the caption fits the platform", "Whether the client approved the budget"],
+              answer: 1,
+              why: "If you can only describe shots and moods, there is no idea driving the film's decisions."
+            },
+            {
+              q: "Why board with phone-shot stills at the real location?",
+              options: ["Drawing is considered unprofessional", "It doubles as a lighting and framing recce and produces an agreement a client can approve", "Phone stills are required for permits", "It replaces the need for a treatment"],
+              answer: 1,
+              why: "Scout-frame boards test the actual space and light while locking shared expectations before the shoot."
+            }
+          ],
+          drill: "Take one product you own and produce a mini treatment in under an hour: two-sentence idea, three reference frames, six present-tense beats, and a deliverables matrix."
+        },
+        {
+          id: "cinema-4-2",
+          title: "The Luxury Look, Deconstructed",
+          minutes: 11,
+          xp: 90,
+          skill: "video",
+          intro: "'Luxury' on screen is not a filter — it is a bundle of measurable decisions about time, glass, light, and restraint. This lesson takes the look apart so you can build it on command, on any budget.",
+          sections: [
+            {
+              h: "Restraint Is the Aesthetic",
+              body: "Strip the branding from any luxury film and the grammar remains recognizable: the camera moves slowly or not at all, cuts are scarce, frames are half empty, and nothing begs. That is not a style accident — it is **scarcity signaling** rendered in cinematography. Fast cutting and frantic movement scream for attention, and screaming is what cheap things do. Luxury spends time the way it spends money: conspicuously.\n\nThe practical translations: hold shots past the point where nervousness says cut — five, seven seconds. Move at half the speed that feels right, as trained in the movement course. Compose with generous negative space so the subject reads as chosen, not crammed. Let single moments breathe instead of stacking beats.\n\nThe confidence must be earned: a slow, empty frame only works when composition, light, and subject are immaculate, because restraint removes every distraction the audience could forgive you behind."
+            },
+            {
+              h: "The Technical Recipe",
+              body: "The luxury look has a repeatable spec sheet:\n\n- **Long lenses.** 85mm-plus (3x-5x on phones): compression, isolation, reverence from distance.\n- **24fps with a 180-degree shutter** — motion that smears like cinema, never staccato.\n- **Soft key, real shadow.** A large source at 45/45, ratio around 4:1, negative fill keeping blacks black. Flat lighting is the fastest way to look mass-market.\n- **Protected highlights, rich blacks.** Nothing clips; contrast lives in the mids.\n- **A limited palette.** Two color families plus one accent — often warm skin and material tones inside a cool, desaturated world, or monochrome plus a single metallic glint.\n- **Slow motion at 120fps** reserved for one or two texture moments.\n\nNone of these costs money; all of them cost discipline. Run the list as a preflight before any shot that must read premium, and the look stops being luck."
+            },
+            {
+              h: "Texture and the Macro Ritual",
+              body: "Luxury is a materials story: viewers cannot touch the product, so the camera must do the touching. Stitching pulling taut, brushed metal catching a slash of light, condensation crawling down glass, steam curling off espresso, fabric compressing under a fingertip — texture shots are the proof layer of the premium claim.\n\nThe technique: get closer than feels reasonable (macro mode or your longest lens near minimum focus), light **across** the surface rather than onto it — raking light makes texture cast micro-shadows and pop into relief — and move slowly: a two-inch push or slide at 120fps is the entire move.\n\nSequence texture in runs of two or three quick details between wider beats; each run resets attention and deepens the sense of inspection. And record the sound of materials where you can — the click, the pour, the zip — because texture is audiovisual: ASMR-adjacent sound design is half of what makes detail shots land."
+            },
+            {
+              h: "What Cheapens the Frame",
+              body: "The look dies by a thousand small tells. Audit against this list:\n\n- **Fast or wandering camera** — the number-one cheapener.\n- **Clipped windows and hot foreheads** — blown highlights read as carelessness.\n- **Mixed color temperatures on skin.**\n- **Clutter**: one stray cable or bottle in the background outweighs an hour of grading.\n- **Wide lenses on faces or products** — distortion is casual; luxury is composed.\n- **Over-sharpening and crushed saturation** from aggressive filters.\n- **Cutting every second** — pace signals panic.\n- **Digital zoom** — always.\n\nNotice what is absent from the list: camera price. Every tell is a decision, which means every fix is free. Before publishing a piece meant to read premium, watch it once asking a single question: where does this look nervous? Nervousness — in movement, in cutting, in composition — is the true opposite of luxury on screen, and calm is a craft output, not a personality trait."
+            }
+          ],
+          takeaways: [
+            "Luxury grammar is conspicuous spending of time: slow movement, scarce cuts, negative space, and shots held past comfort.",
+            "The recipe is repeatable: long glass, 24fps at 180 degrees, a 4:1 soft key with negative fill, protected highlights, a two-family palette.",
+            "Texture is the proof layer — rake light across materials, shoot macro slow, and pair details with material sound.",
+            "Every cheapening tell — speed, clipping, clutter, distortion — is a decision, not a budget problem."
+          ],
+          actions: [
+            "Run the technical recipe as a preflight checklist on one product shot today and compare it against your usual approach.",
+            "Shoot a three-shot texture run of one object with raking light at 120fps.",
+            "Audit your last premium-intent post against the cheapening list and log every tell you find."
+          ],
+          quiz: [
+            {
+              q: "What does slow camera movement communicate in the luxury grammar?",
+              options: ["Low production budget", "Confidence — the film spends time the way luxury spends money", "That the footage will be sped up later", "A technical limitation of gimbals"],
+              answer: 1,
+              why: "Patience is scarcity signaling: brands that do not beg for attention read as expensive."
+            },
+            {
+              q: "How should light hit a surface to reveal its texture?",
+              options: ["Straight on, from the camera position", "Raking across the surface so micro-shadows form", "From directly below the object", "Through heavy diffusion from all sides"],
+              answer: 1,
+              why: "Cross-light makes weave, grain, and machining cast tiny shadows that render texture in relief; frontal light flattens it."
+            },
+            {
+              q: "Which element of the luxury look actually requires budget rather than discipline?",
+              options: ["Holding shots longer", "Negative fill for real blacks", "None of them — every element of the look is a decision", "A limited palette"],
+              answer: 2,
+              why: "The luxury look is a spec of choices about time, light, and restraint — camera price appears nowhere in it."
+            }
+          ],
+          drill: "Shoot the same 15-second product piece twice — once deliberately violating three items on the cheapening list, once obeying the full recipe — and ask someone which product costs more."
+        },
+        {
+          id: "cinema-4-3",
+          title: "Hard Light and the Sculpted Shadow",
+          minutes: 12,
+          xp: 90,
+          skill: "video",
+          intro: "Soft light is safe; hard light is a statement. Expert work turns shadow from a problem into the subject — with flags, patterns, and exposure discipline borrowed from noir and high fashion.",
+          sections: [
+            {
+              h: "Why Masters Return to Hard Light",
+              body: "Beginner lighting education preaches softness because soft is forgiving. Then you study fashion campaigns, watch spots, automotive work, and film noir, and find the opposite: crisp shadows, hot speculars, faces half in darkness. Hard light is the sculptor's tool — it draws edges, carves cheekbones, makes metal glint and glass flare, and gives shadows shapes worth photographing.\n\nThe sun through a window is a free hard source; so is a bare LED at distance, a flashlight, even a phone torch in a dark room. What changes at expert level is not equipment but intent: hard light punishes sloppy placement, because every shadow edge is visible and every angle decision is legible in the frame.\n\nThe mental shift: stop lighting subjects and start lighting **shapes**. In hard light you are composing with shadow as much as illumination — the dark half of the frame is doing equal storytelling work."
+            },
+            {
+              h: "Cutting Light: Flags, Patterns, and the Slash",
+              body: "Hard light's real craft is subtraction — deciding where light does **not** go.\n\n- **Flags** — any opaque board, or the black side of your foam core — cut light off walls and backgrounds, holding the pool of brightness exactly where you want the eye.\n- **Patterns** (cinematographers call the tool a cookie or gobo): anything with holes held in the beam throws shaped shadow — blinds stripe a wall with noir Venetians, a plant throws organic dapple, a colander throws stars. Window blinds plus afternoon sun is a complete film-noir kit.\n- **The slash**: a diagonal blade of light across an otherwise dark wall, made by cutting the beam with two flags. One slash behind a subject turns a blank wall into production design.\n\nEdge quality follows the physics from the ratio lesson: the closer the flag or pattern sits to the surface, the crisper the shadow; closer to the source, the softer. Shape, then place, then expose."
+            },
+            {
+              h: "Exposing for Drama",
+              body: "Hard-light frames fail in exposure before they fail in placement. The discipline: **expose for the highlight and let shadows fall.** Meter or zebra the lit side of the face or product, protect it just under clipping, and refuse the instinct to lift the rest — the darkness is the look. Ratios here start at 8:1 and run to silhouette; a face that is 70 percent shadow with one struck cheekbone is a legitimate, finished frame.\n\nSkin needs one courtesy in hard light: angle. Frontal hard light flattens and exposes every pore; the same source from 45-90 degrees turns the face sculptural. For product, speculars are the prize — rotate the object until the hot glint sits exactly where you want it, and remember it travels with any camera movement; choreograph the glint like a performer.\n\nA whisper of bounce — a white card at half distance — keeps shadow detail breathing without killing the drama. That final five percent of fill separates noir from mud."
+            },
+            {
+              h: "Atmosphere: Making Light Visible",
+              body: "Hard light earns one more superpower: it renders **atmosphere**. A beam crossing haze, steam, or dust becomes a visible shaft — the cathedral light of every prestige commercial. Soft light cannot do this; shafts need a small, hard source and particles in the air.\n\nLegitimate particle sources on a budget: a shower's steam in a bathroom shoot, a kettle just off frame, dust clapped from a cushion for a single take, or a dedicated haze machine — the first genuinely transformative piece of atmosphere gear, often under a hundred dollars. Backlight the particles: shafts read strongest when the hard source faces the camera from behind the subject, 130-180 degrees around.\n\nUse atmosphere as punctuation, not weather. One shaft in the opening frame, one glowing backlit steam moment mid-piece — the technique is potent enough that repetition cheapens it. And ventilate between takes; haze builds silently until your blacks turn grey and contrast quietly dies."
+            }
+          ],
+          takeaways: [
+            "Hard light sculpts: it draws edges, carves faces, and makes shadow a compositional subject — but it punishes lazy placement.",
+            "The craft is subtraction: flags hold light where you want it, patterns shape it, and one slash turns a blank wall into design.",
+            "Expose for the highlight and let shadows fall; give skin a 45-90 degree angle and choreograph product speculars like performers.",
+            "Haze and steam make hard light visible as shafts — backlight the particles, use them as punctuation, and watch your blacks."
+          ],
+          actions: [
+            "Build a noir frame today with window blinds and direct sun (or a bare LED): stripe the wall, place a subject, expose for the lit side.",
+            "Rotate one product under a hard source until the specular glint lands exactly where you want it — then repeat with the camera moving.",
+            "Create one slash of light with two flags and shoot a portrait against it at 8:1 or deeper."
+          ],
+          quiz: [
+            {
+              q: "What is a flag for?",
+              options: ["Diffusing the key light", "Blocking light from areas you want to stay dark", "Reflecting fill into the shadows", "Marking the subject's floor position"],
+              answer: 1,
+              why: "Flags subtract — they cut the beam so brightness pools only where the composition wants the eye."
+            },
+            {
+              q: "How do you get a crisper pattern shadow from blinds or a cookie?",
+              options: ["Move the pattern closer to the wall it shadows", "Move the pattern closer to the light source", "Use a softer source", "Add more fill light"],
+              answer: 0,
+              why: "Shadow edges sharpen as the pattern approaches the surface and blur as it approaches the source."
+            },
+            {
+              q: "Why must haze or steam be backlit to produce visible shafts?",
+              options: ["Front light overheats the particles", "Particles scatter light toward camera most strongly when the hard source faces the lens from behind the subject", "Backlight is simply brighter", "Haze only forms behind subjects"],
+              answer: 1,
+              why: "Forward scatter makes atmosphere glow; front-lit particles nearly disappear."
+            }
+          ],
+          drill: "Recreate one film-noir frame from a movie still using only sunlight, blinds, and a black/white board — match the shadow pattern, ratio, and eye light before comparing side by side."
+        },
+        {
+          id: "cinema-4-4",
+          title: "Product Cinematography: Lighting the Reflection",
+          minutes: 12,
+          xp: 90,
+          skill: "photo",
+          intro: "Bottles, watches, cars, and screens are mirrors that happen to have shapes. Shooting them well means lighting what they reflect — a discipline closer to still-life painting than to portraiture.",
+          sections: [
+            {
+              h: "You Light the Reflection, Not the Object",
+              body: "Point a light at a glossy product and it looks worse — one hot spot, and darkness everywhere else. Glossy surfaces do not diffuse light like skin; they **mirror their environment**. What the camera photographs on a watch case, a bottle, or a car panel is a reflection of everything around it.\n\nSo the professional flips the problem: build an environment worth reflecting. A large white card floated above a watch face becomes an elegant white gradient sweeping across the glass. A softbox is used here not for its softness but for its **shape** — the clean rectangle it paints onto a dark bottle shoulder is the highlight.\n\nThe governing concept is the **family of angles**: from the camera's position, a reflective surface shows only what sits within a predictable, mirror-like range of angles. Place cards and lights inside that family and they appear on the product; outside it, they vanish. Find it by moving a hand around while watching the surface on your monitor."
+            },
+            {
+              h: "Gradients and Dark Edges",
+              body: "Flat, even reflections make products look like plastic; **gradients** — highlights that fall from bright to dark across a surface — make them look machined, liquid, expensive. Create them by angling the card or source relative to the surface, or by feathering a light across a diffusion frame so one end glows hotter.\n\nGlass adds its own problem: a clear bottle disappears against bright backgrounds. The fix is **edge definition**: on a bright background, place vertical black cards just out of frame on both sides — the glass mirrors them as crisp dark contour lines (bright-field lighting). On a dark background, reverse it: white strips or edge lights behind, and the glass draws itself in bright lines (dark-field).\n\nThese two setups — bright-field with black edges, dark-field with white edges — are the entire foundation of beverage and perfume advertising. Master them at tabletop scale and you can walk them up to a car, which is only a very large bottle parked outdoors."
+            },
+            {
+              h: "Motion: The Product Must Perform",
+              body: "Video product work adds the fourth dimension, and motion should come from a short menu, executed cleanly:\n\n- **The orbit**: product centered, camera circling — or a cake turntable spinning the product against a locked camera, which fakes it perfectly.\n- **The macro pass**: a slow lateral slide at minimum focus, details drifting past at 120fps.\n- **The drop and land**: the product settling into frame at high frame rate — dust, splash, or fabric reacting.\n- **The reveal**: light sweeping on, a hand placing the hero, or a foreground wipe.\n- **The pour, click, clasp**: the product doing its actual job, tight.\n\nMoving reflections are the secret ingredient: as the product or camera travels, highlights crawl across surfaces, and that crawl is what reads as cinematic rather than catalog. Choreograph where the glint starts and ends, exactly like the movement-on-the-beat discipline from the Intermediate course."
+            },
+            {
+              h: "The Product Sequence System",
+              body: "A commercial product sequence follows a reliable arc, and shooting it as a system makes a two-hour tabletop session deliver a full film:\n\n1. **Hero**: the definitive frame — centered or on a clean gradient, long lens, locked camera or one slow move. The thumbnail and the poster.\n2. **Detail run**: three to five macro textures — engraving, weave, glass thickness, mechanism.\n3. **Function beats**: the product working — pour, click, wear, drive.\n4. **Context**: the product in a life — hands, a table, a wrist at dinner. Wider, warmer, human.\n5. **Return**: back to the hero or a variation for the closing frame and CTA space.\n\nLock camera settings across the session — white balance, exposure, profile — so the set grades as one piece. Mark product and camera positions with tape before every variation, and shoot each setup at two speeds. Twelve to fifteen shots produce cutdowns for every duration the deliverables matrix demands."
+            }
+          ],
+          takeaways: [
+            "Glossy products mirror their environment — build reflections with cards and shaped sources placed inside the family of angles.",
+            "Gradients read as expensive; bright-field with black edges and dark-field with white edges are the foundation of glass work.",
+            "Choose motion from the product menu — orbit, macro pass, drop, reveal, function — and choreograph the traveling glint.",
+            "Shoot the five-beat product arc (hero, details, function, context, return) with locked settings and marked positions."
+          ],
+          actions: [
+            "Shoot one glossy object twice tonight: once lighting the object directly, once lighting a white card into its family of angles — compare.",
+            "Set up a bright-field bottle shot with black edge cards, then invert it to dark-field with white strips.",
+            "Run the five-beat product arc on any item you own, using a cake turntable or lazy susan for the orbit."
+          ],
+          quiz: [
+            {
+              q: "Why does aiming a light directly at a glossy watch usually fail?",
+              options: ["Watches absorb most light", "Glossy surfaces mirror their environment, so you get a hot spot instead of a shaped highlight", "The autofocus hunts on metal", "Metal requires ultraviolet light"],
+              answer: 1,
+              why: "Reflective surfaces show reflections — the craft is building an environment of cards and shaped sources worth mirroring."
+            },
+            {
+              q: "What does the family of angles describe?",
+              options: ["The 30-degree rule for cuts", "The range of positions that a reflective surface shows to the camera, mirror-style", "Standard camera heights for tabletop work", "Acceptable focal lengths for product"],
+              answer: 1,
+              why: "Only things placed within that angular range appear in the surface — it tells you exactly where cards and lights must go."
+            },
+            {
+              q: "A clear glass bottle vanishes against a white background. What is the classic fix?",
+              options: ["Increase overall exposure", "Vertical black cards just outside frame so the glass mirrors dark contour edges", "Switch to a wide lens", "Backlight the label only"],
+              answer: 1,
+              why: "Bright-field lighting defines glass by giving it dark edges to mirror; dark-field reverses the trick with white strips."
+            }
+          ],
+          drill: "Produce a 20-second product film of one household object using the five-beat arc, at least one gradient highlight, and one traveling glint — tabletop only."
+        },
+        {
+          id: "cinema-4-5",
+          title: "The One-Day Commercial Shoot",
+          minutes: 12,
+          xp: 90,
+          skill: "video",
+          intro: "Everything before this was craft; this is production. A commercial shoot day is an economics problem — setups, minutes, and energy — and the shooters who deliver treat the schedule as seriously as the frame.",
+          sections: [
+            {
+              h: "Schedule Backward from the Edit",
+              body: "Amateurs schedule chronologically ('we'll start at the beginning of the story'); professionals schedule by **setup** — a unique combination of location, lighting, and camera position. The expensive act on any shoot day is not shooting; it is **moving**: every relight and company move costs 20-45 minutes in which zero frames are captured.\n\nSo build the day backward. List every shot the edit needs (the board from lesson one). Group shots by setup regardless of story order. Sequence setups to minimize moves and chase the light — exteriors when the sun cooperates, window-lit interiors at the right hour, controlled setups whenever. Schedule the hardest, most important setup second: the first slot goes to an easy win that warms the day up, while energy is still high for the one that matters.\n\nThen add buffer: plan 75 percent of the available time and hold 25 in reserve. A schedule with no slack does not survive contact with reality — something always runs long."
+            },
+            {
+              h: "Setups Are the Currency",
+              body: "Count your day in setups, not shots. From one setup, a disciplined shooter harvests many shots: the wide, the medium, the insert run, both speeds, a safety — eight shots in fifteen minutes once the light stands. Then the move costs half an hour. A realistic solo or two-person day: six to ten setups, thirty to fifty shots.\n\nThis arithmetic drives expert habits. **Batch ruthlessly**: before leaving any setup, run the checklist — every board frame captured? Overlapped action? Handles? Room tone? Inserts? A texture run? Returning to a torn-down setup is the most expensive mistake on a shoot.\n\n**Steal setups**: turning the camera 180 degrees within a lit space is often a free second setup — light the space, not just the shot, when you can afford to.\n\nAnd write the setup count into the treatment stage: a board demanding fifteen setups in an eight-hour day is not ambitious, it is undelivered."
+            },
+            {
+              h: "On-Set Discipline: Data, Selects, Continuity",
+              body: "The unglamorous systems that separate professionals:\n\n- **Data is sacred.** Format cards only after verified backup; keep two copies before anything is deleted, one off the camera. A lost card is an unrepeatable day.\n- **Mark selects live.** After a great take, say 'that's the one' on camera or log it — future you, at midnight in the edit, will otherwise rewatch forty takes.\n- **Continuity photos.** Before striking any setup, photograph the frame, the light positions, and the product placement. Reshoots and pickups match only if you can rebuild.\n- **Playback with intent.** Review the first take of each setup at full zoom for focus and flicker, then stop reviewing and keep shooting — obsessive playback murders schedules.\n- **A wrap checklist**: boards covered, room tone, wild sound, a clean plate of each setup, one safety wide.\n\nBoring, repeatable, and the reason clients rebook."
+            },
+            {
+              h: "Directing Clients and Non-Actors",
+              body: "Commercial sets contain two difficult species: clients and non-actors.\n\n**Non-actors** (founders, staff, real customers) freeze when directed emotionally — 'be natural' is a curse. Direct with **tasks and verbs**: pour the coffee and tell me about your first customer; walk to the window and check your phone. Busy hands unlock natural faces. Shoot the rehearsal without announcing it — the take before they think you are rolling is frequently the keeper — and burn the first ten minutes as a sacrificial warm-up on footage you do not need.\n\n**Clients** need a monitor, a chair, and a channel: invite feedback at defined moments ('we'll review after this setup'), not shot by shot. Translate craft into their language — say 'this angle makes the product the hero' rather than defending a focal length. And protect one non-negotiable: you own the shot list. Accommodate additions in the buffer time; never trade a boarded shot for an improvised one until the board is covered."
+            }
+          ],
+          takeaways: [
+            "Schedule by setup, not story order; moves and relights are the expensive acts, and a 25 percent buffer is non-negotiable.",
+            "Setups are the currency — batch every shot before striking, steal reverse angles from lit spaces, and match board ambition to setup arithmetic.",
+            "Data discipline, live selects, continuity photos, and a wrap checklist are the systems that make clients rebook.",
+            "Direct non-actors with tasks and verbs, shoot the rehearsal, and give clients defined review moments — but the board gets covered first."
+          ],
+          actions: [
+            "Convert your next shot list into a setup-grouped schedule with a 25 percent buffer and the hardest setup in slot two.",
+            "Write your personal wrap checklist in a phone note: boards, handles, room tone, inserts, continuity photos, backup.",
+            "Practice task-direction: film someone for two minutes giving only verb instructions — no emotion words allowed."
+          ],
+          quiz: [
+            {
+              q: "What is the most expensive activity on a shoot day?",
+              options: ["Recording long takes", "Moving and relighting between setups, when no frames are captured", "Reviewing playback", "Directing non-actors"],
+              answer: 1,
+              why: "Setup changes cost 20-45 minutes of zero output — which is why professionals schedule and batch by setup."
+            },
+            {
+              q: "Why schedule the most important setup second rather than first?",
+              options: ["Clients usually arrive late", "An easy first win absorbs startup friction while energy is still high for the setup that matters", "The light is always better later", "Insurance requires a warm-up"],
+              answer: 1,
+              why: "Slot one soaks up the day's friction; slot two gets a warmed-up team at near-peak energy."
+            },
+            {
+              q: "What unlocks natural performance from non-actors?",
+              options: ["Asking them to act natural", "Directing with physical tasks and verbs so busy hands free the face", "Many takes of direct address", "Showing them the monitor between takes"],
+              answer: 1,
+              why: "Task direction occupies self-consciousness; emotional direction amplifies it."
+            }
+          ],
+          drill: "Run a full one-day protocol on a personal shoot: setup-grouped schedule, batch checklist per setup, live selects, continuity photos, and a wrap checklist — then note where the plan broke."
+        }
+      ]
+    },
+    {
+      id: "cinema-5",
+      level: "Master",
+      title: "Direction of Photography",
+      description: "The creative-director tier: codifying a visual language that compounds, architecting energy across a film, designing choreographed long takes, using light as a narrator, and running the taste, teams, and client rooms that turn craft into a career.",
+      lessons: [
+        {
+          id: "cinema-5-1",
+          title: "Codifying Your Visual Language",
+          minutes: 13,
+          xp: 110,
+          skill: "branding",
+          intro: "At the top of the craft, style stops being taste and becomes a written system. A codified visual language is why one frame of a great director's work is recognizable — and it is the highest-leverage asset a creator's brand can own.",
+          sections: [
+            {
+              h: "Style Is a System of Constraints",
+              body: "The directors and cinematographers you can identify from a single frame are not more inspired than their peers — they are more **constrained**. Recognizability is the product of rules applied relentlessly: this focal length family and not others, this palette, this way of moving, this relationship to symmetry or shadow.\n\nFor a creator, this is brand mechanics as much as art. Feeds are consumed at speed; a viewer decides whose video this is within a second, and consistent visual rules make that recognition automatic — the cinematographic equivalent of a logo. Every rule you keep is equity that compounds with each post; every random stylistic experiment spends it.\n\nThe master move is choosing constraints that generate rather than limit: 'always one light source' is a constraint that produces a look; 'always make it cinematic' produces nothing. Constraints must be specific enough to be violated — if you cannot point at a frame and say 'this breaks rule three,' you do not yet have rules."
+            },
+            {
+              h: "The Five Decisions",
+              body: "A workable visual language is five written policies:\n\n1. **Lens policy.** Your default focal length family and what earns an exception. ('Everything on 35mm and 85mm; wides only for one establishing frame per piece.')\n2. **Movement policy.** Your default energy and its exceptions. ('Static or slow push; handheld only for genuine documentary moments.')\n3. **Palette.** Two or three color families, a skin-tone treatment, and what is banned. ('Warm neutrals and deep green; no saturated primaries in frame.')\n4. **Light policy.** Quality, direction, and ratio defaults. ('Soft key, 4:1, always motivated; one hard-light texture moment per piece.')\n5. **Frame codes.** Signature compositions you return to. (The centered symmetrical hero; the through-doorway reveal; the top-down hands.)\n\nWrite each as one sentence with its exception clause. Five sentences — that is the whole language, and the brevity is the point: a language nobody can remember is one nobody can shoot."
+            },
+            {
+              h: "The Look Book",
+              body: "Codify the language into a **look book** — a living document of frames, not adjectives.\n\nStructure it in three layers. **Reference frames**: ten to twenty stills, pulled from film, ads, and photography, that define the target — each annotated with what specifically it demonstrates (ratio, palette, composition), so it teaches rather than decorates. **Proof frames**: your own best frames that already achieve the language — evidence the system works. **Do/don't pairs**: the sharpest teaching tool that exists — two of your frames side by side, one on-language, one off, with a one-line diagnosis.\n\nThe look book's real function is delegation and consistency. It briefs a second shooter or editor in ten minutes; it settles creative arguments by pointing instead of debating; and it keeps you honest at midnight when an off-language shot tempts you because it performed for someone else. Review it quarterly: retire outgrown references, promote new proof frames. A look book that never changes is a museum, not a tool."
+            },
+            {
+              h: "Evolving Without Breaking",
+              body: "Languages must evolve or they calcify — but evolution done randomly reads as inconsistency and burns recognition equity. Master-level evolution is **versioned**: change one variable per season, deliberately, while holding the others fixed.\n\nShift the palette one step cooler for a quarter. Introduce a new frame code and repeat it until it becomes signature. Retire the speed ramp every competitor now copies. One change at a time both preserves recognizability and makes results attributable: if engagement moves after a single-variable shift, you know why.\n\nTest evolutions in low-stakes slots — stories, secondary formats, one post in ten — before promoting them to the core language. And distinguish **language** from **execution**: upgrading cameras, locations, or polish is not evolution; it is the same language spoken more fluently. The question each quarter is not 'what looks fresh?' but 'which single rule, changed, makes the system stronger?' That is creative direction: editing the rulebook, not just the footage."
+            }
+          ],
+          takeaways: [
+            "Recognizability is constraint applied relentlessly — rules specific enough to be violated are what make one frame identifiable.",
+            "A complete language is five written policies: lens, movement, palette, light, and frame codes — each with an exception clause.",
+            "The look book (references, proof frames, do/don't pairs) is a delegation and consistency machine, reviewed quarterly.",
+            "Evolve one variable per season in low-stakes slots; version the language instead of drifting."
+          ],
+          actions: [
+            "Write your five policies as five sentences with exception clauses — today, extracted from your existing best work.",
+            "Assemble a v1 look book: ten annotated reference frames, five proof frames, two do/don't pairs.",
+            "Pick the one variable your language will evolve this quarter and define where you will test it."
+          ],
+          quiz: [
+            {
+              q: "Why are the most recognizable filmmakers recognizable?",
+              options: ["Bigger budgets", "They apply specific constraints relentlessly across their work", "They use rare cameras", "They avoid trends entirely"],
+              answer: 1,
+              why: "Style is a rule system; consistency of constraint, not inspiration, is what a viewer can identify in one frame."
+            },
+            {
+              q: "What makes a stylistic constraint useful rather than empty?",
+              options: ["It sounds inspiring", "It is specific enough that a frame can visibly break it", "It changes every week", "It requires expensive gear"],
+              answer: 1,
+              why: "'Always cinematic' rules nothing in or out; 'statics and slow pushes only' can be obeyed, violated, and therefore seen."
+            },
+            {
+              q: "What is the master-level way to evolve a visual language?",
+              options: ["Redesign everything annually", "Change one variable per season, tested in low-stakes formats first", "Follow whatever trends perform this month", "Never change anything"],
+              answer: 1,
+              why: "Single-variable, versioned evolution preserves recognition equity and makes results attributable."
+            }
+          ],
+          drill: "Score your nine most recent posts against your five policies and compute an on-language percentage — then decide whether the outliers were experiments or drift."
+        },
+        {
+          id: "cinema-5-2",
+          title: "Energy Architecture",
+          minutes: 13,
+          xp: 110,
+          skill: "video",
+          intro: "Retention is usually treated as an editing problem. At master level it is designed before the shoot: every film has an energy curve, and the cinematographer controls its raw variables — shot length, movement, size, brightness, and density.",
+          sections: [
+            {
+              h: "The Five Energy Variables",
+              body: "Watch any film with the sound off and you can feel its energy rise and fall. That feeling is built from five measurable variables:\n\n1. **Cut rate** — how long shots hold. Faster runs hotter.\n2. **Movement speed** — static frames are cool; whips and fast pushes are hot.\n3. **Size volatility** — cutting wide-to-close is a jolt; drifting between near sizes is calm.\n4. **Luminance and contrast** — bright, high-contrast frames spike attention; dark, low-contrast frames settle it.\n5. **Frame density** — how much is happening: subjects, motion within frame, texture, on-screen text.\n\nAny beat of any film can be scored one-to-ten on these. A talking head in soft light, locked camera, one subject: energy two. A whip-pan to a backlit reveal with a size jump: energy nine.\n\nThe insight that changes your shooting: these are **capture decisions**. An editor can trim toward a curve, but cannot manufacture heat that was never shot, or calm that never existed."
+            },
+            {
+              h: "Composing the Curve",
+              body: "Music producers arrange songs in dynamics — verse, build, drop, breakdown — and audiences stay because the energy keeps changing shape. Films work identically, and monotone energy is the killer in both directions: relentlessly calm decays into scroll-past, but relentlessly hot decays just as fast, because sustained maximum reads as noise.\n\nDesign the curve before shooting. Sketch the piece on a timeline and draw the energy line: open hot (the swipe decision), drop to a settled base that lets the story breathe, build in waves, place the **rest note** — one deliberately quiet beat, two to three seconds of near-stillness — right before the climax so the payoff detonates against silence, then resolve.\n\nThe rest note is the most under-used device on social video. Contrast is the actual currency: a nine only feels like a nine if it follows a three. Whoever controls the lows controls how high the highs land."
+            },
+            {
+              h: "Shooting to the Curve",
+              body: "With a curve drawn, annotate the shot list: every board frame gets an energy target next to its size and movement notes. Now capture decisions become legible. A beat marked 'three' wants a locked long-lens frame, soft ratio, one subject, slow or no movement. A beat marked 'eight' wants speed, a size jump on the cut, hotter contrast, a denser frame.\n\nTwo master habits follow. **Shoot the temperature twice**: for pivotal beats, capture a calm version and a hot version — a static and a push, real time and ramp-ready 60fps — so the edit can retune the curve when the assembled rhythm differs from the plan. It always differs.\n\n**Protect the lows on set.** Hot footage is fun to shoot and calm footage feels boring in the moment, so shooters systematically under-capture their rest notes — then the editor has no quiet material and the film flatlines at maximum. Board the quiet frames explicitly, and shoot them with the same seriousness as the hero."
+            },
+            {
+              h: "Second Zero and the Button",
+              body: "Two points of the curve deserve disproportionate design: the first frame and the last.\n\n**Second zero** is a cinematography brief, not an editing trick: the highest-information frame of the piece — subject legible in the hook zone, motion already in progress, contrast at maximum. Never open on a move that has not started or a frame still assembling itself; shoot openings mid-action, entering hot. A master trick: shoot a dedicated opening frame that condenses the whole film's promise, even if it repeats later in context.\n\n**The button** is the final beat — the frame the film lands on. Design it to do one of three jobs: resolve (the finished object, the settled face), loop (a frame that flows visually back into the opening — composition and direction matched — so replays feel seamless), or hold (a composition strong enough to sit under the CTA and end card). Films that trail off were shot without a button; films that land were shot toward one."
+            }
+          ],
+          takeaways: [
+            "Energy is five capture variables — cut rate, movement, size volatility, luminance, density — and an editor cannot add heat or calm that was never shot.",
+            "Design the curve like music dynamics: open hot, breathe, build in waves, and place a rest note before the climax.",
+            "Annotate energy targets on the shot list, shoot pivotal beats at two temperatures, and protect the quiet frames on set.",
+            "Second zero and the button deserve dedicated shots: open mid-action at maximum legibility, and land on resolve, loop, or hold."
+          ],
+          actions: [
+            "Draw the energy curve of your last video from memory, then rewatch it and draw the real one — study the gap.",
+            "Board your next piece with an energy number on every shot, including at least one explicit rest note.",
+            "Shoot a dedicated second-zero frame and a button frame for your next film before covering the middle."
+          ],
+          quiz: [
+            {
+              q: "Why does relentlessly high energy lose viewers as surely as monotony does?",
+              options: ["Platforms throttle fast content", "Sustained maximum becomes noise — without lows, highs stop registering as highs", "High energy drains phone batteries", "Fast cutting reduces resolution"],
+              answer: 1,
+              why: "Energy is perceived through contrast; the curve needs valleys for peaks to exist."
+            },
+            {
+              q: "What is the rest note?",
+              options: ["A pause in the music track", "A deliberately quiet beat placed before the climax so the payoff lands harder", "The final CTA frame", "A break between shoot days"],
+              answer: 1,
+              why: "Two seconds of near-stillness before the peak makes the peak detonate — the most under-used retention device on social."
+            },
+            {
+              q: "Why shoot pivotal beats at two energy temperatures?",
+              options: ["To fill the memory card", "Because assembled rhythm always differs from the plan, and the edit can only retune with material that exists", "To test two different lenses", "Platforms require alternate versions"],
+              answer: 1,
+              why: "A calm take and a hot take of the same beat give the edit the range to retune the curve after assembly."
+            }
+          ],
+          drill: "Storyboard a 30-second piece as an energy graph first — numbers only, no shots — then design shots to hit each number. Shoot and cut it, and compare the final curve against the plan."
+        },
+        {
+          id: "cinema-5-3",
+          title: "The Oner: Designing the Long Take",
+          minutes: 13,
+          xp: 110,
+          skill: "video",
+          intro: "A cut is an exit ramp; a long take removes them all. Choreographed oners are the most demanding form in the vocabulary — and on social, where they read as unfakeable skill, they are a signature worth owning.",
+          sections: [
+            {
+              h: "Why the Long Take Commands Attention",
+              body: "The long take holds attention by a different mechanism than cutting. Edits re-engage the brain with novelty; a oner engages it with **suspended tension** — some part of the viewer knows nobody has cut, senses the difficulty, and stays to see whether the trick resolves. It is a magic act performed with a camera.\n\nOn social this carries a second payload: **proof of skill**. Feeds are saturated with cut-every-second content because cutting is cheap; an unbroken 30-second take that keeps transforming is visibly not cheap, and audiences reward difficulty they can perceive. Behind-the-scenes of the same oner routinely outperforms the oner — the choreography is content twice.\n\nChoose oners for material with continuous spatial logic: a walkthrough, a process, a transformation, an arrival. If the story requires jumping time or place, cutting is honest and the oner is a stunt. The form must still serve sequence grammar: establish, engage, turn, resolve — inside one shot."
+            },
+            {
+              h: "Choreography: Trading Frames Inside One Shot",
+              body: "A oner is not one composition held long — it is **six or eight compositions connected by movement**, each earned. Design it as frames first: write the shots you would have cut between, then choreograph camera and subject paths that trade one frame for the next.\n\nThe trades come from the existing vocabulary: a push converts a wide into a medium; a subject walking at the lens converts a medium into a close-up; an orbit swaps backgrounds behind a held subject; a pan hands the frame from one subject to another; a tilt trades a face for the object in its hands.\n\nBlock it on the floor like theater: tape marks for the subject, a walked path for the camera, and **sync points** — 'as she lifts the cup, I begin the orbit.' Rehearse camera and subject separately, then together at half speed, then at full. The counting matters: a oner is memorized in beats like choreography, because it is choreography."
+            },
+            {
+              h: "Hidden Cuts: The Stitched Oner",
+              body: "Most famous 'oners' are stitched — several takes joined at invisible seams — and the technique is fully available at social scale. The classic stitch points:\n\n- **The occlusion wipe**: a pillar, door frame, or passing body fully covers the lens; cut inside the black.\n- **The whip pan**: motion blur during a fast pan hides a cut mid-whip; match whip direction and speed on both sides.\n- **The push into darkness or texture**: drive the lens into a shadow, a jacket, a wall — cut while the frame is abstract.\n- **The match on movement**: a continuous action (a door swinging, a subject turning) carried across the cut at identical speed.\n\nPlan stitches on set, not in the edit: shoot generous overlap on both sides of each seam, match camera height and speed across the join, and keep lighting continuous. Stitching converts an impossible three-minute choreography into three achievable forty-second ones — and rescues the take where beat six died after five perfect beats."
+            },
+            {
+              h: "Failure Economics",
+              body: "Oners fail by design — that is the price of the form — so masters manage the economics of failure.\n\n**Simplify the weakest beat.** After three failed takes, the discipline is not 'try harder' but 'redesign': the beat that keeps dying is over-choreographed. Shorten the move, slow the trade, or convert that seam into a planned stitch.\n\n**Cap the take count.** Decide before rolling how many attempts the day affords — say ten — and what the fallback is. Performance and camera work peak in the middle takes and decay after; take fourteen is rarely better than take seven, and everyone on set knows it.\n\n**Bank the safety.** Once a take succeeds, immediately shoot conventional coverage of the same material — three or four cuttable angles. The oner may die in the edit for reasons no one on set could see (pacing against music, a client note), and the film must survive its death.\n\nThe long take is a bet; master shooters size the bet, hedge it, and know when to fold it."
+            }
+          ],
+          takeaways: [
+            "Oners hold attention through suspended tension and perceived difficulty — and the behind-the-scenes of the choreography is content twice.",
+            "Design a oner as six-to-eight frames traded through movement, blocked with marks and sync points, rehearsed at half speed.",
+            "Stitch with occlusion wipes, whip pans, darkness, and matched movement — planned on set with generous overlap.",
+            "Manage failure economics: simplify the dying beat, cap take counts, and always bank conventional coverage as a hedge."
+          ],
+          actions: [
+            "Design a six-frame oner for a simple process — making coffee, entering a location: write the frames, then the trades between them.",
+            "Practice one whip-pan stitch and one occlusion stitch today, matching speed and height across the seam.",
+            "On your next oner attempt, set a take cap in advance and shoot safety coverage immediately after your best take."
+          ],
+          quiz: [
+            {
+              q: "What should a oner be designed as?",
+              options: ["One beautiful composition held for the duration", "A series of distinct frames traded through choreographed camera and subject movement", "An improvised walk with a gimbal", "A locked shot with slow zooms"],
+              answer: 1,
+              why: "The long take earns its length by continuously transforming — it is the shots you would have cut between, connected by movement."
+            },
+            {
+              q: "Which is NOT a standard hidden-cut stitch point?",
+              options: ["An occlusion wipe through a foreground object", "A whip pan with matched direction and speed", "A slow crossfade between takes", "A push into darkness or texture"],
+              answer: 2,
+              why: "Crossfades are visible transitions; stitches hide inside blur, black, or matched motion so the take reads as unbroken."
+            },
+            {
+              q: "After a successful oner take, what does the master do next?",
+              options: ["Wrap immediately to protect the take", "Shoot conventional coverage of the same material as a hedge", "Delete the failed takes", "Attempt three more oners"],
+              answer: 1,
+              why: "The oner may fail in the edit for pacing or client reasons; banked coverage means the film survives its death."
+            }
+          ],
+          drill: "Execute a 30-second stitched oner of a daily routine: three choreographed segments joined by one whip pan and one occlusion wipe, with a real turn inside the take."
+        },
+        {
+          id: "cinema-5-4",
+          title: "Light as Narrative",
+          minutes: 13,
+          xp: 110,
+          skill: "video",
+          intro: "Every lesson until now placed light in space. Master-level lighting places it in time: light that changes as the story changes, so illumination itself becomes a narrator the audience feels but never notices.",
+          sections: [
+            {
+              h: "The Lighting Arc",
+              body: "A film whose light never changes is narratively flat no matter how beautiful each frame is — static light tells the audience that nothing is happening, in the same register that unvarying shot sizes do. Master work gives light an **arc** that tracks the story.\n\nThe mechanics are tools you already own, moved through time. Ratio as tension: begin an interview at an open 2:1 and let the fill die toward 8:1 as the subject approaches the hard truth — the audience feels stakes rising without knowing why. Warmth as resolution: a piece that begins in cool grey light and ends in gold has told an emotional story even if the content is a kitchen renovation. Direction as revelation: side-lit mystery resolving into open frontal clarity when the answer arrives.\n\nWrite the arc into the board as a third column — beat, frame, light state — and the changes become deliberate chapters instead of accidents of the day."
+            },
+            {
+              h: "Time of Day as Structure",
+              body: "Natural light hands you a free narrative structure, because audiences read time of day as story position instinctively: dawn is beginnings and promise; hard noon is scrutiny, effort, exposure; golden hour is reward and nostalgia; blue hour is threshold and transformation; night is interiority and truth.\n\nMasters schedule story beats to this clock rather than fighting it. The discipline beat of a founder film shoots at harsh midday — the unforgiving light is the point. The product payoff waits for the twenty golden minutes. The reflective voiceover moment shoots at blue hour, when the world goes cinematic for free.\n\nThis is the **magic-hour economy**: golden and blue hours are brief, so they are budgeted like money. Board exactly which two or three shots deserve them, rehearse those setups in ordinary light beforehand, and execute when the window opens. Arriving at golden hour to 'shoot some nice stuff' wastes the scarcest resource in natural-light filmmaking on undesigned frames."
+            },
+            {
+              h: "Color Temperature as Code",
+              body: "Beyond single-scene mood, color temperature can operate as a **narrative code**: assign warm and cool to the story's poles and hold the assignment consistently.\n\nThe classic mappings: warm equals home, past, human, analog; cool equals work, present, institutional, digital. A day-in-the-life piece that lights the workspace cool and the family kitchen warm is running a two-tone story engine underneath its content. A brand film can code 'before' in drained cool tones and 'after' in warmth, and the audience reads transformation without a word of copy.\n\nThe master rule is that **consistency turns accident into code**. One warm scene is just a lamp; warmth deployed every time the story touches its home pole is a language, and viewers learn it within two beats. Break the code only at the story's turn — the cool world warming for the first time IS the climax, delivered by lighting.\n\nKeep skin protected inside whichever family owns the scene, as always; the code lives in environments and edges, not in jaundiced faces."
+            },
+            {
+              h: "Justifying the Change",
+              body: "Light that changes without visible cause reads as error — the audience senses the hand of the filmmaker and trust drops. The master technique is **diegetic justification**: build the cause of every lighting change into the world of the film.\n\nThe toolkit: a subject switches on the practical lamp, and the scene's warmth arrives with a motivated click. A door opens and daylight slices in. A laptop closes and its blue glow dies. Curtains drawn, blinds tilted, a passing car sweeping light across the wall, clouds crossing the sun — the oldest tricks in cinema, all executable in a bedroom.\n\nStage these causes on camera when possible: the hand on the switch is a beat worth a shot, because it converts a lighting state-change into story action — cause and effect, lit. When the cause cannot appear, let it be inferable: the sound of blinds, a shadow's movement.\n\nAudit any lighting arc with one question per change: what, inside the world of this film, made that happen? Every answered change is invisible craft; every unanswered one is a visible seam."
+            }
+          ],
+          takeaways: [
+            "Give light an arc — ratio tightening, warmth arriving, direction resolving — written into the board as its own column.",
+            "Schedule beats to the natural clock and budget magic hour like money: two or three designed shots, rehearsed in advance.",
+            "Color temperature becomes narrative code through consistency — and breaking the code is a climax you can light.",
+            "Justify every lighting change diegetically; the hand on the lamp switch is a story beat, not a utility."
+          ],
+          actions: [
+            "Add a light-state column to your next board: one line per beat describing ratio, warmth, and direction.",
+            "Shoot one scene where a practical switch, door, or curtain visibly motivates a lighting change mid-shot.",
+            "Plan one magic-hour shoot this week: two designed shots, rehearsed at noon, executed in the window."
+          ],
+          quiz: [
+            {
+              q: "An interview's fill is gradually pulled as the subject approaches a difficult admission. What is this?",
+              options: ["A continuity error", "A lighting arc — ratio tracking narrative tension", "Negative fill misuse", "White balance drift"],
+              answer: 1,
+              why: "Deepening contrast across time is light narrating rising stakes — the audience feels it without seeing it."
+            },
+            {
+              q: "What is the magic-hour economy?",
+              options: ["Renting lights at off-peak prices", "Budgeting the brief golden and blue windows for a few designed, rehearsed shots", "Shooting everything at sunset", "A color grading preset"],
+              answer: 1,
+              why: "Golden and blue hours are scarce minutes; masters spend them on boarded frames, not improvisation."
+            },
+            {
+              q: "Why stage the cause of a lighting change on camera — a hand switching on a lamp?",
+              options: ["It fills screen time", "Diegetic justification makes the change read as world, not filmmaker error, and turns it into story action", "Continuity rules require it", "Practicals are cheaper than LEDs"],
+              answer: 1,
+              why: "Light that changes without visible cause breaks trust; a motivated click converts a state-change into a beat."
+            }
+          ],
+          drill: "Shoot a 30-second piece whose light tells the story alone: begin cool and open, justify one visible change mid-piece, and end warm and shaped — then mute it and test whether the arc reads."
+        },
+        {
+          id: "cinema-5-5",
+          title: "Running the Frame: The Creative Director's Practice",
+          minutes: 14,
+          xp: 110,
+          skill: "strategy",
+          intro: "The final skill is not a shot — it is a practice: building taste deliberately, directing other people to shoot your language, defending craft in client rooms, and treating every frame you publish as a brick in a compounding body of work.",
+          sections: [
+            {
+              h: "Taste Is Trained, Not Given",
+              body: "Creative directors are people who can say precisely why a frame works, and that precision is built through deliberate reps, not exposure. Scrolling past ten thousand videos trains nothing; **autopsy** trains everything.\n\nThe weekly ritual: pull three frames — one from a master, one from a competitor, one from your own recent work — and write a short autopsy of each: lens family, key direction and ratio, palette, composition code, movement and its motivation, energy score. Same rubric every week, in writing, because writing forces the eye to commit where 'I just like it' hides.\n\nYour own work gets the hardest read: rewatch each published piece once cold, a week later, and log the single weakest craft decision. Not five notes — one, named precisely ('the push-in on beat three had no motivation'). Twelve months of this produces a documented map of your recurring flaws, and recurring flaws, once visible, are trivially fixable. Taste is the residue of a thousand honest autopsies."
+            },
+            {
+              h: "Directing Other Shooters",
+              body: "The language you codified exists so that other hands can shoot it — delegation is how a style scales beyond one person's day.\n\nBriefing that works: the look book plus **three non-negotiables per job** ('long lens on all product, statics under dialogue, nothing wider than 35'). A page of rules gets skimmed; three rules get kept. Pair every brief with proof frames from past work — shooters match pictures far more accurately than adjectives.\n\nReviewing that works: give notes in craft vocabulary, tied to the codified rules. 'Make it more premium' is a mood and produces guesswork; 'this is 2:1, our look is 4:1 — pull the fill' is executable in one take. Name the rung on the ladder, the ratio, the missing motivation. Precision in notes is respect, and it trains collaborators to see the system rather than guess your mood.\n\nAnd protect the ratio of praise: name what was on-language first, specifically. People repeat what gets precisely praised."
+            },
+            {
+              h: "The Client Room",
+              body: "Craft decisions die in rooms where they are not defended in the client's language. The translation table masters carry:\n\n- Restraint: 'slower and emptier reads as expensive — fast and busy reads as discount.' Luxury clients understand price signaling instantly.\n- Shot scarcity: 'every shot we add divides attention; the hero product earns more seconds, not more angles.'\n- Darkness and contrast: 'shadow is what makes the product look dimensional instead of flat — the difference between catalog and campaign.'\n- The board: 'this is the film, approved in advance; changes now are cheap, changes on the shoot day cost setups.'\n\nWhen the note is 'make it pop,' interrogate before executing: pop usually means one of contrast, separation, saturation, or pacing — four different fixes. Ask which moment fails for them and diagnose the craft variable underneath.\n\nAnd concede strategically: give clients wins on reversible decisions — music, captions, a cutdown's order — and hold the line on capture decisions, which are permanent. Knowing which is which is the job."
+            },
+            {
+              h: "The Compounding Portfolio",
+              body: "Master-level creators treat output as a **body of work**, not a stream of posts. Every published frame either compounds the signature or dilutes it, and portfolio discipline makes the difference visible.\n\nThe standard: before publishing, ask whether the piece's best frame could live in your showreel. Not every piece will clear it — volume has its own logic — but tracking the ratio matters: a quarter where nothing cleared the reel bar is a quarter of dilution, whatever the view counts said.\n\nQuarterly, assemble the actual reel: the ten best frames or sequences from the period, cut against the previous quarter's ten. The comparison answers the only questions that matter at this altitude: is the language getting stronger or drifting? Which recurring flaw from the autopsy log finally died? What must next quarter's work prove?\n\nCareers in this craft are built the way the luxury look is built — through restraint, consistency, and the long hold. The feed forgets in a day; the body of work is what compounds."
+            }
+          ],
+          takeaways: [
+            "Taste is built through written autopsies — same rubric weekly, hardest read reserved for your own work, one named flaw per piece.",
+            "Delegate style with the look book plus three non-negotiables, and give notes in craft vocabulary, not moods.",
+            "Defend craft in the client's language — price signaling, attention, dimensionality — and interrogate 'make it pop' before executing it.",
+            "Concede reversible decisions, hold capture decisions, and measure quarters by what cleared the reel bar."
+          ],
+          actions: [
+            "Run your first three-frame autopsy today: a master's frame, a competitor's, and your own, on one written rubric.",
+            "Write the three non-negotiables you would hand a second shooter tomorrow.",
+            "Cut a ten-frame best-of reel from your last quarter and score it honestly against your five policies."
+          ],
+          quiz: [
+            {
+              q: "Why write frame autopsies instead of just watching more great work?",
+              options: ["Writing is faster than watching", "Writing forces precise commitments about why a frame works, where passive viewing lets 'I like it' hide", "Watching is too expensive", "Clients require documentation"],
+              answer: 1,
+              why: "Taste is trained by named, committed observations — the rubric in writing is the rep."
+            },
+            {
+              q: "A client says 'make it pop.' What is the master response?",
+              options: ["Increase saturation immediately", "Diagnose which variable they mean — contrast, separation, saturation, or pacing — by asking which moment fails", "Refuse the note politely", "Add more cuts throughout"],
+              answer: 1,
+              why: "'Pop' aliases four different craft fixes; executing before diagnosing produces the wrong one."
+            },
+            {
+              q: "Which decisions should you concede to clients most readily?",
+              options: ["Capture decisions like lens and light", "Reversible post decisions like music, captions, and cutdown order", "None — defend everything equally", "The entire shot list"],
+              answer: 1,
+              why: "Reversible decisions are cheap wins to give; capture decisions are permanent and worth holding."
+            }
+          ],
+          drill: "Write a one-page creative-director review of your own latest piece: rubric autopsy, one named recurring flaw, the note you would give a second shooter, and whether its best frame clears your reel bar."
+        }
+      ]
+    }
   ]
 });

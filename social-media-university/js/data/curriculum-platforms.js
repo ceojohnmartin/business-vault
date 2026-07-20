@@ -1928,7 +1928,144 @@ SMU_DATA.schools.push({
           ],
           drill: "Write the one-page campaign brief for a 90-day push you could actually run: triangle, phase calendar, three surround-sound voices, and the five baseline metrics you'd capture at week 0."
         },
-/*__CHUNK10__*/
+        {
+          id: "platforms-5-4",
+          title: "Boardroom-Proof Measurement",
+          minutes: 12,
+          xp: 110,
+          skill: "analytics",
+          intro: "Impressions impress nobody who signs checks. This lesson builds the measurement system that survives a CFO's questions — and tells you what to double next quarter.",
+          sections: [
+            {
+              h: "Separate Signals From Trophies",
+              body: "Most creator dashboards are trophy cases: impressions, likes, follower counts. Trophies feel good and predict nothing. A boardroom-proof system tracks three layers instead. **Attention quality** — not how many saw a post, but who: saves and profile visits from the accounts you actually serve beat raw reach every time. **Demand signals** — DMs opened, replies from qualified people, email signups, event registrations. These are hand-raises, and hand-raises are the only leading indicator of revenue a content system produces. **Pipeline contribution** — deals, clients or sales where content appears in the origin story. Build the layers in that order and report them in that order. When someone asks \"what did LinkedIn do for us this quarter,\" you answer with hand-raises and pipeline, then show the attention layer as context — never the reverse.",
+            },
+            {
+              h: "The Attribution Problem — Solved Honestly",
+              body: "Text platforms are dark-social machines: someone reads you for eight months, never likes a post, then emails \"we've been following your stuff — can we talk?\" Last-click attribution scores that as \"email.\" Fight this with two honest instruments. First, the **how-did-you-hear field** — a free-text question on every intake form, call booking and checkout. Free text, not a dropdown: the phrasing people use (\"your posts about pricing\") tells you which pillar converts, not just which platform. Second, **self-reported attribution review** — monthly, tag every new deal or client with the content fingerprints in its history. It will never be perfect. It doesn't need to be. Directionally-correct beats precisely-wrong, and a consistent method compared quarter over quarter is a trend you can allocate against.",
+            },
+            {
+              h: "The One-Page Scorecard",
+              body: "Reporting is a design problem. Build a single page with four rows and thirteen weekly columns. Row one: **output** — posts shipped per platform against plan, because volume is the one input you fully control. Row two: **attention quality** — saves, profile visits, follower growth *in the target segment*. Row three: **hand-raises** — DMs, replies, signups, bookings, with a note on which post or pillar sourced each. Row four: **pipeline** — opportunities and revenue with a content fingerprint. Annotate spikes with what caused them: a format, a topic, a collaboration. After one quarter the scorecard starts answering the only questions that matter — which pillar earns demand, which platform deserves more of your hours, and what a post is actually worth. That page is the difference between a hobby that performs and an asset that compounds.",
+            },
+          ],
+          takeaways: [
+            "Trophy metrics (impressions, likes) predict nothing — track attention quality, hand-raises and pipeline instead",
+            "Dark social breaks last-click attribution; a free-text \"how did you hear\" field and monthly deal tagging fix it honestly",
+            "A one-page, four-row scorecard reviewed weekly beats any dashboard you check daily",
+            "Consistent, directionally-correct measurement compared across quarters is what unlocks confident allocation",
+          ],
+          actions: [
+            "Add a free-text \"how did you hear about us?\" field to every form, booking page and checkout you control — today",
+            "Build the four-row scorecard in a spreadsheet and back-fill the last four weeks from your analytics",
+            "Tag your last five clients, deals or sales with the content that appears in their origin story",
+          ],
+          quiz: [
+            {
+              q: "Why is a free-text \"how did you hear\" field better than a dropdown?",
+              options: [
+                "It's faster for the customer to complete",
+                "The customer's own phrasing reveals which pillar or topic converted, not just which platform",
+                "Dropdowns are penalized by form-analytics tools",
+                "Free text produces cleaner data for spreadsheets",
+              ],
+              answer: 1,
+              why: "\"Your posts about pricing\" tells you the converting pillar; a dropdown labeled \"LinkedIn\" hides everything useful inside one word.",
+            },
+            {
+              q: "Which metric belongs in the \"hand-raise\" layer of the scorecard?",
+              options: [
+                "Impressions in the target region",
+                "Average watch time on native video",
+                "Qualified DMs and call bookings sourced from content",
+                "Follower growth week over week",
+              ],
+              answer: 2,
+              why: "Hand-raises are voluntary approaches by qualified people — the only leading indicator of revenue a content system produces.",
+            },
+            {
+              q: "What makes imperfect self-reported attribution still boardroom-proof?",
+              options: [
+                "It always slightly overstates content's contribution",
+                "A consistent method compared across quarters yields a trustworthy trend, even if single data points are fuzzy",
+                "Executives never question qualitative data",
+                "It can be automated with UTM parameters alone",
+              ],
+              answer: 1,
+              why: "Directionally-correct and consistent beats precisely-wrong; the quarter-over-quarter trend is what you allocate against.",
+            },
+          ],
+          drill: "Open your calendar and block 30 minutes every Friday titled \"Scorecard.\" In the first session, write down last week's numbers for all four rows and one sentence on what you'll do differently next week because of them.",
+        },
+        {
+          id: "platforms-5-5",
+          title: "The Platform Portfolio: Allocating Your Hours",
+          minutes: 11,
+          xp: 110,
+          skill: "strategy",
+          intro: "At Master level the question is no longer \"how do I grow on X?\" — it's \"where do my ten weekly content hours earn the most?\" This is portfolio management, and most creators run theirs like a slot machine.",
+          sections: [
+            {
+              h: "Core, Amplifier, Experiment",
+              body: "Allocate platforms the way an investor allocates capital, in three tiers. Your **core** is the single platform where audience, format strength and business model align — it gets 60% of your hours and your best original thinking. The **amplifier** is one adjacent platform where your core content travels with light adaptation — 30%, mostly repackaging and native-comment presence. The **experiment** gets the last 10%: a platform you're testing with a defined thesis (\"decision-makers in my niche are moving to Threads\") and a 90-day expiry date. The discipline is refusing a fourth. Every platform demands its own grammar, cadence and comment culture; spread across five, you'll be mediocre on all of them. Dominant on one plus present on a second beats visible-everywhere — reach follows depth, not coverage.",
+            },
+            {
+              h: "Rebalancing Triggers",
+              body: "A portfolio without rebalancing rules decays into habit. Set three triggers and review them quarterly against your scorecard. **Promote** the experiment when it out-earns the amplifier on hand-raises per hour invested — not per follower, per *hour*, because your time is the scarce asset. **Demote or drop** the amplifier when two consecutive quarters show declining attention quality despite consistent output — that's the platform telling you your people aren't there anymore. **Defend the core** when a format shift (a new feed, a new content type) changes the physics — you respond within 30 days on your core, and only your core, because first-mover advantage on format shifts is real but you can't chase it everywhere. Write the triggers down before you need them; allocation decisions made mid-emotion default to whatever feels newest.",
+            },
+            {
+              h: "The Compounding Test",
+              body: "Before adding any platform hour, run it through one filter: does this work compound or evaporate? A LinkedIn post that ranks in search for your category, a thread that becomes the reference explanation, an evergreen document post that gets re-shared for months — those compound. A tossed-off reply-guy comment on a stranger's viral post evaporates by lunch. Aim for 70% of your hours on compounding work: pillar posts, flagship threads, evergreen documents, relationship-building comments with people whose audiences you'd trade with. Cap evaporating work — trend-jacking, drive-by engagement — at 30%, and only when it's strategic warm-up for something durable. Creators plateau when the evaporating share creeps up because it's easier. Masters hold the line because the portfolio's job is to be worth more every quarter, and only compounding work does that.",
+            },
+          ],
+          takeaways: [
+            "Run three tiers — core 60%, amplifier 30%, experiment 10% — and refuse a fourth platform",
+            "Rebalance on written triggers (hand-raises per hour, two-quarter decay, format shifts) reviewed quarterly, never mid-emotion",
+            "Judge every content hour by whether the work compounds or evaporates — hold 70% compounding",
+            "Dominance on one platform plus presence on a second beats mediocre visibility everywhere",
+          ],
+          actions: [
+            "Write your current honest allocation (hours per platform per week), then your target core/amplifier/experiment split — and the gap",
+            "Give your experiment platform a written thesis and a 90-day expiry date in your calendar",
+            "Audit last week's content hours: label each block compounding or evaporating, and cut the worst evaporator this week",
+          ],
+          quiz: [
+            {
+              q: "What justifies promoting an experiment platform to amplifier?",
+              options: [
+                "It reaches a round-number follower count",
+                "It produces more hand-raises per hour invested than your current amplifier",
+                "Its engagement rate beats industry benchmarks",
+                "A major creator in your niche joins it",
+              ],
+              answer: 1,
+              why: "Hours are the scarce asset — a platform earns a bigger share of them by out-earning the incumbent per hour, not by vanity milestones.",
+            },
+            {
+              q: "Which activity passes the compounding test?",
+              options: [
+                "Replying \"Great post!\" on twenty viral posts a day",
+                "Trend-jacking a meme format within the hour",
+                "An evergreen document post that answers your niche's most-asked question",
+                "Posting the same update simultaneously to five platforms",
+              ],
+              answer: 2,
+              why: "Reference-grade evergreen work keeps earning attention for months; drive-by engagement and pure trend-jacking evaporate within a day.",
+            },
+            {
+              q: "Why refuse a fourth platform even when you could maintain a presence there?",
+              options: [
+                "Algorithms penalize accounts active on many platforms",
+                "Each platform's grammar, cadence and comment culture demands depth — spreading thinner makes you mediocre everywhere while depth is what earns reach",
+                "Cross-posting tools don't support more than three platforms",
+                "Audiences find multi-platform creators less authentic",
+              ],
+              answer: 1,
+              why: "Reach follows depth: dominant-on-one plus present-on-a-second beats visible-everywhere, because every added platform taxes the core.",
+            },
+          ],
+          drill: "Draw your portfolio on one page: core, amplifier, experiment with hours per week, the written thesis for the experiment, and your three rebalancing triggers. Pin it where you plan your content week.",
+        },
       ]
     }
   ]

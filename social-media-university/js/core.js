@@ -256,10 +256,11 @@ window.SMU = window.SMU || {};
     if (!view) return;
     currentRoute = r;
     const root = document.getElementById("view");
-    root.className = "view";
+    // restart the enter animation on every navigation
+    root.classList.remove("view");
     root.innerHTML = "";
-    // restart enter animation
     void root.offsetWidth;
+    root.classList.add("view");
     try { view.render(root, r.params); }
     catch (e) {
       root.innerHTML = '<div class="empty"><div class="e-ico">⚠️</div><div>Something went wrong rendering this screen.</div><div class="small" style="margin-top:6px">' + esc(e.message) + "</div></div>";

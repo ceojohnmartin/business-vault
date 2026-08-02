@@ -571,6 +571,10 @@
   #reelModeBtn.on{color:var(--red,#e2564f);border-color:var(--red,#e2564f);background:rgba(226,86,79,.12)}
   #reelPlayerBox{position:fixed;display:none;z-index:6;border-radius:16px;overflow:hidden;background:#000;box-shadow:0 8px 30px rgba(0,0,0,.45)}
   #reelPlayerBox iframe{width:100%;height:100%;border:0;display:block}
+  #reelTap{position:absolute;inset:0;z-index:2;cursor:pointer}
+  #reelProg{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.22);z-index:3;pointer-events:none}
+  #reelProg i{display:block;height:100%;width:0;background:var(--red,#e2564f);transition:width .5s linear}
+  #reelPauseBadge{position:absolute;inset:0;margin:auto;width:64px;height:64px;border-radius:50%;background:rgba(8,14,26,.6);color:#fff;z-index:2;align-items:center;justify-content:center;font-size:24px;pointer-events:none}
   .reelCta{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);background:rgba(8,14,26,.85);color:#fff;border-radius:999px;padding:7px 14px;font-size:11.5px;font-weight:700;white-space:nowrap;pointer-events:none}
   .reelSum{font-size:13.5px;line-height:1.6;color:var(--steel-2);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .reelTop{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;pointer-events:none}
@@ -12187,7 +12191,10 @@ function reelPlay(i){ /* the activation tap — always with sound */
   const clip=reelClipOf(c);
   let box=document.getElementById("reelPlayerBox");
   if(!box){box=document.createElement("div");box.id="reelPlayerBox";reelEl.appendChild(box)}
-  box.innerHTML='<iframe id="reelYTF" src="https://www.youtube-nocookie.com/embed/'+c.v+'?autoplay=1&playsinline=1&rel=0&enablejsapi=1&start='+clip.s+'&end='+(clip.s+clip.len)+'" title="'+esc(c.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  box.innerHTML='<iframe id="reelYTF" src="https://www.youtube-nocookie.com/embed/'+c.v+'?autoplay=1&playsinline=1&rel=0&enablejsapi=1&controls=0&iv_load_policy=3&fs=0&disablekb=1&start='+clip.s+'&end='+(clip.s+clip.len)+'" title="'+esc(c.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"></iframe>'+
+    '<div id="reelTap" onclick="reelTapToggle()"></div>'+
+    '<div id="reelProg"><i id="reelProgFill"></i></div>'+
+    '<div id="reelPauseBadge" style="display:none">⏸</div>';
   const f=document.getElementById("reelYTF");
   f.addEventListener("load",()=>{try{f.contentWindow.postMessage(JSON.stringify({event:"listening",id:"reelYTF",channel:"widget"}),"*")}catch(e){}});
   if(!reelActivated){reelActivated=true;document.querySelectorAll(".reelCta").forEach(x=>x.remove())}
@@ -12204,6 +12211,17 @@ function reelAutoTo(i){ /* post-activation: swap the video, keep the player's bl
   reelBoxPlace(i);
   reelClipArm(clip.len+2);
 }
+/* our own controls: tap = pause/play (YouTube chrome is hidden entirely) */
+let reelYTState=1;
+function reelTapToggle(){
+  const badge=document.getElementById("reelPauseBadge");
+  if(reelYTState===1){reelCmd("pauseVideo");reelYTState=2;if(badge)badge.style.display="flex"}
+  else{reelCmd("playVideo");reelYTState=1;if(badge)badge.style.display="none"}
+}
+function reelProgSet(pct){
+  const el=document.getElementById("reelProgFill");
+  if(el)el.style.width=Math.max(0,Math.min(100,pct))+"%";
+}
 function reelStop(){reelPlaying=-1;reelBoxHide();clearTimeout(reelClipT)}
 function reelKill(){const b=document.getElementById("reelPlayerBox");if(b)b.remove();reelPlaying=-1;reelBoxCard=-1;reelActivated=false;clearTimeout(reelClipT)}
 /* player talks back: ended → advance now; paused → hold the clock; playing → run it */
@@ -12216,16 +12234,20 @@ window.addEventListener("message",e=>{
       clearTimeout(reelClipT);
       const sc=document.getElementById("reelScroll");
       sc.scrollTo({top:sc.clientHeight*(reelPlaying+1),behavior:"smooth"});
-    }else if(d.info===2)clearTimeout(reelClipT);
-    else if(d.info===1){const c=reelCards[reelPlaying];if(c&&c.k==="video")reelClipArm(reelClipOf(c).len+2)}
-  }else if(d.event==="infoDelivery"&&d.info&&d.info.duration>0){
+    }else if(d.info===2){clearTimeout(reelClipT);reelYTState=2}
+    else if(d.info===1){reelYTState=1;const badge=document.getElementById("reelPauseBadge");if(badge)badge.style.display="none";const c=reelCards[reelPlaying];if(c&&c.k==="video")reelClipArm(reelClipOf(c).len+2)}
+  }else if(d.event==="infoDelivery"&&d.info){
     const c=reelCards[reelPlaying];
-    if(c&&c.k==="video"&&!reelDur[c.v]){
+    if(c&&c.k==="video"&&d.info.duration>0&&!reelDur[c.v]){
       reelDur[c.v]=Math.round(d.info.duration);
       try{localStorage.setItem("bvReelDur_v1",JSON.stringify(reelDur))}catch(err){}
       const ideal=reelStartFor(c);
       /* long video and we're stuck in the intro → jump to the meat now */
       if(reelDur[c.v]>600&&(d.info.currentTime||0)<ideal-30)reelCmd("seekTo",[ideal,true]);
+    }
+    if(c&&c.k==="video"&&typeof d.info.currentTime==="number"){
+      const clip=reelClipOf(c);
+      reelProgSet((d.info.currentTime-clip.s)/clip.len*100); /* clip progress, not the 46-minute bar */
     }
   }
 });

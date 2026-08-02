@@ -12140,10 +12140,21 @@ function reelAppend(){
   sc.insertAdjacentHTML("beforeend",page.map((c,i)=>reelCardHTML(c,start+i)).join(""));
 }
 function reelOpen(i){const c=reelCards[i];if(!c||!c.lid)return;closeReel();openLesson(c.lid)}
-/* ---- clips: a 30-60s window instead of the whole lecture ---- */
+/* ---- clips: 30-60s per video, enforced by OUR timer (YouTube's endSeconds
+   is unreliable on API-swapped videos, which let clips run long) ---- */
 function reelClipOf(c){
-  if(/one minute|in a minute|in one minute|60 second/i.test(c.title||""))return null; /* already short */
-  return {s:40,e:100};
+  const short=/one minute|in a minute|in one minute|60 second/i.test(c.title||"");
+  const len=30+(hashStr(c.v)%31); /* stable 30-60s budget per video */
+  return {s:short?0:40,len:len};
+}
+let reelClipT=null;
+function reelClipArm(len){
+  clearTimeout(reelClipT);
+  reelClipT=setTimeout(()=>{
+    if(!reelEl.classList.contains("open")||reelPlaying<0)return;
+    const sc=document.getElementById("reelScroll");
+    sc.scrollTo({top:sc.clientHeight*(reelPlaying+1),behavior:"smooth"});
+  },Math.max(5,len)*1000);
 }
 /* ---- ONE persistent player. The first tap "activates" it (Apple's rule:
    sound needs a gesture) — after that every swipe swaps the video INTO the
@@ -12167,33 +12178,36 @@ function reelPlay(i){ /* the activation tap — always with sound */
   const clip=reelClipOf(c);
   let box=document.getElementById("reelPlayerBox");
   if(!box){box=document.createElement("div");box.id="reelPlayerBox";reelEl.appendChild(box)}
-  box.innerHTML='<iframe id="reelYTF" src="https://www.youtube-nocookie.com/embed/'+c.v+'?autoplay=1&playsinline=1&rel=0&enablejsapi=1'+(clip?'&start='+clip.s+'&end='+clip.e:'')+'" title="'+esc(c.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  box.innerHTML='<iframe id="reelYTF" src="https://www.youtube-nocookie.com/embed/'+c.v+'?autoplay=1&playsinline=1&rel=0&enablejsapi=1&start='+clip.s+'&end='+(clip.s+clip.len)+'" title="'+esc(c.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
   const f=document.getElementById("reelYTF");
   f.addEventListener("load",()=>{try{f.contentWindow.postMessage(JSON.stringify({event:"listening",id:"reelYTF",channel:"widget"}),"*")}catch(e){}});
   if(!reelActivated){reelActivated=true;document.querySelectorAll(".reelCta").forEach(x=>x.remove())}
   reelPlaying=i;reelBoxCard=i;
   reelBoxPlace(i);
+  reelClipArm(clip.len+2);
 }
 function reelAutoTo(i){ /* post-activation: swap the video, keep the player's blessing */
   const c=reelCards[i];if(!c||c.k!=="video")return;
-  if(reelPlaying===i){reelBoxPlace(i);reelCmd("playVideo");return}
   const clip=reelClipOf(c);
-  const arg={videoId:c.v};
-  if(clip){arg.startSeconds=clip.s;arg.endSeconds=clip.e}
-  reelCmd("loadVideoById",[arg]);
+  if(reelPlaying===i){reelBoxPlace(i);reelCmd("playVideo");reelClipArm(clip.len+2);return}
+  reelCmd("loadVideoById",[{videoId:c.v,startSeconds:clip.s,endSeconds:clip.s+clip.len}]);
   reelPlaying=i;reelBoxCard=i;
   reelBoxPlace(i);
+  reelClipArm(clip.len+2);
 }
-function reelStop(){reelPlaying=-1;reelBoxHide()}
-function reelKill(){const b=document.getElementById("reelPlayerBox");if(b)b.remove();reelPlaying=-1;reelBoxCard=-1;reelActivated=false}
-/* clip ends → the feed glides to the next card by itself */
+function reelStop(){reelPlaying=-1;reelBoxHide();clearTimeout(reelClipT)}
+function reelKill(){const b=document.getElementById("reelPlayerBox");if(b)b.remove();reelPlaying=-1;reelBoxCard=-1;reelActivated=false;clearTimeout(reelClipT)}
+/* player talks back: ended → advance now; paused → hold the clock; playing → run it */
 window.addEventListener("message",e=>{
   if(e.origin!=="https://www.youtube-nocookie.com")return;
   let d;try{d=JSON.parse(e.data)}catch(err){return}
-  if(d&&d.event==="onStateChange"&&d.info===0&&reelEl.classList.contains("open")&&reelPlaying>=0){
+  if(!d||d.event!=="onStateChange"||!reelEl.classList.contains("open")||reelPlaying<0)return;
+  if(d.info===0){
+    clearTimeout(reelClipT);
     const sc=document.getElementById("reelScroll");
     sc.scrollTo({top:sc.clientHeight*(reelPlaying+1),behavior:"smooth"});
-  }
+  }else if(d.info===2)clearTimeout(reelClipT);
+  else if(d.info===1){const c=reelCards[reelPlaying];if(c&&c.k==="video")reelClipArm(reelClipOf(c).len+2)}
 });
 function reelModeToggle(){
   reelMode=reelMode==="mix"?"video":"mix";

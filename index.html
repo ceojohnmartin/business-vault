@@ -569,6 +569,7 @@
   .reelThumb iframe{width:100%;height:100%;border:0;display:block}
   .reelPlayBtn{position:absolute;inset:0;margin:auto;width:62px;height:62px;border-radius:50%;background:rgba(8,14,26,.68);color:#fff;display:flex;align-items:center;justify-content:center;pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,.4)}
   #reelModeBtn.on{color:var(--red,#e2564f);border-color:var(--red,#e2564f);background:rgba(226,86,79,.12)}
+  .reelUnmute{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:2;background:rgba(8,14,26,.82);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.4)}
   .reelTop{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;pointer-events:none}
   .reelTop .crumb{pointer-events:none}
   .reelTop .iconBtn{pointer-events:auto;background:var(--surface)}
@@ -12071,29 +12072,34 @@ const REEL_KIND={
   formula:{kick:"FORMULA",c:"var(--blue-2)"},
   video:{kick:"WATCH",c:"var(--red,#e2564f)"}
 };
-let reelMode="mix";
+let reelMode="mix",reelSeen=new Set();
+function reelKey(c){return c.k==="video"?"v:"+c.v:c.k+":"+(c.tid||c.name||c.text||c.t)}
+function reelPick(arr,rand){
+  if(!arr.length)return null;
+  for(let j=0;j<40;j++){
+    const c=arr[Math.floor(rand()*arr.length)];
+    if(!reelSeen.has(reelKey(c))){reelSeen.add(reelKey(c));return c}
+  }
+  return arr[Math.floor(rand()*arr.length)]; /* pool cycled — allow repeats */
+}
+/* the feed rhythm: three videos, then one idea card — like the apps it replaces */
 function reelDeckPage(n){
   const P=reelBuildPool();
   const rand=seededRng(hashStr("reel"+reelMode+todayStr()+"p"+n));
+  const out=[];
   if(reelMode==="video"){
-    const arr=P.video,out=[],seen=new Set();
-    for(let j=0;j<80&&out.length<12&&arr.length;j++){
-      const c=arr[Math.floor(rand()*arr.length)];
-      if(!seen.has(c.v)){seen.add(c.v);out.push(c)}
-    }
+    for(let j=0;j<12;j++){const c=reelPick(P.video,rand);if(c)out.push(c)}
     return out;
   }
-  const seq=["term","key","video","mistake","term","op","formula","key","video","mistake","op"];
-  const out=[],seen=new Set();
-  seq.forEach(kind=>{
-    const arr=P[kind];if(!arr.length)return;
-    for(let j=0;j<3;j++){
-      const c=arr[Math.floor(rand()*arr.length)];
-      const key=c.k+":"+(c.tid||c.name||c.text||c.t);
-      if(!seen.has(key)){seen.add(key);out.push(c)}
-    }
-  });
-  return shuffled(out,rand).slice(0,24);
+  const textKinds=["term","key","mistake","op","formula"];
+  let t=n*6; /* rotate text kinds across pages too */
+  for(let slot=0;slot<24;slot++){
+    if(slot%4<3){const c=reelPick(P.video,rand);if(c){out.push(c);continue}}
+    const kind=textKinds[t++%textKinds.length];
+    const c=reelPick(P[kind],rand)||reelPick(P.term,rand);
+    if(c)out.push(c);
+  }
+  return out;
 }
 function reelCardHTML(c,idx){
   const K=REEL_KIND[c.k];
@@ -12134,22 +12140,24 @@ function reelStop(){
     '<span class="reelPlayBtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>';
   reelPlaying=-1;
 }
-function reelPlay(i){
+function reelPlay(i,muted){
   if(reelPlaying===i)return;
   reelStop();
   const c=reelCards[i],th=document.getElementById("rth"+i);if(!c||!th)return;
-  th.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+c.v+'?autoplay=1&playsinline=1&rel=0" title="'+esc(c.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  th.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+c.v+'?autoplay=1&playsinline=1&rel=0'+(muted?'&mute=1':'')+'" title="'+esc(c.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>'+
+    (muted?'<button class="reelUnmute" onclick="event.stopPropagation();reelPlaying=-1;reelPlay('+i+')">🔊 Tap for sound</button>':'');
   reelPlaying=i;
 }
 function reelModeToggle(){
   reelMode=reelMode==="mix"?"video":"mix";
-  reelStop();reelPage=0;reelCards=[];
+  reelStop();reelPage=0;reelCards=[];reelSeen=new Set();
   document.getElementById("reelScroll").innerHTML="";
   reelAppend();reelAppend();
   document.getElementById("reelScroll").scrollTop=0;reelShown=1;
   const el=document.getElementById("reelCount");if(el)el.textContent=1;
   const b=document.getElementById("reelModeBtn");if(b)b.classList.toggle("on",reelMode==="video");
   toast(reelMode==="video"?"Videos only — every one verified and tied to a lesson":"Back to the full mix");
+  reelAutoQueue();
 }
 function reelSave(i){
   const c=reelCards[i];if(!c)return;
@@ -12158,12 +12166,22 @@ function reelSave(i){
   else toast("Saved cards live in My Notebook — this one has no source to save");
 }
 function openReel(){
-  reelPage=0;reelCards=[];
+  reelPage=0;reelCards=[];reelSeen=new Set();
   document.getElementById("reelScroll").innerHTML="";
   reelAppend();reelAppend();
   reelEl.classList.add("open");syncScrollLock();
   const sc=document.getElementById("reelScroll");sc.scrollTop=0;reelShown=1;
   const el=document.getElementById("reelCount");if(el)el.textContent=1;
+  reelAutoQueue(); /* if the first card is a video, it starts on its own */
+}
+/* tiktok behavior: the video on screen starts by itself (muted — sound is one tap) */
+let reelAutoT=null;
+function reelAutoQueue(){
+  clearTimeout(reelAutoT);
+  reelAutoT=setTimeout(()=>{
+    const idx=reelShown-1,c=reelCards[idx];
+    if(reelEl.classList.contains("open")&&c&&c.k==="video"&&reelPlaying!==idx)reelPlay(idx,true);
+  },430);
 }
 function closeReel(){reelStop();reelEl.classList.remove("open");syncScrollLock()}
 document.getElementById("reelScroll").addEventListener("scroll",function(){
@@ -12173,6 +12191,7 @@ document.getElementById("reelScroll").addEventListener("scroll",function(){
   if(n!==reelShown){
     reelShown=n;const el=document.getElementById("reelCount");if(el)el.textContent=n;
     if(reelPlaying>=0&&reelPlaying!==n-1)reelStop(); /* swiped away → silence the player */
+    reelAutoQueue();
   }
 },{passive:true});
 /* ================= THEME ENGINE ================= */

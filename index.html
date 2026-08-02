@@ -564,6 +564,11 @@
   .reelSrc{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--steel);border-top:1px solid var(--edge);padding-top:12px}
   .reelActs{display:flex;gap:9px}
   .reelActs .btn{flex:0 0 auto;padding:11px 18px;font-size:13px}
+  .reelThumb{position:relative;width:100%;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;cursor:pointer;box-shadow:var(--card-sh)}
+  .reelThumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .reelThumb iframe{width:100%;height:100%;border:0;display:block}
+  .reelPlayBtn{position:absolute;inset:0;margin:auto;width:62px;height:62px;border-radius:50%;background:rgba(8,14,26,.68);color:#fff;display:flex;align-items:center;justify-content:center;pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,.4)}
+  #reelModeBtn.on{color:var(--red,#e2564f);border-color:var(--red,#e2564f);background:rgba(226,86,79,.12)}
   .reelTop{position:absolute;top:0;left:0;right:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:calc(12px + env(safe-area-inset-top)) 16px 10px;pointer-events:none}
   .reelTop .crumb{pointer-events:none}
   .reelTop .iconBtn{pointer-events:auto;background:var(--surface)}
@@ -1030,6 +1035,9 @@
 <div id="reel" role="dialog" aria-modal="true" aria-label="BVU Scroll">
   <div class="reelTop">
     <div class="crumb">BVU Scroll · card <span id="reelCount">1</span></div>
+    <button class="iconBtn" id="reelModeBtn" onclick="reelModeToggle()" aria-label="Videos only" title="Videos only">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg>
+    </button>
     <button class="iconBtn" onclick="closeReel()" aria-label="Close">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
     </button>
@@ -12049,6 +12057,10 @@ function reelBuildPool(){
   if(typeof CHEATS!=="undefined")Object.entries(CHEATS).forEach(([tid,c])=>{
     (c.formulas||[]).forEach(f=>{const tr=DATA.find(t=>t.id===tid);if(tr)P.formula.push({k:"formula",name:f[0],rule:f[1],trName:tr.name,tid})});
   });
+  P.video=[];
+  if(typeof VIDEO_MAP!=="undefined")Object.entries(VIDEO_MAP).forEach(([lid,vm])=>{
+    const le=byId[lid];if(le&&vm&&vm.v)P.video.push({k:"video",v:vm.v,title:vm.title||le.t,lid});
+  });
   reelPool=P;return P;
 }
 const REEL_KIND={
@@ -12056,12 +12068,22 @@ const REEL_KIND={
   key:{kick:"KEY IDEA",c:"var(--green)"},
   mistake:{kick:"COMMON MISTAKE",c:"var(--red,#e2564f)"},
   op:{kick:"OPERATOR MOVE",c:"var(--amber,#c78d2c)"},
-  formula:{kick:"FORMULA",c:"var(--blue-2)"}
+  formula:{kick:"FORMULA",c:"var(--blue-2)"},
+  video:{kick:"WATCH",c:"var(--red,#e2564f)"}
 };
+let reelMode="mix";
 function reelDeckPage(n){
   const P=reelBuildPool();
-  const rand=seededRng(hashStr("reel"+todayStr()+"p"+n));
-  const seq=["term","key","mistake","term","op","formula","key","term","mistake","op"];
+  const rand=seededRng(hashStr("reel"+reelMode+todayStr()+"p"+n));
+  if(reelMode==="video"){
+    const arr=P.video,out=[],seen=new Set();
+    for(let j=0;j<80&&out.length<12&&arr.length;j++){
+      const c=arr[Math.floor(rand()*arr.length)];
+      if(!seen.has(c.v)){seen.add(c.v);out.push(c)}
+    }
+    return out;
+  }
+  const seq=["term","key","video","mistake","term","op","formula","key","video","mistake","op"];
   const out=[],seen=new Set();
   seq.forEach(kind=>{
     const arr=P[kind];if(!arr.length)return;
@@ -12080,6 +12102,10 @@ function reelCardHTML(c,idx){
   let body="";
   if(c.k==="term")body='<h2>'+esc(c.t)+'</h2><p>'+esc(c.d)+'</p>';
   else if(c.k==="formula")body='<h2 style="font-family:var(--mono);font-size:22px">'+esc(c.name)+'</h2><p>'+esc(c.rule)+'</p>';
+  else if(c.k==="video")body='<div class="reelThumb" id="rth'+idx+'" onclick="reelPlay('+idx+')">'+
+    '<img src="https://i.ytimg.com/vi/'+c.v+'/hqdefault.jpg" alt="" loading="lazy">'+
+    '<span class="reelPlayBtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>'+
+    '<h2 style="font-size:17px;line-height:1.45">'+esc(c.title)+'</h2>';
   else body='<h2 style="font-size:24px;line-height:1.35">'+esc(c.text)+'</h2>';
   return '<div class="reelCard" data-i="'+idx+'">'+
     '<div class="reelKick" style="color:'+K.c+'">'+K.kick+'</div>'+
@@ -12099,6 +12125,32 @@ function reelAppend(){
   sc.insertAdjacentHTML("beforeend",page.map((c,i)=>reelCardHTML(c,start+i)).join(""));
 }
 function reelOpen(i){const c=reelCards[i];if(!c||!c.lid)return;closeReel();openLesson(c.lid)}
+/* video cards: one player at a time, tap to swap thumbnail for the real thing */
+let reelPlaying=-1;
+function reelStop(){
+  if(reelPlaying<0)return;
+  const c=reelCards[reelPlaying],th=document.getElementById("rth"+reelPlaying);
+  if(c&&th)th.innerHTML='<img src="https://i.ytimg.com/vi/'+c.v+'/hqdefault.jpg" alt="" loading="lazy">'+
+    '<span class="reelPlayBtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>';
+  reelPlaying=-1;
+}
+function reelPlay(i){
+  if(reelPlaying===i)return;
+  reelStop();
+  const c=reelCards[i],th=document.getElementById("rth"+i);if(!c||!th)return;
+  th.innerHTML='<iframe src="https://www.youtube-nocookie.com/embed/'+c.v+'?autoplay=1&playsinline=1&rel=0" title="'+esc(c.title)+'" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>';
+  reelPlaying=i;
+}
+function reelModeToggle(){
+  reelMode=reelMode==="mix"?"video":"mix";
+  reelStop();reelPage=0;reelCards=[];
+  document.getElementById("reelScroll").innerHTML="";
+  reelAppend();reelAppend();
+  document.getElementById("reelScroll").scrollTop=0;reelShown=1;
+  const el=document.getElementById("reelCount");if(el)el.textContent=1;
+  const b=document.getElementById("reelModeBtn");if(b)b.classList.toggle("on",reelMode==="video");
+  toast(reelMode==="video"?"Videos only — every one verified and tied to a lesson":"Back to the full mix");
+}
 function reelSave(i){
   const c=reelCards[i];if(!c)return;
   if(c.k==="term")tbBmToggle("term",c.tid);
@@ -12113,12 +12165,15 @@ function openReel(){
   const sc=document.getElementById("reelScroll");sc.scrollTop=0;reelShown=1;
   const el=document.getElementById("reelCount");if(el)el.textContent=1;
 }
-function closeReel(){reelEl.classList.remove("open");syncScrollLock()}
+function closeReel(){reelStop();reelEl.classList.remove("open");syncScrollLock()}
 document.getElementById("reelScroll").addEventListener("scroll",function(){
   const sc=this;
   if(sc.scrollTop+sc.clientHeight*3>sc.scrollHeight)reelAppend();
   const n=Math.round(sc.scrollTop/sc.clientHeight)+1;
-  if(n!==reelShown){reelShown=n;const el=document.getElementById("reelCount");if(el)el.textContent=n}
+  if(n!==reelShown){
+    reelShown=n;const el=document.getElementById("reelCount");if(el)el.textContent=n;
+    if(reelPlaying>=0&&reelPlaying!==n-1)reelStop(); /* swiped away → silence the player */
+  }
 },{passive:true});
 /* ================= THEME ENGINE ================= */
 const FONT_OSWALD="'Oswald',system-ui,sans-serif";

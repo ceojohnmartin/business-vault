@@ -565,6 +565,7 @@
   .reelActs{display:flex;gap:9px}
   .reelActs .btn{flex:0 0 auto;padding:11px 18px;font-size:13px}
   .reelThumb{position:relative;width:100%;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:#000;cursor:pointer;box-shadow:var(--card-sh)}
+  .reelThumb.vert{aspect-ratio:9/16;height:46dvh;width:auto;max-width:100%;margin:0 auto}
   .reelThumb img{width:100%;height:100%;object-fit:cover;display:block}
   .reelThumb iframe{width:100%;height:100%;border:0;display:block}
   .reelPlayBtn{position:absolute;inset:0;margin:auto;width:62px;height:62px;border-radius:50%;background:rgba(8,14,26,.68);color:#fff;display:flex;align-items:center;justify-content:center;pointer-events:none;box-shadow:0 4px 18px rgba(0,0,0,.4)}
@@ -3070,6 +3071,194 @@ const PODCASTS=[
 {n:"The Hustle Daily Show",h:"Hubspot Media",cat:"Daily News & Briefs",why:"Quick daily hits of business and tech news with personality.",u:"https://podcasts.apple.com/us/podcast/the-hustle-daily-show/id1606449047",e:"How to scale your small business with YouTube",eu:"https://podcasts.apple.com/us/podcast/how-to-scale-your-small-business-with-youtube/id1606449047?i=1000732599541"},
 {n:"The Indicator from Planet Money",h:"NPR",cat:"Daily News & Briefs",why:"A 10-minute daily hit of economics and business news — perfect for short drives.",u:"https://podcasts.apple.com/us/podcast/the-indicator-from-planet-money/id1320118593",e:"How to get your tariff cash back",eu:"https://podcasts.apple.com/us/podcast/how-to-get-your-tariff-cash-back/id1320118593?i=1000763142768"},
 {n:"The Journal.",h:"The Wall Street Journal & Spotify Studios",cat:"Daily News & Briefs",why:"WSJ's daily show — the biggest business story of the day, reported properly, in 20 minutes.",u:"https://podcasts.apple.com/us/podcast/the-journal/id1469394914",e:"Tim Cook Built the Apple Empire. What's Next for His Successor?",eu:"https://podcasts.apple.com/us/podcast/tim-cook-built-the-apple-empire-whats-next-for-his-successor/id1469394914?i=1000763309458"}
+];
+/* ================= BVU SCROLL — REAL SHORTS LIBRARY =================
+   180 native YouTube Shorts (30-60s business advice), every one verified
+   two ways on 2026-08-02: (1) the /shorts/ URL serves 200 (true short-form,
+   not a long video), (2) oEmbed confirms it is live and embeddable.
+   Format: [videoId, lessonId, title, channel]. lessonId ties each clip
+   to the BVU lesson it supports (summary + Open the Lesson). */
+const REEL_SHORTS=[
+["eRwwMZnSkqA","a9","Cashflow Explained - Why It Is Crucial For Your Business ⚡️","Electricians Business Tips"],
+["W-y8asf3vpU","a9","Cash Flow vs Profit: What Every Small Business Owner Must Know #CashFlow","National Bank of Arizona"],
+["rdisSmko-sk","a9","How to improve cash flow 💵","Intuit QuickBooks"],
+["VgDs6WpXAZY","a9","Master Cashflow Management for Small Business Success","Jamie Trull"],
+["TVtvEY1XXhU","a9","The 3 Types of Cash Flow | Plooto","Plooto"],
+["9HG0IYSYqxQ","f3","Revenue vs. Profit vs. Cash Flow: Business Explained!","BizTV"],
+["IEF3TFUCjf4","a9","Cash Flow: The #1 Reason Small Businesses Fail #CashFlow","National Bank of Arizona"],
+["X_6jjSwWa6Q","a9","Small business cash flow guide","Intuit QuickBooks"],
+["SFYONNpgBcg","a9","The Ultimate Guide to Cashflow Management","Daniel Ramsey"],
+["SEuclD34R9A","a11","Chris Voss: Mastering Negotiation & Influence Tactics #shorts","Ken McElroy"],
+["-YclFJ9Iypk","a11","The Creation Of Calibrated Question | Chris Voss","Chris Voss & The Black Swan Group"],
+["jzMhKMjGJvI","a11","Chris Voss - First Negotiation Rule - Listen Up! #negotiation #careerdevelopment #listeningpractice","Career Sessions Podcast"],
+["q9lUAohjj0g","a11","The Power Of Silence In Negotiations | Chris Voss","Chris Voss & The Black Swan Group"],
+["B1WsWao5qdQ","a11","Silence Is a Superpower! Chris Voss Shares His Best Negotiation Tactics","Reed Goossens"],
+["BMtuurSZNe0","a11","What Is Tactical Empathy? | Chris Voss","Chris Voss & The Black Swan Group"],
+["DhbOlUnaJwM","a11","How To Negotiate Over Email w/ Chris Voss @RunGPG Podcast","Greater PROPERTY Group"],
+["1zIY6pPnSWk","a11","PhD Salary Negotiation Tips From Chris Voss","Cheeky Scientist"],
+["JU-8zJzcWII","a1","Unit economics is what really matters #shorts","M&A Science"],
+["s-LIlBKxGZw","a11","Yes Vs No - Chris Voss Negotiation Tips #howto  #sales #selling","Flow State Sales"],
+["04fQsbBrmHE","a1","What Is Unit Economics In Business #shorts #financialfreedom #heroesjourney #motivation #btf","Sovereign Entrepreneur"],
+["r1btPHF328M","a1","Understanding Unit Economics. #businesspodcast #unit economics  #businesstipsforsmallbusinessowners","Brenda A Yiiki"],
+["sbnuY1s3oQg","a1","What is Unit Economics #shorts  | upGrad","upGrad"],
+["fY9QQyC99kM","a1","Unit Economics of a D2C Brand Explained | Boost Profitability in 2025 | D2C by Nikhil","D2C Decoded By Nikhil"],
+["KYCDKSAgPrI","c11","The Key to Pricing Success | Alex Hormozi🔖 #shorts","Young and Profiting"],
+["zMpPmnnXgyk","a1","What Are Unit Economics? Every Future Franchisor Needs to Know","The Internicola Law Firm, P.C."],
+["GnWPJ7jvRzM","mk4","Alex Hormozi's Offer Formula: Achieve Dream Outcomes #shorts","Tristan Daniel"],
+["JkE5qI2G7aQ","c11","Alex Hormozi advice on pricing your products or services #businessshorts #alexhormozi #hormozishorts","Falling Shorter"],
+["7ylSBEr_m78","c11","Alex Hormozi: Dominate Business with High or Low Prices #shorts","Creator Process "],
+["VPfOUJDpY1c","c11","Alex Hormozi's psychological pricing structure","Jordan Hayes"],
+["4Di0M7B0gwM","c11","Why Alex Hormozi Recommends Weekly Pricing","ItsKeaton"],
+["iK6HT02LYX4","c11","Raise Your Price","Alex Hormozi"],
+["WmyRfjHztd0","s4","One of the best techniques to handle a sales objection","Matt Macnamara"],
+["4Ulv6Q6SBVY","s4","BEST Objection Handling Technique (B2B Sales)","Connor Murray"],
+["meaIdJsIvs4","s4","The Boomerang Technique: Master This Powerful Sales Objection Handler","ZoomInfo"],
+["7vdW8a6jEfw","c11","\"What Should I Price My Products?\"","Alex Hormozi"],
+["Qt0nmqZZLPk","s4","Handling the sales objection: \"We already have a vendor?\" #sales","Matt Macnamara"],
+["2tJ8wRqiXP0","s4","Handling the sales objection: \"I need to think about it.\" #sales","Matt Macnamara"],
+["59sv3CMBEzY","s4","FBI Negotiator's Secret Technique: Master The Art of Handling Sales Objections","ZoomInfo"],
+["Hc1ljtZcwCw","s4","How to handle the objection I'm just looking #objections #objectionhandling #salestips #shorts","James White Sales"],
+["msK11Uch8mA","mw9","What is Compound Interest and how does it work? #interestrates #compound #trading #investing","IG UK"],
+["QkBNC3NGRMw","mw9","\"Compound interest is the eighth wonder of the world\" #terrysmith #compoundinterest #fundsmith","Fundsmith LLP UK"],
+["SkfzF030wCE","mw9","💰 Compound Interest: Your Money Making Money! #investing #compoundinterest","IG UK"],
+["ULCpGJO2HPQ","s4","Use this technique to handle sales objections","Matt Macnamara"],
+["OP71n-IFnkM","mw9","Compound Interest Explained: Investing Makes So Much Sense Once You Get it #compoundinterest","Citywire"],
+["OatpggWLZyQ","mw9","Triple Compounding vs regular investing (the difference is crazy)","Kiana Danial - Invest Diva"],
+["k26mFzVxkgI","mw9","What is compound interest?","TD"],
+["8eh5eMtQTmc","mw9","The Power of Compound Interest Explained for Beginners","Charles Schwab"],
+["sPbR6HwSMkE","mw9","How Time & Compound Interest Grow Your Money","Dad, how do I?"],
+["5iw7cOYi7y4","ac8","Balance Sheet in One Minute #balancesheet #accounting #finance #tally","Saheb Academy"],
+["nrATwUUtI1I","ac8","Balance Sheet Explained: Coffee Shop Example!","Accounting Basics"],
+["ADXYMAxXV0o","mw9","How to Start Building Wealth with Compound Interest","The Table With AO"],
+["HbG3tYvsjKQ","ac8","How to read a Balance Sheet","Brian Feroldi"],
+["Fm00eu84HP8","ac8","The Balance Sheet Explained In Less Than 1 Minute","Brian Feroldi"],
+["tBGr5LLAoHQ","ac8","Dive into the world of balance sheets and the accounts that are part of it. #accounting #cpa","Patrick Lee"],
+["yHkcSmyAQIM","aq1","Codie's Interest In Buying Boring Businesses | @CodieSanchezCT","Vanessa Van Edwards"],
+["KlysMLQTpzA","ac8","What are Liabilities?","Accounting Stuff"],
+["aS4uH_JBTVE","ac8","Demystifying the Balance Sheet: A Beginner's Guide","MDH Chartered Certified Accountants"],
+["WoEVy8tdbN4","ac4","How Cash Basis Accounting Affects the Balance Sheet","AKIF CPA"],
+["dI7spLz_1gI","aq1","Why Codie Focuses on Boring Business","Tariq Johnson"],
+["3aTpDyKWEYU","aq1","Why the Most Boring Businesses Are Often the Most Profitable (Ft. Codie Sanchez)","Brew Markets"],
+["mxShN1iO6WY","ac7","Income Statement vs Balance Sheet Explained Simply:","Brian Feroldi"],
+["aYFkqe_hqbM","st2","Entrepreneurship Porn 💸🎥 | Codie Sanchez","Young and Profiting"],
+["2tJAz0oZMGo","mk6","Marketing Tips for Small Local Service Businesses  #digitalmarketing","Mac Frederick Momentum Digital"],
+["CWbfRtzRgrY","aq7","Want to Buy a Business? Codie Sanchez Explains Seller Financing 💰🤝 #CodieSanchez","KaikoMedia"],
+["cf_HlYgda5I","mk6","Honest Marketing Tips for Small Businesses","Penji"],
+["s8NLf_wrCl8","aq1","Codie Sanchez Explains Why Real Estate Is a Terrible Business Model","The Iced Coffee Hour"],
+["JTshyM6q6b4","aq1","What Codie Sanchez Taught Me About Buying Businesses  #podcast #businessowner #entrepreneur","M&A Launchpad"],
+["XWg21_eIPAU","mk6","Easy Digital Marketing Tips for Small Business Owners","POWR"],
+["f1rC3EbrD4I","mk6","Effective local marketing strategies for small businesses","VistaPrint"],
+["9euB7_Hud0E","mk6","YouTube Marketing for Local Business 5 Strategies That Actually Work","Social Speak Network"],
+["HvO6ZOtf4Vs","mk6","How to Boost Your Small Business: Our Top 3 Marketing Tips","SiteGround.com"],
+["x0EoIpYXeTc","mk6","The Simple Marketing System Every Local Business Needs","Brill Media"],
+["5-r_LbXRgx4","mk6","Simple Marketing Tips to Grow Your Business Fast!","Mighty Sites"],
+["LFCQwU-tFjI","mk8","Best Ads for Small Businesses? Google Local Service Ads #LSA","Mac Frederick Momentum Digital"],
+["1FVKwLBa2fI","mk6","Small Business Marketing Strategy: 5 Steps to Predictable Growth","LYFE Marketing"],
+["7pNmloBmdk0","ld1","Leadership Is A Process That Transforms Everything | Simon Sinek!","Evan Carmichael Highlights"],
+["rwDYjFUuy1c","ld1","Asking for help as a LEADER | Simon Sinek","Simon Sinek"],
+["Pipjb0LMQgA","ld1","Adapt Your Leadership Style | Simon Sinek","Simon Sinek"],
+["J6L2MjH59Zo","ld1","Leadership Is a Learned Skill | Simon Sinek","Simon Sinek"],
+["73iKmw0V2S8","ld1","HOW TO BE A GREAT LEADER: The Difference Between Managers and Leaders | Simon Sinek","Evan Carmichael Highlights"],
+["nb0olH4SWuI","ld1","Great Leaders NEVER Stop Learning | Simon Sinek","Simon Sinek"],
+["tA4HaNRqC-8","lt10","LLC or S-Corp?","Jasmine DiLucci, Tax Attorney, CPA, EA"],
+["elDSVXB_qME","ld1","Leadership Vs Management - Simon Sinek  #leadership","A-Team Architects-Leadership & Management Training"],
+["NvaH9j6MKyo","lt10","LLC vs. S-Corp vs. C-Corp - CPA Explains","Sherman - My CPA Coach"],
+["DXMTr4aUgoc","ld1","How to Lead Even When You're Not In a Leadership Role | Simon Sinek","Simon Sinek"],
+["OzVdQGj795A","lt10","Single Member LLC vs S Corp #taxes #llc #entrepreneurtips","Chad Pavel"],
+["VoSWGzDsbE8","lt8","Most Common S-Corp Tax Deductions","EA Tax Resolutions"],
+["6AGqQC2pgWw","lt10","S Corp Election vs Staying an LLC: The Money Difference","Jamie Trull"],
+["3AbpU7dDQ4Q","lt10","LLC vs S-Corp: Which One Actually Saves Money","Mark J Kohler"],
+["SpIn6inrNB8","lt10","S-Corp vs LLC: Which Saves You More Money?","Mark J Kohler"],
+["ljAeixwyytI","lt3","LLC vs. sole proprietorship vs. S corporation; What’s the difference?","ADP"],
+["2VCjCvIKCXE","lt10","LLC vs S-Corp: How to Save $5,000 in Taxes 💸","Keeper - Taxes Built For Your Complexity"],
+["wGtRD-nzrjE","st3","Validate Your Business Idea: Market Research is Key!","Imvula_Media"],
+["BLoJFE_uwD4","st3","The Fastest Way to Validate Your Business Idea","Daniel Priestley || Key Person Of Influence"],
+["iyqQcVJaVWQ","st3","How to Validate a Business Idea Fast","Daniel Priestley || Key Person Of Influence"],
+["ALnbhhuJ7OA","st3","How To Validate Your Business Idea","LivePlan"],
+["9B_U7rFZvDA","st3","How To Test Your Business Idea Before You Launch","LivePlan"],
+["wrlAhj49Ewg","st3","How To Validate Your Startup Idea","LivePlan"],
+["6jEfyxwl3yo","s6","Door to Door Sales Breakdown","Mike Vidan"],
+["urQwi3Y1V1Y","st3","Smart Ways to Validate Your Startup Idea","LivePlan"],
+["oWyqyelq2aA","s6","How To Improve Door-To-Door Sales With 3 Simple Strategies #Shorts","D2D Experts"],
+["tvpf2fhyKvg","st3","How to Validate Your Startup Idea Fast","1Mby1M Roundtables"],
+["tSM6t5sStGA","s6","HOW TO MASTER DOOR TO DOOR SALES","Andy Elliott"],
+["GkONd2m1toM","s6","🔥 Door to Door Sales: The Ultimate School of Life","D2D Experts"],
+["jD6-TzK4vzM","s6","Maximize Door-to-Door Sales: Target Leads Closest to the Money","D2D Experts"],
+["bjvfC4ksAfo","s6","How to be a good door-to-door salesman","Eric Barstow"],
+["ytzUU3OUYyc","s6","Do Door-to-Door Sales Still Work?","Jobber"],
+["IesjYnTdZyg","s6","Is Door-to-Door Sales a Good Idea?","The Ramsey Show Highlights"],
+["xSRFqbMxKWU","s6","3 Traits You Need to Succeed in Door-to-Door Sales with Jason Staiger","D2D Experts"],
+["rrHQFeGn-Bk","ops8","Delegation Vs Abdication","Cheryl Leong"],
+["fp9REQFC2g8","s6","Reviewing A Door-To-Door Sales Script","Alex Hormozi"],
+["x13pTTn9fEo","ops8","Cara membuat sistem delegasi. #bisnis","Timothy Ronald"],
+["eRhtYPGEZZI","ops8","Delegation Without Micromanagement  Key to Business Growth","Own The Exit"],
+["LBSju-tFMGE","ops8","Mastering Delegation: Key Strategies for Business Owners with Ian Bishop","Boolean Automation"],
+["GYmJN6fPdPo","ops8","Good delegation is a development tool","David Burkus"],
+["B0RzZFeLjmQ","ops8","Defining your role as the business owner","Tav's Little Video Chat"],
+["0A7xlzGo3R4","ops8","Delegate BETTER in Your Business! | Delegate like a pro!","Bay Area Executive Coach"],
+["Cm3tqJA6KTY","rh6","Which one sounds better? 👀","Vinh Giang"],
+["zBQIVxsfGN8","ops2","These 5 delegation systems save me 20+ hours/week","Austin Schneider"],
+["NT50spNbHIg","rh8","“Avocado Power: Vinh Giang’s 1‑2‑3 Public‑Speaking Trick (with Keto Twist)”","communation on top"],
+["Mhl9_aCZvZA","rh6","Unlock clear language, mastering English mouth movements - Vinh Giang","FalconMotivation"],
+["R-dVEBfMCQo","rh8","How to Improve your Voice - Vinh Giang #motivation #yourvoice #relationship","Short Bits"],
+["_Vzxmrdwuyw","rh6","5 Communication Lessons That Will Change Your Life!","Vinh Giang"],
+["P8yDPL_e-30","eq7","Get Startup Funding WITHOUT Giving Up Equity! 5 Non-Dilutive Ways #shorts","Stacy Chin"],
+["W7sg1M-ExVI","eq7","Raising Money for Startups","40 Strategy"],
+["0EH-GINmDco","eq7","Equity Crowdfunding Explained: How Does Equity Crowdfunding Work?","Salvador Briggman"],
+["dLhMcHj9eSg","eq7","The right way to approach investors #fundraising #startups #vc #entrepreneur","The Startup Club by Slidebean"],
+["FMMTtIjq__c","eq7","When to Raise Money for Your Startup (And When Not To) #shorts #startup #fundraising #vc #founder","Startupr Originals "],
+["s47yNybm8_w","eq5","Equity Dilution Explained in 60 Seconds 🍰 | Startup Fundraising Basics","Feel the Boot"],
+["Wm8KMr1YnaU","eq5","Why Startup Founders Lose Equity But Not Control","The Startup Club by Slidebean"],
+["AQnn-xGDZTg","eq7","How Founders Raise Millions Without Losing Control","Chris Haroun"],
+["vK-Mb8O_cKE","aq7","Buying a business with Seller Financing and an SBA 7(a) loan (no cash)","SBA Ray"],
+["CSF221oTDok","aq7","Can you get an SBA Loan to buy a failing Business - Yes, It’s Possible! #sba #acquisition","ProjectionHub"],
+["RD8DIGvPuLA","aq7","How to Buy A Franchise for NO Money #shorts","Tariq Johnson"],
+["ptVI0DKxPgM","aq7","How to Acquire a Volatile Small Business with an SBA Loan","ProjectionHub"],
+["yDquKQxmu04","aq7","Selling Part of Your Business? What SBA Lenders Need to See","ProjectionHub"],
+["Vq_fAnaAXUc","aq7","Unlock Your Laundromat Dream: SBA & Seller Financing Explained!","Laundromat Resource"],
+["2GFDh1vz2yg","aq7","Is it possible to buy a business with 100% seller financing?","ProjectionHub"],
+["KTFuOp3byzM","aq7","7 Key Ingredients to Get Approved for an SBA Loan!","ProjectionHub"],
+["i_CrQ7PPuho","aq7","How to Sell Your Small Business to an SBA Buyer","ProjectionHub"],
+["jBEPAVwq69Q","w4","Benefits Of Car Wash Memberships! #shorts","WealthKeel LLC"],
+["t0c7wPt24m0","w5","How We Use Our Business to Get Discounts on Car Washes","Aubrey Janik"],
+["u6yEyTs_zck","w5","How much can a Car Wash make in just 1 day!","Car Wash Chronicles"],
+["vpIN-IID8uE","w2","Start a Mobile Car Wash Business (Low Cost, High Demand)","Business Ideas English"],
+["d1Ex8cPnVcY","w12","How much is a car wash worth?","Nate Lind - Business Broker and Beyond"],
+["JtiofAe5bOo","p2","Pest Control in AUSTRALIA #smallbusiness","Suburban Pest Management"],
+["sjagvMzMb4w","p1","Should I START A Pest Control Business? #pestcontrol","Suburban Pest Management"],
+["7JfCzzjCfUs","ps9","The 'Sunk Cost Fallacy' with Julia Galef. #shorts","Big Think"],
+["c4E-tA1P2tg","p5","Career Peek | Pest Control","SC DEW"],
+["WYmLjC9OG_M","ps9","Why You Keep Making Bad Decisions: Understanding the Sunk Cost Fallacy","REtipster"],
+["nvoJNVU4_nM","ps8","Mastering Mental Models: Unlock Better Decision Making #privateequity","Alex Rawlings"],
+["8FVYya0pBPg","ps9","Your Brain Is Lying to You! The Sunk Cost Fallacy Explained #thoughtshot #sunkcostfallacy","Thought Café"],
+["n9ZTgH5HskM","ps9","Your Stocks Are Bleeding, But You Can't Let Go? Sunk Cost Fallacy EXPOSED!","Yadnya Investment Academy"],
+["NYXd89exBZc","ps9","The Sunk Cost Fallacy | Money Psychology Explained","Money Facts in 60s"],
+["HzNhjPEQ5zY","ps9","The Sunk Cost Fallacy","Martha Beck"],
+["YP9VQq23xMU","ps8","What are \"Mental Models\"? - decision-making expert, Shane Parrish","Kyle Westaway"],
+["eIPt9kAIP68","ps8","Mental Models: Improve Thinking and Decision Making","MBA ASAP"],
+["uEAibgtWAeU","mw6","Dave Ramsey's Debt-Free Advice","10X Studios"],
+["T0KKAH0LM2c","mw6","Single Father Needs Some Advice on Paying Off Debt #daveramsey #shorts #finance","FunnyMoney"],
+["l0EhqBw1feY","mw6","Dave Ramsey's Advice For Couple With $250,000 Student Loan Debt #daveramsey #debtfree","Money Mindset Daily"],
+["PWKmQ0lLboI","mw6","How Dave Ramsey's Debt Snowball Works","The Ramsey Show"],
+["d9xKdi4LMqU","mw2","#daveramsey #moneytips #financialfreedom #debtfreejourney #wealthbuilding #personalfinance #foryou","Dave Ramsey III"],
+["K90AElLIwv8","ps7","Charlie Munger - Invert Always Invert #shorts #charliemunger #getrich #investing","Seeking Wisdom: Value Investing & Worldly Wisdom"],
+["sKTfQ5l_UMM","mw2","\"This Is Absolute Freaking Insanity\" - Dave Ramsey","The Ramsey Show"],
+["LrpH-dmPpjs","ps8","💡 Buffett & Munger: Opportunity Comes to the Prepared Mind","WeLoveValue Investing"],
+["4wVl7ebb4fI","e5","Warren Buffett on talking to Charlie Munger about investments","CNBC Television"],
+["D21bPuMHRUE","mw8","YOU WILL GET TRIGGERED: Warren Buffett and Charlie Munger On Diversification","Solving The Money Problem"],
+["SAV2ec2Bu9Q","mw8","Warren Buffett's Ultimate Investing Advice - You Won't Believe What He Said!","Dean Graziosi"],
+["Uc7dPWbVI40","e5","Lessons from Warren Buffett and Charlie Munger","Andrew Wilkinson"],
+["2fX48AA36SI","mw8","\"The big money is not in the buying and selling, but in the waiting.\"","StashAway"],
+["mRpuGPCYhAg","mw8","Warren Buffett shares his core investment advice. 💸💰","Yahoo Finance"],
+["d0JCGXUjebY","mw8","Warren Buffett: If You Can’t Handle a 50% Drop, Don’t Own Stocks #warrenbuffett #warrenbuffet","The Patient Investor"],
+["UijdJi2-ikY","mw13","The Psychology of Money by Morgan Housel","YT AudioBooks"],
+["QS-LmxucM-Y","e5","How Charlie Munger Changed Warren Buffett Forever","Wisesheets Investing"],
+["Rlzf0oF_z08","mw13","The Psychology of Money: Insights from Morgan Housel","Owen Fitzpatrick"],
+["WFgTZOENktQ","mw9","Morgan Housel: Why Boring Investing Wins (The Psychology of Money)","The Knowledge Project Podcast"],
+["2QZc4COUzJk","mw13","Morgan Housel and The Art of Spending Money","BigDeal by Codie Sanchez "],
+["weLV6KEtZ6U","mw13","3 finance and wealth lessons from The Art of Spending Money by Morgan Housel. #moneymindset","Hungover Books "],
+["7wnkDlEJGiA","mw13","Morgan Housel on the Art of Spending Money","Bloomberg Podcasts"],
+["YSqU1zhJy2U","mw13","La Psicologia del Dinero (Morgan Housel) - Resumen Animado #Dinero Psicologia","Visual Ananda"]
 ];
 
 /* ================= OPERATOR TOOLS (Phase 3) =================
@@ -12065,9 +12254,11 @@ function reelBuildPool(){
   if(typeof CHEATS!=="undefined")Object.entries(CHEATS).forEach(([tid,c])=>{
     (c.formulas||[]).forEach(f=>{const tr=DATA.find(t=>t.id===tid);if(tr)P.formula.push({k:"formula",name:f[0],rule:f[1],trName:tr.name,tid})});
   });
+  /* video cards = REAL native Shorts only (30-60s clips made as clips),
+     never sliced lectures — the full lesson videos stay in the reader */
   P.video=[];
-  if(typeof VIDEO_MAP!=="undefined")Object.entries(VIDEO_MAP).forEach(([lid,vm])=>{
-    const le=byId[lid];if(le&&vm&&vm.v)P.video.push({k:"video",v:vm.v,title:vm.title||le.t,lid});
+  if(typeof REEL_SHORTS!=="undefined")REEL_SHORTS.forEach(s=>{
+    const le=byId[s[1]];if(le)P.video.push({k:"video",v:s[0],title:s[2],ch:s[3],lid:s[1],short:true});
   });
   reelPool=P;return P;
 }
@@ -12117,12 +12308,13 @@ function reelCardHTML(c,idx){
   else if(c.k==="formula")body='<h2 style="font-family:var(--mono);font-size:22px">'+esc(c.name)+'</h2><p>'+esc(c.rule)+'</p>';
   else if(c.k==="video"){
     const sum=le?(le.learn&&le.learn[0]?le.learn[0]:(le.keys&&le.keys[0])||""):"";
-    body='<div class="reelThumb" id="rth'+idx+'" onclick="reelPlay('+idx+')">'+
-    '<img src="https://i.ytimg.com/vi/'+c.v+'/hqdefault.jpg" alt="" loading="lazy">'+
+    const thumb=c.short?'https://i.ytimg.com/vi/'+c.v+'/oardefault.jpg':'https://i.ytimg.com/vi/'+c.v+'/hqdefault.jpg';
+    body='<div class="reelThumb'+(c.short?' vert':'')+'" id="rth'+idx+'" onclick="reelPlay('+idx+')">'+
+    '<img src="'+thumb+'" onerror="this.onerror=null;this.src=\'https://i.ytimg.com/vi/'+c.v+'/hqdefault.jpg\'" alt="" loading="lazy">'+
     '<span class="reelPlayBtn"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>'+
     (reelActivated?'':'<span class="reelCta">Tap once — after that, videos run on auto</span>')+
     '</div>'+
-    '<h2 style="font-size:16.5px;line-height:1.45">'+esc(c.title)+'</h2>'+
+    '<h2 style="font-size:15.5px;line-height:1.4">'+esc(c.title)+'</h2>'+
     (sum?'<p class="reelSum">'+esc(sum)+'</p>':'');
   }
   else body='<h2 style="font-size:24px;line-height:1.35">'+esc(c.text)+'</h2>';
@@ -12151,13 +12343,15 @@ function reelOpen(i){const c=reelCards[i];if(!c||!c.lid)return;closeReel();openL
    gets its minute from ~7 minutes in, not from the intro banter. ---- */
 let reelDur={};try{reelDur=JSON.parse(localStorage.getItem("bvReelDur_v1"))||{}}catch(e){reelDur={}}
 function reelStartFor(c){
+  if(c.short)return 0; /* native Shorts are built to start at zero */
   if(/one minute|in a minute|in one minute|60 second/i.test(c.title||""))return 0;
   const d=reelDur[c.v];
   if(!d)return 40;
   return Math.min(600,Math.max(40,Math.round(d*0.15)));
 }
 function reelClipOf(c){
-  const len=30+(hashStr(c.v)%31); /* stable 30-60s budget per video */
+  if(c.short)return {s:0,len:60}; /* whole short, hard-capped at a minute */
+  const len=30+(hashStr(c.v)%31);
   return {s:reelStartFor(c),len:len};
 }
 let reelClipT=null;

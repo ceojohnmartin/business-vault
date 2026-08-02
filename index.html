@@ -12141,11 +12141,20 @@ function reelAppend(){
 }
 function reelOpen(i){const c=reelCards[i];if(!c||!c.lid)return;closeReel();openLesson(c.lid)}
 /* ---- clips: 30-60s per video, enforced by OUR timer (YouTube's endSeconds
-   is unreliable on API-swapped videos, which let clips run long) ---- */
+   is unreliable on API-swapped videos, which let clips run long).
+   The player reports each video's true duration as it plays; we cache it
+   (bvReelDur_v1) and cut future clips from the MEAT — a 46-minute podcast
+   gets its minute from ~7 minutes in, not from the intro banter. ---- */
+let reelDur={};try{reelDur=JSON.parse(localStorage.getItem("bvReelDur_v1"))||{}}catch(e){reelDur={}}
+function reelStartFor(c){
+  if(/one minute|in a minute|in one minute|60 second/i.test(c.title||""))return 0;
+  const d=reelDur[c.v];
+  if(!d)return 40;
+  return Math.min(600,Math.max(40,Math.round(d*0.15)));
+}
 function reelClipOf(c){
-  const short=/one minute|in a minute|in one minute|60 second/i.test(c.title||"");
   const len=30+(hashStr(c.v)%31); /* stable 30-60s budget per video */
-  return {s:short?0:40,len:len};
+  return {s:reelStartFor(c),len:len};
 }
 let reelClipT=null;
 function reelClipArm(len){
@@ -12201,13 +12210,24 @@ function reelKill(){const b=document.getElementById("reelPlayerBox");if(b)b.remo
 window.addEventListener("message",e=>{
   if(e.origin!=="https://www.youtube-nocookie.com")return;
   let d;try{d=JSON.parse(e.data)}catch(err){return}
-  if(!d||d.event!=="onStateChange"||!reelEl.classList.contains("open")||reelPlaying<0)return;
-  if(d.info===0){
-    clearTimeout(reelClipT);
-    const sc=document.getElementById("reelScroll");
-    sc.scrollTo({top:sc.clientHeight*(reelPlaying+1),behavior:"smooth"});
-  }else if(d.info===2)clearTimeout(reelClipT);
-  else if(d.info===1){const c=reelCards[reelPlaying];if(c&&c.k==="video")reelClipArm(reelClipOf(c).len+2)}
+  if(!d||!reelEl.classList.contains("open")||reelPlaying<0)return;
+  if(d.event==="onStateChange"){
+    if(d.info===0){
+      clearTimeout(reelClipT);
+      const sc=document.getElementById("reelScroll");
+      sc.scrollTo({top:sc.clientHeight*(reelPlaying+1),behavior:"smooth"});
+    }else if(d.info===2)clearTimeout(reelClipT);
+    else if(d.info===1){const c=reelCards[reelPlaying];if(c&&c.k==="video")reelClipArm(reelClipOf(c).len+2)}
+  }else if(d.event==="infoDelivery"&&d.info&&d.info.duration>0){
+    const c=reelCards[reelPlaying];
+    if(c&&c.k==="video"&&!reelDur[c.v]){
+      reelDur[c.v]=Math.round(d.info.duration);
+      try{localStorage.setItem("bvReelDur_v1",JSON.stringify(reelDur))}catch(err){}
+      const ideal=reelStartFor(c);
+      /* long video and we're stuck in the intro → jump to the meat now */
+      if(reelDur[c.v]>600&&(d.info.currentTime||0)<ideal-30)reelCmd("seekTo",[ideal,true]);
+    }
+  }
 });
 function reelModeToggle(){
   reelMode=reelMode==="mix"?"video":"mix";

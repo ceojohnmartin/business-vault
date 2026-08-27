@@ -39,13 +39,19 @@
       n.phones = [{ n: c.phone || "" }];
     }
     if (!n.plan || !n.plan.id) {
+      // legacy plan names that no longer exist keep their own identity and
+      // contracted prices — never silently remapped onto a current plan
       const match = MDATA.PLANS.find((p) => p.name === c.planName);
       n.plan = {
-        id: match ? match.id : "pro",
-        name: c.planName || (match ? match.name : "Pro"),
+        id: match ? match.id : "legacy",
+        name: c.planName || "Pro",
         monthly: c.monthly != null ? c.monthly : 69,
         initial: c.initial != null ? c.initial : 49,
       };
+    }
+    // a legacy record's sale facts are what they were, not today's
+    if (!c.soldAt) {
+      n.soldAt = c.signedAt ? new Date(c.signedAt).getTime() : (c.createdAt || n.soldAt);
     }
     if (!n.agreement && c.signedAt) {
       n.agreement = {
@@ -92,6 +98,16 @@
     document.body.classList.add("editing");
     $("#screen-custedit").classList.add("active");
     fillForm();
+    // Populate EVERY tab's inputs now, not lazily on first visit — the
+    // collectors run on every save, and stale DOM values from the last
+    // customer must never leak into this one's pricing or payment.
+    renderService();
+    renderPayment();
+    // fresh signature + consents per customer — never carry ink across
+    sigDrawn = false;
+    if (sigCtx && sigCanvas) sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+    $("#ca-consent1").checked = false;
+    $("#ca-consent2").checked = false;
     showTab("info");
   }
 
@@ -195,10 +211,15 @@
     $("#cs-monthly").value = cur.plan.monthly;
     priceHint();
     const next = STORE.nextAppointment(cur);
-    $("#cs-appt").value = next ? toLocalInput(next.ts) : "";
+    $("#cs-appt").value = next ? MUI.toLocalInput(next.ts) : "";
   }
 
-  function planFloor() { return MDATA.PLANS.find((p) => p.id === cur.plan.id) || MDATA.PLANS[1]; }
+  // Floors come from the current lineup; a legacy plan's floor is its own
+  // contracted price, so saving can never silently raise an old customer.
+  function planFloor() {
+    return MDATA.PLANS.find((p) => p.id === cur.plan.id) ||
+      { name: cur.plan.name, initial: cur.plan.initial || 0, monthly: cur.plan.monthly || 0 };
+  }
 
   function priceHint() {
     const p = planFloor();
@@ -226,12 +247,6 @@
       }
     }
   }
-
-  const toLocalInput = (ts) => {
-    const d = new Date(ts);
-    const p = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-  };
 
   // ---------- REFERRALS ----------
   function renderReferrals() {
@@ -279,9 +294,8 @@
       `<div class="rowline"><span>Early-exit fee if cancelled early</span><b>${fmtMoney(etf)} max</b></div>` +
       `<div class="rowline total"><span>First-year value</span><b>${fmtMoney(initial + monthly * 12)}</b></div>`;
     $("#ca-doc").innerHTML = MCONTRACT.bodyHTML(cur, null);
-    $("#ca-consent1").checked = false;
-    $("#ca-consent2").checked = false;
-    sigDrawn = false;
+    // consents and signature are reset in openEditor, not here — flipping
+    // tabs mid-signing must not wipe what the customer already did
     requestAnimationFrame(setupSig);
   }
 
@@ -383,16 +397,7 @@
         const f = cur.files[+b.dataset.i];
         const rec = await STORE.getFile(f.id);
         if (!rec) { toast("File is missing from storage"); return; }
-        const isHtml = (f.type || "").includes("html");
-        if (isHtml) {
-          await MCONTRACT.share(await rec.blob.text(), f.name);
-        } else if (navigator.canShare && window.File) {
-          try {
-            const file = new File([rec.blob], f.name, { type: f.type });
-            if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
-          } catch (err) { if (err && err.name === "AbortError") return; }
-          openBlob(rec.blob);
-        } else openBlob(rec.blob);
+        await MUI.shareOrDownload(rec.blob, f.name, f.type || "application/octet-stream");
       }));
     $$("#cfl-list .file-print").forEach((b) =>
       b.addEventListener("click", async () => {
@@ -408,12 +413,6 @@
         cur.files.splice(+b.dataset.i, 1);
         renderFiles();
       }));
-  }
-
-  function openBlob(blob) {
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
   async function addFile(fileObj) {
@@ -519,24 +518,7 @@
     };
     const json = JSON.stringify(payload, null, 2);
     const name = "rally-customers-" + MUI.dayKey(Date.now()) + ".json";
-    if (navigator.canShare && window.File) {
-      try {
-        const file = new File([json], name, { type: "application/json" });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: "RALLY customers" });
-          toast("Customers shared");
-          return;
-        }
-      } catch (err) { if (err && err.name === "AbortError") return; }
-    }
-    const blob = new Blob([json], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    await MUI.shareOrDownload(json, name, "application/json", "RALLY customers");
     toast("Customers exported");
   }
 

@@ -16,10 +16,13 @@
 <p>Meridian is now <b>RALLY</b>.<br>Taking you there — or <a href="../rally/">tap here</a>.<br>
 <span style="font-size:13px;color:#667085">Add the new RALLY app to your home screen; all your customers and pins carry over.</span></p>
 <script>
-  // retire the old Meridian service worker so this redirect always wins
+  // retire ONLY the old Meridian service worker (scope-matched) so this
+  // redirect always wins — RALLY's own SW at /rally/ must survive
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.getRegistrations().then(function (rs) {
-      rs.forEach(function (r) { r.unregister(); });
+      rs.forEach(function (r) {
+        if ((r.scope || "").indexOf("/meridian") !== -1) r.unregister();
+      });
     }).catch(function () {});
   }
   location.replace("../rally/");

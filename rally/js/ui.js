@@ -102,5 +102,38 @@
   const esc = (s) => String(s || "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey, fmtDate, fmtTime, esc };
+  // value for a datetime-local input, in device-local time
+  const toLocalInput = (ts) => {
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  // Get a file to the user: iOS home-screen apps silently ignore
+  // <a download>, so the share sheet is the primary path with a blob
+  // anchor as the desktop fallback. Returns true unless nothing worked.
+  async function shareOrDownload(content, filename, mime, title) {
+    if (navigator.canShare && window.File) {
+      try {
+        const file = new File([content], filename, { type: mime });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: title || filename });
+          return true;
+        }
+      } catch (err) {
+        if (err && err.name === "AbortError") return true; // user closed the sheet
+      }
+    }
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    return true;
+  }
+
+  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey, fmtDate, fmtTime, esc, toLocalInput, shareOrDownload };
 })();

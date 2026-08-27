@@ -461,6 +461,7 @@
     $("#fab-layers").addEventListener("click", () => {
       tick();
       $("#layer-menu").hidden = !$("#layer-menu").hidden;
+      $("#hood-menu").hidden = true; // one popover at a time
     });
     $$("#layer-menu .lm-opt").forEach((b) =>
       b.addEventListener("click", () => {
@@ -552,7 +553,10 @@
         }
       });
 
-      map.on("dragstart", () => { $("#layer-menu").hidden = true; });
+      map.on("dragstart", () => {
+        $("#layer-menu").hidden = true;
+        $("#hood-menu").hidden = true;
+      });
 
       let saveT = null;
       map.on("moveend", () => {

@@ -36,7 +36,16 @@
           db.createObjectStore("files", { keyPath: "id" });
         }
       };
-      req.onsuccess = () => resolve(req.result);
+      req.onsuccess = () => {
+        const db = req.result;
+        // another tab (or a future version) wants to upgrade: release the
+        // connection so nobody hangs, and reopen lazily on the next call
+        db.onversionchange = () => { try { db.close(); } catch (_) {} dbp = null; };
+        resolve(db);
+      };
+      // an old cached Meridian tab still holds v1 open — fail fast (boot
+      // falls back to in-memory + a toast) instead of hanging forever
+      req.onblocked = () => reject(new Error("database blocked by an old app tab"));
       req.onerror = () => reject(req.error);
     });
     // never cache a failed open — a later retry may succeed (transient quota/lock)

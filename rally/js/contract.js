@@ -50,7 +50,9 @@
     const p = planFor(c);
     const initial = (c.plan && c.plan.initial != null) ? c.plan.initial : p.initial;
     const monthly = (c.plan && c.plan.monthly != null) ? c.plan.monthly : p.monthly;
-    const list = p.listInitial;
+    // a rep may quote above list; the printed arithmetic must always add
+    // up (list − discount = amount due), so list floats up to the quote
+    const list = Math.max(p.listInitial, initial);
     const discount = Math.max(0, list - initial);
     const etf = Math.min(discount, A.etfCap);
     return { p, initial, monthly, list, discount, etf };
@@ -260,29 +262,7 @@
     };
   }
 
-  async function share(html, filename) {
-    // iOS home-screen apps ignore <a download>; the share sheet is the path
-    if (navigator.canShare && window.File) {
-      try {
-        const file = new File([html], filename, { type: "text/html" });
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: filename });
-          return true;
-        }
-      } catch (err) {
-        if (err && err.name === "AbortError") return true; // user closed the sheet
-      }
-    }
-    const blob = new Blob([html], { type: "text/html" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-    return true;
-  }
+  const share = (html, filename) => MUI.shareOrDownload(html, filename, "text/html");
 
   window.MCONTRACT = { bodyHTML, docHTML, print, share, noticeDate, pricing };
 })();

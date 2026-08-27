@@ -36,14 +36,17 @@
         `</div>`;
     }
 
-    if (!appts.length && !unscheduled.length) {
+    // Scheduled visits ALWAYS show, however overdue — an unserviced
+    // customer must never fall off this screen. Completed visits age out
+    // after 14 days to keep the list about what's next.
+    const cutoff = Date.now() - 14 * 86400e3;
+    const visible = appts.filter((x) =>
+      x.ap.status !== "done" || (x.ap.doneAt || x.ap.ts) >= cutoff);
+
+    if (!visible.length && !unscheduled.length) {
       wrap.innerHTML = `<div class="empty"><div class="ic">📅</div>Nothing on the calendar yet.<br>Close a customer and the initial service lands here.</div>`;
       return;
     }
-
-    // upcoming + recent past, grouped by day (past 14 days of history shown)
-    const cutoff = Date.now() - 14 * 86400e3;
-    const visible = appts.filter((x) => x.ap.ts >= cutoff);
     let lastKey = "";
     visible.forEach(({ ap, cust }) => {
       const key = MUI.dayKey(ap.ts);
@@ -87,7 +90,7 @@
     $("#ap-name").textContent = STORE.custName(cust);
     $("#ap-addr").textContent = STORE.custAddress(cust) || "No address";
     const dflt = ap ? ap.ts : nextMorning();
-    $("#ap-when").value = toLocalInput(dflt);
+    $("#ap-when").value = MUI.toLocalInput(dflt);
     $("#ap-done").hidden = !ap || ap.status === "done";
     $("#ap-undone").hidden = !ap || ap.status !== "done";
     $("#ap-save").textContent = ap ? "Reschedule" : "Schedule";
@@ -98,12 +101,6 @@
     const d = new Date();
     d.setDate(d.getDate() + 1); d.setHours(9, 0, 0, 0);
     return d.getTime();
-  };
-
-  const toLocalInput = (ts) => {
-    const d = new Date(ts);
-    const p = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   };
 
   function bind() {

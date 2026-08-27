@@ -15,6 +15,8 @@
   let knock = null; // {mode:'new'|'re', lat, lng, pinId, disposition, reason, dm}
   let currentLead = null;
   let BASEMAPS = { street: [], satellite: ["base-sat"], hybrid: ["base-sat", "base-hyb-labels"] };
+  let HYB_FALLBACK = ["base-sat", "base-hyb-labels"]; // what hybrid uses without a Google key
+  const ALL_BASE = new Set(); // every basemap layer id ever registered
 
   const SUBS = ["a", "b", "c", "d"];
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
@@ -86,6 +88,7 @@
 
   async function buildStyle() {
     let style = null;
+    let vector = false;
     try {
       // hard timeout: a hanging fetch on flaky signal must never delay the map.
       // The timer stays armed through the BODY read too — an abort mid-body
@@ -94,7 +97,7 @@
       const t = setTimeout(() => ctrl.abort(), 6000);
       try {
         const r = await fetch(VECTOR_STYLE_URL, { signal: ctrl.signal });
-        if (r.ok) style = appleize(await r.json());
+        if (r.ok) { style = appleize(await r.json()); vector = true; }
       } finally {
         clearTimeout(t);
       }
@@ -109,17 +112,48 @@
       tileSize: 128, maxzoom: 19, // half tileSize = retina oversampling
       attribution: "© Esri, Maxar, Earthstar Geographics",
     };
-    style.sources["hyb-labels"] = {
-      type: "raster",
-      tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png`),
-      tileSize: 256,
-    };
     style.layers.push(
       // color-graded toward the vivid Google look: more saturation + contrast
       { id: "base-sat", type: "raster", source: "sat", layout: { visibility: "none" },
-        paint: { "raster-contrast": 0.14, "raster-saturation": 0.15, "raster-brightness-min": 0.02 } },
-      { id: "base-hyb-labels", type: "raster", source: "hyb-labels", layout: { visibility: "none" } }
+        paint: { "raster-contrast": 0.14, "raster-saturation": 0.15, "raster-brightness-min": 0.02 } }
     );
+
+    if (vector) {
+      // Google-style hybrid labels: clone the vector label layers and set
+      // them bold-white with a dark casing — crisp at every zoom over imagery
+      const hybIds = [];
+      const clones = [];
+      style.layers.forEach((l) => {
+        if (l.type !== "symbol" || l.id.startsWith("hyb-")) return;
+        const c = JSON.parse(JSON.stringify(l));
+        c.id = "hyb-" + l.id;
+        c.layout = c.layout || {};
+        c.layout.visibility = "none";
+        c.paint = Object.assign({}, c.paint, {
+          "text-color": "#FFFFFF",
+          "text-halo-color": "rgba(18,22,30,.80)",
+          "text-halo-width": 1.6,
+        });
+        clones.push(c);
+        hybIds.push(c.id);
+      });
+      style.layers.push(...clones); // above the imagery layer
+      HYB_FALLBACK = ["base-sat", ...hybIds];
+    } else {
+      // raster fallback labels (white text, prerendered) when vector is unavailable
+      style.sources["hyb-labels"] = {
+        type: "raster",
+        tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png`),
+        tileSize: 256,
+      };
+      style.layers.push(
+        { id: "base-hyb-labels", type: "raster", source: "hyb-labels", layout: { visibility: "none" } }
+      );
+      HYB_FALLBACK = ["base-sat", "base-hyb-labels"];
+    }
+    BASEMAPS.satellite = ["base-sat"];
+    BASEMAPS.hybrid = HYB_FALLBACK.slice();
+    style.layers.forEach((l) => ALL_BASE.add(l.id));
     return style;
   }
 
@@ -176,9 +210,10 @@
       }
       if (sess && map.getLayer(layerId)) {
         BASEMAPS[kind] = [layerId];
+        ALL_BASE.add(layerId);
         upgraded = true;
       } else {
-        BASEMAPS[kind] = kind === "hybrid" ? ["base-sat", "base-hyb-labels"] : ["base-sat"];
+        BASEMAPS[kind] = kind === "hybrid" ? HYB_FALLBACK.slice() : ["base-sat"];
       }
     }
     applyBasemap(STORE.settings.basemap);
@@ -191,13 +226,9 @@
     STORE.saveSettings();
     if (map) {
       const on = BASEMAPS[mode];
-      // union of every basemap layer that could exist, so a layer dropped
-      // from BASEMAPS (e.g. Google key removed) still gets hidden
-      const all = new Set([
-        ...Object.values(BASEMAPS).flat(),
-        "base-sat", "base-hyb-labels", "g-sat", "g-hyb",
-      ]);
-      all.forEach((id) => {
+      // ALL_BASE holds every basemap layer ever registered, so a layer
+      // dropped from BASEMAPS (e.g. Google key removed) still gets hidden
+      ALL_BASE.forEach((id) => {
         if (map.getLayer(id)) {
           map.setLayoutProperty(id, "visibility", on.includes(id) ? "visible" : "none");
         }

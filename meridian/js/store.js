@@ -11,6 +11,7 @@
       doorGoal: 75,
       commissionPerSale: 150,
       frSubdomain: "", frKey: "", frToken: "",
+      basemap: "hybrid", // hybrid | satellite | street
       lastCenter: null, lastZoom: null,
     },
     ready: null,

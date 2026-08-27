@@ -100,6 +100,13 @@ input,select,textarea{font:inherit;color:var(--t1)}
 .fab:active{transform:scale(.94)}
 .fab.armed{background:var(--gold);color:#171205;border-color:var(--gold)}
 
+.layer-menu{display:flex;flex-direction:column;gap:4px;background:rgba(11,14,20,.88);
+  border:1px solid var(--line-soft);border-radius:13px;padding:6px;
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.lm-opt{border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;color:var(--t2);text-align:left}
+.lm-opt.sel{background:var(--gold-dim);color:var(--gold-strong)}
+.lm-opt:active{transform:scale(.96)}
+
 .sync-chip{position:absolute;left:50%;transform:translateX(-50%);top:14px;z-index:5;
   background:rgba(19,24,36,.85);border:1px solid var(--line-soft);border-radius:999px;
   padding:6px 14px;font-size:12px;color:var(--t2);display:flex;align-items:center;gap:7px;

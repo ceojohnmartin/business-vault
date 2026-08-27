@@ -1,8 +1,8 @@
-# KNOCKOUT — The Game Plan
+# MERIDIAN — The Game Plan
 
 **The door-to-door pest control sales platform built to beat Enzy, SalesRabbit, SPOTIO, and FieldRoutes' own apps — on reliability, beauty, and the rep experience.**
 
-*Research completed 2026-08-27. Full competitor teardowns with sources in [RESEARCH.md](./RESEARCH.md). No code written yet — this is the blueprint.*
+*Research completed 2026-08-27. Full competitor teardowns with sources in [RESEARCH.md](./RESEARCH.md). Phase 1 is now built — the installable app lives in [`meridian/`](../meridian/).*
 
 ---
 
@@ -16,21 +16,21 @@ Reliability is the brand. Beauty is the proof.
 
 ## 2. Name & brand
 
-### Primary recommendation: **KNOCKOUT**
+### The name: **MERIDIAN** *(chosen — "Knockout" rejected as not classy enough)*
 
-- It's literally what reps do all day (knock out doors, knock out a neighborhood) and what the product does to the competition.
-- One word, punchy, masculine energy that fits D2D sales culture, zero explanation needed on the door of an office.
-- Natural gamification vocabulary falls out of it for free: **Rounds** (blitz sessions), **the Belt** (weekly champion), **KOs** (closes), **the Ring** (leaderboard), **Undefeated** (streaks).
-- Tagline candidates: *"Knock out the neighborhood."* / *"Every door. Every day. Undefeated."* / *"The last sales app you'll ever need."*
-- Domains to check: `knockout.app`, `getknockout.com`, `knockoutsales.com`, `joinknockout.com`.
+- Meridians are the lines on a map that divide the world into territories — the perfect metaphor for a mapping-first canvassing app.
+- Luxury association built in: Meridian is the audio brand in Range Rovers and Jaguars; the word itself reads premium, calm, and established — a company name a homeowner trusts on a tablet at their door.
+- Also means "the highest point reached" — where we're sending every rep.
+- Tagline candidates: *"Command the neighborhood."* / *"Every door, elevated."* / *"The high point of the day."*
+- Domains to check: `meridian.app`, `getmeridian.com`, `meridiansales.app`, `joinmeridian.com`.
 
-### Backups (in order)
-1. **Mantis** — the apex predator of the insect world; sleek, sharp, perfect pest tie-in without being gross.
-2. **Hive** — the team-as-colony metaphor; warm, social, gamification-friendly.
-3. **Threshold** — the literal doorstep; premium/minimal vibe.
-4. **Colony** — territory + team + pest triple meaning.
+### Backups (in order, all in the classy register)
+1. **Solstice** — the peak of summer, which is literally the D2D selling season.
+2. **Monarch** — royal + the butterfly; premium with a subtle insect tie-in.
+3. **Vantage** — the view over the turf; Aston Martin energy.
+4. **Sovereign** — command of the territory.
 
-*(Trademark/App Store search required before final commitment — flagged as a pre-build task.)*
+*(Trademark/App Store search required before final commitment — flagged as a pre-launch task. The name is a single constant in the codebase; renaming is trivial.)*
 
 ---
 
@@ -73,7 +73,8 @@ The map is the home screen and it must feel like Zillow-meets-Uber, never like a
 
 - **Custom dark Mapbox style**: muted, desaturated, brand-tinted basemap with POI noise stripped so disposition pins are the loudest thing on screen. GPU symbol-layer pins + clustering — buttery at 10,000+ pins where SalesRabbit lags at hundreds.
 - **Reads from local SQLite, zero network roundtrip** — the map opens instantly in a dead zone. Offline tile packs auto-download per assigned territory.
-- **Disposition system**: one-tap knock outcomes (Not Home, Callback, Not Interested, No Soliciting, DNK, **SOLD**) with per-company custom statuses. Pin colors are the app's entire chromatic language (see §5). Long-press = drop pin with haptic tick; tap = bottom-sheet lead card (Zillow pattern) with camera padding so the pin stays visible.
+- **Disposition system** (colors locked by the owner): **Sold = green · Not Home = yellow · Go Back = purple · Do Not Knock = black (white-ringed) · Not Interested = red**, with per-company custom statuses later. A red pin always captures *why* via an Aptive-style reason picker — Has a competitor · Not seeing bugs · Need to ask spouse · Too expensive · Renter, not owner · Does it themselves · Bad timing/moving · Wants info first · No soliciting · Other — ranked by how often each appears in real D2D objection taxonomies. Soft nos (spouse, timing, wants info) get flagged as re-knockable. Pin colors are the app's entire chromatic language (see §5). Tap = log a door; tap a pin = bottom-sheet lead card (Zillow pattern).
+- **The DM standard (decision-maker tracking)**: every answered door carries a one-tap "Spoke with the decision-maker?" toggle. A DM = the homeowner or co-deciding spouse with authority to sign; "ask my spouse" counts as a conversation, **not** a DM. The tracked funnel is **Doors → Convos → DMs → Sales**, with the DM counter as the headline leading metric (industry benchmarks: 80–120 doors/day, 30–50% answered, 60–75% of convos are DMs, average reps close 1–3/day, elite 5–6). A low DM% is a knocking-hours problem, not a pitch problem — the app says so.
 - **Turf management that actually works**: managers draw territories (that render!), assign with overlap prevention, watch live rep location during blitzes, and see per-turf conversion heat afterward.
 - **Address truth**: pins snap to parcel/address points (not raw GPS), with one-tap address correction — killing the #1 GPS-drift complaint class.
 - **Smart knocking (the moat)**: homeowner/property data on every pin (owner name, years in home, home value, permits — via ATTOM/Scout-class providers), propensity scores, and — unique to us — **best-time-to-knock per door**, learned from our own knock-outcome telemetry (every knock in the system trains it; compounds forever).
@@ -91,10 +92,10 @@ From "what's your last name?" to a scheduled first service in under 3 minutes, e
 
 ### Pillar 3: THE GAME (Enzy-grade culture, Duolingo-grade mechanics)
 - **Live leaderboards** reps trust because sync never lies — rep/team/office/region, filterable by doors, convos, sets, closes, revenue.
-- **Rounds (blitz competitions)**: head-to-head brackets, team vs team, office vs office, "first to X" spot prizes — spun up by a manager in 60 seconds, with prize fulfillment tracking.
+- **Blitzes**: head-to-head brackets, team vs team, office vs office, "first to X" spot prizes — spun up by a manager in 60 seconds, with prize fulfillment tracking.
 - **Leagues with promotion/relegation** (Duolingo model) so mid-tier reps compete against peers, not the office legend. "You vs You" personal-best mode protects the bottom 70%.
 - **Streaks with freezes**: knocking-day streaks with earned freeze tokens for weather/days off — loss-aversion without morale damage.
-- **The KO moment**: on every close — full-screen Rive celebration, one perfect success haptic, animated commission count-up, instant team-feed broadcast with kudos reactions. Recognition is immediate, specific, and public.
+- **The SOLD moment**: on every close — full-screen celebration, one perfect success haptic, animated commission count-up, instant team-feed broadcast with kudos reactions. Recognition is immediate, specific, and public.
 - **Live Activity / Dynamic Island** (nobody has this): today's doors/convos/closes and your race position on the lock screen all day.
 - **TV mode**: office-screen live leaderboard for the morning meeting.
 
@@ -120,32 +121,33 @@ From "what's your last name?" to a scheduled first service in under 3 minutes, e
 
 **Direction: dark-first, one electric accent, semantic color discipline, physics motion.** The references are Whoop, Robinhood, Copilot Money — not other field-sales apps.
 
-### Color
+### Color *(revised to the owner's spec — classy dark + champagne gold, dispositions locked)*
 | Token | Value | Use |
 |---|---|---|
-| `surface-0` | `#0A0C10` (near-black, never pure black) | app background |
-| `surface-1/2` | `#12151B` / `#1A1E26` | cards, sheets |
-| `accent` | **Volt `#C8FF1F`** (electric lime — "venom green") | brand, CTAs, SOLD, the belt |
-| `sold` | `#C8FF1F` | the money color — sold pins glow |
-| `callback` | `#FFB020` amber | warm lead |
-| `not-home` | `#4D8DFF` cool blue | neutral revisit |
-| `dnk / lost` | `#FF4757` red | dead door |
-| `text` | `#F2F4F8` / 60% / 38% tiers | type hierarchy |
+| `ink` | `#0B0E14` (deep blue-black, never pure black) | app background |
+| `surface-1/2` | `#131824` / `#1B2130` | cards, sheets |
+| `accent` | **Champagne gold `#D9B36C`** | brand, wordmark, CTAs, DM counter |
+| `sold` | **Green `#2FD576`** | sold pins, sales stats, the hero number |
+| `go back` | **Purple `#A78BFA`** | re-knock pins |
+| `not home` | **Yellow `#FFD24A`** | no-answer pins |
+| `not interested` | **Red `#FF5449`** | declined pins — always with a reason attached |
+| `do not knock` | **Black `#06070A` + white ring** | skip forever |
+| `text` | `#F3F5F9` / 64% / 40% tiers | type hierarchy |
 
-Rules: **no arbitrary accent colors anywhere** — every hue carries meaning (Whoop discipline). Disposition colors are identical on pins, list rows, charts, and leaderboards. Glassmorphism (blur + 1px inner border) reserved exclusively for overlays floating on the map, where it earns its keep. Light mode ships too, but dark is the identity. Sunlight-legibility test on every disposition color (SPOTIO's pastel-pins fiasco is the cautionary tale).
+Rules: **no arbitrary accent colors anywhere** — every hue carries meaning (Whoop discipline). Disposition colors are identical on pins, badges, funnels, and history rows. Glassmorphism (blur + 1px inner border) reserved exclusively for overlays floating on the map, where it earns its keep. Dark is the identity. Sunlight-legibility test on every disposition color (SPOTIO's pastel-pins fiasco is the cautionary tale).
 
 ### Typography
-- A strong grotesk with real numerals — **Inter (custom-tuned) or a licensed grotesk in the Capsule Sans mold**; tabular figures for every stat.
+- **Cinzel** (classical Roman capitals — luxury-brand register) for the wordmark and display moments; **Outfit** for the UI; tabular figures for every stat.
 - Hero stat (today's closes / today's commission) at **64–72pt** — readable at arm's length in the sun, Whoop-style. Body 15–17pt, caps-tracked 11–13pt labels.
 
 ### Motion
 - Spring physics everywhere (no linear duration curves); 150–250ms micro-interactions.
-- **Rive** for stateful animation: pin state morphs, streak flame, progress meters, the KO celebration. Lottie only for fire-and-forget decoration.
+- **Rive** for stateful animation: pin state morphs, streak flame, progress meters, the SOLD celebration. Lottie only for fire-and-forget decoration.
 - Count-up animations on all money and stats; shared-element transition map-pin → lead sheet.
 - Haptic grammar (Apple HIG): light tick = selection, success notification = close, and nothing else — if you can't say what a haptic confirms in one sentence, it doesn't fire.
 
 ### The custom map style
-Bespoke Mapbox Studio style: deep charcoal land, hairline roads, no POI clutter, volt accent for the user puck and active turf boundary, parcel-snapped pins with soft glow on SOLD. The map should be screenshot-worthy — reps posting their finished turf to Instagram is free marketing.
+Bespoke dark style: deep charcoal land, hairline roads, no POI clutter, gold accent for the active turf boundary, parcel-snapped pins with soft glow on SOLD. The map should be screenshot-worthy — reps posting their finished turf to Instagram is free marketing.
 
 ---
 
@@ -175,19 +177,19 @@ One bundled price around **$40–60/rep/month, everything included** — map + d
 
 ## 8. Build roadmap
 
-**Phase 1 — The Knocking Core (MVP that already beats Enzy's map)**
-Map + pins + dispositions + turfs, offline-first sync engine, lead cards, basic leaderboard, rep auth/roster. *The demo: open the app in airplane mode on a mid-range Samsung next to Enzy — case closed.*
+**Phase 1 — The Knocking Core ✅ BUILT — [`meridian/`](../meridian/)**
+Installable offline PWA: dark map with disposition pins (owner's colors), not-interested reason capture, DM tracking with the Doors→Convos→DMs→Sales funnel, streaks, commission tracker, rankings, the pest Field Guide with door pitches, the full agreement flow with signature + e-sign consent + FieldRoutes sync queue. Everything persists in IndexedDB and works in airplane mode. *The demo: open it in airplane mode on a mid-range Samsung next to Enzy — case closed.*
 
 **Phase 2 — The Close**
 Agreement builder + e-sign + evidence chain, plan/pricing config, FieldRoutes connector (customer → payment profile → subscription → reserved appointment → document + tech note), the durable close queue, live commission tracker v1.
 
 **Phase 3 — The Game & The Brain**
-Rounds/brackets/leagues/streaks, KO celebration + feed + kudos, Live Activity, bug sheet + service video library, pitch/objection playbook, manager web dashboard v1, TV mode.
+Blitzes/brackets/leagues/streaks, SOLD celebration + feed + kudos, Live Activity, expanded bug sheet + service video library, pitch/objection playbook, manager web dashboard v1, TV mode.
 
 **Phase 4 — The Moats**
 Property-data enrichment + propensity, best-time-to-knock model on our telemetry, AI doorstep coach, recruiting/onboarding module, customer app + tech companion, additional back-office connectors.
 
-**Pre-build checklist**: trademark/App Store search on "Knockout"; request a FieldRoutes sandbox/API key (support@fieldroutes.com — per-office key/token, the standard RepCard/SalesRabbit onboarding path); pick property-data vendor (Scout vs ATTOM tier pricing); confirm target companies' payment gateways.
+**Pre-launch checklist**: trademark/App Store search on "Meridian"; request a FieldRoutes sandbox/API key (support@fieldroutes.com — per-office key/token, the standard RepCard/SalesRabbit onboarding path); pick property-data vendor (Scout vs ATTOM tier pricing); confirm target companies' payment gateways.
 
 ---
 

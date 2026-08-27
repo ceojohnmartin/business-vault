@@ -23,6 +23,12 @@ A complete acquisition-underwriting platform in [`deal-vault/`](deal-vault/). En
 
 Full feature list, engine details and disclaimers: [`deal-vault/README.md`](deal-vault/README.md)
 
+## 🗺 Meridian — sell the neighborhood
+
+A premium door-to-door pest control sales app in [`meridian/`](meridian/): a dark knocking map with disposition pins (Sold green · Go Back purple · Not Home yellow · Not Interested red with reason capture · Do Not Knock black), decision-maker (DM) tracking with a Doors→Convos→DMs→Sales funnel, streaks and commission tracking, team rankings, a pest Field Guide with door pitches, and a full on-the-glass agreement flow with signature — queued for FieldRoutes sync. Research and product blueprint in [`pest-sales-app/`](pest-sales-app/).
+
+**Open it:** https://ceojohnmartin.github.io/business-vault/meridian/ *(once this branch is merged)*
+
 ---
 
-*Both apps install to your phone's home screen (Add to Home Screen) and work offline. Nothing here is legal, tax, accounting, lending or investment advice.*
+*These apps install to your phone's home screen (Add to Home Screen) and work offline. Nothing here is legal, tax, accounting, lending or investment advice.*

@@ -29,6 +29,8 @@
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
+    // never cache a failed open — a later retry may succeed (transient quota/lock)
+    dbp.catch(() => { dbp = null; });
     return dbp;
   }
 

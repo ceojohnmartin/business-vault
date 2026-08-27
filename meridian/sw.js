@@ -1,10 +1,13 @@
 /* Meridian — offline service worker.
-   App shell: network-first (fresh when online, cached when not).
-   Fonts + libraries: cache-first (they're versioned/immutable).
-   Map tiles: cache-first with a cap, so knocked neighborhoods keep working offline. */
-const CACHE = "meridian-v1";
+   App shell: network-first with a short race against the cache (weak signal
+   never leaves a rep staring at a blank screen), good responses only.
+   Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
+   Map tiles: cache-first with a cap, opaque allowed, so knocked
+   neighborhoods keep working offline. */
+const CACHE = "meridian-v2";
 const TILE_CACHE = "meridian-tiles-v1";
 const TILE_LIMIT = 600;
+const NET_TIMEOUT_MS = 3500;
 
 const CORE = [
   "./", "./index.html", "./manifest.webmanifest",
@@ -36,53 +39,59 @@ async function trimTiles() {
   }
 }
 
+// Opaque (no-cors) responses report status 0 — they're still the tile/font we asked for.
+const cacheable = (r) => r && (r.ok || r.type === "opaque");
+
+async function networkFirstShell(req) {
+  const cached = await caches.match(req);
+  try {
+    const fetching = fetch(req).then((r) => {
+      if (r && r.ok) {
+        const copy = r.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy));
+      }
+      return r;
+    });
+    const r = cached
+      ? await Promise.race([
+          fetching,
+          new Promise((resolve) => setTimeout(() => resolve(null), NET_TIMEOUT_MS)),
+        ])
+      : await fetching;
+    if (r && r.ok) return r;
+    if (cached) return cached;
+    if (r) return r; // a non-ok live response beats nothing
+    throw new Error("timeout with no cache");
+  } catch (_) {
+    if (cached) return cached;
+    if (req.mode === "navigate") {
+      const shell = await caches.match("./index.html");
+      if (shell) return shell;
+    }
+    return Response.error();
+  }
+}
+
+async function cacheFirst(req, cacheName, afterPut) {
+  const m = await caches.match(req);
+  if (m) return m;
+  const r = await fetch(req);
+  if (cacheable(r)) {
+    const copy = r.clone();
+    caches.open(cacheName).then((c) => c.put(req, copy).then(afterPut || (() => {})));
+  }
+  return r;
+}
+
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
 
   if (url.origin === location.origin) {
-    // app shell: network-first
-    e.respondWith(
-      fetch(e.request)
-        .then((r) => {
-          const copy = r.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
-          return r;
-        })
-        .catch(() => caches.match(e.request).then((m) => m || caches.match("./index.html")))
-    );
+    e.respondWith(networkFirstShell(e.request));
   } else if (url.hostname.endsWith("basemaps.cartocdn.com")) {
-    // map tiles: cache-first with cap
-    e.respondWith(
-      caches.match(e.request).then(
-        (m) =>
-          m ||
-          fetch(e.request).then((r) => {
-            if (r.ok) {
-              const copy = r.clone();
-              caches.open(TILE_CACHE).then((c) => c.put(e.request, copy).then(trimTiles));
-            }
-            return r;
-          })
-      )
-    );
-  } else if (
-    /fonts\.(googleapis|gstatic)\.com$/.test(url.hostname) ||
-    url.hostname === "unpkg.com"
-  ) {
-    // fonts + pinned libraries: cache-first
-    e.respondWith(
-      caches.match(e.request).then(
-        (m) =>
-          m ||
-          fetch(e.request).then((r) => {
-            if (r.ok) {
-              const copy = r.clone();
-              caches.open(CACHE).then((c) => c.put(e.request, copy));
-            }
-            return r;
-          })
-      )
-    );
+    e.respondWith(cacheFirst(e.request, TILE_CACHE, trimTiles));
+  } else if (/fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) {
+    e.respondWith(cacheFirst(e.request, CACHE));
   }
 });

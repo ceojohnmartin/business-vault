@@ -95,8 +95,12 @@
     });
 
     map.on("click", (e) => {
+      // 14px tolerance box: fat-fingering near a pin opens it instead of
+      // silently creating a duplicate door
+      const T = 14;
+      const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
       const hits = map.getLayer("pins-circle")
-        ? map.queryRenderedFeatures(e.point, { layers: ["pins-circle"] })
+        ? map.queryRenderedFeatures(bbox, { layers: ["pins-circle"] })
         : [];
       if (hits.length) {
         const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);
@@ -253,11 +257,17 @@
   async function saveKnock() {
     if (!knock || !knock.disposition) return;
     const note = $("#knock-note").value.trim();
-    const pin = await STORE.addKnock({
-      lat: knock.lat, lng: knock.lng,
-      pinId: knock.mode === "re" ? knock.pinId : null,
-      disposition: knock.disposition, reason: knock.reason, dm: knock.dm, note,
-    });
+    let pin;
+    try {
+      pin = await STORE.addKnock({
+        lat: knock.lat, lng: knock.lng,
+        pinId: knock.mode === "re" ? knock.pinId : null,
+        disposition: knock.disposition, reason: knock.reason, dm: knock.dm, note,
+      });
+    } catch (err) {
+      toast("Couldn't save — storage may be full. Try again.");
+      return; // sheet stays open; nothing is silently lost
+    }
     clearTemp();
     closeSheet();
     refreshPins();
@@ -288,12 +298,15 @@
       );
       if (!r.ok) return;
       const j = await r.json();
+      // the pin may have been deleted while the request was in flight
+      if (!STORE.pins.some((p) => p.id === pin.id)) return;
       const a = j.address || {};
       const line = [a.house_number, a.road].filter(Boolean).join(" ");
       const town = a.city || a.town || a.village || a.suburb || "";
       pin.address = line ? line + (town ? ", " + town : "") : (j.display_name || "").split(",").slice(0, 2).join(",");
       await STORE.updatePin(pin);
       if (currentLead && currentLead.id === pin.id) $("#lead-addr").textContent = pin.address || "Address pending…";
+      if (window.MCLOSE) MCLOSE.fillAddress(pin);
     } catch (_) { /* offline or rate-limited — address stays editable by hand */ }
   }
 
@@ -357,7 +370,7 @@
 
   window.MMAP = {
     init, refreshPins, updateBrandToday,
-    clearSelection: () => { setSelected(""); currentLead = null; },
+    clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
     resize: () => { if (map) map.resize(); },
   };
 })();

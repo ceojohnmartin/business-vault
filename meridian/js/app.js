@@ -37,6 +37,9 @@
   }
 
   // ---------- field guide ----------
+  const esc = (s) => String(s || "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
   function renderGuide(q) {
     q = (q || "").trim().toLowerCase();
     const list = MDATA.PESTS.filter((p) =>
@@ -48,7 +51,7 @@
          <div class="nm">${p.name}</div>
          <div class="season">${p.season}</div>
        </button>`
-    ).join("") || `<div class="empty" style="grid-column:1/-1">Nothing matches “${q}”.</div>`;
+    ).join("") || `<div class="empty" style="grid-column:1/-1">Nothing matches “${esc(q)}”.</div>`;
     $$("#guide-grid .pest-card").forEach((b) =>
       b.addEventListener("click", () => openPest(b.dataset.pest)));
   }
@@ -134,7 +137,19 @@
 
   // ---------- boot ----------
   async function boot() {
-    await STORE.ready;
+    // register the SW first — and robustly, since 'load' may already have fired
+    if ("serviceWorker" in navigator) {
+      const reg = () => navigator.serviceWorker.register("sw.js").catch(() => {});
+      if (document.readyState === "complete") reg();
+      else addEventListener("load", reg);
+    }
+    try {
+      await STORE.ready;
+    } catch (e) {
+      // storage refused (rare private modes) — run in-memory rather than die blank
+      console.error("storage unavailable", e);
+      MUI.toast("Storage unavailable — running without saving");
+    }
     SCREENS.forEach((s) =>
       $("#tab-" + s).addEventListener("click", () => { MUI.tick(); show(s); }));
     $("#veil").addEventListener("click", () => { closeSheet(); MMAP.clearSelection(); });
@@ -155,9 +170,13 @@
     renderGuide("");
     renderMore();
 
-    if ("serviceWorker" in navigator) {
-      addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
-    }
+    // keep a focused input visible above the on-screen keyboard inside sheets
+    document.addEventListener("focusin", (e) => {
+      const t = e.target;
+      if (t && t.closest && t.closest(".sheet") && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) {
+        setTimeout(() => { try { t.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (_) {} }, 320);
+      }
+    });
   }
 
   document.addEventListener("DOMContentLoaded", boot);

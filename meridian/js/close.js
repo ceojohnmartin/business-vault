@@ -20,6 +20,8 @@
     $("#cf-address").value = (pin && pin.address) || "";
     $("#cf-notes").value = "";
     $("#cf-consent").checked = false;
+    $("#cf-initial").value = plan.initial;
+    $("#cf-monthly").value = plan.monthly;
     renderPlanButtons();
     showStep();
     openSheet("close-sheet");
@@ -69,6 +71,9 @@
     if (!$("#cf-monthly").value) $("#cf-monthly").value = plan.monthly;
   }
 
+  // keep prices sane: no negatives, no fat-fingered 1e21
+  const clampPrice = (v) => Math.min(Math.max(Number(v) || 0, 0), 100000);
+
   function collect() {
     return {
       first: $("#cf-first").value.trim(),
@@ -78,8 +83,8 @@
       address: $("#cf-address").value.trim(),
       notes: $("#cf-notes").value.trim(),
       planName: plan.name,
-      initial: Number($("#cf-initial").value) || 0,
-      monthly: Number($("#cf-monthly").value) || 0,
+      initial: clampPrice($("#cf-initial").value),
+      monthly: clampPrice($("#cf-monthly").value),
       termMonths: 12,
     };
   }
@@ -102,16 +107,30 @@
     const dpr = Math.min(devicePixelRatio || 1, 2);
     const rect = sigCanvas.getBoundingClientRect();
     if (rect.width === 0) { requestAnimationFrame(setupSig); return; }
-    sigCanvas.width = rect.width * dpr;
-    sigCanvas.height = rect.height * dpr;
+    const w = Math.round(rect.width * dpr), h = Math.round(rect.height * dpr);
+    // already sized for this box → keep whatever ink is on it
+    if (sigCanvas.width === w && sigCanvas.height === h && sigCtx) return;
+    // dimensions changed (rotation) — snapshot existing ink and redraw scaled
+    const snapshot = sig.drawn ? sigCanvas.toDataURL("image/png") : null;
+    sigCanvas.width = w;
+    sigCanvas.height = h;
     sigCtx = sigCanvas.getContext("2d");
     sigCtx.scale(dpr, dpr);
     sigCtx.lineWidth = 2.2;
     sigCtx.lineCap = "round";
     sigCtx.lineJoin = "round";
     sigCtx.strokeStyle = "#101828";
-    sig.drawn = false;
+    if (snapshot) {
+      const img = new Image();
+      img.onload = () => sigCtx.drawImage(img, 0, 0, rect.width, rect.height);
+      img.src = snapshot;
+    } else {
+      sig.drawn = false;
+    }
   }
+  addEventListener("resize", () => {
+    if (step === 3 && $("#close-sheet").classList.contains("open")) setupSig();
+  });
   function sigPos(e) {
     const r = sigCanvas.getBoundingClientRect();
     const t = e.touches ? e.touches[0] : e;
@@ -155,11 +174,15 @@
         text: $("#cf-consent-text").textContent.trim(),
       },
     };
-    await STORE.addCustomer(cust);
-
-    // the pin flips to sold if it wasn't already
-    if (pin && pin.disposition !== "sold") {
-      await STORE.addKnock({ pinId: pin.id, disposition: "sold", dm: true });
+    try {
+      await STORE.addCustomer(cust);
+      // the pin flips to sold if it wasn't already
+      if (pin && pin.disposition !== "sold") {
+        await STORE.addKnock({ pinId: pin.id, disposition: "sold", dm: true });
+      }
+    } catch (err) {
+      toast("Couldn't save the agreement — storage may be full. Try again.");
+      return; // keep the sheet open; the signature is still on the glass
     }
     closeSheet();
     if (window.MMAP) { MMAP.refreshPins(); MMAP.clearSelection(); }
@@ -185,7 +208,7 @@
     openSheet("queue-sheet");
   }
 
-  function exportQueue() {
+  async function exportQueue() {
     if (!STORE.customers.length) { toast("Nothing to export yet"); return; }
     const payload = {
       exportedAt: new Date().toISOString(),
@@ -196,15 +219,40 @@
       },
       customers: STORE.customers,
     };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const json = JSON.stringify(payload, null, 2);
+    const name = "meridian-agreements-" + MUI.dayKey(Date.now()) + ".json";
+    // iOS home-screen apps silently ignore <a download>; the share sheet works
+    if (navigator.canShare && window.File) {
+      try {
+        const file = new File([json], name, { type: "application/json" });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: "Meridian agreements" });
+          toast("Agreements shared");
+          return;
+        }
+      } catch (err) {
+        if (err && err.name === "AbortError") return; // user closed the share sheet
+      }
+    }
+    const blob = new Blob([json], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "meridian-agreements-" + MUI.dayKey(Date.now()) + ".json";
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     toast("Agreements exported");
+  }
+
+  // Called when a late reverse-geocode resolves while the close sheet is open
+  function fillAddress(geoPin) {
+    if (!pin || !geoPin || pin.id !== geoPin.id) return;
+    const f = $("#cf-address");
+    if (f && !f.value.trim() && geoPin.address) {
+      f.value = geoPin.address;
+      if (step === 3) renderSummary();
+    }
   }
 
   function esc(s) {
@@ -236,5 +284,5 @@
     $("#queue-export").addEventListener("click", exportQueue);
   }
 
-  window.MCLOSE = { start, openQueue, bind };
+  window.MCLOSE = { start, openQueue, bind, fillAddress };
 })();

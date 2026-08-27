@@ -106,11 +106,12 @@
 
   S.dayseries = function (nDays) {
     const out = [];
-    const d = new Date(); d.setHours(0, 0, 0, 0);
     for (let i = nDays - 1; i >= 0; i--) {
-      const start = d.getTime() - i * 86400e3;
-      const s = S.statsFor(start, start + 86400e3);
-      out.push({ start, ...s });
+      // setDate arithmetic is DST-safe where fixed 86400e3 steps are not
+      const a = new Date(); a.setHours(0, 0, 0, 0); a.setDate(a.getDate() - i);
+      const b = new Date(a); b.setDate(b.getDate() + 1);
+      const s = S.statsFor(a.getTime(), b.getTime());
+      out.push({ start: a.getTime(), ...s });
     }
     return out;
   };
@@ -121,12 +122,12 @@
     const byDay = {};
     S.events.forEach((e) => { const k = MUI.dayKey(e.ts); byDay[k] = (byDay[k] || 0) + 1; });
     let streak = 0;
-    const d = new Date(); d.setHours(0, 0, 0, 0);
+    const d = new Date(); d.setHours(12, 0, 0, 0); // noon anchor sidesteps DST edges
     // today counts if already at goal; otherwise start from yesterday
     if ((byDay[MUI.dayKey(d.getTime())] || 0) >= goal) { streak++; }
     for (let i = 1; i < 366; i++) {
-      const k = MUI.dayKey(d.getTime() - i * 86400e3);
-      if ((byDay[k] || 0) >= goal) streak++;
+      d.setDate(d.getDate() - 1);
+      if ((byDay[MUI.dayKey(d.getTime())] || 0) >= goal) streak++;
       else break;
     }
     return streak;

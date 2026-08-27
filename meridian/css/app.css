@@ -25,8 +25,8 @@
   --notint:#FF5449;
 
   --t1:#F3F5F9;
-  --t2:rgba(243,245,249,.64);
-  --t3:rgba(243,245,249,.40);
+  --t2:rgba(243,245,249,.66);
+  --t3:rgba(243,245,249,.50);
 
   --danger:#FF5449;
   --radius:16px;
@@ -184,6 +184,10 @@ input,select,textarea{font:inherit;color:var(--t1)}
 .btn[disabled]{opacity:.45;pointer-events:none}
 .btnrow{display:flex;gap:10px;margin-top:6px}
 .btnrow .btn{flex:1}
+/* action rows pin to the bottom of a scrolling sheet so Save is never below the fold */
+.sheet .btnrow{position:sticky;bottom:0;z-index:2;
+  background:linear-gradient(to top, var(--s1) 78%, transparent);
+  padding:14px 0 4px}
 
 /* lead sheet */
 .lead-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
@@ -229,7 +233,7 @@ input,select,textarea{font:inherit;color:var(--t1)}
 .f-step .fill{height:100%;border-radius:7px;min-width:3px;
   transition:width .5s cubic-bezier(.3,.7,.3,1)}
 .f-step .fv{font-size:14px;font-weight:700;text-align:right}
-.f-conv{grid-column:2/4;font-size:11px;color:var(--t3);margin-top:-5px}
+.f-conv{grid-column:2/4;font-size:11.5px;color:var(--t2);margin-top:-5px}
 
 /* chart */
 .chart{display:flex;align-items:flex-end;gap:5px;height:110px;margin-top:4px}

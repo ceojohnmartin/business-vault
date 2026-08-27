@@ -4,8 +4,8 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "meridian-v6";
-const TILE_CACHE = "meridian-tiles-v3";
+const CACHE = "meridian-v7";
+const TILE_CACHE = "meridian-tiles-v4";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
 
@@ -31,9 +31,13 @@ self.addEventListener("activate", (e) => {
   );
 });
 
+// matches only real z/x/y tile paths — style JSON, TileJSON, glyph ranges
+// and sprites never match, so they can never be trimmed away
+const TILE_RE = /\/\d+\/\d+\/\d+(@2x)?(\.\w+)?$/;
+
 async function trimTiles() {
   const c = await caches.open(TILE_CACHE);
-  const keys = await c.keys();
+  const keys = (await c.keys()).filter((k) => TILE_RE.test(new URL(k.url).pathname));
   if (keys.length > TILE_LIMIT) {
     await Promise.all(keys.slice(0, keys.length - TILE_LIMIT).map((k) => c.delete(k)));
   }
@@ -83,6 +87,23 @@ async function cacheFirst(req, cacheName, afterPut) {
   return r;
 }
 
+/* Mutable map metadata (style JSON, TileJSON): serve the cached copy
+   instantly, refresh it in the background — so a rotated tile snapshot
+   heals on the next launch instead of 404ing forever. */
+async function staleWhileRevalidate(req, cacheName) {
+  const cached = await caches.match(req);
+  const fetching = fetch(req)
+    .then((r) => {
+      if (cacheable(r)) {
+        const copy = r.clone();
+        caches.open(cacheName).then((c) => c.put(req, copy));
+      }
+      return r;
+    })
+    .catch(() => null);
+  return cached || (await fetching) || Response.error();
+}
+
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
@@ -90,12 +111,23 @@ self.addEventListener("fetch", (e) => {
   if (url.origin === location.origin) {
     e.respondWith(networkFirstShell(e.request));
   } else if (
+    url.hostname.endsWith("tiles.openfreemap.org") &&
+    (url.pathname === "/planet" || url.pathname.startsWith("/styles/"))
+  ) {
+    // style JSON + TileJSON: instant from cache, refreshed in background
+    e.respondWith(staleWhileRevalidate(e.request, CACHE));
+  } else if (
+    url.hostname.endsWith("tiles.openfreemap.org") &&
+    !TILE_RE.test(url.pathname)
+  ) {
+    // glyphs + sprites: tiny, load-bearing, in the untrimmed app cache
+    e.respondWith(cacheFirst(e.request, CACHE));
+  } else if (
     url.hostname.endsWith("basemaps.cartocdn.com") ||
     url.hostname.endsWith("arcgisonline.com") ||
     url.hostname.endsWith("tiles.openfreemap.org")
   ) {
-    // vector style + glyphs + sprites + tiles all cache here, so the
-    // street map keeps working offline after first load
+    // actual map tiles: cache-first with a cap
     e.respondWith(cacheFirst(e.request, TILE_CACHE, trimTiles));
   } else if (/fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) {
     e.respondWith(cacheFirst(e.request, CACHE));

@@ -18,15 +18,16 @@
   --accent-strong:#0653C4;
   --accent-dim:rgba(10,108,240,.09);
 
-  --sold:#22B558;
+  --sold:#22B558;      /* fills: pins, dots, bars */
+  --sold-ink:#157A3C;  /* green as TEXT on light grounds — AA-safe */
   --nothome:#F5B301;
   --goback:#7C5CFC;
   --dnk:#0B0F16;
   --notint:#E5484D;
 
   --t1:#101828;
-  --t2:rgba(16,24,40,.64);
-  --t3:rgba(16,24,40,.46);
+  --t2:rgba(16,24,40,.72);
+  --t3:rgba(16,24,40,.62);
 
   --danger:#E5484D;
   --radius:16px;
@@ -91,7 +92,7 @@ input,select,textarea{font:inherit;color:var(--t1)}
   border:1px solid var(--line-soft);border-radius:14px;padding:9px 15px;box-shadow:var(--shadow)}
 .map-brand .wordmark{font-size:15px}
 .map-brand .today{font-size:11.5px;color:var(--t2)}
-.map-brand .today b{color:var(--sold);font-weight:700}
+.map-brand .today b{color:var(--sold-ink);font-weight:700}
 
 .map-actions{display:flex;flex-direction:column;gap:10px;align-items:flex-end}
 .fab{width:44px;height:44px;border-radius:13px;background:rgba(255,255,255,.9);
@@ -219,7 +220,7 @@ input,select,textarea{font:inherit;color:var(--t1)}
 .hero-stat::after{content:"";position:absolute;right:-70px;top:-70px;width:200px;height:200px;border-radius:50%;
   background:radial-gradient(circle,rgba(10,108,240,.10),transparent 70%)}
 .hero-stat .lbl{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent);font-weight:700}
-.hero-stat .big{font-size:68px;font-weight:800;line-height:1.05;letter-spacing:-.02em;color:var(--sold)}
+.hero-stat .big{font-size:68px;font-weight:800;line-height:1.05;letter-spacing:-.02em;color:var(--sold-ink)}
 .hero-stat .row2{display:flex;gap:22px;margin-top:8px;font-size:13.5px;color:var(--t2)}
 .hero-stat .row2 b{color:var(--t1);font-weight:700}
 
@@ -253,7 +254,7 @@ input,select,textarea{font:inherit;color:var(--t1)}
 .chart{display:flex;align-items:flex-end;gap:5px;height:110px;margin-top:4px}
 .chart .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;height:100%}
 .chart .b{border-radius:3px 3px 0 0;min-height:2px}
-.chart .b.doors{background:#CBD7E8}
+.chart .b.doors{background:#6E89AC}
 .chart .b.sales{background:var(--sold)}
 .chart-x{display:flex;gap:5px;margin-top:6px}
 .chart-x span{flex:1;text-align:center;font-size:9.5px;color:var(--t3)}
@@ -287,7 +288,7 @@ input,select,textarea{font:inherit;color:var(--t1)}
 .rank-row.first{border-color:rgba(10,108,240,.45);background:linear-gradient(120deg,rgba(10,108,240,.07),var(--s1))}
 .rank-row.first .pos{color:var(--accent)}
 .rank-row.me{border-color:rgba(34,181,88,.45)}
-.rank-row.me .av{background:rgba(34,181,88,.12);color:var(--sold)}
+.rank-row.me .av{background:rgba(34,181,88,.12);color:var(--sold-ink)}
 .demo-note{font-size:12px;color:var(--t3);margin-top:12px;text-align:center}
 
 /* ---------- field guide ---------- */
@@ -321,7 +322,7 @@ input,select,textarea{font:inherit;color:var(--t1)}
   box-shadow:var(--shadow)}
 .cust-summary>div{background:var(--s1);padding:14px 12px;text-align:center}
 .cust-summary .n{font-size:22px;font-weight:800;color:var(--accent)}
-.cust-summary>div:first-child .n{color:var(--sold)}
+.cust-summary>div:first-child .n{color:var(--sold-ink)}
 .cust-summary .d{font-size:11px;color:var(--t3);margin-top:2px}
 .cust-card{width:100%;text-align:left;background:var(--s1);border:1px solid var(--line);
   border-radius:var(--radius-sm);padding:15px 16px;margin-bottom:10px;display:block;
@@ -368,7 +369,7 @@ input,select,textarea{font:inherit;color:var(--t1)}
 .cel-inner{text-align:center;animation:celpop .5s cubic-bezier(.2,1.4,.4,1)}
 .cel-inner .word{font-family:var(--disp);font-size:15px;letter-spacing:.34em;color:var(--accent);
   text-transform:uppercase;font-weight:700}
-.cel-inner .big{font-size:64px;font-weight:800;color:var(--sold);letter-spacing:-.02em;margin:6px 0}
+.cel-inner .big{font-size:64px;font-weight:800;color:var(--sold-ink);letter-spacing:-.02em;margin:6px 0}
 .cel-inner .comm{font-size:20px;color:var(--accent);font-weight:800}
 .cel-inner .sub{color:var(--t2);font-size:14px;margin-top:10px}
 @keyframes celpop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}

@@ -24,8 +24,8 @@
     $("#st-dms-sub").textContent = `${fmtPct(t.dms, t.convos)} of convos · ${w.dms} this week`;
 
     // funnel (today)
-    bar($("#f-doors"), t.doors, t.doors, "#CBD7E8");
-    bar($("#f-convos"), t.convos, t.doors, "#8FA6C9");
+    bar($("#f-doors"), t.doors, t.doors, "#6E89AC");
+    bar($("#f-convos"), t.convos, t.doors, "#4A6E9C");
     bar($("#f-dms"), t.dms, t.doors, "var(--accent)");
     bar($("#f-sales"), t.sales, t.doors, "var(--sold)");
     $("#fv-doors").textContent = t.doors;

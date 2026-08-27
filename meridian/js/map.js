@@ -87,12 +87,17 @@
   async function buildStyle() {
     let style = null;
     try {
-      // hard timeout: a hanging fetch on flaky signal must never delay the map
+      // hard timeout: a hanging fetch on flaky signal must never delay the map.
+      // The timer stays armed through the BODY read too — an abort mid-body
+      // rejects json() and drops us to the raster fallback.
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 6000);
-      const r = await fetch(VECTOR_STYLE_URL, { signal: ctrl.signal });
-      clearTimeout(t);
-      if (r.ok) style = appleize(await r.json());
+      try {
+        const r = await fetch(VECTOR_STYLE_URL, { signal: ctrl.signal });
+        if (r.ok) style = appleize(await r.json());
+      } finally {
+        clearTimeout(t);
+      }
     } catch (_) { /* offline or slow first run — raster fallback below */ }
     if (!style) style = rasterFallbackStyle();
     BASEMAPS.street = style.layers.map((l) => l.id);

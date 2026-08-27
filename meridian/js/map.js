@@ -16,6 +16,7 @@
   let currentLead = null;
   let BASEMAPS = { street: [], satellite: ["base-sat"], hybrid: ["base-sat", "base-hyb-labels"] };
   let HYB_FALLBACK = ["base-sat", "base-hyb-labels"]; // what hybrid uses without a Google key
+  let lastGoogleError = ""; // Google's own explanation when imagery is refused
   const ALL_BASE = new Set(); // every basemap layer id ever registered
 
   const SUBS = ["a", "b", "c", "d"];
@@ -171,30 +172,65 @@
         highDpi: true, scale: "scaleFactor2x",
       };
       if (kind === "hybrid") body.layerTypes = ["layerRoadmap"];
-      const r = await fetch(
-        "https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(s.googleKey),
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-      );
-      if (!r.ok) return null;
-      const j = await r.json();
+      // never let a hanging request freeze the settings screen
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
+      let r;
+      try {
+        r = await fetch(
+          "https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(s.googleKey),
+          { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body), signal: ctrl.signal }
+        );
+      } finally {
+        clearTimeout(t);
+      }
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j || !j.session) {
+        // Surface Google's own words — "enable the API", "billing", "bad key" —
+        // so the fix is obvious instead of a dead end.
+        lastGoogleError = (j && j.error && j.error.message) || ("HTTP " + r.status);
+        return null;
+      }
+      lastGoogleError = "";
       s.googleSessions = Object.assign({}, s.googleSessions, {
         [kind]: { session: j.session, expiry: j.expiry },
       });
       STORE.saveSettings();
       return j.session;
-    } catch (_) { return null; }
+    } catch (err) {
+      lastGoogleError = !navigator.onLine
+        ? "You're offline — connect and try again"
+        : (err && err.name === "AbortError")
+          ? "Google didn't respond in time — try again"
+          : "Couldn't reach Google — check your connection";
+      return null;
+    }
   }
 
   // Called after map load and whenever the key changes: swaps Satellite and
   // Hybrid onto Google tiles when a session is available. Fallback stays wired.
   async function reloadImagery() {
-    if (!map) return;
     const key = STORE.settings.googleKey;
     const kinds = [["satellite", "g-sat"], ["hybrid", "g-hyb"]];
-    let upgraded = false;
-    for (const [kind, layerId] of kinds) {
-      const sess = key ? await googleSession(kind) : null;
-      if (sess && !map.getSource(layerId)) {
+    let keyWorks = false;
+    // Validate the key FIRST, independent of the map — the map can still be
+    // building its style when a rep saves a key, and a valid key must never
+    // be reported as rejected just because we weren't ready yet.
+    const sessions = await Promise.all(
+      kinds.map(([kind]) => (key ? googleSession(kind) : Promise.resolve(null)))
+    );
+    for (let i = 0; i < kinds.length; i++) {
+      const [kind, layerId] = kinds[i];
+      const sess = sessions[i];
+      if (!sess) {
+        BASEMAPS[kind] = kind === "hybrid" ? HYB_FALLBACK.slice() : ["base-sat"];
+        continue;
+      }
+      keyWorks = true;
+      const styleReady = map && map.isStyleLoaded && map.isStyleLoaded();
+      if (!styleReady) continue; // style.load re-runs this with the cached session
+      if (!map.getSource(layerId)) {
         try {
           map.addSource(layerId, {
             type: "raster",
@@ -206,18 +242,15 @@
             { id: layerId, type: "raster", source: layerId, layout: { visibility: "none" } },
             map.getLayer("pins-shadow") ? "pins-shadow" : undefined
           );
-        } catch (_) { continue; } // style mid-load — next reload picks it up
+        } catch (_) { continue; }
       }
-      if (sess && map.getLayer(layerId)) {
+      if (map.getLayer(layerId)) {
         BASEMAPS[kind] = [layerId];
         ALL_BASE.add(layerId);
-        upgraded = true;
-      } else {
-        BASEMAPS[kind] = kind === "hybrid" ? HYB_FALLBACK.slice() : ["base-sat"];
       }
     }
-    applyBasemap(STORE.settings.basemap);
-    return upgraded;
+    if (map) applyBasemap(STORE.settings.basemap);
+    return keyWorks;
   }
 
   function applyBasemap(mode) {
@@ -628,6 +661,7 @@
 
   window.MMAP = {
     init, refreshPins, updateBrandToday, focusPin, reloadImagery,
+    googleError: () => lastGoogleError,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
     resize: () => { if (map) map.resize(); },
   };

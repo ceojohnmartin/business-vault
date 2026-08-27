@@ -3,17 +3,61 @@
   const { $, $$, openSheet, closeSheet, toast, fmtMoney } = MUI;
 
   // ---------- tabs ----------
-  const SCREENS = ["map", "stats", "rank", "guide", "more"];
+  const SCREENS = ["customers", "map", "stats", "rank", "guide", "more"];
   function show(name) {
     SCREENS.forEach((s) => {
       $("#screen-" + s).classList.toggle("active", s === name);
       $("#tab-" + s).classList.toggle("active", s === name);
     });
+    if (name === "customers") renderCustomers();
     if (name === "map" && window.MMAP) MMAP.resize();
     if (name === "stats") MSTAT.render();
     if (name === "rank") renderRank();
     if (name === "guide") renderGuide($("#guide-q").value);
     if (name === "more") renderMore();
+  }
+
+  // ---------- customers (the launch screen) ----------
+  function renderCustomers() {
+    const q = ($("#cust-q").value || "").trim().toLowerCase();
+    const all = STORE.customers.slice().reverse();
+    const list = all.filter((c) =>
+      !q || (c.first + " " + c.last).toLowerCase().includes(q) ||
+      (c.address || "").toLowerCase().includes(q));
+
+    const firstYear = (c) => (c.initial || 0) + (c.monthly || 0) * (c.termMonths || 12);
+    $("#cust-summary").hidden = all.length === 0;
+    $("#cust-export").hidden = all.length === 0;
+    $("#cust-count").textContent = all.length;
+    $("#cust-value").textContent = MUI.fmtMoney(all.reduce((s, c) => s + firstYear(c), 0));
+    $("#cust-queued").textContent = STORE.queuedCount();
+
+    if (!all.length) {
+      $("#cust-list").innerHTML =
+        `<div class="empty"><div class="ic">🗺️</div>No customers yet.<br>Hit the Map, knock some doors, and your book builds itself.</div>`;
+      return;
+    }
+    $("#cust-list").innerHTML = list.map((c) =>
+      `<button class="cust-card" data-cid="${c.id}" type="button">
+         <div class="top"><span class="nm">${esc(c.first)} ${esc(c.last)}</span>
+           <span class="val num">${MUI.fmtMoney(firstYear(c))}/yr</span></div>
+         <div class="meta">${esc(c.address) || "No address"}${c.phone ? " · " + esc(c.phone) : ""}</div>
+         <div class="meta">${esc(c.planName)} · ${MUI.fmtMoney(c.initial)} first + ${MUI.fmtMoney(c.monthly)}/mo · signed ${new Date(c.signedAt).toLocaleDateString()}</div>
+         <div class="row2">
+           <span class="q-status ${c.status === "queued" ? "queued" : "sold"}">${c.status === "queued" ? "Queued for FieldRoutes" : "Synced"}</span>
+           ${c.pinId ? '<span class="q-status sold" style="background:transparent;border-color:var(--line);color:var(--t3)">View on map ›</span>' : ""}
+         </div>
+       </button>`
+    ).join("") || `<div class="empty">Nothing matches “${esc(q)}”.</div>`;
+
+    $$("#cust-list .cust-card").forEach((b) =>
+      b.addEventListener("click", () => {
+        const c = STORE.customers.find((x) => x.id === b.dataset.cid);
+        if (c && c.pinId && window.MMAP) {
+          show("map");
+          MMAP.focusPin(c.pinId);
+        }
+      }));
   }
 
   // ---------- rankings ----------
@@ -157,6 +201,7 @@
       g.addEventListener("click", () => { closeSheet(); MMAP.clearSelection(); }));
     $("#sync-chip").addEventListener("click", () => MCLOSE.openQueue());
     $("#guide-q").addEventListener("input", (e) => renderGuide(e.target.value));
+    $("#cust-q").addEventListener("input", renderCustomers);
     $$(".mtab").forEach((b) =>
       b.addEventListener("click", () => {
         rankMetric = b.dataset.m;
@@ -167,8 +212,10 @@
     bindMore();
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }
     MSTAT.render();
+    renderCustomers();
     renderGuide("");
     renderMore();
+    window.MAPP = { show, renderCustomers };
 
     // keep a focused input visible above the on-screen keyboard inside sheets
     document.addEventListener("focusin", (e) => {

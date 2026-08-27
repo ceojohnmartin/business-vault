@@ -1,6 +1,9 @@
 /* Meridian — the knocking map.
-   Dark raster basemap (CARTO), GPU circle-layer pins colored by disposition,
-   tap-to-knock, lead sheets, and a locate puck. All pin data is local-first. */
+   Street view is a custom light vector cartography (OpenFreeMap positron
+   tiles restyled to a clean Apple-Maps-like palette — crisp at every zoom).
+   Satellite/Hybrid ride Esri imagery. Pins are GPU circle layers with a
+   soft shadow and white ring. All pin data is local-first; if the style
+   can't be fetched offline on first run, a raster fallback loads instead. */
 (function () {
   const { $, $$, openSheet, closeSheet, toast, tick } = MUI;
   const D = MDATA.DISPOSITIONS;
@@ -11,52 +14,111 @@
   let selectedPinId = "";
   let knock = null; // {mode:'new'|'re', lat, lng, pinId, disposition, reason, dm}
   let currentLead = null;
+  let BASEMAPS = { street: [], satellite: ["base-sat"], hybrid: ["base-sat", "base-hyb-labels"] };
 
   const SUBS = ["a", "b", "c", "d"];
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
-  const STYLE = {
-    version: 8,
-    sources: {
-      carto: {
-        type: "raster",
-        tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png`),
-        tileSize: 256,
-        attribution: "© OpenStreetMap contributors © CARTO",
+  const VECTOR_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+
+  // ---------- the Apple-2026 light palette ----------
+  const APPLE = {
+    land: "#F6F5F1", residential: "#EFEEE8", park: "#CBE7B9", wood: "#C6E2B0",
+    water: "#A5CDF5", building: "#ECEAE3", buildingLine: "#E1DED6",
+    road: "#FFFFFF", roadCasing: "#E2DFD7",
+    motorway: "#FBD879", motorwayCasing: "#EFBC50",
+    tunnel: "#F7F0DE", tunnelCasing: "#EDE3C8",
+    rail: "#DDD9E4", boundary: "#C8C2D4", runway: "#ECEAE3",
+    placeText: "#26303E", minorPlaceText: "#5A6575",
+    roadText: "#6E7A8A", waterText: "#4A80C4", halo: "#FFFFFF",
+  };
+
+  // Recolor the positron layer set into the palette above.
+  function appleize(style) {
+    const set = (l, prop, val) => { (l.paint = l.paint || {})[prop] = val; };
+    style.layers.forEach((l) => {
+      const id = l.id;
+      if (id === "background") set(l, "background-color", APPLE.land);
+      else if (id === "park") { set(l, "fill-color", APPLE.park); set(l, "fill-opacity", 0.75); }
+      else if (id === "landuse_residential") { set(l, "fill-color", APPLE.residential); set(l, "fill-opacity", 0.6); }
+      else if (id === "landcover_wood") { set(l, "fill-color", APPLE.wood); set(l, "fill-opacity", 0.35); }
+      else if (id === "water" || id === "waterway") {
+        set(l, l.type === "line" ? "line-color" : "fill-color", APPLE.water);
+      } else if (id === "building") {
+        set(l, "fill-color", APPLE.building); set(l, "fill-outline-color", APPLE.buildingLine);
+      } else if (/aeroway/.test(id)) {
+        set(l, l.type === "line" ? "line-color" : "fill-color", APPLE.runway);
+      } else if (/^railway/.test(id)) set(l, "line-color", APPLE.rail);
+      else if (/^boundary/.test(id)) set(l, "line-color", APPLE.boundary);
+      else if (l.type === "line" && /motorway/.test(id) && /casing/.test(id)) {
+        set(l, "line-color", /tunnel/.test(id) ? APPLE.tunnelCasing : APPLE.motorwayCasing);
+      } else if (l.type === "line" && /motorway/.test(id)) {
+        set(l, "line-color", /tunnel/.test(id) ? APPLE.tunnel : APPLE.motorway);
+      } else if (l.type === "line" && /casing/.test(id)) set(l, "line-color", APPLE.roadCasing);
+      else if (/^highway|^road_pier/.test(id) && l.type === "line") set(l, "line-color", APPLE.road);
+      else if (id === "road_area_pier") set(l, "fill-color", APPLE.land);
+      else if (l.type === "symbol") {
+        const txt = /highway|road_shield/.test(id) ? APPLE.roadText
+          : /water/.test(id) ? APPLE.waterText
+          : /label_state|label_other|airport/.test(id) ? APPLE.minorPlaceText
+          : APPLE.placeText;
+        set(l, "text-color", txt);
+        set(l, "text-halo-color", APPLE.halo);
+        set(l, "text-halo-width", 1.1);
+      }
+    });
+    return style;
+  }
+
+  function rasterFallbackStyle() {
+    return {
+      version: 8,
+      sources: {
+        carto: {
+          type: "raster",
+          tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png`),
+          tileSize: 256,
+          attribution: "© OpenStreetMap contributors © CARTO",
+        },
       },
-      // tileSize 128 makes MapLibre fetch two zoom levels deeper than it
-      // displays — retina-sharp imagery instead of soft standard-def tiles
-      sat: {
-        type: "raster",
-        tiles: [`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`],
-        tileSize: 128, maxzoom: 19,
-        attribution: "© Esri, Maxar, Earthstar Geographics",
-      },
-      // modern crisp street/place labels over imagery (replaces Esri's
-      // dated yellow-road reference layers)
-      "hyb-labels": {
-        type: "raster",
-        tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png`),
-        tileSize: 256,
-      },
-    },
-    // all basemap layers exist at once; the picker just flips visibility
-    layers: [
-      { id: "base-street", type: "raster", source: "carto", layout: { visibility: "none" } },
+      layers: [{ id: "base-street", type: "raster", source: "carto" }],
+    };
+  }
+
+  async function buildStyle() {
+    let style = null;
+    try {
+      // hard timeout: a hanging fetch on flaky signal must never delay the map
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 6000);
+      const r = await fetch(VECTOR_STYLE_URL, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (r.ok) style = appleize(await r.json());
+    } catch (_) { /* offline or slow first run — raster fallback below */ }
+    if (!style) style = rasterFallbackStyle();
+    BASEMAPS.street = style.layers.map((l) => l.id);
+
+    // imagery modes ride on top of the street layers
+    style.sources.sat = {
+      type: "raster",
+      tiles: [`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`],
+      tileSize: 128, maxzoom: 19, // half tileSize = retina oversampling
+      attribution: "© Esri, Maxar, Earthstar Geographics",
+    };
+    style.sources["hyb-labels"] = {
+      type: "raster",
+      tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png`),
+      tileSize: 256,
+    };
+    style.layers.push(
       { id: "base-sat", type: "raster", source: "sat", layout: { visibility: "none" },
         paint: { "raster-contrast": 0.06, "raster-saturation": -0.05 } },
-      { id: "base-hyb-labels", type: "raster", source: "hyb-labels", layout: { visibility: "none" } },
-    ],
-  };
-
-  // which base layers each mode shows
-  const BASEMAPS = {
-    street: ["base-street"],
-    satellite: ["base-sat"],
-    hybrid: ["base-sat", "base-hyb-labels"],
-  };
+      { id: "base-hyb-labels", type: "raster", source: "hyb-labels", layout: { visibility: "none" } }
+    );
+    return style;
+  }
 
   function applyBasemap(mode) {
-    if (!BASEMAPS[mode]) mode = "hybrid";
+    if (!BASEMAPS[mode]) mode = "street";
     STORE.settings.basemap = mode;
     STORE.saveSettings();
     if (map) {
@@ -82,6 +144,8 @@
     };
   }
 
+  const PIN_RADIUS = ["interpolate", ["linear"], ["zoom"], 10, 3, 14, 6.5, 17, 10.5];
+
   function init() {
     if (typeof maplibregl === "undefined") {
       const hint = $("#knock-hint");
@@ -92,83 +156,14 @@
       return;
     }
     const s = STORE.settings;
-    map = new maplibregl.Map({
-      container: "map",
-      style: STYLE,
-      center: s.lastCenter || [-98.35, 39.5],
-      zoom: s.lastZoom != null ? s.lastZoom : (s.lastCenter ? 16 : 4),
-      attributionControl: { compact: true },
-      maxPitch: 0,
-      dragRotate: false,
-    });
-    map.touchZoomRotate.disableRotation();
-    // Failed tile fetches are routine in dead zones — never surface them as errors.
-    map.on("error", (e) => {
-      if (e && e.error && /tile|source|ajax|fetch/i.test(String(e.error.message || ""))) return;
-    });
+    // one-time migration: the clean vector street map becomes the default view
+    if (!s.mapV2) { s.mapV2 = true; s.basemap = "street"; STORE.saveSettings(); }
 
-    // style.load fires as soon as the inline style parses — pins render and
-    // knocking works even if the tile server is unreachable (dead zones, first run offline)
-    map.on("style.load", () => {
-      map.addSource("pins", { type: "geojson", data: pinsGeoJSON() });
-      map.addLayer({
-        id: "pins-circle",
-        type: "circle",
-        source: "pins",
-        paint: {
-          "circle-color": ["match", ["get", "disposition"],
-            "sold", D.sold.color, "goback", D.goback.color, "nothome", D.nothome.color,
-            "notint", D.notint.color, "dnk", D.dnk.color, "#8A93A6"],
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 14, 6.5, 17, 10.5],
-          "circle-stroke-width": ["case", ["==", ["get", "disposition"], "dnk"], 2, 1.5],
-          "circle-stroke-color": ["case", ["==", ["get", "disposition"], "dnk"], "#F3F5F9", "#0B0E14"],
-        },
-      });
-      map.addLayer({
-        id: "pins-selected",
-        type: "circle",
-        source: "pins",
-        filter: ["==", ["get", "id"], ""],
-        paint: {
-          "circle-color": "rgba(0,0,0,0)",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 14, 12, 17, 16],
-          "circle-stroke-width": 2.5,
-          "circle-stroke-color": "#D9B36C",
-        },
-      });
-      applyBasemap(STORE.settings.basemap);
-      refreshPins();
-    });
-
-    map.on("click", (e) => {
-      // 14px tolerance box: fat-fingering near a pin opens it instead of
-      // silently creating a duplicate door
-      const T = 14;
-      const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
-      const hits = map.getLayer("pins-circle")
-        ? map.queryRenderedFeatures(bbox, { layers: ["pins-circle"] })
-        : [];
-      if (hits.length) {
-        const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);
-        if (pin) openLead(pin);
-      } else {
-        startKnock(e.lngLat.lat, e.lngLat.lng);
-      }
-    });
-
-    let saveT = null;
-    map.on("moveend", () => {
-      clearTimeout(saveT);
-      saveT = setTimeout(() => {
-        const c = map.getCenter();
-        STORE.settings.lastCenter = [c.lng, c.lat];
-        STORE.settings.lastZoom = map.getZoom();
-        STORE.saveSettings();
-      }, 600);
-    });
-
+    bindKnockSheet();
+    bindLeadSheet();
     $("#fab-locate").addEventListener("click", locate);
     $("#fab-knock").addEventListener("click", () => {
+      if (!map) return;
       const c = map.getCenter();
       startKnock(c.lat, c.lng);
     });
@@ -182,11 +177,97 @@
         applyBasemap(b.dataset.bm);
         $("#layer-menu").hidden = true;
       }));
-    map.on("dragstart", () => { $("#layer-menu").hidden = true; });
     updateHint();
     updateBrandToday();
-    bindKnockSheet();
-    bindLeadSheet();
+
+    buildStyle().then((style) => {
+      map = new maplibregl.Map({
+        container: "map",
+        style,
+        center: s.lastCenter || [-98.35, 39.5],
+        zoom: s.lastZoom != null ? s.lastZoom : (s.lastCenter ? 16 : 4),
+        attributionControl: { compact: true },
+        maxPitch: 0,
+        dragRotate: false,
+      });
+      map.touchZoomRotate.disableRotation();
+      // Failed tile fetches are routine in dead zones — never surface them as errors.
+      map.on("error", (e) => {
+        if (e && e.error && /tile|source|ajax|fetch/i.test(String(e.error.message || ""))) return;
+      });
+
+      map.on("style.load", () => {
+        map.addSource("pins", { type: "geojson", data: pinsGeoJSON() });
+        // soft drop shadow so pins float, Apple-style, on any ground
+        map.addLayer({
+          id: "pins-shadow",
+          type: "circle",
+          source: "pins",
+          paint: {
+            "circle-color": "rgba(16,24,40,.28)",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4.5, 14, 8.5, 17, 13],
+            "circle-blur": 0.9,
+            "circle-translate": [0, 1.5],
+          },
+        });
+        map.addLayer({
+          id: "pins-circle",
+          type: "circle",
+          source: "pins",
+          paint: {
+            "circle-color": ["match", ["get", "disposition"],
+              "sold", D.sold.color, "goback", D.goback.color, "nothome", D.nothome.color,
+              "notint", D.notint.color, "dnk", D.dnk.color, "#8A93A6"],
+            "circle-radius": PIN_RADIUS,
+            "circle-stroke-width": ["case", ["==", ["get", "disposition"], "dnk"], 2.25, 1.75],
+            "circle-stroke-color": "#FFFFFF",
+          },
+        });
+        map.addLayer({
+          id: "pins-selected",
+          type: "circle",
+          source: "pins",
+          filter: ["==", ["get", "id"], ""],
+          paint: {
+            "circle-color": "rgba(0,0,0,0)",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 14, 12, 17, 16],
+            "circle-stroke-width": 2.5,
+            "circle-stroke-color": "#0A6CF0",
+          },
+        });
+        applyBasemap(STORE.settings.basemap);
+        refreshPins();
+      });
+
+      map.on("click", (e) => {
+        // 14px tolerance box: fat-fingering near a pin opens it instead of
+        // silently creating a duplicate door
+        const T = 14;
+        const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
+        const hits = map.getLayer("pins-circle")
+          ? map.queryRenderedFeatures(bbox, { layers: ["pins-circle"] })
+          : [];
+        if (hits.length) {
+          const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);
+          if (pin) openLead(pin);
+        } else {
+          startKnock(e.lngLat.lat, e.lngLat.lng);
+        }
+      });
+
+      map.on("dragstart", () => { $("#layer-menu").hidden = true; });
+
+      let saveT = null;
+      map.on("moveend", () => {
+        clearTimeout(saveT);
+        saveT = setTimeout(() => {
+          const c = map.getCenter();
+          STORE.settings.lastCenter = [c.lng, c.lat];
+          STORE.settings.lastZoom = map.getZoom();
+          STORE.saveSettings();
+        }, 600);
+      });
+    });
   }
 
   function refreshPins() {
@@ -221,7 +302,7 @@
 
   // ---------- locate ----------
   function locate() {
-    if (!navigator.geolocation) { toast("Location not available on this device"); return; }
+    if (!navigator.geolocation || !map) { toast("Location not available"); return; }
     const btn = $("#fab-locate");
     btn.classList.add("armed");
     navigator.geolocation.getCurrentPosition(
@@ -232,7 +313,7 @@
         if (!puck) {
           const el = document.createElement("div");
           el.style.cssText =
-            "width:16px;height:16px;border-radius:50%;background:#4D8DFF;border:3px solid #fff;box-shadow:0 0 0 6px rgba(77,141,255,.25)";
+            "width:16px;height:16px;border-radius:50%;background:#0A6CF0;border:3px solid #fff;box-shadow:0 0 0 6px rgba(10,108,240,.22),0 1px 4px rgba(16,24,40,.3)";
           puck = new maplibregl.Marker({ element: el }).setLngLat([longitude, latitude]).addTo(map);
         } else {
           puck.setLngLat([longitude, latitude]);
@@ -248,11 +329,11 @@
     knock = pin
       ? { mode: "re", pinId: pin.id, lat: pin.lat, lng: pin.lng, disposition: null, reason: null, dm: false }
       : { mode: "new", lat, lng, disposition: null, reason: null, dm: false };
-    if (!pin) {
+    if (!pin && map) {
       if (tempMarker) tempMarker.remove();
       const el = document.createElement("div");
       el.style.cssText =
-        "width:18px;height:18px;border-radius:50%;background:rgba(217,179,108,.25);border:2px solid #D9B36C";
+        "width:18px;height:18px;border-radius:50%;background:rgba(10,108,240,.2);border:2px solid #0A6CF0";
       tempMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
     }
     // reset sheet

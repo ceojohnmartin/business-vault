@@ -4,8 +4,8 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "meridian-v5";
-const TILE_CACHE = "meridian-tiles-v2";
+const CACHE = "meridian-v6";
+const TILE_CACHE = "meridian-tiles-v3";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
 
@@ -91,8 +91,11 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(networkFirstShell(e.request));
   } else if (
     url.hostname.endsWith("basemaps.cartocdn.com") ||
-    url.hostname.endsWith("arcgisonline.com")
+    url.hostname.endsWith("arcgisonline.com") ||
+    url.hostname.endsWith("tiles.openfreemap.org")
   ) {
+    // vector style + glyphs + sprites + tiles all cache here, so the
+    // street map keeps working offline after first load
     e.respondWith(cacheFirst(e.request, TILE_CACHE, trimTiles));
   } else if (/fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) {
     e.respondWith(cacheFirst(e.request, CACHE));

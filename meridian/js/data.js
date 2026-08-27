@@ -3,11 +3,11 @@
   // Disposition system. Colors are the app's entire chromatic language —
   // identical on pins, badges, funnels and history rows.
   const DISPOSITIONS = {
-    sold:    { label: "Sold",           color: "#2FD576", contact: true  },
-    goback:  { label: "Go Back",        color: "#A78BFA", contact: true  },
-    nothome: { label: "Not Home",       color: "#FFD24A", contact: false },
-    notint:  { label: "Not Interested", color: "#FF5449", contact: true  },
-    dnk:     { label: "Do Not Knock",   color: "#06070A", contact: false },
+    sold:    { label: "Sold",           color: "#22B558", contact: true  },
+    goback:  { label: "Go Back",        color: "#7C5CFC", contact: true  },
+    nothome: { label: "Not Home",       color: "#F5B301", contact: false },
+    notint:  { label: "Not Interested", color: "#E5484D", contact: true  },
+    dnk:     { label: "Do Not Knock",   color: "#0B0F16", contact: false },
   };
 
   // Why they said no — ranked by how often each appears in real

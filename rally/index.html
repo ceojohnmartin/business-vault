@@ -479,15 +479,10 @@
   <div class="sheet" id="gmaps-sheet">
     <div class="grab"></div>
     <h2>Google map imagery</h2>
-    <div class="sub">Paste a Google Maps API key and Satellite + Hybrid render actual Google Maps tiles — the same vivid imagery and street labels the big sales apps use. The key stays on this device. Your Google project needs the <b>Map Tiles API</b> enabled.</div>
-    <ol style="font-size:13.5px;color:var(--t2);padding-left:20px;margin-bottom:14px;display:grid;gap:6px">
-      <li>Go to <b>console.cloud.google.com</b> → create a project (any name).</li>
-      <li>Search "<b>Map Tiles API</b>" → Enable. (Billing must be on; the free tier covers you.)</li>
-      <li>APIs &amp; Services → Credentials → <b>Create API key</b> → copy it here.</li>
-    </ol>
-    <div class="field"><label for="set-gkey">Google Maps API key</label><input id="set-gkey" autocapitalize="off" autocomplete="off" placeholder="AIza…"></div>
+    <div class="sub">RALLY ships with the office's Google key — Satellite and Hybrid render actual Google Maps tiles out of the box, the same vivid imagery and street labels the big sales apps use. Paste a different key below only to override it on this device (your Google project needs the <b>Map Tiles API</b> enabled).</div>
+    <div class="field"><label for="set-gkey">Override API key (optional)</label><input id="set-gkey" autocapitalize="off" autocomplete="off" placeholder="Using the built-in office key"></div>
     <button class="btn btn-gold" id="gmaps-save">Save &amp; switch imagery</button>
-    <p style="font-size:12px;color:var(--t3);margin-top:10px">Stored only on this device. Clear the field to go back to the free imagery.</p>
+    <p style="font-size:12px;color:var(--t3);margin-top:10px">Stored only on this device. Clear the field to go back to the office key.</p>
   </div>
 
   <div id="toast" role="status"></div>

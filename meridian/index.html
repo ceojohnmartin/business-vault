@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Meridian — Door-to-Door Sales</title>
+<meta name="description" content="The premium door-to-door pest control sales app: knocking map, DM tracking, agreements on the glass, and your numbers live.">
+<meta name="theme-color" content="#0B0E14">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Outfit:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= MAP ================= -->
+  <div class="screen active" id="screen-map">
+    <div id="mapwrap"><div id="map"></div></div>
+    <div class="map-chrome">
+      <div class="map-brand">
+        <div class="wordmark">MERIDIAN</div>
+        <div class="today" id="brand-today">0 doors today</div>
+      </div>
+      <div class="map-actions">
+        <button class="fab" id="fab-locate" aria-label="Center on my location">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+        </button>
+        <button class="fab" id="fab-knock" aria-label="Log a door at map center">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="sync-chip" id="sync-chip" hidden><span class="dot"></span><span id="sync-chip-n"></span></button>
+    <div class="knock-hint" id="knock-hint">Tap the map to log your first door</div>
+    <div class="legend" id="map-legend" hidden aria-hidden="true">
+      <div class="li"><span class="sw" style="background:#2FD576"></span>Sold</div>
+      <div class="li"><span class="sw" style="background:#A78BFA"></span>Go Back</div>
+      <div class="li"><span class="sw" style="background:#FFD24A"></span>Not Home</div>
+      <div class="li"><span class="sw" style="background:#FF5449"></span>Not Interested</div>
+      <div class="li"><span class="sw" style="background:#06070A;box-shadow:0 0 0 1.5px rgba(243,245,249,.8)"></span>Do Not Knock</div>
+    </div>
+  </div>
+
+  <!-- ================= STATS ================= -->
+  <div class="screen" id="screen-stats">
+    <div class="brandbar"><span class="wordmark">MERIDIAN</span><span class="sub">Your numbers</span></div>
+
+    <div class="hero-stat">
+      <div class="lbl">Sales today</div>
+      <div class="big num" id="st-sales-today">0</div>
+      <div class="row2"><span id="st-week-line"></span></div>
+    </div>
+
+    <div class="cards2">
+      <div class="stat-card">
+        <div class="lbl">Doors today</div>
+        <div class="val num" id="st-doors">0</div>
+        <div class="sub" id="st-doors-sub"></div>
+      </div>
+      <div class="stat-card dm-card">
+        <div class="lbl">DM convos</div>
+        <div class="val num" id="st-dms">0</div>
+        <div class="sub" id="st-dms-sub"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Today's funnel <span class="r">doors → convos → DMs → sales</span></h3>
+      <div class="funnel">
+        <div class="f-step"><span class="fl">Doors</span><div class="bar"><div class="fill" id="f-doors"></div></div><span class="fv num" id="fv-doors">0</span></div>
+        <div class="f-step"><span class="fl">Convos</span><div class="bar"><div class="fill" id="f-convos"></div></div><span class="fv num" id="fv-convos">0</span></div>
+        <div class="f-step"><span class="fl" title="Decision-maker conversations">DMs</span><div class="bar"><div class="fill" id="f-dms"></div></div><span class="fv num" id="fv-dms">0</span></div>
+        <div class="f-step"><span class="fl">Sales</span><div class="bar"><div class="fill" id="f-sales"></div></div><span class="fv num" id="fv-sales">0</span></div>
+        <div class="f-step" style="grid-template-columns:1fr"><span class="f-conv" id="fc-convos"></span></div>
+        <div class="f-step" style="grid-template-columns:1fr"><span class="f-conv" id="fc-dms"></span></div>
+        <div class="f-step" style="grid-template-columns:1fr"><span class="f-conv" id="fc-sales"></span></div>
+      </div>
+      <p style="font-size:11.5px;color:var(--t3);margin-top:12px">A DM is the decision-maker — the homeowner or spouse who can sign. “Ask my spouse” counts as a convo, not a DM.</p>
+    </div>
+
+    <div class="panel">
+      <h3>Last 14 days <span class="r"><span style="color:var(--sold)">■</span> sales · <span style="color:var(--t3)">■</span> doors</span></h3>
+      <div class="chart" id="chart"></div>
+      <div class="chart-x" id="chart-x"></div>
+    </div>
+
+    <div class="cards2">
+      <div class="stat-card">
+        <div class="lbl">Streak</div>
+        <div class="streak-row" style="margin-top:6px">
+          <div class="streak-flame">🔥</div>
+          <div><div class="n num" id="st-streak">0</div><div class="d" id="st-streak-sub">days at goal</div></div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="lbl">Commission · week</div>
+        <div class="money num" id="st-money-week" style="font-size:30px">$0</div>
+        <div class="money-sub" id="st-money-all"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= RANKINGS ================= -->
+  <div class="screen" id="screen-rank">
+    <div class="brandbar"><span class="wordmark">MERIDIAN</span><span class="sub">This week</span></div>
+    <div class="metric-tabs">
+      <button class="mtab active" data-m="sales">Sales</button>
+      <button class="mtab" data-m="dms">DMs</button>
+      <button class="mtab" data-m="doors">Doors</button>
+    </div>
+    <div class="rank-list" id="rank-list"></div>
+    <p class="demo-note">Teammates shown are demo data — live team sync arrives with team accounts. Your row is real.</p>
+  </div>
+
+  <!-- ================= FIELD GUIDE ================= -->
+  <div class="screen" id="screen-guide">
+    <div class="brandbar"><span class="wordmark">MERIDIAN</span><span class="sub">Field guide</span></div>
+    <div class="guide-search"><input id="guide-q" type="search" placeholder="Search pests — ants, widow, mud tubes…" autocomplete="off"></div>
+    <div class="guide-grid" id="guide-grid"></div>
+  </div>
+
+  <!-- ================= MORE ================= -->
+  <div class="screen" id="screen-more">
+    <div class="brandbar"><span class="wordmark">MERIDIAN</span><span class="sub">Setup</span></div>
+    <div class="more-list">
+      <button class="more-item" id="more-queue"><span class="ic">📋</span><span><span class="tt">Agreements &amp; sync queue</span><br><span class="dd" id="more-queue-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-profile"><span class="ic">👤</span><span><span class="tt">Profile</span><br><span class="dd" id="more-profile-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-reset"><span class="ic">🗑️</span><span><span class="tt">Erase all data</span><br><span class="dd">Pins, knocks and agreements on this device</span></span><span class="chev">›</span></button>
+    </div>
+    <p style="font-size:12px;color:var(--t3);text-align:center;margin-top:22px">Meridian · Phase 1 · Everything stays on your device and works offline.</p>
+  </div>
+
+  <!-- ================= TAB BAR ================= -->
+  <nav id="tabbar">
+    <button class="tab active" id="tab-map"><svg viewBox="0 0 24 24"><path d="M9 3 3.6 5.4a1 1 0 0 0-.6.9v13.2a.5.5 0 0 0 .7.5L9 18l6 3 5.4-2.4a1 1 0 0 0 .6-.9V4.5a.5.5 0 0 0-.7-.5L15 6 9 3Z"/><path d="M9 3v15M15 6v15"/></svg>Map</button>
+    <button class="tab" id="tab-stats"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Numbers</button>
+    <button class="tab" id="tab-rank"><svg viewBox="0 0 24 24"><path d="M5 8h14M5 8a3.5 3.5 0 0 1-3-4h20a3.5 3.5 0 0 1-3 4M5 8c0 5 3 8 7 8s7-3 7-8M12 16v3M8 21h8"/></svg>Rankings</button>
+    <button class="tab" id="tab-guide"><svg viewBox="0 0 24 24"><path d="M4 19.5V5a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6.5a2.5 2.5 0 0 1-2.5-2.5Zm0 0A2.5 2.5 0 0 1 6.5 17H20"/><path d="M9 8h6M9 11.5h4"/></svg>Guide</button>
+    <button class="tab" id="tab-more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+  </nav>
+
+  <!-- ================= SHEETS ================= -->
+  <div class="sheet-veil" id="veil"></div>
+
+  <div class="sheet" id="knock-sheet">
+    <div class="grab"></div>
+    <h2 id="knock-title">Log this door</h2>
+    <div class="sub" id="knock-sub">Pick what happened at the door</div>
+    <div class="disp-grid">
+      <button class="disp-btn sold-btn" data-d="sold"><span class="sw sold"></span>Sold 🎉</button>
+      <button class="disp-btn" data-d="goback"><span class="sw goback"></span>Go Back</button>
+      <button class="disp-btn" data-d="nothome"><span class="sw nothome"></span>Not Home</button>
+      <button class="disp-btn" data-d="notint"><span class="sw notint"></span>Not Interested</button>
+      <button class="disp-btn" data-d="dnk"><span class="sw dnk"></span>Do Not Knock</button>
+    </div>
+    <div id="knock-reasons-wrap" hidden>
+      <div class="sub" style="margin-bottom:8px">Why not?</div>
+      <div class="reasons">
+        <button class="reason" data-r="Has a competitor">Has a competitor</button>
+        <button class="reason" data-r="Not seeing bugs">Not seeing bugs</button>
+        <button class="reason" data-r="Need to ask spouse">Need to ask spouse</button>
+        <button class="reason" data-r="Too expensive">Too expensive</button>
+        <button class="reason" data-r="Renter, not owner">Renter, not owner</button>
+        <button class="reason" data-r="Does it themselves">Does it themselves</button>
+        <button class="reason" data-r="Bad timing / moving">Bad timing / moving</button>
+        <button class="reason" data-r="Wants info first">Wants info first</button>
+        <button class="reason" data-r="No soliciting">No soliciting</button>
+        <button class="reason" data-r="Other">Other</button>
+      </div>
+    </div>
+    <div class="dm-row" id="knock-dm-wrap" hidden>
+      <div><div class="ttl">Spoke with the decision-maker?</div><div class="hint">Homeowner or spouse who can sign. “Ask my spouse” = a convo, not a DM.</div></div>
+      <button class="switch" id="dm-switch" aria-label="Decision-maker conversation"></button>
+    </div>
+    <div class="field"><label for="knock-note">Note (optional)</label><input id="knock-note" placeholder="Blue door, big dog, works nights…"></div>
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="knock-cancel">Cancel</button>
+      <button class="btn btn-gold" id="knock-save" disabled>Save door</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="lead-sheet">
+    <div class="grab"></div>
+    <div class="lead-head">
+      <div><div class="addr" id="lead-addr"></div><div class="coords num" id="lead-coords"></div></div>
+      <span class="badge" id="lead-badge"></span>
+    </div>
+    <div class="hist" id="lead-history"></div>
+    <div class="field"><label for="lead-addr-in">Address</label><input id="lead-addr-in" placeholder="123 Maple St"></div>
+    <div class="field"><label for="lead-note-in">Notes</label><textarea id="lead-note-in" placeholder="Anything the next knock should know"></textarea></div>
+    <button class="btn btn-gold" id="lead-close-btn" style="margin-bottom:10px">Sold — start agreement</button>
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="lead-reknock">Log another knock</button>
+      <button class="btn btn-ghost" id="lead-save">Save</button>
+    </div>
+    <button class="btn btn-danger" id="lead-delete" style="margin-top:10px">Delete pin</button>
+  </div>
+
+  <div class="sheet" id="pest-sheet">
+    <div class="grab"></div>
+    <div id="pest-body"></div>
+  </div>
+
+  <div class="sheet" id="close-sheet">
+    <div class="grab"></div>
+    <h2 id="close-title">New customer</h2>
+    <div class="sub" id="close-sub"></div>
+    <div class="steps" id="close-steps"><div class="st done"></div><div class="st"></div><div class="st"></div></div>
+
+    <div id="close-step-1">
+      <div class="frow">
+        <div class="field"><label for="cf-first">First name</label><input id="cf-first" autocomplete="off"></div>
+        <div class="field"><label for="cf-last">Last name</label><input id="cf-last" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="cf-phone">Phone</label><input id="cf-phone" type="tel" inputmode="tel"></div>
+      <div class="field"><label for="cf-email">Email</label><input id="cf-email" type="email" inputmode="email"></div>
+      <div class="field"><label for="cf-address">Service address</label><input id="cf-address"></div>
+      <div class="field"><label for="cf-notes">Pest concerns / gate codes / pets</label><textarea id="cf-notes"></textarea></div>
+    </div>
+
+    <div id="close-step-2" hidden>
+      <div class="disp-grid" id="cf-plans"></div>
+      <div class="frow">
+        <div class="field"><label for="cf-initial">Initial service $</label><input id="cf-initial" type="number" inputmode="decimal" min="0"></div>
+        <div class="field"><label for="cf-monthly">Monthly $</label><input id="cf-monthly" type="number" inputmode="decimal" min="0"></div>
+      </div>
+      <p style="font-size:12px;color:var(--t3)">12-month agreement. Adjust prices to what you quoted at the door.</p>
+    </div>
+
+    <div id="close-step-3" hidden>
+      <div class="agree-summary" id="cf-summary"></div>
+      <label class="consent"><input type="checkbox" id="cf-consent">
+        <span id="cf-consent-text">The customer agrees to do business electronically and to the 12-month service agreement shown above, and has been told of the right to cancel within 3 business days.</span></label>
+      <div class="sig-wrap"><canvas id="sigpad"></canvas><span class="sig-x">✕</span><div class="sig-line"></div></div>
+      <button class="sig-clear" id="sig-clear">Clear signature</button>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="close-back" hidden>Back</button>
+      <button class="btn btn-gold" id="close-next">Continue</button>
+      <button class="btn btn-gold" id="close-sign-save" hidden>Save agreement ✓</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="queue-sheet">
+    <div class="grab"></div>
+    <h2>Agreements</h2>
+    <div class="sub">Every signed customer, saved on this device. The FieldRoutes connector pushes these automatically in Phase 2 — export any time.</div>
+    <div id="queue-list"></div>
+    <button class="btn btn-ghost" id="queue-export" style="margin-top:8px">Export as JSON</button>
+  </div>
+
+  <div class="sheet" id="profile-sheet">
+    <div class="grab"></div>
+    <h2>Profile</h2>
+    <div class="sub">How you appear on the rankings</div>
+    <div class="field"><label for="set-name">Your name</label><input id="set-name"></div>
+    <div class="field"><label for="set-team">Team</label><input id="set-team"></div>
+    <button class="btn btn-gold" id="profile-save">Save</button>
+  </div>
+
+  <div class="sheet" id="goals-sheet">
+    <div class="grab"></div>
+    <h2>Goals &amp; commission</h2>
+    <div class="sub">The streak counts days you hit your door goal</div>
+    <div class="field"><label for="set-goal">Door goal per day</label><input id="set-goal" type="number" inputmode="numeric" min="1"></div>
+    <div class="field"><label for="set-comm">Commission per sale $</label><input id="set-comm" type="number" inputmode="decimal" min="0"></div>
+    <button class="btn btn-gold" id="goals-save">Save</button>
+  </div>
+
+  <div class="sheet" id="fr-sheet">
+    <div class="grab"></div>
+    <h2>FieldRoutes connection</h2>
+    <div class="sub">Your office's API credentials — FieldRoutes support issues a key + token per office (support@fieldroutes.com). Stored only on this device. The live connector that pushes agreements automatically ships in Phase 2; until then, use Export.</div>
+    <div class="field"><label for="set-fr-sub">Office subdomain</label><input id="set-fr-sub" placeholder="yourcompany (as in yourcompany.pestroutes.com)" autocapitalize="off"></div>
+    <div class="field"><label for="set-fr-key">Authentication key</label><input id="set-fr-key" autocapitalize="off" autocomplete="off"></div>
+    <div class="field"><label for="set-fr-token">Authentication token</label><input id="set-fr-token" autocapitalize="off" autocomplete="off"></div>
+    <button class="btn btn-gold" id="fr-save">Save</button>
+  </div>
+
+  <div id="toast" role="status"></div>
+
+  <div id="celebrate">
+    <canvas id="confetti"></canvas>
+    <div class="cel-inner">
+      <div class="word">Meridian</div>
+      <div class="big">SOLD</div>
+      <div class="comm num" id="cel-comm"></div>
+      <div class="sub" id="cel-sub"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="vendor/maplibre-gl.js"></script>
+<script src="js/db.js"></script>
+<script src="js/data.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/store.js"></script>
+<script src="js/map.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/close.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

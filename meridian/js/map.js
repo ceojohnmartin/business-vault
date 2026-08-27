@@ -115,11 +115,74 @@
       tileSize: 256,
     };
     style.layers.push(
+      // color-graded toward the vivid Google look: more saturation + contrast
       { id: "base-sat", type: "raster", source: "sat", layout: { visibility: "none" },
-        paint: { "raster-contrast": 0.06, "raster-saturation": -0.05 } },
+        paint: { "raster-contrast": 0.14, "raster-saturation": 0.15, "raster-brightness-min": 0.02 } },
       { id: "base-hyb-labels", type: "raster", source: "hyb-labels", layout: { visibility: "none" } }
     );
     return style;
+  }
+
+  // ---------- Google imagery (Map Tiles API) ----------
+  // With the office's own Google key, Satellite/Hybrid become actual Google
+  // tiles — the same imagery+labels the big competitor apps render.
+  async function googleSession(kind) {
+    const s = STORE.settings;
+    if (!s.googleKey) return null;
+    const cached = s.googleSessions && s.googleSessions[kind];
+    if (cached && Number(cached.expiry) * 1000 > Date.now() + 3600e3) return cached.session;
+    try {
+      const body = {
+        mapType: "satellite", language: "en-US", region: "US",
+        highDpi: true, scale: "scaleFactor2x",
+      };
+      if (kind === "hybrid") body.layerTypes = ["layerRoadmap"];
+      const r = await fetch(
+        "https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(s.googleKey),
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+      );
+      if (!r.ok) return null;
+      const j = await r.json();
+      s.googleSessions = Object.assign({}, s.googleSessions, {
+        [kind]: { session: j.session, expiry: j.expiry },
+      });
+      STORE.saveSettings();
+      return j.session;
+    } catch (_) { return null; }
+  }
+
+  // Called after map load and whenever the key changes: swaps Satellite and
+  // Hybrid onto Google tiles when a session is available. Fallback stays wired.
+  async function reloadImagery() {
+    if (!map) return;
+    const key = STORE.settings.googleKey;
+    const kinds = [["satellite", "g-sat"], ["hybrid", "g-hyb"]];
+    let upgraded = false;
+    for (const [kind, layerId] of kinds) {
+      const sess = key ? await googleSession(kind) : null;
+      if (sess && !map.getSource(layerId)) {
+        try {
+          map.addSource(layerId, {
+            type: "raster",
+            tiles: [`https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(sess)}&key=${encodeURIComponent(key)}`],
+            tileSize: 512, maxzoom: 22,
+            attribution: "© Google",
+          });
+          map.addLayer(
+            { id: layerId, type: "raster", source: layerId, layout: { visibility: "none" } },
+            map.getLayer("pins-shadow") ? "pins-shadow" : undefined
+          );
+        } catch (_) { continue; } // style mid-load — next reload picks it up
+      }
+      if (sess && map.getLayer(layerId)) {
+        BASEMAPS[kind] = [layerId];
+        upgraded = true;
+      } else {
+        BASEMAPS[kind] = kind === "hybrid" ? ["base-sat", "base-hyb-labels"] : ["base-sat"];
+      }
+    }
+    applyBasemap(STORE.settings.basemap);
+    return upgraded;
   }
 
   function applyBasemap(mode) {
@@ -128,7 +191,13 @@
     STORE.saveSettings();
     if (map) {
       const on = BASEMAPS[mode];
-      Object.values(BASEMAPS).flat().forEach((id) => {
+      // union of every basemap layer that could exist, so a layer dropped
+      // from BASEMAPS (e.g. Google key removed) still gets hidden
+      const all = new Set([
+        ...Object.values(BASEMAPS).flat(),
+        "base-sat", "base-hyb-labels", "g-sat", "g-hyb",
+      ]);
+      all.forEach((id) => {
         if (map.getLayer(id)) {
           map.setLayoutProperty(id, "visibility", on.includes(id) ? "visible" : "none");
         }
@@ -136,6 +205,9 @@
     }
     $$("#layer-menu .lm-opt").forEach((b) =>
       b.classList.toggle("sel", b.dataset.bm === mode));
+    // Google attribution is required whenever Google tiles are on screen
+    const gattr = $("#gattr");
+    if (gattr) gattr.hidden = !BASEMAPS[mode].some((id) => id.startsWith("g-"));
   }
 
   function pinsGeoJSON() {
@@ -242,6 +314,7 @@
         });
         applyBasemap(STORE.settings.basemap);
         refreshPins();
+        reloadImagery(); // upgrades Satellite/Hybrid to Google tiles if a key is set
       });
 
       map.on("click", (e) => {
@@ -523,7 +596,7 @@
   }
 
   window.MMAP = {
-    init, refreshPins, updateBrandToday, focusPin,
+    init, refreshPins, updateBrandToday, focusPin, reloadImagery,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
     resize: () => { if (map) map.resize(); },
   };

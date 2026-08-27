@@ -11,6 +11,7 @@
       doorGoal: 75,
       commissionPerSale: 150,
       frSubdomain: "", frKey: "", frToken: "",
+      googleKey: "", googleSessions: null,
       basemap: "hybrid", // hybrid | satellite | street
       lastCenter: null, lastZoom: null,
     },

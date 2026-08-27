@@ -125,7 +125,8 @@ self.addEventListener("fetch", (e) => {
   } else if (
     url.hostname.endsWith("basemaps.cartocdn.com") ||
     url.hostname.endsWith("arcgisonline.com") ||
-    url.hostname.endsWith("tiles.openfreemap.org")
+    url.hostname.endsWith("tiles.openfreemap.org") ||
+    url.hostname === "tile.googleapis.com"
   ) {
     // actual map tiles: cache-first with a cap
     e.respondWith(cacheFirst(e.request, TILE_CACHE, trimTiles));

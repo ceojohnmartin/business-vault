@@ -59,6 +59,7 @@
       </div>
     </div>
     <button class="sync-chip" id="sync-chip" hidden><span class="dot"></span><span id="sync-chip-n"></span></button>
+    <div id="gattr" hidden aria-hidden="true">Google</div>
     <div class="knock-hint" id="knock-hint">Tap the map to log your first door</div>
     <div class="legend" id="map-legend" hidden aria-hidden="true">
       <div class="li"><span class="sw" style="background:#22B558"></span>Sold</div>
@@ -155,6 +156,7 @@
       <button class="more-item" id="more-profile"><span class="ic">👤</span><span><span class="tt">Profile</span><br><span class="dd" id="more-profile-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-gmaps"><span class="ic">🛰️</span><span><span class="tt">Google map imagery</span><br><span class="dd" id="more-gmaps-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-reset"><span class="ic">🗑️</span><span><span class="tt">Erase all data</span><br><span class="dd">Pins, knocks and agreements on this device</span></span><span class="chev">›</span></button>
     </div>
     <p style="font-size:12px;color:var(--t3);text-align:center;margin-top:22px">Meridian · Phase 1 · Everything stays on your device and works offline.</p>
@@ -307,6 +309,20 @@
     <div class="field"><label for="set-fr-key">Authentication key</label><input id="set-fr-key" autocapitalize="off" autocomplete="off"></div>
     <div class="field"><label for="set-fr-token">Authentication token</label><input id="set-fr-token" autocapitalize="off" autocomplete="off"></div>
     <button class="btn btn-gold" id="fr-save">Save</button>
+  </div>
+
+  <div class="sheet" id="gmaps-sheet">
+    <div class="grab"></div>
+    <h2>Google map imagery</h2>
+    <div class="sub">Make Satellite and Hybrid render actual Google Maps tiles — the same vivid imagery and street labels the big sales apps use. Takes ~2 minutes and Google's free monthly allowance covers normal solo/team use.</div>
+    <ol style="font-size:13.5px;color:var(--t2);padding-left:20px;margin-bottom:14px;display:grid;gap:6px">
+      <li>Go to <b>console.cloud.google.com</b> → create a project (any name).</li>
+      <li>Search "<b>Map Tiles API</b>" → Enable. (Billing must be on; the free tier covers you.)</li>
+      <li>APIs &amp; Services → Credentials → <b>Create API key</b> → copy it here.</li>
+    </ol>
+    <div class="field"><label for="set-gkey">Google Maps API key</label><input id="set-gkey" autocapitalize="off" autocomplete="off" placeholder="AIza…"></div>
+    <button class="btn btn-gold" id="gmaps-save">Save &amp; switch imagery</button>
+    <p style="font-size:12px;color:var(--t3);margin-top:10px">Stored only on this device. Remove the key to go back to the free imagery.</p>
   </div>
 
   <div id="toast" role="status"></div>

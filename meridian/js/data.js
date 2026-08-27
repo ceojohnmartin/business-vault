@@ -28,6 +28,14 @@
   // Soft nos — worth swinging back on later.
   const REKNOCK_REASONS = ["Need to ask spouse", "Bad timing / moving", "Wants info first"];
 
+  // Built-in Google Maps browser key, shipped so no rep has to paste one.
+  // A Maps key in a web app is public by design (it rides along on every
+  // tile request); the real protection is the HTTP-referrer restriction on
+  // the Google project, so only fill this in once the key is restricted to
+  // this site and to the Map Tiles API. Empty = each device supplies its
+  // own key in More -> Google map imagery.
+  const DEFAULT_GOOGLE_KEY = "";
+
   // What counts as a DM (decision-maker) conversation.
   const DM_HINT = "Homeowner or spouse with authority to sign. “Ask my spouse” = a convo, not a DM.";
 
@@ -150,5 +158,5 @@
     { name: "Lena M.",    team: "Alpine",  doors: 300, dms: 61,  sales: 4  },
   ];
 
-  window.MDATA = { DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT, PLANS, PESTS, DEMO_TEAM };
+  window.MDATA = { DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT, PLANS, PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY };
 })();

@@ -425,8 +425,19 @@
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // jump from a customer card to their door on the map
+  function focusPin(pinId) {
+    const p = STORE.pins.find((x) => x.id === pinId);
+    if (!p) return;
+    if (map) {
+      map.resize();
+      map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 17.5), essential: true });
+    }
+    openLead(p);
+  }
+
   window.MMAP = {
-    init, refreshPins, updateBrandToday,
+    init, refreshPins, updateBrandToday, focusPin,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
     resize: () => { if (map) map.resize(); },
   };

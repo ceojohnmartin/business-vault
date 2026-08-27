@@ -4,7 +4,7 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "meridian-v4";
+const CACHE = "meridian-v5";
 const TILE_CACHE = "meridian-tiles-v2";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;

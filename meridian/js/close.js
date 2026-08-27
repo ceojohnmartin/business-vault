@@ -187,6 +187,7 @@
     closeSheet();
     if (window.MMAP) { MMAP.refreshPins(); MMAP.clearSelection(); }
     if (window.MSTAT) MSTAT.render();
+    if (window.MAPP) MAPP.renderCustomers();
     celebrate(STORE.settings.commissionPerSale, c.first + " " + c.last);
   }
 
@@ -282,6 +283,7 @@
     sp.addEventListener("touchmove", sigMove, { passive: false });
     sp.addEventListener("touchend", sigEnd);
     $("#queue-export").addEventListener("click", exportQueue);
+    $("#cust-export").addEventListener("click", exportQueue);
   }
 
   window.MCLOSE = { start, openQueue, bind, fillAddress };

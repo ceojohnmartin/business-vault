@@ -161,9 +161,14 @@
   // ---------- Google imagery (Map Tiles API) ----------
   // With the office's own Google key, Satellite/Hybrid become actual Google
   // tiles — the same imagery+labels the big competitor apps render.
+  // the office key wins; otherwise the app ships with one
+  const effectiveKey = () =>
+    (STORE.settings.googleKey || MDATA.DEFAULT_GOOGLE_KEY || "").trim();
+
   async function googleSession(kind) {
     const s = STORE.settings;
-    if (!s.googleKey) return null;
+    const gkey = effectiveKey();
+    if (!gkey) return null;
     const cached = s.googleSessions && s.googleSessions[kind];
     if (cached && Number(cached.expiry) * 1000 > Date.now() + 3600e3) return cached.session;
     try {
@@ -178,7 +183,7 @@
       let r;
       try {
         r = await fetch(
-          "https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(s.googleKey),
+          "https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(gkey),
           { method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify(body), signal: ctrl.signal }
         );
@@ -211,7 +216,7 @@
   // Called after map load and whenever the key changes: swaps Satellite and
   // Hybrid onto Google tiles when a session is available. Fallback stays wired.
   async function reloadImagery() {
-    const key = STORE.settings.googleKey;
+    const key = effectiveKey();
     const kinds = [["satellite", "g-sat"], ["hybrid", "g-hyb"]];
     let keyWorks = false;
     // Validate the key FIRST, independent of the map — the map can still be
@@ -662,6 +667,7 @@
   window.MMAP = {
     init, refreshPins, updateBrandToday, focusPin, reloadImagery,
     googleError: () => lastGoogleError,
+    usingOwnKey: () => !!STORE.settings.googleKey,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
     resize: () => { if (map) map.resize(); },
   };

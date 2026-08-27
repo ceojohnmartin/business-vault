@@ -128,11 +128,13 @@
     $("#more-fr-sub").textContent = STORE.settings.frSubdomain
       ? STORE.settings.frSubdomain + ".pestroutes.com"
       : "Not connected — agreements queue locally";
-    $("#more-gmaps-sub").textContent = !STORE.settings.googleKey
-      ? "Free imagery — add a key for Google quality"
-      : STORE.settings.googleSessions
-        ? "Google imagery active on Satellite & Hybrid"
-        : (STORE.settings.googleLastError || "Key saved — waiting for Google to accept it");
+    const own = !!STORE.settings.googleKey;
+    const anyKey = own || !!MDATA.DEFAULT_GOOGLE_KEY;
+    $("#more-gmaps-sub").textContent = STORE.settings.googleSessions
+      ? "Google imagery active" + (own ? " (your key)" : "")
+      : (STORE.settings.googleLastError ||
+         (anyKey ? "Key saved — checking with Google"
+                 : "Free imagery — add a key for Google quality"));
   }
 
   function bindMore() {
@@ -186,7 +188,7 @@
       await STORE.saveSettings();
       closeSheet();
       renderMore();
-      if (STORE.settings.googleKey) toast("Checking with Google…", 9000);
+      if (STORE.settings.googleKey || MDATA.DEFAULT_GOOGLE_KEY) toast("Checking with Google…", 9000);
       const upgraded = window.MMAP ? await MMAP.reloadImagery() : false;
       if (upgraded) {
         toast("Google imagery is on — check Satellite or Hybrid");
@@ -198,7 +200,7 @@
         renderMore();
         toast(why, 7000);
       } else {
-        toast("Key removed — back to free imagery");
+        toast(MDATA.DEFAULT_GOOGLE_KEY ? "Using the built-in Google key" : "Key removed — back to free imagery");
       }
     });
 

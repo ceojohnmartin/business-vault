@@ -11,8 +11,8 @@
       teamName: "My Team",
       doorGoal: 75,
       commissionPerSale: 150,
-      // company identity — printed on every agreement (state-neutral: fill
-      // in whatever market you're selling in)
+      // company identity — printed on every agreement (state-neutral;
+      // COMPANY_DEFAULTS in data.js fills name + license after load)
       companyName: "", companyPhone: "", companyEmail: "",
       companyAddress: "", companyLicense: "",
       frSubdomain: "", frKey: "", frToken: "",
@@ -28,7 +28,14 @@
     MDB.getAll("events").then((r) => (S.events = r.sort((a, b) => a.ts - b.ts))),
     MDB.getAll("customers").then((r) => (S.customers = r)),
     MDB.getAll("territories").then((r) => (S.territories = r)),
-    MDB.kvGet("settings", null).then((r) => { if (r) Object.assign(S.settings, r); }),
+    MDB.kvGet("settings", null).then((r) => {
+      if (r) Object.assign(S.settings, r);
+      // devices that saved settings before the company shipped as a
+      // built-in hold empty strings — those must not mask the default
+      Object.keys(MDATA.COMPANY_DEFAULTS).forEach((k) => {
+        if (!S.settings[k]) S.settings[k] = MDATA.COMPANY_DEFAULTS[k];
+      });
+    }),
   ]);
 
   S.saveSettings = () => MDB.kvSet("settings", S.settings);

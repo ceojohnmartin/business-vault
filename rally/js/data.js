@@ -68,6 +68,13 @@
       covered: "All Pro pests, plus mosquitoes (in-season program)" },
   ];
 
+  // The office identity every device ships with — printed in the header
+  // of each agreement. More -> Company & agreement can override per device.
+  const COMPANY_DEFAULTS = {
+    companyName: "Home Wise Pest",
+    companyLicense: "0051HP",
+  };
+
   // ---------- agreement (contract) constants ----------
   // State-neutral on purpose: company identity, license line and service
   // area come from Settings so one build works in any market.
@@ -204,7 +211,7 @@
 
   window.MDATA = {
     DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT,
-    PLANS, AGREEMENT, SOURCES, HOOD_COLORS,
+    PLANS, AGREEMENT, SOURCES, HOOD_COLORS, COMPANY_DEFAULTS,
     PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY,
   };
 })();

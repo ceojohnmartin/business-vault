@@ -13,6 +13,7 @@
   let currentLead = null;
 
   const SUBS = ["a", "b", "c", "d"];
+  const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
   const STYLE = {
     version: 8,
     sources: {
@@ -22,9 +23,54 @@
         tileSize: 256,
         attribution: "© OpenStreetMap contributors © CARTO",
       },
+      sat: {
+        type: "raster",
+        tiles: [`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`],
+        tileSize: 256, maxzoom: 19,
+        attribution: "© Esri, Maxar, Earthstar Geographics",
+      },
+      "sat-roads": {
+        type: "raster",
+        tiles: [`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`],
+        tileSize: 256, maxzoom: 19,
+      },
+      "sat-places": {
+        type: "raster",
+        tiles: [`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`],
+        tileSize: 256, maxzoom: 19,
+      },
     },
-    layers: [{ id: "base", type: "raster", source: "carto" }],
+    // all basemap layers exist at once; the picker just flips visibility
+    layers: [
+      { id: "base-street", type: "raster", source: "carto", layout: { visibility: "none" } },
+      { id: "base-sat", type: "raster", source: "sat", layout: { visibility: "none" } },
+      { id: "base-sat-roads", type: "raster", source: "sat-roads", layout: { visibility: "none" } },
+      { id: "base-sat-places", type: "raster", source: "sat-places", layout: { visibility: "none" } },
+    ],
   };
+
+  // which base layers each mode shows
+  const BASEMAPS = {
+    street: ["base-street"],
+    satellite: ["base-sat"],
+    hybrid: ["base-sat", "base-sat-roads", "base-sat-places"],
+  };
+
+  function applyBasemap(mode) {
+    if (!BASEMAPS[mode]) mode = "hybrid";
+    STORE.settings.basemap = mode;
+    STORE.saveSettings();
+    if (map) {
+      const on = BASEMAPS[mode];
+      Object.values(BASEMAPS).flat().forEach((id) => {
+        if (map.getLayer(id)) {
+          map.setLayoutProperty(id, "visibility", on.includes(id) ? "visible" : "none");
+        }
+      });
+    }
+    $$("#layer-menu .lm-opt").forEach((b) =>
+      b.classList.toggle("sel", b.dataset.bm === mode));
+  }
 
   function pinsGeoJSON() {
     return {
@@ -91,6 +137,7 @@
           "circle-stroke-color": "#D9B36C",
         },
       });
+      applyBasemap(STORE.settings.basemap);
       refreshPins();
     });
 
@@ -126,6 +173,17 @@
       const c = map.getCenter();
       startKnock(c.lat, c.lng);
     });
+    $("#fab-layers").addEventListener("click", () => {
+      tick();
+      $("#layer-menu").hidden = !$("#layer-menu").hidden;
+    });
+    $$("#layer-menu .lm-opt").forEach((b) =>
+      b.addEventListener("click", () => {
+        tick();
+        applyBasemap(b.dataset.bm);
+        $("#layer-menu").hidden = true;
+      }));
+    map.on("dragstart", () => { $("#layer-menu").hidden = true; });
     updateHint();
     updateBrandToday();
     bindKnockSheet();

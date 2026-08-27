@@ -35,6 +35,14 @@
         <button class="fab" id="fab-knock" aria-label="Log a door at map center">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
         </button>
+        <button class="fab" id="fab-layers" aria-label="Choose map view">
+          <svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12.5 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+        </button>
+        <div class="layer-menu" id="layer-menu" hidden>
+          <button class="lm-opt sel" data-bm="hybrid">Hybrid</button>
+          <button class="lm-opt" data-bm="satellite">Satellite</button>
+          <button class="lm-opt" data-bm="street">Street</button>
+        </div>
       </div>
     </div>
     <button class="sync-chip" id="sync-chip" hidden><span class="dot"></span><span id="sync-chip-n"></span></button>

@@ -1,4 +1,4 @@
-/* Meridian — UI primitives: sheets, toast, celebration, formatting. */
+/* RALLY — UI primitives: sheets, toast, celebration, formatting. */
 (function () {
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -95,6 +95,45 @@
     const d = new Date(ts);
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   };
+  const fmtDate = (ts) =>
+    new Date(ts).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+  const fmtTime = (ts) =>
+    new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const esc = (s) => String(s || "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey };
+  // value for a datetime-local input, in device-local time
+  const toLocalInput = (ts) => {
+    const d = new Date(ts);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
+
+  // Get a file to the user: iOS home-screen apps silently ignore
+  // <a download>, so the share sheet is the primary path with a blob
+  // anchor as the desktop fallback. Returns true unless nothing worked.
+  async function shareOrDownload(content, filename, mime, title) {
+    if (navigator.canShare && window.File) {
+      try {
+        const file = new File([content], filename, { type: mime });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: title || filename });
+          return true;
+        }
+      } catch (err) {
+        if (err && err.name === "AbortError") return true; // user closed the sheet
+      }
+    }
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    return true;
+  }
+
+  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey, fmtDate, fmtTime, esc, toLocalInput, shareOrDownload };
 })();

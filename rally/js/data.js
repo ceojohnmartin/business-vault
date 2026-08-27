@@ -1,4 +1,4 @@
-/* Meridian — static data: dispositions, decline reasons, field guide, demo team. */
+/* RALLY — static data: dispositions, plans, decline reasons, field guide, demo team. */
 (function () {
   // Disposition system. Colors are the app's entire chromatic language —
   // identical on pins, badges, funnels and history rows.
@@ -39,12 +39,63 @@
   // What counts as a DM (decision-maker) conversation.
   const DM_HINT = "Homeowner or spouse with authority to sign. “Ask my spouse” = a convo, not a DM.";
 
-  // Service plans (editable at close time).
+  // ---------- service plans ----------
+  // Prices are FLOORS: the rep can quote up at the door, never below.
+  // listInitial is the undiscounted initial-service price printed on the
+  // agreement; the gap between it and what the rep charges is the "initial
+  // discount" — the early-cancellation fee recaptures that discount (capped),
+  // which is the defensible version of an exit fee.
   const PLANS = [
-    { id: "essential", name: "Essential",  initial: 99,  monthly: 49, blurb: "Quarterly exterior defense" },
-    { id: "preferred", name: "Preferred",  initial: 149, monthly: 56, blurb: "Bimonthly, interior + exterior" },
-    { id: "premier",   name: "Premier",    initial: 199, monthly: 64, blurb: "Monthly, full property + rodent" },
+    { id: "basic",   name: "Basic",    monthly: 59, initial: 49, listInitial: 249,
+      visits: "4 visits / year",
+      blurb: "Quarterly general pest defense",
+      services: "Quarterly exterior treatment of the home's perimeter, eaves, and entry points; interior on request; full de-webbing each visit.",
+      covered: "Ants, roaches (non-German), spiders, wasps, crickets, earwigs, silverfish, millipedes, centipedes, pantry pests, stink bugs" },
+    { id: "pro",     name: "Pro",      monthly: 69, initial: 49, listInitial: 249,
+      visits: "6 visits / year",
+      blurb: "Bi-monthly general pest defense",
+      services: "Every-other-month exterior treatment with barrier refresh, eave and entry-point service, and de-webbing; interior on request.",
+      covered: "Ants, roaches (non-German), spiders, wasps, crickets, earwigs, silverfish, millipedes, centipedes, pantry pests, stink bugs" },
+    { id: "proplus", name: "Pro Plus", monthly: 79, initial: 49, listInitial: 299,
+      visits: "6 visits / year + rodent",
+      blurb: "Bi-monthly general pest + rodent coverage",
+      services: "Everything in Pro, plus exterior rodent bait stations installed and maintained every visit, rodent monitoring, and entry-point exclusion flagging.",
+      covered: "All Pro pests, plus mice and rats (commensal rodents)" },
+    { id: "premium", name: "Premium",  monthly: 99, initial: 49, listInitial: 349,
+      visits: "~10 visits / year",
+      blurb: "Bi-monthly general + monthly mosquito in season",
+      services: "Bi-monthly general pest treatment year-round, PLUS monthly mosquito treatments during mosquito season — barrier treatment of resting areas and larvicide at breeding sites. In season that's a visit every month.",
+      covered: "All Pro pests, plus mosquitoes (in-season program)" },
   ];
+
+  // The office identity every device ships with — printed in the header
+  // of each agreement. More -> Company & agreement can override per device.
+  const COMPANY_DEFAULTS = {
+    companyName: "Home Wise Pest",
+    companyLicense: "0051HP",
+  };
+
+  // ---------- agreement (contract) constants ----------
+  // State-neutral on purpose: company identity, license line and service
+  // area come from Settings so one build works in any market.
+  const AGREEMENT = {
+    termMonths: 12,
+    etfCap: 199,          // early-termination fee = initial discount received, capped here
+    priceNoticeDays: 30,  // notice before any renewal-term price change
+    priceExitDays: 15,    // fee-free exit window after a price-increase notice
+    renewNoticeDays: 30,  // written notice to stop the month-to-month renewal
+    mosquitoSeason: "mosquito season (typically spring through fall, as local conditions dictate)",
+    exclusions:
+      "termites and other wood-destroying organisms, bed bugs, German cockroaches, " +
+      "birds, bats, snakes, wildlife, and any vertebrates other than commensal rodents " +
+      "(mice and rats, covered only under plans that include rodent service)",
+  };
+
+  // Sources a customer can come from (FieldRoutes-style).
+  const SOURCES = ["Door to Door", "Referral", "Online", "Phone-in", "Alumni / winback", "Other"];
+
+  // Hood (territory) colors — assign per rep area.
+  const HOOD_COLORS = ["#0A6CF0", "#22B558", "#F5B301", "#7C5CFC", "#E5484D", "#0E9888"];
 
   // ---------- Field Guide ----------
   // Each pest: what to know, what to say, what we do.
@@ -158,5 +209,9 @@
     { name: "Lena M.",    team: "Alpine",  doors: 300, dms: 61,  sales: 4  },
   ];
 
-  window.MDATA = { DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT, PLANS, PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY };
+  window.MDATA = {
+    DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT,
+    PLANS, AGREEMENT, SOURCES, HOOD_COLORS, COMPANY_DEFAULTS,
+    PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY,
+  };
 })();

@@ -1,7 +1,7 @@
 {
-  "name": "Meridian — Door-to-Door Sales",
-  "short_name": "Meridian",
-  "description": "The premium door-to-door pest control sales app: knocking map, DM tracking, agreements on the glass, and your numbers live.",
+  "name": "RALLY — Door-to-Door Sales",
+  "short_name": "RALLY",
+  "description": "RALLY: the door-to-door pest control sales app. Knocking map with hoods, real service agreements signed on the glass, scheduling, and your numbers live.",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#F5F7FB",

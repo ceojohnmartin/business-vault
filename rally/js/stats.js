@@ -1,4 +1,4 @@
-/* Meridian — the numbers screen: funnel, DM counter, streak, commission. */
+/* RALLY — my numbers: funnel, DM counter, streak, commission. */
 (function () {
   const { $, fmtMoney, fmtPct } = MUI;
 

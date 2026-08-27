@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>RALLY — Door-to-Door Sales</title>
+<meta name="description" content="RALLY: the door-to-door pest control sales app. Knocking map with hoods, real service agreements signed on the glass, scheduling, and your numbers live.">
+<meta name="theme-color" content="#F5F7FB">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap">
+<link rel="stylesheet" href="vendor/maplibre-gl.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= CUSTOMERS ================= -->
+  <div class="screen active" id="screen-customers">
+    <div class="cust-top">
+      <span class="applogo">R</span>
+      <div class="guide-search" style="flex:1;margin:0"><input id="cust-q" type="search" placeholder="Search Customers" autocomplete="off"></div>
+    </div>
+    <div class="cust-filter-row">
+      <button class="filter-chip" id="cust-filter">⏳ Filter<span id="cust-filter-n"></span></button>
+    </div>
+    <div id="cust-list"></div>
+    <button class="fab-new" id="cust-fab" aria-label="New customer">
+      <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6"/><path d="M4 20c.7-3.7 3-5.7 6-5.7 1.2 0 2.3.3 3.2.9"/><path d="M18 14v6M15 17h6"/></svg>
+    </button>
+  </div>
+
+  <!-- ================= SCHEDULE ================= -->
+  <div class="screen" id="screen-schedule">
+    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Schedule</span></div>
+    <div id="sched-list"></div>
+  </div>
+
+  <!-- ================= MAP ================= -->
+  <div class="screen" id="screen-map">
+    <div id="mapwrap"><div id="map"></div><canvas id="draw-canvas" hidden></canvas></div>
+    <div class="map-chrome">
+      <div class="map-brand">
+        <div class="wordmark">RALLY</div>
+        <div class="today" id="brand-today">0 doors today</div>
+      </div>
+      <div class="map-actions">
+        <button class="fab" id="fab-locate" aria-label="Center on my location">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+        </button>
+        <button class="fab" id="fab-knock" aria-label="Log a door at map center">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="fab" id="fab-hoods" aria-label="Hoods — draw rep areas">
+          <svg viewBox="0 0 24 24"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20V6.5Z"/><path d="M14 13.5l5.5-5.5M12.2 15.3l1.1-3.2 3.2-1.1"/></svg>
+        </button>
+        <button class="fab" id="fab-layers" aria-label="Choose map view">
+          <svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 12.5 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg>
+        </button>
+        <div class="layer-menu" id="layer-menu" hidden>
+          <button class="lm-opt sel" data-bm="street">Street</button>
+          <button class="lm-opt" data-bm="hybrid">Hybrid</button>
+          <button class="lm-opt" data-bm="satellite">Satellite</button>
+        </div>
+        <div class="layer-menu hood-menu" id="hood-menu" hidden>
+          <button class="lm-opt" id="hood-pencil">✏️ Draw with pencil</button>
+          <button class="lm-opt" id="hood-dots">📍 Tap the corners</button>
+          <div class="hood-list" id="hood-list"></div>
+        </div>
+      </div>
+    </div>
+    <div class="draw-bar" id="draw-bar" hidden>
+      <span id="draw-msg">Trace the area with your finger</span>
+      <div class="db-btns">
+        <button id="draw-undo" hidden>Undo</button>
+        <button id="draw-cancel">Cancel</button>
+        <button id="draw-done" class="primary" hidden disabled>Done</button>
+      </div>
+    </div>
+    <button class="sync-chip" id="sync-chip" hidden><span class="dot"></span><span id="sync-chip-n"></span></button>
+    <div id="gattr" hidden aria-hidden="true">Google</div>
+    <div class="knock-hint" id="knock-hint">Tap the map to log your first door</div>
+    <div class="legend" id="map-legend" hidden aria-hidden="true">
+      <div class="li"><span class="pinsw" style="background:#22B558"></span>Sold</div>
+      <div class="li"><span class="pinsw" style="background:#7C5CFC"></span>Go Back</div>
+      <div class="li"><span class="pinsw" style="background:#F5B301"></span>Not Home</div>
+      <div class="li"><span class="pinsw" style="background:#E5484D"></span>Not Interested</div>
+      <div class="li"><span class="pinsw" style="background:#0B0F16;box-shadow:0 0 0 1.5px #D5DBE6"></span>Do Not Knock</div>
+    </div>
+  </div>
+
+  <!-- ================= LEADERBOARD ================= -->
+  <div class="screen" id="screen-rank">
+    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">This week</span></div>
+    <div class="seg" id="rank-seg">
+      <button class="seg-opt sel" data-v="team">Team</button>
+      <button class="seg-opt" data-v="me">My numbers</button>
+    </div>
+
+    <div id="rank-team">
+      <div class="metric-tabs">
+        <button class="mtab active" data-m="sales">Sales</button>
+        <button class="mtab" data-m="dms">DMs</button>
+        <button class="mtab" data-m="doors">Doors</button>
+      </div>
+      <div class="rank-list" id="rank-list"></div>
+      <p class="demo-note">Teammates shown are demo data — live team sync arrives with team accounts. Your row is real.</p>
+    </div>
+
+    <div id="rank-me" hidden>
+      <div class="hero-stat">
+        <div class="lbl">Sales today</div>
+        <div class="big num" id="st-sales-today">0</div>
+        <div class="row2"><span id="st-week-line"></span></div>
+      </div>
+      <div class="cards2">
+        <div class="stat-card">
+          <div class="lbl">Doors today</div>
+          <div class="val num" id="st-doors">0</div>
+          <div class="sub" id="st-doors-sub"></div>
+        </div>
+        <div class="stat-card dm-card">
+          <div class="lbl">DM convos</div>
+          <div class="val num" id="st-dms">0</div>
+          <div class="sub" id="st-dms-sub"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Today's funnel <span class="r">doors → convos → DMs → sales</span></h3>
+        <div class="funnel">
+          <div class="f-step"><span class="fl">Doors</span><div class="bar"><div class="fill" id="f-doors"></div></div><span class="fv num" id="fv-doors">0</span></div>
+          <div class="f-step"><span class="fl">Convos</span><div class="bar"><div class="fill" id="f-convos"></div></div><span class="fv num" id="fv-convos">0</span></div>
+          <div class="f-step"><span class="fl" title="Decision-maker conversations">DMs</span><div class="bar"><div class="fill" id="f-dms"></div></div><span class="fv num" id="fv-dms">0</span></div>
+          <div class="f-step"><span class="fl">Sales</span><div class="bar"><div class="fill" id="f-sales"></div></div><span class="fv num" id="fv-sales">0</span></div>
+          <div class="f-step" style="grid-template-columns:1fr"><span class="f-conv" id="fc-convos"></span></div>
+          <div class="f-step" style="grid-template-columns:1fr"><span class="f-conv" id="fc-dms"></span></div>
+          <div class="f-step" style="grid-template-columns:1fr"><span class="f-conv" id="fc-sales"></span></div>
+        </div>
+        <p style="font-size:11.5px;color:var(--t3);margin-top:12px">A DM is the decision-maker — the homeowner or spouse who can sign. “Ask my spouse” counts as a convo, not a DM.</p>
+      </div>
+      <div class="panel">
+        <h3>Last 14 days <span class="r"><span style="color:var(--sold)">■</span> sales · <span style="color:var(--t3)">■</span> doors</span></h3>
+        <div class="chart" id="chart"></div>
+        <div class="chart-x" id="chart-x"></div>
+      </div>
+      <div class="cards2">
+        <div class="stat-card">
+          <div class="lbl">Streak</div>
+          <div class="streak-row" style="margin-top:6px">
+            <div class="streak-flame">🔥</div>
+            <div><div class="n num" id="st-streak">0</div><div class="d" id="st-streak-sub">days at goal</div></div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="lbl">Commission · week</div>
+          <div class="money num" id="st-money-week" style="font-size:30px">$0</div>
+          <div class="money-sub" id="st-money-all"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= FIELD GUIDE (behind More) ================= -->
+  <div class="screen" id="screen-guide">
+    <div class="brandbar"><button class="backbtn" id="guide-back" aria-label="Back">‹ More</button><span class="sub">Field guide</span></div>
+    <div class="guide-search"><input id="guide-q" type="search" placeholder="Search pests — ants, widow, mud tubes…" autocomplete="off"></div>
+    <div class="guide-grid" id="guide-grid"></div>
+  </div>
+
+  <!-- ================= MORE ================= -->
+  <div class="screen" id="screen-more">
+    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Setup</span></div>
+    <div class="more-list">
+      <button class="more-item" id="more-guide"><span class="ic">📖</span><span><span class="tt">Field guide</span><br><span class="dd">Every pest: signs, facts, the pitch</span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-company"><span class="ic">🏢</span><span><span class="tt">Company &amp; agreement</span><br><span class="dd" id="more-company-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-profile"><span class="ic">👤</span><span><span class="tt">Profile</span><br><span class="dd" id="more-profile-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-gmaps"><span class="ic">🛰️</span><span><span class="tt">Google map imagery</span><br><span class="dd" id="more-gmaps-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-reset"><span class="ic">🗑️</span><span><span class="tt">Erase all data</span><br><span class="dd">Pins, knocks, customers, hoods and files on this device</span></span><span class="chev">›</span></button>
+    </div>
+    <p style="font-size:12px;color:var(--t3);text-align:center;margin-top:22px">RALLY · Everything stays on your device and works offline.</p>
+  </div>
+
+  <!-- ================= CUSTOMER EDITOR ================= -->
+  <div class="screen editor" id="screen-custedit">
+    <div class="ce-head">
+      <button class="backbtn" id="ce-back" aria-label="Back">←</button>
+      <div class="ce-title" id="ce-title">Creating Customer</div>
+      <span style="width:34px"></span>
+    </div>
+    <div class="ce-tabs">
+      <button class="ce-tab active" data-t="info">INFO</button>
+      <button class="ce-tab" data-t="service">SERVICE</button>
+      <button class="ce-tab" data-t="referrals">REFERRALS</button>
+      <button class="ce-tab" data-t="payment">PAYMENT</button>
+      <button class="ce-tab" data-t="agree">AGREE</button>
+      <button class="ce-tab" data-t="files">FILES</button>
+    </div>
+
+    <div class="ce-body">
+      <!-- INFO -->
+      <div class="ce-panel active" id="ce-info">
+        <div class="ce-sec">Contact info</div>
+        <div class="frow">
+          <div class="field"><label for="ci-first">First name *</label><input id="ci-first" autocomplete="off"></div>
+          <div class="field"><label for="ci-last">Last name</label><input id="ci-last" autocomplete="off"></div>
+        </div>
+        <div class="field"><label>Phone numbers</label>
+          <div id="ci-phones"></div>
+          <button class="linkbtn" id="ci-add-phone" type="button">+ Add phone</button>
+        </div>
+        <div class="field"><label for="ci-email">Email</label><input id="ci-email" type="email" inputmode="email"></div>
+
+        <div class="ce-sec">Service address</div>
+        <div class="field"><label for="ci-street">Street</label><input id="ci-street"></div>
+        <div class="frow">
+          <div class="field"><label for="ci-city">City</label><input id="ci-city"></div>
+          <div class="field"><label for="ci-state">State</label><input id="ci-state" maxlength="20"></div>
+        </div>
+        <div class="field" style="max-width:160px"><label for="ci-zip">ZIP</label><input id="ci-zip" inputmode="numeric"></div>
+
+        <div class="ce-sec">Reminders preferences</div>
+        <div class="dm-row"><div class="ttl">Text message</div><button class="switch on" id="ci-rem-text" aria-label="Text reminders"></button></div>
+        <div class="dm-row"><div class="ttl">Email</div><button class="switch on" id="ci-rem-email" aria-label="Email reminders"></button></div>
+        <div class="dm-row"><div class="ttl">Voice</div><button class="switch" id="ci-rem-voice" aria-label="Voice reminders"></button></div>
+
+        <div class="ce-sec">Additional contacts</div>
+        <div id="ci-contacts"></div>
+        <div class="frow">
+          <div class="field"><label for="cc-name">Name</label><input id="cc-name" autocomplete="off"></div>
+          <div class="field"><label for="cc-phone">Phone</label><input id="cc-phone" type="tel" inputmode="tel"></div>
+        </div>
+        <button class="linkbtn" id="ci-add-contact" type="button">+ Add contact</button>
+
+        <div class="ce-sec">Other info</div>
+        <div class="field"><label for="ci-source">Source</label>
+          <select id="ci-source">
+            <option>Door to Door</option><option>Referral</option><option>Online</option>
+            <option>Phone-in</option><option>Alumni / winback</option><option>Other</option>
+          </select>
+        </div>
+        <div class="field"><label for="ci-mapcode">Map code</label><input id="ci-mapcode" autocomplete="off"></div>
+        <div class="field"><label for="ci-notes">Notes — pests seen, gate codes, pets</label><textarea id="ci-notes"></textarea></div>
+      </div>
+
+      <!-- SERVICE -->
+      <div class="ce-panel" id="ce-service">
+        <div class="ce-sec">Pick the plan</div>
+        <div id="cs-plans"></div>
+        <div class="ce-sec">Pricing — quoted at the door</div>
+        <div class="frow">
+          <div class="field"><label for="cs-initial">Initial service $</label><input id="cs-initial" type="number" inputmode="decimal" min="0"></div>
+          <div class="field"><label for="cs-monthly">Monthly $</label><input id="cs-monthly" type="number" inputmode="decimal" min="0"></div>
+        </div>
+        <p class="dim" id="cs-price-hint" style="font-size:12px;margin-bottom:14px"></p>
+        <div class="ce-sec">Initial service appointment</div>
+        <div class="field"><label for="cs-appt">Date &amp; time</label><input id="cs-appt" type="datetime-local"></div>
+      </div>
+
+      <!-- REFERRALS -->
+      <div class="ce-panel" id="ce-referrals">
+        <div class="ce-sec">Referrals from this door</div>
+        <div id="cr-list"></div>
+        <div class="field"><label for="cr-name">Name</label><input id="cr-name" autocomplete="off"></div>
+        <div class="frow">
+          <div class="field"><label for="cr-phone">Phone</label><input id="cr-phone" type="tel" inputmode="tel"></div>
+          <div class="field"><label for="cr-addr">Address / hint</label><input id="cr-addr" placeholder="Two doors down, red brick"></div>
+        </div>
+        <button class="linkbtn" id="cr-add" type="button">+ Add referral</button>
+      </div>
+
+      <!-- PAYMENT -->
+      <div class="ce-panel" id="ce-payment">
+        <div class="ce-sec">Payment method</div>
+        <div class="seg" style="margin-bottom:14px">
+          <button class="seg-opt pay-m" data-m="card">Credit Card</button>
+          <button class="seg-opt pay-m" data-m="ach">ACH</button>
+          <button class="seg-opt pay-m" data-m="collect">Collect at service</button>
+        </div>
+        <div class="field" id="cp-last4-wrap"><label for="cp-last4">Last 4 digits (reference only)</label><input id="cp-last4" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+        <p class="dim" style="font-size:12px;margin-bottom:14px">RALLY never stores full card or account numbers — enter them in FieldRoutes / your processor. The signed agreement carries the autopay authorization.</p>
+        <div class="ce-sec">Initial payment</div>
+        <div class="dm-row"><div><div class="ttl">Initial due at first service</div><div class="hint">From the Service tab pricing</div></div><b class="num" id="cp-due" style="font-size:18px">$0</b></div>
+        <div class="ce-sec">Autopay</div>
+        <div class="dm-row"><div><div class="ttl">AutoPay</div><div class="hint">Recurring charge to the method above — authorized in the agreement</div></div><button class="switch on" id="cp-autopay" aria-label="Autopay"></button></div>
+      </div>
+
+      <!-- AGREE -->
+      <div class="ce-panel" id="ce-agree">
+        <div id="ca-unsigned">
+          <div class="ce-sec">Agreement summary</div>
+          <div class="agree-summary" id="ca-summary"></div>
+          <div class="ce-sec">The full agreement — scroll it with the customer</div>
+          <div class="doc-preview" id="ca-doc"></div>
+          <label class="consent"><input type="checkbox" id="ca-consent1">
+            <span>The customer agrees to do business electronically and to the 12-month service agreement shown above.</span></label>
+          <label class="consent"><input type="checkbox" id="ca-consent2">
+            <span>I verbally explained the 3-business-day right to cancel, and the customer received a copy of the agreement with both Notice of Cancellation forms.</span></label>
+          <div class="sig-wrap"><canvas id="ca-sig"></canvas><span class="sig-x">✕</span><div class="sig-line"></div></div>
+          <button class="sig-clear" id="ca-sig-clear" type="button">Clear signature</button>
+          <button class="btn btn-gold" id="ca-sign-save" type="button">Sign &amp; save agreement ✓</button>
+        </div>
+        <div id="ca-signed" hidden>
+          <div class="empty" style="padding:26px 12px"><div class="ic">✅</div><b>Agreement signed</b><br><span id="ca-signed-sub"></span></div>
+          <div class="btnrow" style="position:static;background:none;padding:0">
+            <button class="btn btn-ghost" id="ca-print" type="button">Print / PDF</button>
+            <button class="btn btn-ghost" id="ca-share" type="button">Share copy</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILES -->
+      <div class="ce-panel" id="ce-files">
+        <div class="ce-sec">Files on this customer</div>
+        <div id="cfl-list"></div>
+        <label class="btn btn-ghost" style="margin-top:12px">📷 Add photo or file
+          <input id="cfl-input" type="file" accept="image/*,.pdf,.html" capture="environment" hidden>
+        </label>
+      </div>
+    </div>
+
+    <div class="ce-savebar"><button class="btn btn-gold" id="ce-save">Save Customer</button></div>
+  </div>
+
+  <!-- ================= TAB BAR ================= -->
+  <nav id="tabbar">
+    <button class="tab active" id="tab-customers"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16 14.6c2.4.1 4 1.7 4.5 4.4"/></svg>Customers</button>
+    <button class="tab" id="tab-schedule"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Schedule</button>
+    <button class="tab" id="tab-map"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-10.2a6.5 6.5 0 1 1 13 0C18.5 15.4 12 21 12 21Z"/><circle cx="12" cy="10.5" r="2.4"/></svg>Map</button>
+    <button class="tab" id="tab-rank"><svg viewBox="0 0 24 24"><path d="M5 8h14M5 8a3.5 3.5 0 0 1-3-4h20a3.5 3.5 0 0 1-3 4M5 8c0 5 3 8 7 8s7-3 7-8M12 16v3M8 21h8"/></svg>Leaderboard</button>
+    <button class="tab" id="tab-more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+  </nav>
+
+  <!-- ================= SHEETS ================= -->
+  <div class="sheet-veil" id="veil"></div>
+
+  <div class="sheet" id="knock-sheet">
+    <div class="grab"></div>
+    <h2 id="knock-title">Log this door</h2>
+    <div class="sub" id="knock-sub">Pick what happened at the door</div>
+    <div class="disp-grid">
+      <button class="disp-btn sold-btn" data-d="sold"><span class="sw sold"></span>Sold 🎉</button>
+      <button class="disp-btn" data-d="goback"><span class="sw goback"></span>Go Back</button>
+      <button class="disp-btn" data-d="nothome"><span class="sw nothome"></span>Not Home</button>
+      <button class="disp-btn" data-d="notint"><span class="sw notint"></span>Not Interested</button>
+      <button class="disp-btn" data-d="dnk"><span class="sw dnk"></span>Do Not Knock</button>
+    </div>
+    <div id="knock-reasons-wrap" hidden>
+      <div class="sub" style="margin-bottom:8px">Why not?</div>
+      <div class="reasons">
+        <button class="reason" data-r="Has a competitor">Has a competitor</button>
+        <button class="reason" data-r="Not seeing bugs">Not seeing bugs</button>
+        <button class="reason" data-r="Need to ask spouse">Need to ask spouse</button>
+        <button class="reason" data-r="Too expensive">Too expensive</button>
+        <button class="reason" data-r="Renter, not owner">Renter, not owner</button>
+        <button class="reason" data-r="Does it themselves">Does it themselves</button>
+        <button class="reason" data-r="Bad timing / moving">Bad timing / moving</button>
+        <button class="reason" data-r="Wants info first">Wants info first</button>
+        <button class="reason" data-r="No soliciting">No soliciting</button>
+        <button class="reason" data-r="Other">Other</button>
+      </div>
+    </div>
+    <div class="dm-row" id="knock-dm-wrap" hidden>
+      <div><div class="ttl">Spoke with the decision-maker?</div><div class="hint">Homeowner or spouse who can sign. “Ask my spouse” = a convo, not a DM.</div></div>
+      <button class="switch" id="dm-switch" aria-label="Decision-maker conversation"></button>
+    </div>
+    <div class="field"><label for="knock-note">Note (optional)</label><input id="knock-note" placeholder="Blue door, big dog, works nights…"></div>
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="knock-cancel">Cancel</button>
+      <button class="btn btn-gold" id="knock-save" disabled>Save door</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="lead-sheet">
+    <div class="grab"></div>
+    <div class="lead-head">
+      <div><div class="addr" id="lead-addr"></div><div class="coords num" id="lead-coords"></div></div>
+      <span class="badge" id="lead-badge"></span>
+    </div>
+    <div class="hist" id="lead-history"></div>
+    <div class="field"><label for="lead-addr-in">Address</label><input id="lead-addr-in" placeholder="123 Maple St"></div>
+    <div class="field"><label for="lead-note-in">Notes</label><textarea id="lead-note-in" placeholder="Anything the next knock should know"></textarea></div>
+    <button class="btn btn-gold" id="lead-close-btn" style="margin-bottom:10px">Sold — create customer</button>
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="lead-reknock">Log another knock</button>
+      <button class="btn btn-ghost" id="lead-save">Save</button>
+    </div>
+    <button class="btn btn-danger" id="lead-delete" style="margin-top:10px">Delete pin</button>
+  </div>
+
+  <div class="sheet" id="pest-sheet">
+    <div class="grab"></div>
+    <div id="pest-body"></div>
+  </div>
+
+  <div class="sheet" id="hood-sheet">
+    <div class="grab"></div>
+    <h2 id="hood-sheet-title">Name this hood</h2>
+    <div class="sub">The area shows on the map with the rep who owns it</div>
+    <div class="field"><label for="hood-name">Hood name</label><input id="hood-name" placeholder="Willow Creek east" autocomplete="off"></div>
+    <div class="field"><label for="hood-rep">Assigned rep</label><input id="hood-rep" placeholder="Who owns this turf" autocomplete="off"></div>
+    <div class="field"><label>Color</label><div class="hood-colors" id="hood-colors"></div></div>
+    <button class="btn btn-gold" id="hood-save">Save hood</button>
+    <button class="btn btn-danger" id="hood-delete" style="margin-top:10px" hidden>Delete hood</button>
+  </div>
+
+  <div class="sheet" id="filter-sheet">
+    <div class="grab"></div>
+    <h2>Filter customers</h2>
+    <div class="sub">Status on the route</div>
+    <div class="more-list">
+      <button class="more-item f-opt sel" data-f="all"><span class="ic">👥</span><span class="tt">All customers</span></button>
+      <button class="more-item f-opt" data-f="notsched"><span class="ic">⚠️</span><span class="tt">Not scheduled</span></button>
+      <button class="more-item f-opt" data-f="scheduled"><span class="ic">📅</span><span class="tt">Scheduled</span></button>
+      <button class="more-item f-opt" data-f="serviced"><span class="ic">✅</span><span class="tt">Serviced</span></button>
+    </div>
+  </div>
+
+  <div class="sheet" id="appt-sheet">
+    <div class="grab"></div>
+    <h2 id="ap-name">Customer</h2>
+    <div class="sub" id="ap-addr"></div>
+    <div class="field"><label for="ap-when">Service date &amp; time</label><input id="ap-when" type="datetime-local"></div>
+    <button class="btn btn-gold" id="ap-save" style="margin-bottom:10px">Schedule</button>
+    <button class="btn btn-ghost" id="ap-done" style="margin-bottom:10px">Mark serviced ✓</button>
+    <button class="btn btn-ghost" id="ap-undone" style="margin-bottom:10px" hidden>Undo serviced</button>
+    <button class="btn btn-ghost" id="ap-open">Open customer</button>
+  </div>
+
+  <div class="sheet" id="company-sheet">
+    <div class="grab"></div>
+    <h2>Company &amp; agreement</h2>
+    <div class="sub">Printed in the header of every service agreement. Works in any state — have a local attorney review the template before real customers sign.</div>
+    <div class="field"><label for="set-co-name">Company legal name</label><input id="set-co-name" placeholder="Acme Pest Control, LLC"></div>
+    <div class="field"><label for="set-co-address">Business address</label><input id="set-co-address" placeholder="100 Main St, Suite B, Yourtown, ST 00000"></div>
+    <div class="frow">
+      <div class="field"><label for="set-co-phone">Phone</label><input id="set-co-phone" type="tel" inputmode="tel"></div>
+      <div class="field"><label for="set-co-email">Email</label><input id="set-co-email" type="email" inputmode="email"></div>
+    </div>
+    <div class="field"><label for="set-co-license">State license / registration no.</label><input id="set-co-license" autocapitalize="off"></div>
+    <button class="btn btn-gold" id="company-save">Save</button>
+  </div>
+
+  <div class="sheet" id="profile-sheet">
+    <div class="grab"></div>
+    <h2>Profile</h2>
+    <div class="sub">How you appear on the leaderboard and on agreements you close</div>
+    <div class="field"><label for="set-name">Your name</label><input id="set-name"></div>
+    <div class="field"><label for="set-team">Team</label><input id="set-team"></div>
+    <button class="btn btn-gold" id="profile-save">Save</button>
+  </div>
+
+  <div class="sheet" id="goals-sheet">
+    <div class="grab"></div>
+    <h2>Goals &amp; commission</h2>
+    <div class="sub">The streak counts days you hit your door goal</div>
+    <div class="field"><label for="set-goal">Door goal per day</label><input id="set-goal" type="number" inputmode="numeric" min="1"></div>
+    <div class="field"><label for="set-comm">Commission per sale $</label><input id="set-comm" type="number" inputmode="decimal" min="0"></div>
+    <button class="btn btn-gold" id="goals-save">Save</button>
+  </div>
+
+  <div class="sheet" id="fr-sheet">
+    <div class="grab"></div>
+    <h2>FieldRoutes connection</h2>
+    <div class="sub">Your office's API credentials — FieldRoutes support issues a key + token per office (support@fieldroutes.com). Stored only on this device. The live connector that pushes customers automatically ships next; until then, use Export.</div>
+    <div class="field"><label for="set-fr-sub">Office subdomain</label><input id="set-fr-sub" placeholder="yourcompany (as in yourcompany.pestroutes.com)" autocapitalize="off"></div>
+    <div class="field"><label for="set-fr-key">Authentication key</label><input id="set-fr-key" autocapitalize="off" autocomplete="off"></div>
+    <div class="field"><label for="set-fr-token">Authentication token</label><input id="set-fr-token" autocapitalize="off" autocomplete="off"></div>
+    <button class="btn btn-gold" id="fr-save">Save</button>
+  </div>
+
+  <div class="sheet" id="gmaps-sheet">
+    <div class="grab"></div>
+    <h2>Google map imagery</h2>
+    <div class="sub">Paste a Google Maps API key and Satellite + Hybrid render actual Google Maps tiles — the same vivid imagery and street labels the big sales apps use. The key stays on this device. Your Google project needs the <b>Map Tiles API</b> enabled.</div>
+    <ol style="font-size:13.5px;color:var(--t2);padding-left:20px;margin-bottom:14px;display:grid;gap:6px">
+      <li>Go to <b>console.cloud.google.com</b> → create a project (any name).</li>
+      <li>Search "<b>Map Tiles API</b>" → Enable. (Billing must be on; the free tier covers you.)</li>
+      <li>APIs &amp; Services → Credentials → <b>Create API key</b> → copy it here.</li>
+    </ol>
+    <div class="field"><label for="set-gkey">Google Maps API key</label><input id="set-gkey" autocapitalize="off" autocomplete="off" placeholder="AIza…"></div>
+    <button class="btn btn-gold" id="gmaps-save">Save &amp; switch imagery</button>
+    <p style="font-size:12px;color:var(--t3);margin-top:10px">Stored only on this device. Clear the field to go back to the free imagery.</p>
+  </div>
+
+  <div id="toast" role="status"></div>
+
+  <div id="celebrate">
+    <canvas id="confetti"></canvas>
+    <div class="cel-inner">
+      <div class="word">Rally</div>
+      <div class="big">SOLD</div>
+      <div class="comm num" id="cel-comm"></div>
+      <div class="sub" id="cel-sub"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="vendor/maplibre-gl.js"></script>
+<script src="js/db.js"></script>
+<script src="js/data.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/store.js"></script>
+<script src="js/contract.js"></script>
+<script src="js/map.js"></script>
+<script src="js/hoods.js"></script>
+<script src="js/customers.js"></script>
+<script src="js/schedule.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

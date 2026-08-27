@@ -1,67 +1,37 @@
-/* Meridian — boot, navigation, rankings, field guide, settings. */
+/* RALLY — boot, navigation, leaderboard, field guide, settings. */
 (function () {
-  const { $, $$, openSheet, closeSheet, toast, fmtMoney } = MUI;
+  const { $, $$, openSheet, closeSheet, toast, fmtMoney, esc } = MUI;
 
   // ---------- tabs ----------
-  const SCREENS = ["customers", "map", "stats", "rank", "guide", "more"];
+  // Five in the bar (Customers · Schedule · Map · Leaderboard · More);
+  // "guide" lives behind More with its own back button.
+  const TABS = ["customers", "schedule", "map", "rank", "more"];
+  const SCREENS = [...TABS, "guide"];
   function show(name) {
-    SCREENS.forEach((s) => {
-      $("#screen-" + s).classList.toggle("active", s === name);
-      $("#tab-" + s).classList.toggle("active", s === name);
-    });
-    if (name === "customers") renderCustomers();
+    if (!SCREENS.includes(name)) name = "customers";
+    SCREENS.forEach((s) => $("#screen-" + s).classList.toggle("active", s === name));
+    TABS.forEach((s) =>
+      $("#tab-" + s).classList.toggle("active", s === name || (name === "guide" && s === "more")));
+    if (name === "customers") MCUST.renderList();
+    if (name === "schedule") MSCHED.render();
     if (name === "map" && window.MMAP) MMAP.resize();
-    if (name === "stats") MSTAT.render();
-    if (name === "rank") renderRank();
+    if (name === "rank") renderRankScreen();
     if (name === "guide") renderGuide($("#guide-q").value);
     if (name === "more") renderMore();
   }
 
-  // ---------- customers (the launch screen) ----------
-  function renderCustomers() {
-    const q = ($("#cust-q").value || "").trim().toLowerCase();
-    const all = STORE.customers.slice().reverse();
-    const list = all.filter((c) =>
-      !q || (c.first + " " + c.last).toLowerCase().includes(q) ||
-      (c.address || "").toLowerCase().includes(q));
+  // ---------- leaderboard (team + my numbers) ----------
+  let rankView = "team";
+  let rankMetric = "sales";
 
-    const firstYear = (c) => (c.initial || 0) + (c.monthly || 0) * (c.termMonths || 12);
-    $("#cust-summary").hidden = all.length === 0;
-    $("#cust-export").hidden = all.length === 0;
-    $("#cust-count").textContent = all.length;
-    $("#cust-value").textContent = MUI.fmtMoney(all.reduce((s, c) => s + firstYear(c), 0));
-    $("#cust-queued").textContent = STORE.queuedCount();
-
-    if (!all.length) {
-      $("#cust-list").innerHTML =
-        `<div class="empty"><div class="ic">🗺️</div>No customers yet.<br>Hit the Map, knock some doors, and your book builds itself.</div>`;
-      return;
-    }
-    $("#cust-list").innerHTML = list.map((c) =>
-      `<button class="cust-card" data-cid="${c.id}" type="button">
-         <div class="top"><span class="nm">${esc(c.first)} ${esc(c.last)}</span>
-           <span class="val num">${MUI.fmtMoney(firstYear(c))}/yr</span></div>
-         <div class="meta">${esc(c.address) || "No address"}${c.phone ? " · " + esc(c.phone) : ""}</div>
-         <div class="meta">${esc(c.planName)} · ${MUI.fmtMoney(c.initial)} first + ${MUI.fmtMoney(c.monthly)}/mo · signed ${new Date(c.signedAt).toLocaleDateString()}</div>
-         <div class="row2">
-           <span class="q-status ${c.status === "queued" ? "queued" : "sold"}">${c.status === "queued" ? "Queued for FieldRoutes" : "Synced"}</span>
-           ${c.pinId ? '<span class="q-status sold" style="background:transparent;border-color:var(--line);color:var(--t3)">View on map ›</span>' : ""}
-         </div>
-       </button>`
-    ).join("") || `<div class="empty">Nothing matches “${esc(q)}”.</div>`;
-
-    $$("#cust-list .cust-card").forEach((b) =>
-      b.addEventListener("click", () => {
-        const c = STORE.customers.find((x) => x.id === b.dataset.cid);
-        if (c && c.pinId && window.MMAP) {
-          show("map");
-          MMAP.focusPin(c.pinId);
-        }
-      }));
+  function renderRankScreen() {
+    $$("#rank-seg .seg-opt").forEach((b) => b.classList.toggle("sel", b.dataset.v === rankView));
+    $("#rank-team").hidden = rankView !== "team";
+    $("#rank-me").hidden = rankView !== "me";
+    if (rankView === "team") renderRank();
+    else MSTAT.render();
   }
 
-  // ---------- rankings ----------
-  let rankMetric = "sales";
   function renderRank() {
     const w = STORE.weekStats();
     const me = {
@@ -74,16 +44,13 @@
       `<div class="rank-row${i === 0 ? " first" : ""}${r.me ? " me" : ""}">
          <div class="pos">${i === 0 ? "👑" : i + 1}</div>
          <div class="av">${r.name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase()}</div>
-         <div><div class="nm">${r.name}${r.me && r.name !== "You" ? " (you)" : ""}</div><div class="tm">${r.team}</div></div>
+         <div><div class="nm">${esc(r.name)}${r.me && r.name !== "You" ? " (you)" : ""}</div><div class="tm">${esc(r.team)}</div></div>
          <div class="sc num">${r[rankMetric] || 0}</div>
        </div>`
     ).join("");
   }
 
   // ---------- field guide ----------
-  const esc = (s) => String(s || "").replace(/[&<>"']/g, (c) =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
   function renderGuide(q) {
     q = (q || "").trim().toLowerCase();
     const list = MDATA.PESTS.filter((p) =>
@@ -118,27 +85,52 @@
 
   // ---------- more ----------
   function renderMore() {
-    $("#more-queue-sub").textContent =
-      STORE.customers.length
-        ? `${STORE.customers.length} agreement${STORE.customers.length === 1 ? "" : "s"} · ${STORE.queuedCount()} queued`
-        : "Signed customers land here";
-    $("#more-profile-sub").textContent = `${STORE.settings.repName} · ${STORE.settings.teamName}`;
+    const s = STORE.settings;
+    $("#more-company-sub").textContent = s.companyName
+      ? s.companyName + (s.companyLicense ? " · lic. " + s.companyLicense : "")
+      : "Set the name printed on every agreement";
+    $("#more-profile-sub").textContent = `${s.repName} · ${s.teamName}`;
     $("#more-goals-sub").textContent =
-      `${STORE.settings.doorGoal} doors/day · ${fmtMoney(STORE.settings.commissionPerSale)}/sale`;
-    $("#more-fr-sub").textContent = STORE.settings.frSubdomain
-      ? STORE.settings.frSubdomain + ".pestroutes.com"
-      : "Not connected — agreements queue locally";
-    const own = !!STORE.settings.googleKey;
+      `${s.doorGoal} doors/day · ${fmtMoney(s.commissionPerSale)}/sale`;
+    $("#more-fr-sub").textContent = s.frSubdomain
+      ? s.frSubdomain + ".pestroutes.com"
+      : "Not connected — customers queue locally";
+    const own = !!s.googleKey;
     const anyKey = own || !!MDATA.DEFAULT_GOOGLE_KEY;
-    $("#more-gmaps-sub").textContent = STORE.settings.googleSessions
+    $("#more-gmaps-sub").textContent = s.googleSessions
       ? "Google imagery active" + (own ? " (your key)" : "")
-      : (STORE.settings.googleLastError ||
+      : (s.googleLastError ||
          (anyKey ? "Key saved — checking with Google"
                  : "Free imagery — add a key for Google quality"));
+    $("#more-export-sub").textContent = STORE.customers.length
+      ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${STORE.queuedCount()} queued for sync`
+      : "Signed customers land here";
   }
 
   function bindMore() {
-    $("#more-queue").addEventListener("click", () => MCLOSE.openQueue());
+    $("#more-guide").addEventListener("click", () => show("guide"));
+    $("#guide-back").addEventListener("click", () => show("more"));
+
+    $("#more-company").addEventListener("click", () => {
+      const s = STORE.settings;
+      $("#set-co-name").value = s.companyName;
+      $("#set-co-phone").value = s.companyPhone;
+      $("#set-co-email").value = s.companyEmail;
+      $("#set-co-address").value = s.companyAddress;
+      $("#set-co-license").value = s.companyLicense;
+      openSheet("company-sheet");
+    });
+    $("#company-save").addEventListener("click", async () => {
+      const s = STORE.settings;
+      s.companyName = $("#set-co-name").value.trim();
+      s.companyPhone = $("#set-co-phone").value.trim();
+      s.companyEmail = $("#set-co-email").value.trim();
+      s.companyAddress = $("#set-co-address").value.trim();
+      s.companyLicense = $("#set-co-license").value.trim();
+      await STORE.saveSettings();
+      renderMore(); closeSheet(); toast("Saved — it prints on every agreement");
+    });
+
     $("#more-profile").addEventListener("click", () => {
       $("#set-name").value = STORE.settings.repName;
       $("#set-team").value = STORE.settings.teamName;
@@ -204,11 +196,16 @@
       }
     });
 
+    $("#more-export").addEventListener("click", () => MCUST.exportAll());
+
     $("#more-reset").addEventListener("click", async () => {
-      if (!confirm("Erase every pin, knock, and agreement on this device? This cannot be undone.")) return;
-      await Promise.all([MDB.clear("pins"), MDB.clear("events"), MDB.clear("customers")]);
-      STORE.pins = []; STORE.events = []; STORE.customers = [];
-      MMAP.refreshPins(); MSTAT.render(); renderMore();
+      if (!confirm("Erase every pin, knock, customer, hood and file on this device? This cannot be undone.")) return;
+      await Promise.all([
+        MDB.clear("pins"), MDB.clear("events"), MDB.clear("customers"),
+        MDB.clear("territories"), MDB.clear("files"),
+      ]);
+      STORE.pins = []; STORE.events = []; STORE.customers = []; STORE.territories = [];
+      MMAP.refreshPins(); MMAP.refreshHoods(); MSTAT.render(); MCUST.renderList(); renderMore();
       toast("All data erased");
     });
   }
@@ -228,28 +225,34 @@
       console.error("storage unavailable", e);
       MUI.toast("Storage unavailable — running without saving");
     }
-    SCREENS.forEach((s) =>
+    TABS.forEach((s) =>
       $("#tab-" + s).addEventListener("click", () => { MUI.tick(); show(s); }));
     $("#veil").addEventListener("click", () => { closeSheet(); MMAP.clearSelection(); });
     $$(".sheet .grab").forEach((g) =>
       g.addEventListener("click", () => { closeSheet(); MMAP.clearSelection(); }));
-    $("#sync-chip").addEventListener("click", () => MCLOSE.openQueue());
+    $("#sync-chip").addEventListener("click", () => { show("customers"); });
     $("#guide-q").addEventListener("input", (e) => renderGuide(e.target.value));
-    $("#cust-q").addEventListener("input", renderCustomers);
     $$(".mtab").forEach((b) =>
       b.addEventListener("click", () => {
         rankMetric = b.dataset.m;
         $$(".mtab").forEach((x) => x.classList.toggle("active", x === b));
         renderRank();
       }));
-    MCLOSE.bind();
+    $$("#rank-seg .seg-opt").forEach((b) =>
+      b.addEventListener("click", () => {
+        MUI.tick();
+        rankView = b.dataset.v;
+        renderRankScreen();
+      }));
+    MCUST.bind();
+    MSCHED.bind();
+    MHOODS.bind();
     bindMore();
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }
-    MSTAT.render();
-    renderCustomers();
+    MCUST.renderList();
     renderGuide("");
     renderMore();
-    window.MAPP = { show, renderCustomers };
+    window.MAPP = { show };
 
     // keep a focused input visible above the on-screen keyboard inside sheets
     document.addEventListener("focusin", (e) => {

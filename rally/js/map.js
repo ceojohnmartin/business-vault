@@ -1,9 +1,11 @@
-/* Meridian — the knocking map.
+/* RALLY — the knocking map.
    Street view is a custom light vector cartography (OpenFreeMap positron
    tiles restyled to a clean Apple-Maps-like palette — crisp at every zoom).
-   Satellite/Hybrid ride Esri imagery. Pins are GPU circle layers with a
-   soft shadow and white ring. All pin data is local-first; if the style
-   can't be fetched offline on first run, a raster fallback loads instead. */
+   Satellite/Hybrid ride Esri imagery, upgraded to Google tiles when a key
+   is present. Pins are glossy 3D teardrop markers in the disposition
+   colors. Hoods (rep territories) render as tinted polygons under the
+   pins. All data is local-first; if the style can't be fetched offline on
+   first run, a raster fallback loads instead. */
 (function () {
   const { $, $$, openSheet, closeSheet, toast, tick } = MUI;
   const D = MDATA.DISPOSITIONS;
@@ -22,6 +24,7 @@
   const SUBS = ["a", "b", "c", "d"];
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
   const VECTOR_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+  const GLYPHS_URL = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
 
   // ---------- the Apple-2026 light palette ----------
   const APPLE = {
@@ -75,6 +78,7 @@
   function rasterFallbackStyle() {
     return {
       version: 8,
+      glyphs: GLYPHS_URL, // hood labels need glyphs even in fallback
       sources: {
         carto: {
           type: "raster",
@@ -104,6 +108,7 @@
       }
     } catch (_) { /* offline or slow first run — raster fallback below */ }
     if (!style) style = rasterFallbackStyle();
+    if (!style.glyphs) style.glyphs = GLYPHS_URL;
     BASEMAPS.street = style.layers.map((l) => l.id);
 
     // imagery modes ride on top of the street layers
@@ -245,7 +250,7 @@
           });
           map.addLayer(
             { id: layerId, type: "raster", source: layerId, layout: { visibility: "none" } },
-            map.getLayer("pins-shadow") ? "pins-shadow" : undefined
+            map.getLayer("hoods-fill") ? "hoods-fill" : undefined
           );
         } catch (_) { continue; }
       }
@@ -279,6 +284,91 @@
     if (gattr) gattr.hidden = !BASEMAPS[mode].some((id) => id.startsWith("g-"));
   }
 
+  // ---------- teardrop pin images ----------
+  // Glossy 3D map pins (the classic teardrop with a white hole), one per
+  // disposition color, drawn on canvas at 2x and registered as map images.
+  function shade(hex, f) {
+    // f > 0 lightens toward white, f < 0 darkens toward black
+    const n = parseInt(hex.slice(1), 16);
+    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    const t = f < 0 ? 0 : 255, p = Math.abs(f);
+    r = Math.round((t - r) * p + r); g = Math.round((t - g) * p + g); b = Math.round((t - b) * p + b);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function makePinImage(color) {
+    const S = 96; // 48 CSS px @2x
+    const cv = document.createElement("canvas");
+    cv.width = S; cv.height = S;
+    const ctx = cv.getContext("2d");
+    const x = S / 2, headR = S * 0.30, headCy = S * 0.335, tipY = S * 0.955;
+
+    const tear = () => {
+      ctx.beginPath();
+      ctx.moveTo(x, tipY);
+      ctx.bezierCurveTo(x - headR * 0.52, tipY - S * 0.24, x - headR, headCy + headR * 0.72, x - headR, headCy);
+      ctx.arc(x, headCy, headR, Math.PI, 0); // top semicircle (sweeps through 12 o'clock)
+      ctx.bezierCurveTo(x + headR, headCy + headR * 0.72, x + headR * 0.52, tipY - S * 0.24, x, tipY);
+      ctx.closePath();
+    };
+
+    // body
+    tear();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // 3D shading: darker toward the lower-right…
+    tear();
+    const dark = ctx.createLinearGradient(x - headR, headCy - headR, x + headR, tipY);
+    dark.addColorStop(0, "rgba(0,0,0,0)");
+    dark.addColorStop(1, "rgba(0,0,0,.30)");
+    ctx.fillStyle = dark;
+    ctx.fill();
+
+    // …and a soft gloss bloom on the upper-left
+    tear();
+    ctx.save();
+    ctx.clip();
+    const gloss = ctx.createRadialGradient(
+      x - headR * 0.42, headCy - headR * 0.48, headR * 0.08,
+      x - headR * 0.2, headCy - headR * 0.2, headR * 1.5);
+    gloss.addColorStop(0, "rgba(255,255,255,.85)");
+    gloss.addColorStop(0.35, "rgba(255,255,255,.28)");
+    gloss.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gloss;
+    ctx.fill();
+    ctx.restore();
+
+    // rim — light on dark pins (DNK black), dark on bright pins
+    tear();
+    const lum = parseInt(color.slice(1), 16);
+    const isDark = (((lum >> 16) & 255) + ((lum >> 8) & 255) + (lum & 255)) / 3 < 70;
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,.5)" : shade(color, -0.28);
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // the white hole
+    ctx.beginPath();
+    ctx.arc(x, headCy, headR * 0.42, 0, Math.PI * 2);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill();
+    // faint inner shadow at the hole's top edge sells the depth
+    ctx.beginPath();
+    ctx.arc(x, headCy, headR * 0.42 - 1, Math.PI * 1.05, Math.PI * 1.95);
+    ctx.strokeStyle = "rgba(0,0,0,.18)";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    return ctx.getImageData(0, 0, S, S);
+  }
+
+  function registerPinImages() {
+    Object.keys(D).forEach((k) => {
+      const id = "pin-" + k;
+      if (!map.hasImage(id)) map.addImage(id, makePinImage(D[k].color), { pixelRatio: 2 });
+    });
+  }
+
   function pinsGeoJSON() {
     return {
       type: "FeatureCollection",
@@ -290,7 +380,62 @@
     };
   }
 
-  const PIN_RADIUS = ["interpolate", ["linear"], ["zoom"], 10, 3, 14, 6.5, 17, 10.5];
+  // ---------- hoods (territories) ----------
+  function hoodsGeoJSON() {
+    return {
+      type: "FeatureCollection",
+      features: STORE.territories
+        .filter((t) => t.points && t.points.length >= 3)
+        .map((t) => ({
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: [[...t.points, t.points[0]]] },
+          properties: { id: t.id, name: t.name || "Hood", rep: t.rep || "", color: t.color || "#0A6CF0" },
+        })),
+    };
+  }
+
+  function refreshHoods() {
+    if (!map) return;
+    const data = hoodsGeoJSON();
+    const src = map.getSource("hoods");
+    if (src) src.setData(data);
+    const lsrc = map.getSource("hoods-labels");
+    if (lsrc) lsrc.setData(data);
+  }
+
+  function addHoodLayers() {
+    // The label rides a SEPARATE source on purpose: MapLibre parses all of
+    // a source's layers in one worker job, so a symbol layer waiting on
+    // glyphs it can't fetch (offline first run) would stall the fill and
+    // line of the same source. Split sources = the tint always renders.
+    map.addSource("hoods", { type: "geojson", data: hoodsGeoJSON() });
+    map.addSource("hoods-labels", { type: "geojson", data: hoodsGeoJSON() });
+    map.addLayer({
+      id: "hoods-fill", type: "fill", source: "hoods",
+      paint: { "fill-color": ["get", "color"], "fill-opacity": 0.14 },
+    });
+    map.addLayer({
+      id: "hoods-line", type: "line", source: "hoods",
+      paint: { "line-color": ["get", "color"], "line-width": 2.25, "line-opacity": 0.85 },
+    });
+    map.addLayer({
+      id: "hoods-label", type: "symbol", source: "hoods-labels",
+      layout: {
+        "text-field": ["case", ["!=", ["get", "rep"], ""],
+          ["concat", ["get", "name"], "\n", ["get", "rep"]], ["get", "name"]],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 13,
+        "text-line-height": 1.25,
+      },
+      paint: {
+        "text-color": ["get", "color"],
+        "text-halo-color": "rgba(255,255,255,.95)",
+        "text-halo-width": 1.8,
+      },
+    });
+  }
+
+  const PIN_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 10, 0.30, 14, 0.52, 16, 0.72, 18, 0.95];
 
   function init() {
     if (typeof maplibregl === "undefined") {
@@ -316,6 +461,7 @@
     $("#fab-layers").addEventListener("click", () => {
       tick();
       $("#layer-menu").hidden = !$("#layer-menu").hidden;
+      $("#hood-menu").hidden = true; // one popover at a time
     });
     $$("#layer-menu .lm-opt").forEach((b) =>
       b.addEventListener("click", () => {
@@ -339,34 +485,23 @@
       map.touchZoomRotate.disableRotation();
       // Failed tile fetches are routine in dead zones — never surface them as errors.
       map.on("error", (e) => {
-        if (e && e.error && /tile|source|ajax|fetch/i.test(String(e.error.message || ""))) return;
+        if (e && e.error && /tile|source|ajax|fetch|glyph/i.test(String(e.error.message || ""))) return;
       });
 
       map.on("style.load", () => {
+        registerPinImages();
+        addHoodLayers();
         map.addSource("pins", { type: "geojson", data: pinsGeoJSON() });
-        // soft drop shadow so pins float, Apple-style, on any ground
+        // soft contact shadow at the pin's tip so it floats on any ground
         map.addLayer({
           id: "pins-shadow",
           type: "circle",
           source: "pins",
           paint: {
-            "circle-color": "rgba(16,24,40,.28)",
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4.5, 14, 8.5, 17, 13],
-            "circle-blur": 0.9,
-            "circle-translate": [0, 1.5],
-          },
-        });
-        map.addLayer({
-          id: "pins-circle",
-          type: "circle",
-          source: "pins",
-          paint: {
-            "circle-color": ["match", ["get", "disposition"],
-              "sold", D.sold.color, "goback", D.goback.color, "nothome", D.nothome.color,
-              "notint", D.notint.color, "dnk", D.dnk.color, "#8A93A6"],
-            "circle-radius": PIN_RADIUS,
-            "circle-stroke-width": ["case", ["==", ["get", "disposition"], "dnk"], 2.25, 1.75],
-            "circle-stroke-color": "#FFFFFF",
+            "circle-color": "rgba(16,24,40,.30)",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 14, 4.5, 17, 7],
+            "circle-blur": 1.1,
+            "circle-translate": [1, 1],
           },
         });
         map.addLayer({
@@ -375,24 +510,40 @@
           source: "pins",
           filter: ["==", ["get", "id"], ""],
           paint: {
-            "circle-color": "rgba(0,0,0,0)",
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 14, 12, 17, 16],
+            "circle-color": "rgba(10,108,240,.12)",
+            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 7, 14, 11, 17, 15],
             "circle-stroke-width": 2.5,
             "circle-stroke-color": "#0A6CF0",
           },
         });
+        map.addLayer({
+          id: "pins-icon",
+          type: "symbol",
+          source: "pins",
+          layout: {
+            "icon-image": ["concat", "pin-", ["get", "disposition"]],
+            "icon-size": PIN_ICON_SIZE,
+            "icon-anchor": "bottom",
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+          },
+        });
         applyBasemap(STORE.settings.basemap);
         refreshPins();
+        refreshHoods();
         reloadImagery(); // upgrades Satellite/Hybrid to Google tiles if a key is set
+        if (window.MHOODS) MHOODS.onMapReady(map);
       });
 
       map.on("click", (e) => {
-        // 14px tolerance box: fat-fingering near a pin opens it instead of
+        // hood drawing (dot mode) consumes clicks first
+        if (window.MHOODS && MHOODS.handleMapClick(e)) return;
+        // 16px tolerance box: fat-fingering near a pin opens it instead of
         // silently creating a duplicate door
-        const T = 14;
+        const T = 16;
         const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
-        const hits = map.getLayer("pins-circle")
-          ? map.queryRenderedFeatures(bbox, { layers: ["pins-circle"] })
+        const hits = map.getLayer("pins-icon")
+          ? map.queryRenderedFeatures(bbox, { layers: ["pins-icon"] })
           : [];
         if (hits.length) {
           const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);
@@ -402,7 +553,10 @@
         }
       });
 
-      map.on("dragstart", () => { $("#layer-menu").hidden = true; });
+      map.on("dragstart", () => {
+        $("#layer-menu").hidden = true;
+        $("#hood-menu").hidden = true;
+      });
 
       let saveT = null;
       map.on("moveend", () => {
@@ -559,7 +713,7 @@
     if (window.MSTAT) MSTAT.render();
 
     if (knock.disposition === "sold") {
-      if (window.MCLOSE) MCLOSE.start(pin);
+      if (window.MCUST) MCUST.startForPin(pin);
       else toast("Sold — nice.");
     } else if (knock.reason && MDATA.REKNOCK_REASONS.includes(knock.reason)) {
       toast("Soft no logged — worth a swing-back later");
@@ -589,9 +743,10 @@
       const line = [a.house_number, a.road].filter(Boolean).join(" ");
       const town = a.city || a.town || a.village || a.suburb || "";
       pin.address = line ? line + (town ? ", " + town : "") : (j.display_name || "").split(",").slice(0, 2).join(",");
+      pin.geo = { city: town, state: a.state || "", zip: a.postcode || "" };
       await STORE.updatePin(pin);
       if (currentLead && currentLead.id === pin.id) $("#lead-addr").textContent = pin.address || "Address pending…";
-      if (window.MCLOSE) MCLOSE.fillAddress(pin);
+      if (window.MCUST) MCUST.fillAddress(pin);
     } catch (_) { /* offline or rate-limited — address stays editable by hand */ }
   }
 
@@ -608,7 +763,7 @@
     hist.innerHTML = pin.history.slice().reverse().map((h) =>
       `<div class="h-item"><span class="sw ${h.disposition}"></span>` +
       `<span>${D[h.disposition].label}${h.reason ? " — " + h.reason : ""}${h.dm ? " · DM" : ""}` +
-      `${h.note ? `<span style="color:var(--t3)"> · “${escapeHtml(h.note)}”</span>` : ""}</span>` +
+      `${h.note ? `<span style="color:var(--t3)"> · “${MUI.esc(h.note)}”</span>` : ""}</span>` +
       `<time>${MUI.fmtAgo(h.ts)}</time></div>`
     ).join("");
     $("#lead-note-in").value = pin.note || "";
@@ -616,7 +771,7 @@
     const sold = pin.disposition === "sold";
     const hasAgreement = STORE.customers.some((c) => c.pinId === pin.id);
     $("#lead-close-btn").hidden = hasAgreement;
-    $("#lead-close-btn").textContent = sold ? "Write the agreement" : "Sold — start agreement";
+    $("#lead-close-btn").textContent = sold ? "Create the customer" : "Sold — create customer";
     openSheet("lead-sheet");
   }
 
@@ -626,7 +781,7 @@
       startKnock(p.lat, p.lng, p);
     });
     $("#lead-close-btn").addEventListener("click", () => {
-      if (currentLead && window.MCLOSE) MCLOSE.start(currentLead);
+      if (currentLead && window.MCUST) { closeSheet(); MCUST.startForPin(currentLead); }
     });
     $("#lead-save").addEventListener("click", async () => {
       const p = currentLead; if (!p) return;
@@ -648,11 +803,6 @@
     });
   }
 
-  function escapeHtml(s) {
-    return s.replace(/[&<>"']/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  }
-
   // jump from a customer card to their door on the map
   function focusPin(pinId) {
     const p = STORE.pins.find((x) => x.id === pinId);
@@ -664,11 +814,24 @@
     openLead(p);
   }
 
+  // fit the map to a hood and highlight it briefly
+  function focusHood(t) {
+    if (!map || !t.points || !t.points.length) return;
+    let minX = 180, minY = 90, maxX = -180, maxY = -90;
+    t.points.forEach(([lng, lat]) => {
+      minX = Math.min(minX, lng); maxX = Math.max(maxX, lng);
+      minY = Math.min(minY, lat); maxY = Math.max(maxY, lat);
+    });
+    map.fitBounds([[minX, minY], [maxX, maxY]], { padding: 70, maxZoom: 17 });
+  }
+
   window.MMAP = {
-    init, refreshPins, updateBrandToday, focusPin, reloadImagery,
+    init, refreshPins, refreshHoods, updateBrandToday, focusPin, focusHood, reloadImagery,
+    startKnock,
     googleError: () => lastGoogleError,
     usingOwnKey: () => !!STORE.settings.googleKey,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
     resize: () => { if (map) map.resize(); },
+    getMap: () => map,
   };
 })();

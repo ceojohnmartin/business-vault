@@ -132,7 +132,7 @@
       ? "Free imagery — add a key for Google quality"
       : STORE.settings.googleSessions
         ? "Google imagery active on Satellite & Hybrid"
-        : "Key saved — waiting for Google to accept it";
+        : (STORE.settings.googleLastError || "Key saved — waiting for Google to accept it");
   }
 
   function bindMore() {
@@ -182,13 +182,24 @@
     $("#gmaps-save").addEventListener("click", async () => {
       STORE.settings.googleKey = $("#set-gkey").value.trim();
       STORE.settings.googleSessions = null; // new key → new sessions
+      STORE.settings.googleLastError = "";
       await STORE.saveSettings();
       closeSheet();
       renderMore();
+      if (STORE.settings.googleKey) toast("Checking with Google…", 9000);
       const upgraded = window.MMAP ? await MMAP.reloadImagery() : false;
-      if (upgraded) toast("Google imagery is on — check Satellite or Hybrid");
-      else if (STORE.settings.googleKey) toast("Key saved, but Google didn't accept it yet — check that Map Tiles API is enabled");
-      else toast("Key removed — back to free imagery");
+      if (upgraded) {
+        toast("Google imagery is on — check Satellite or Hybrid");
+      } else if (STORE.settings.googleKey) {
+        // show Google's own words, and keep them on screen long enough to read
+        const why = (window.MMAP && MMAP.googleError()) || "Google didn't accept the key";
+        STORE.settings.googleLastError = why;
+        await STORE.saveSettings();
+        renderMore();
+        toast(why, 7000);
+      } else {
+        toast("Key removed — back to free imagery");
+      }
     });
 
     $("#more-reset").addEventListener("click", async () => {

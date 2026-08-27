@@ -1,0 +1,309 @@
+/* RALLY — hoods: rep territories drawn on the map.
+   Two ways to cut an area, matching how the big apps do it:
+     ✏️  Pencil — freehand-trace the boundary with a finger (Aptive-style)
+     📍  Corners — tap dot-to-dot and close the box (FieldRoutes-style)
+   A hood gets a name, a rep, and a color; it renders as a tinted polygon
+   with a label, under the pins. All local-first in IndexedDB. */
+(function () {
+  const { $, $$, openSheet, closeSheet, toast, tick } = MUI;
+
+  let map = null;
+  let mode = null;          // null | "pencil" | "dots"
+  let dots = [];            // [[lng,lat],...] while tap-drawing
+  let pending = null;       // points awaiting the save sheet
+  let editingId = null;     // hood being edited in the sheet
+  let color = MDATA.HOOD_COLORS[0];
+
+  // ---------- draft rendering (dot mode) ----------
+  function draftData() {
+    const pts = dots.map((p) => ({
+      type: "Feature", geometry: { type: "Point", coordinates: p }, properties: {},
+    }));
+    const shapes = [];
+    if (dots.length >= 2) {
+      shapes.push({ type: "Feature", properties: {},
+        geometry: { type: "LineString", coordinates: dots } });
+    }
+    if (dots.length >= 3) {
+      shapes.push({ type: "Feature", properties: {},
+        geometry: { type: "Polygon", coordinates: [[...dots, dots[0]]] } });
+    }
+    return { type: "FeatureCollection", features: [...shapes, ...pts] };
+  }
+
+  function ensureDraftLayers() {
+    if (map.getSource("hood-draft")) return;
+    map.addSource("hood-draft", { type: "geojson", data: draftData() });
+    map.addLayer({ id: "hood-draft-fill", type: "fill", source: "hood-draft",
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: { "fill-color": "#0A6CF0", "fill-opacity": 0.12 } });
+    map.addLayer({ id: "hood-draft-line", type: "line", source: "hood-draft",
+      filter: ["!=", ["geometry-type"], "Point"],
+      paint: { "line-color": "#0A6CF0", "line-width": 2.5, "line-dasharray": [1.6, 1.2] } });
+    map.addLayer({ id: "hood-draft-pts", type: "circle", source: "hood-draft",
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: { "circle-color": "#FFFFFF", "circle-radius": 6,
+        "circle-stroke-color": "#0A6CF0", "circle-stroke-width": 3 } });
+  }
+
+  function refreshDraft() {
+    ensureDraftLayers();
+    map.getSource("hood-draft").setData(draftData());
+    $("#draw-done").disabled = dots.length < 3;
+    $("#draw-undo").disabled = dots.length === 0;
+  }
+
+  function clearDraft() {
+    dots = [];
+    if (map && map.getSource("hood-draft")) map.getSource("hood-draft").setData(draftData());
+  }
+
+  // ---------- mode lifecycle ----------
+  function startMode(m) {
+    if (!map) { toast("Map is still loading"); return; }
+    stopMode();
+    mode = m;
+    $("#hood-menu").hidden = true;
+    $("#draw-bar").hidden = false;
+    const dotMode = m === "dots";
+    $("#draw-undo").hidden = !dotMode;
+    $("#draw-done").hidden = !dotMode;
+    $("#draw-msg").textContent = dotMode
+      ? "Tap each corner of the area — then Done"
+      : "Trace the area with your finger";
+    if (dotMode) {
+      refreshDraft();
+    } else {
+      startPencil();
+    }
+  }
+
+  function stopMode() {
+    mode = null;
+    $("#draw-bar").hidden = true;
+    clearDraft();
+    stopPencil();
+  }
+
+  // ---------- pencil (freehand) ----------
+  let cv = null, ctx = null, tracing = false, trace = [];
+
+  function startPencil() {
+    cv = $("#draw-canvas");
+    cv.hidden = false;
+    const rect = cv.parentElement.getBoundingClientRect();
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    cv.width = Math.round(rect.width * dpr);
+    cv.height = Math.round(rect.height * dpr);
+    ctx = cv.getContext("2d");
+    ctx.scale(dpr, dpr);
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#0A6CF0";
+    ctx.setLineDash([7, 6]);
+    trace = [];
+  }
+
+  function stopPencil() {
+    if (cv) { cv.hidden = true; }
+    tracing = false;
+    trace = [];
+  }
+
+  function pencilPos(e) {
+    const r = cv.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+
+  function pencilDown(e) {
+    if (mode !== "pencil") return;
+    e.preventDefault();
+    tracing = true;
+    trace = [pencilPos(e)];
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.beginPath();
+    ctx.moveTo(trace[0].x, trace[0].y);
+  }
+
+  function pencilMove(e) {
+    if (!tracing) return;
+    e.preventDefault();
+    const p = pencilPos(e);
+    const last = trace[trace.length - 1];
+    if (Math.hypot(p.x - last.x, p.y - last.y) < 3) return;
+    trace.push(p);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+
+  function pencilUp(e) {
+    if (!tracing) return;
+    e.preventDefault();
+    tracing = false;
+    if (trace.length < 12) {
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      toast("Keep the finger down and trace the whole area");
+      return;
+    }
+    // close the shape visually, simplify in screen space, convert to lng/lat
+    const pts = simplify(trace, 6);
+    const coords = pts.map((p) => {
+      const ll = map.unproject([p.x, p.y]);
+      return [ll.lng, ll.lat];
+    });
+    stopMode();
+    openHoodSheet(coords, null);
+  }
+
+  // Ramer–Douglas–Peucker in screen pixels — keeps the drawn shape's
+  // character with ~10x fewer vertices.
+  function simplify(points, tol) {
+    if (points.length < 3) return points.slice();
+    const keep = new Array(points.length).fill(false);
+    keep[0] = keep[points.length - 1] = true;
+    const stack = [[0, points.length - 1]];
+    while (stack.length) {
+      const [a, b] = stack.pop();
+      const A = points[a], B = points[b];
+      let maxD = 0, idx = -1;
+      const dx = B.x - A.x, dy = B.y - A.y;
+      const len = Math.hypot(dx, dy) || 1e-9;
+      for (let i = a + 1; i < b; i++) {
+        const P = points[i];
+        const d = Math.abs(dy * P.x - dx * P.y + B.x * A.y - B.y * A.x) / len;
+        if (d > maxD) { maxD = d; idx = i; }
+      }
+      if (maxD > tol && idx > 0) {
+        keep[idx] = true;
+        stack.push([a, idx], [idx, b]);
+      }
+    }
+    return points.filter((_, i) => keep[i]);
+  }
+
+  // ---------- dot mode: map clicks land here first ----------
+  function handleMapClick(e) {
+    if (mode !== "dots") return false;
+    tick();
+    dots.push([e.lngLat.lng, e.lngLat.lat]);
+    refreshDraft();
+    return true; // consumed — no knock behind a draw tap
+  }
+
+  // ---------- save sheet ----------
+  function openHoodSheet(points, hood) {
+    pending = points;
+    editingId = hood ? hood.id : null;
+    color = hood ? hood.color : MDATA.HOOD_COLORS[STORE.territories.length % MDATA.HOOD_COLORS.length];
+    $("#hood-sheet-title").textContent = hood ? "Edit hood" : "Name this hood";
+    $("#hood-name").value = hood ? hood.name : "";
+    $("#hood-rep").value = hood ? hood.rep : (STORE.settings.repName === "You" ? "" : STORE.settings.repName);
+    $("#hood-delete").hidden = !hood;
+    renderSwatches();
+    openSheet("hood-sheet");
+  }
+
+  function renderSwatches() {
+    $("#hood-colors").innerHTML = MDATA.HOOD_COLORS.map((c) =>
+      `<button type="button" class="hood-swatch${c === color ? " sel" : ""}" data-c="${c}" style="background:${c}" aria-label="Hood color"></button>`
+    ).join("");
+    $$("#hood-colors .hood-swatch").forEach((b) =>
+      b.addEventListener("click", () => { tick(); color = b.dataset.c; renderSwatches(); }));
+  }
+
+  async function saveHood() {
+    const name = $("#hood-name").value.trim() || "Hood " + (STORE.territories.length + 1);
+    const rep = $("#hood-rep").value.trim();
+    try {
+      if (editingId) {
+        const t = STORE.territories.find((x) => x.id === editingId);
+        if (t) { t.name = name; t.rep = rep; t.color = color; await STORE.updateTerritory(t); }
+      } else {
+        await STORE.addTerritory({ name, rep, color, points: pending });
+      }
+    } catch (_) {
+      toast("Couldn't save the hood — try again");
+      return;
+    }
+    pending = null; editingId = null;
+    MMAP.refreshHoods();
+    closeSheet();
+    renderHoodList();
+    toast(rep ? `${name} — assigned to ${rep}` : `${name} saved`);
+  }
+
+  // ---------- hoods panel ----------
+  function renderHoodList() {
+    const wrap = $("#hood-list");
+    if (!STORE.territories.length) {
+      wrap.innerHTML = `<div class="hood-empty">No hoods yet — cut your first area</div>`;
+      return;
+    }
+    wrap.innerHTML = STORE.territories.map((t) =>
+      `<div class="hood-row" data-id="${t.id}">
+         <span class="dot" style="background:${t.color}"></span>
+         <span class="hn">${MUI.esc(t.name)}${t.rep ? `<span class="hr">${MUI.esc(t.rep)}</span>` : ""}</span>
+         <button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>
+       </div>`
+    ).join("");
+    $$("#hood-list .hood-row").forEach((row) =>
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".hood-edit")) return;
+        const t = STORE.territories.find((x) => x.id === row.dataset.id);
+        if (t) { $("#hood-menu").hidden = true; MMAP.focusHood(t); }
+      }));
+    $$("#hood-list .hood-edit").forEach((b) =>
+      b.addEventListener("click", () => {
+        const t = STORE.territories.find((x) => x.id === b.dataset.id);
+        if (t) { $("#hood-menu").hidden = true; openHoodSheet(t.points, t); }
+      }));
+  }
+
+  function bind() {
+    $("#fab-hoods").addEventListener("click", () => {
+      tick();
+      const menu = $("#hood-menu");
+      menu.hidden = !menu.hidden;
+      $("#layer-menu").hidden = true;
+      if (!menu.hidden) renderHoodList();
+    });
+    $("#hood-pencil").addEventListener("click", () => { tick(); startMode("pencil"); });
+    $("#hood-dots").addEventListener("click", () => { tick(); startMode("dots"); });
+    $("#draw-cancel").addEventListener("click", () => { tick(); stopMode(); });
+    $("#draw-undo").addEventListener("click", () => { tick(); dots.pop(); refreshDraft(); });
+    $("#draw-done").addEventListener("click", () => {
+      tick();
+      if (dots.length < 3) return;
+      const pts = dots.slice();
+      stopMode();
+      openHoodSheet(pts, null);
+    });
+    $("#hood-save").addEventListener("click", saveHood);
+    $("#hood-delete").addEventListener("click", async () => {
+      if (!editingId) return;
+      if (!confirm("Delete this hood? Pins inside it are not affected.")) return;
+      await STORE.deleteTerritory(editingId);
+      editingId = null;
+      MMAP.refreshHoods();
+      closeSheet();
+      toast("Hood deleted");
+    });
+
+    const cvEl = $("#draw-canvas");
+    cvEl.addEventListener("mousedown", pencilDown);
+    cvEl.addEventListener("mousemove", pencilMove);
+    cvEl.addEventListener("mouseup", pencilUp);
+    cvEl.addEventListener("touchstart", pencilDown, { passive: false });
+    cvEl.addEventListener("touchmove", pencilMove, { passive: false });
+    cvEl.addEventListener("touchend", pencilUp, { passive: false });
+  }
+
+  window.MHOODS = {
+    bind,
+    handleMapClick,
+    onMapReady: (m) => { map = m; },
+    isDrawing: () => mode !== null,
+  };
+})();

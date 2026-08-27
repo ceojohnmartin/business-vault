@@ -1,11 +1,11 @@
-/* Meridian — offline service worker.
+/* RALLY — offline service worker.
    App shell: network-first with a short race against the cache (weak signal
    never leaves a rep staring at a blank screen), good responses only.
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "meridian-v9";
-const TILE_CACHE = "meridian-tiles-v4";
+const CACHE = "rally-v1";
+const TILE_CACHE = "rally-tiles-v1";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
 
@@ -14,7 +14,8 @@ const CORE = [
   "./css/app.css",
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css",
   "./js/db.js", "./js/data.js", "./js/ui.js", "./js/store.js",
-  "./js/map.js", "./js/stats.js", "./js/close.js", "./js/app.js",
+  "./js/contract.js", "./js/map.js", "./js/hoods.js", "./js/customers.js",
+  "./js/schedule.js", "./js/stats.js", "./js/app.js",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png",
 ];
 

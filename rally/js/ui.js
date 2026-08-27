@@ -1,4 +1,4 @@
-/* Meridian — UI primitives: sheets, toast, celebration, formatting. */
+/* RALLY — UI primitives: sheets, toast, celebration, formatting. */
 (function () {
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -95,6 +95,12 @@
     const d = new Date(ts);
     return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
   };
+  const fmtDate = (ts) =>
+    new Date(ts).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" });
+  const fmtTime = (ts) =>
+    new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const esc = (s) => String(s || "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey };
+  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey, fmtDate, fmtTime, esc };
 })();

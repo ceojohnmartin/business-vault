@@ -1,8 +1,11 @@
-/* Meridian — IndexedDB layer.
-   Local-first: every write commits here; nothing depends on the network. */
+/* RALLY — IndexedDB layer.
+   Local-first: every write commits here; nothing depends on the network.
+   DB name is unchanged from the Meridian era ON PURPOSE: IndexedDB is
+   origin-scoped, so keeping the name is what carries every existing pin,
+   knock and customer across the rebrand. */
 (function () {
   const DB_NAME = "meridian-db";
-  const DB_VER = 1;
+  const DB_VER = 2;
   let dbp = null;
 
   function open() {
@@ -24,6 +27,13 @@
         }
         if (!db.objectStoreNames.contains("kv")) {
           db.createObjectStore("kv", { keyPath: "k" });
+        }
+        // v2: rep territories ("hoods") and file blobs (signed agreements, photos)
+        if (!db.objectStoreNames.contains("territories")) {
+          db.createObjectStore("territories", { keyPath: "id" });
+        }
+        if (!db.objectStoreNames.contains("files")) {
+          db.createObjectStore("files", { keyPath: "id" });
         }
       };
       req.onsuccess = () => resolve(req.result);

@@ -449,6 +449,14 @@
     const s = STORE.settings;
     // one-time migration: the clean vector street map becomes the default view
     if (!s.mapV2) { s.mapV2 = true; s.basemap = "street"; STORE.saveSettings(); }
+    // one-time migration: with the office Google key built in, Hybrid
+    // (Google imagery + labels) is the premium default. Reps can still
+    // switch views and their choice sticks from then on.
+    if (!s.mapV3 && MDATA.DEFAULT_GOOGLE_KEY) {
+      s.mapV3 = true;
+      s.basemap = "hybrid";
+      STORE.saveSettings();
+    }
 
     bindKnockSheet();
     bindLeadSheet();

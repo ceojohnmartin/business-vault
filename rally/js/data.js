@@ -30,11 +30,10 @@
 
   // Built-in Google Maps browser key, shipped so no rep has to paste one.
   // A Maps key in a web app is public by design (it rides along on every
-  // tile request); the real protection is the HTTP-referrer restriction on
-  // the Google project, so only fill this in once the key is restricted to
-  // this site and to the Map Tiles API. Empty = each device supplies its
-  // own key in More -> Google map imagery.
-  const DEFAULT_GOOGLE_KEY = "";
+  // tile request); the real protection is the restriction set on the
+  // Google project (this site + Map Tiles API). A device can still
+  // override it in More -> Google map imagery.
+  const DEFAULT_GOOGLE_KEY = "AIzaSyDyf6DCg6-kmOlKgHmTB77ctVkTCbOZHmY";
 
   // What counts as a DM (decision-maker) conversation.
   const DM_HINT = "Homeowner or spouse with authority to sign. “Ask my spouse” = a convo, not a DM.";

@@ -23,29 +23,28 @@
         tileSize: 256,
         attribution: "© OpenStreetMap contributors © CARTO",
       },
+      // tileSize 128 makes MapLibre fetch two zoom levels deeper than it
+      // displays — retina-sharp imagery instead of soft standard-def tiles
       sat: {
         type: "raster",
         tiles: [`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`],
-        tileSize: 256, maxzoom: 19,
+        tileSize: 128, maxzoom: 19,
         attribution: "© Esri, Maxar, Earthstar Geographics",
       },
-      "sat-roads": {
+      // modern crisp street/place labels over imagery (replaces Esri's
+      // dated yellow-road reference layers)
+      "hyb-labels": {
         type: "raster",
-        tiles: [`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`],
-        tileSize: 256, maxzoom: 19,
-      },
-      "sat-places": {
-        type: "raster",
-        tiles: [`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`],
-        tileSize: 256, maxzoom: 19,
+        tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png`),
+        tileSize: 256,
       },
     },
     // all basemap layers exist at once; the picker just flips visibility
     layers: [
       { id: "base-street", type: "raster", source: "carto", layout: { visibility: "none" } },
-      { id: "base-sat", type: "raster", source: "sat", layout: { visibility: "none" } },
-      { id: "base-sat-roads", type: "raster", source: "sat-roads", layout: { visibility: "none" } },
-      { id: "base-sat-places", type: "raster", source: "sat-places", layout: { visibility: "none" } },
+      { id: "base-sat", type: "raster", source: "sat", layout: { visibility: "none" },
+        paint: { "raster-contrast": 0.06, "raster-saturation": -0.05 } },
+      { id: "base-hyb-labels", type: "raster", source: "hyb-labels", layout: { visibility: "none" } },
     ],
   };
 
@@ -53,7 +52,7 @@
   const BASEMAPS = {
     street: ["base-street"],
     satellite: ["base-sat"],
-    hybrid: ["base-sat", "base-sat-roads", "base-sat-places"],
+    hybrid: ["base-sat", "base-hyb-labels"],
   };
 
   function applyBasemap(mode) {

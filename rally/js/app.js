@@ -3,15 +3,17 @@
   const { $, $$, openSheet, closeSheet, toast, fmtMoney, esc } = MUI;
 
   // ---------- tabs ----------
-  // Five in the bar (Customers · Schedule · Map · Leaderboard · More);
-  // "guide" lives behind More with its own back button.
-  const TABS = ["customers", "schedule", "map", "rank", "more"];
-  const SCREENS = [...TABS, "guide"];
+  // Five in the bar (Home · Customers · Map · Schedule · More);
+  // "guide" lives behind More, "rank" behind Home — each with a back button.
+  const TABS = ["home", "customers", "map", "schedule", "more"];
+  const SCREENS = [...TABS, "guide", "rank"];
   function show(name) {
-    if (!SCREENS.includes(name)) name = "customers";
+    if (!SCREENS.includes(name)) name = "home";
     SCREENS.forEach((s) => $("#screen-" + s).classList.toggle("active", s === name));
     TABS.forEach((s) =>
-      $("#tab-" + s).classList.toggle("active", s === name || (name === "guide" && s === "more")));
+      $("#tab-" + s).classList.toggle("active",
+        s === name || (name === "guide" && s === "more") || (name === "rank" && s === "home")));
+    if (name === "home") MHOME.render();
     if (name === "customers") MCUST.renderList();
     if (name === "schedule") MSCHED.render();
     if (name === "map" && window.MMAP) MMAP.resize();
@@ -323,12 +325,13 @@
         rankView = b.dataset.v;
         renderRankScreen();
       }));
+    $("#rank-back").addEventListener("click", () => show("home"));
     MCUST.bind();
     MSCHED.bind();
     MHOODS.bind();
     bindMore();
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }
-    MCUST.renderList();
+    MHOME.render();
     renderGuide("");
     renderMore();
     window.MAPP = { show };

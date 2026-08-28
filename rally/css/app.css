@@ -638,3 +638,38 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .hood-hist-sum{font-size:13px;color:var(--t2);margin-bottom:6px}
 .hood-hist-sum b{color:var(--t1)}
 .legend.heat .sw{border-radius:3px}
+
+/* ---------- Phase 8: home dashboard ---------- */
+.hm-greet{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:14px}
+.hg-hi{font-size:21px;letter-spacing:-.01em}
+.hg-hi b{font-weight:800}
+.hg-date{font-size:11.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);white-space:nowrap}
+.hm-cta{display:block;width:100%;border-radius:var(--radius);padding:17px;margin-bottom:14px;
+  background:var(--accent-btn);color:#fff;font-weight:900;font-size:16.5px;letter-spacing:.12em;
+  box-shadow:0 4px 18px rgba(10,108,240,.4)}
+.hm-cta:active{background:#0559CE;transform:scale(.985)}
+.hm-hero .big{font-size:56px}
+.hm-chips{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.hm-chip{background:var(--s1);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:12px 10px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.hm-chip .n{font-size:21px;font-weight:800}
+.hm-chip .d{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);
+  font-weight:700;margin-top:1px}
+.hm-chip.wide{flex:1;text-align:left;padding:13px 15px}
+.hm-turf{width:100%;text-align:left;margin-bottom:0}
+.hm-turf:active{transform:scale(.99)}
+.hm-turf-line{font-size:14.5px;color:var(--t2)}
+.hm-turf-line b{color:var(--t1)}
+.hm-bar{height:7px;border-radius:4px;background:var(--s3);margin-top:10px;overflow:hidden}
+.hm-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--accent-btn),var(--accent));
+  min-width:3px;transition:width .5s cubic-bezier(.3,.7,.3,1)}
+.hm-remaining{font-size:12px;color:var(--t3);margin-top:7px}
+.hm-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--s1);
+  border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 14px;margin-bottom:8px;
+  font-size:14px;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.hm-row:active{transform:scale(.985)}
+.hm-row .ic{font-size:19px;flex:none}
+.hm-row .tx{flex:1;min-width:0}
+.hm-row .tx .sub{display:block;font-size:12px;color:var(--t3)}
+.hm-row .chev{color:var(--t3)}
+.hm-foot{display:flex;gap:10px;margin-top:14px}

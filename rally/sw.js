@@ -4,7 +4,7 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "rally-v4";
+const CACHE = "rally-v5";
 const TILE_CACHE = "rally-tiles-v1";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
@@ -15,7 +15,7 @@ const CORE = [
   "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css",
   "./js/db.js", "./js/data.js", "./js/ui.js", "./js/store.js",
   "./js/contract.js", "./js/map.js", "./js/hoods.js", "./js/customers.js",
-  "./js/schedule.js", "./js/stats.js", "./js/app.js",
+  "./js/home.js", "./js/schedule.js", "./js/stats.js", "./js/app.js",
   "./fonts/Noto Sans Bold/0-255.pbf", "./fonts/Noto Sans Bold/256-511.pbf",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png",
 ];

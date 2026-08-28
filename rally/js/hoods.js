@@ -205,9 +205,48 @@
     $("#hood-delete").hidden = !hood;
     $("#hood-newrep-wrap").hidden = true;
     $("#hood-newrep").value = "";
+    // Smart Split only makes sense on a saved hood, and only for managers
+    $("#hood-split-wrap").hidden = !hood || !STORE.isManager();
+    $("#hood-split-n").hidden = true;
+    splitN = 0;
     renderRepChips();
     renderHoodHistory(hood);
     openSheet("hood-sheet");
+  }
+
+  // ---------- smart split ----------
+  let splitN = 0;
+  function bindSplit() {
+    $("#hood-split").addEventListener("click", () => {
+      tick();
+      const nWrap = $("#hood-split-n");
+      nWrap.hidden = !nWrap.hidden;
+      if (!nWrap.hidden) {
+        nWrap.innerHTML = [2, 3, 4, 5, 6].map((n) =>
+          `<button type="button" class="reason split-chip" data-n="${n}">${n} reps</button>`).join("");
+        $$("#hood-split-n .split-chip").forEach((b) =>
+          b.addEventListener("click", () => runSplit(+b.dataset.n)));
+      }
+    });
+  }
+
+  async function runSplit(n) {
+    tick();
+    const t = STORE.territories.find((x) => x.id === editingId);
+    if (!t) return;
+    if (!confirm(`Split “${t.name}” into ${n} balanced hoods? The original is replaced (pins keep their history).`)) return;
+    let kids;
+    try {
+      kids = await STORE.splitTerritory(t, n);
+    } catch (_) {
+      toast("Split failed — try a simpler shape");
+      return;
+    }
+    editingId = null; pending = null;
+    MMAP.refreshHoods();
+    closeSheet();
+    renderHoodList();
+    toast(`Cut into ${kids.length} hoods — hand them out from the hoods list`);
   }
 
   // Assignment chips: the rep's territory color rides on the chip, so the
@@ -410,6 +449,7 @@
       stopMode();
       openHoodSheet(pts, null);
     });
+    bindSplit();
     $("#hood-save").addEventListener("click", saveHood);
     $("#hood-delete").addEventListener("click", async () => {
       if (!editingId) return;

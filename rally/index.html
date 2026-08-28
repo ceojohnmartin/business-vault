@@ -110,7 +110,9 @@
     <div class="seg" id="rank-seg">
       <button class="seg-opt sel" data-v="team">Team</button>
       <button class="seg-opt" data-v="me">My numbers</button>
+      <button class="seg-opt" data-v="coach" id="rank-coach-btn" hidden>Coaching</button>
     </div>
+    <div id="rank-coach" hidden><div id="coach-list"></div></div>
 
     <div id="rank-team">
       <div class="metric-tabs">
@@ -405,7 +407,8 @@
     <div class="grab"></div>
     <div class="lead-head">
       <div><div class="addr" id="lead-addr"></div><div class="coords num" id="lead-coords"></div>
-        <div class="lead-cb" id="lead-cb" hidden></div></div>
+        <div class="lead-cb" id="lead-cb" hidden></div>
+        <div class="lead-opp" id="lead-opp" hidden></div></div>
       <span class="badge" id="lead-badge"></span>
     </div>
     <div class="hist" id="lead-history"></div>
@@ -439,6 +442,10 @@
       </div>
     </div>
     <div id="hood-history"></div>
+    <div id="hood-split-wrap" hidden>
+      <button class="btn btn-ghost" id="hood-split" style="margin-bottom:10px">✂️ Smart Split — cut into balanced hoods</button>
+      <div class="reasons" id="hood-split-n" hidden></div>
+    </div>
     <button class="btn btn-gold" id="hood-save">Save hood</button>
     <button class="btn btn-danger" id="hood-delete" style="margin-top:10px" hidden>Delete hood</button>
   </div>
@@ -471,6 +478,17 @@
     <button class="btn btn-ghost" id="ap-done" style="margin-bottom:10px">Mark serviced ✓</button>
     <button class="btn btn-ghost" id="ap-undone" style="margin-bottom:10px" hidden>Undo serviced</button>
     <button class="btn btn-ghost" id="ap-open">Open customer</button>
+  </div>
+
+  <div class="sheet" id="route-sheet">
+    <div class="grab"></div>
+    <h2>Re-knock route</h2>
+    <div class="sub" id="route-sub"></div>
+    <div id="route-list"></div>
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="route-end">End route</button>
+      <button class="btn btn-gold" id="route-start">Go to stop 1</button>
+    </div>
   </div>
 
   <div class="sheet" id="company-sheet">
@@ -540,6 +558,7 @@
 
 <script src="vendor/maplibre-gl.js"></script>
 <script src="js/db.js"></script>
+<script src="js/geo.js"></script>
 <script src="js/data.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/store.js"></script>
@@ -547,6 +566,7 @@
 <script src="js/map.js"></script>
 <script src="js/hoods.js"></script>
 <script src="js/customers.js"></script>
+<script src="js/route.js"></script>
 <script src="js/home.js"></script>
 <script src="js/schedule.js"></script>
 <script src="js/stats.js"></script>

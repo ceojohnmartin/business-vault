@@ -29,7 +29,8 @@
 
     if (callbacks.length) {
       html += `<div class="sched-warn cbs">
-        <div class="sw-title">⏰ Callbacks (${callbacks.length})</div>` +
+        <div class="sw-title">⏰ Callbacks (${callbacks.length})
+          <button class="cb-route-btn" id="cb-route" type="button">🧭 Re-knock route</button></div>` +
         callbacks.slice(0, 8).map((p) => {
           const overdue = p.callbackAt <= Date.now();
           const where = p.address || (p.lat.toFixed(4) + ", " + p.lng.toFixed(4));
@@ -95,6 +96,12 @@
 
     wrap.innerHTML = html;
 
+    const routeBtn = $("#cb-route");
+    if (routeBtn) routeBtn.addEventListener("click", () => {
+      tick();
+      if (window.MAPP) MAPP.show("map");
+      MROUTE.build();
+    });
     $$("#sched-list .cb-row").forEach((b) =>
       b.addEventListener("click", () => {
         if (window.MAPP) MAPP.show("map");

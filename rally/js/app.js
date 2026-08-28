@@ -27,11 +27,55 @@
   let rankMetric = "sales";
 
   function renderRankScreen() {
+    $("#rank-coach-btn").hidden = !STORE.isManager();
+    if (rankView === "coach" && !STORE.isManager()) rankView = "team";
     $$("#rank-seg .seg-opt").forEach((b) => b.classList.toggle("sel", b.dataset.v === rankView));
     $("#rank-team").hidden = rankView !== "team";
     $("#rank-me").hidden = rankView !== "me";
+    $("#rank-coach").hidden = rankView !== "coach";
     if (rankView === "team") renderRank();
+    else if (rankView === "coach") renderCoach();
     else MSTAT.render();
+  }
+
+  // ---------- coaching (manager): activity vs conversion, not judgment ----------
+  function coachInsight(s) {
+    if (s.doors < 20) return { tag: "Small sample", note: "Under 20 doors this week — read nothing into the rates yet." };
+    const convRate = s.doors ? s.convos / s.doors : 0;
+    const closeRate = s.dms ? s.sales / s.dms : 0;
+    if (s.doors >= 100 && closeRate < 0.08) {
+      return { tag: "High activity · low conversion", note: "The doors are there — work the close. Ride-along on the pitch could pay fast." };
+    }
+    if (s.doors < 60 && closeRate >= 0.2) {
+      return { tag: "Strong closer · low activity", note: "Closes well when in front of people — more doors is the whole game here." };
+    }
+    if (convRate < 0.2) {
+      return { tag: "Few answers", note: "Lots of not-homes — try shifting hours toward evenings and the re-knock route." };
+    }
+    if (s.dms && s.convos && s.dms / s.convos < 0.4) {
+      return { tag: "Low DM rate", note: "Getting conversations but not the decision-maker — coach the callback ask." };
+    }
+    return { tag: "Balanced", note: "Activity and conversion both healthy — keep the streak alive." };
+  }
+
+  function renderCoach() {
+    const weekStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); })();
+    const rows = STORE.users.map((u) => ({ u, s: STORE.repStats(u.id, weekStart) }));
+    const anyData = rows.some((r) => r.s.doors > 0);
+    $("#coach-list").innerHTML = (anyData ? "" :
+      `<p class="demo-note" style="text-align:left">Knocks are attributed to whoever the device is set to (More → Team &amp; roles). Work a shift and this fills in.</p>`) +
+      rows.map(({ u, s }) => {
+        const ins = coachInsight(s);
+        return `<div class="coach-card">
+          <div class="cc-head">
+            <span class="dot" style="background:${u.color}"></span>
+            <b>${esc(u.name)}</b>
+            <span class="cc-tag">${ins.tag}</span>
+          </div>
+          <div class="cc-nums num">${s.doors} doors · ${s.convos} convos · ${s.dms} DMs · ${s.sales} sold</div>
+          <div class="cc-note">${ins.note}</div>
+        </div>`;
+      }).join("");
   }
 
   function renderRank() {
@@ -329,6 +373,7 @@
     MCUST.bind();
     MSCHED.bind();
     MHOODS.bind();
+    MROUTE.bind();
     bindMore();
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }
     MHOME.render();

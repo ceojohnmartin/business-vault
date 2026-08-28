@@ -98,10 +98,10 @@
     const own = !!s.googleKey;
     const anyKey = own || !!MDATA.DEFAULT_GOOGLE_KEY;
     $("#more-gmaps-sub").textContent = s.googleSessions
-      ? "Google imagery active" + (own ? " (your key)" : "")
+      ? "Google imagery active" + (own ? " (your key)" : " (office key)")
       : (s.googleLastError ||
-         (anyKey ? "Key saved — checking with Google"
-                 : "Free imagery — add a key for Google quality"));
+         (anyKey ? "Checking with Google…"
+                 : "No key — imagery is off on this device"));
     $("#more-export-sub").textContent = STORE.customers.length
       ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${STORE.queuedCount()} queued for sync`
       : "Signed customers land here";
@@ -192,7 +192,7 @@
         renderMore();
         toast(why, 7000);
       } else {
-        toast(MDATA.DEFAULT_GOOGLE_KEY ? "Using the built-in Google key" : "Key removed — back to free imagery");
+        toast(MDATA.DEFAULT_GOOGLE_KEY ? "Back on the office key" : "Key removed — imagery is off");
       }
     });
 

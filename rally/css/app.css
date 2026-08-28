@@ -731,3 +731,19 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .btnrow #lead-nav{flex:0 0 54px;font-size:18px}
 .bk-status{background:var(--s2);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:11px 13px;font-size:12.5px;color:var(--t2);margin-bottom:14px;line-height:1.5}
+
+/* ---------- street mode + bulk lasso ---------- */
+.street-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--s2);
+  border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 13px;margin-bottom:8px;font-size:13.5px}
+.street-row:active{transform:scale(.985)}
+.street-row .stn{flex:none;min-width:44px;font-weight:800;font-size:16px;text-align:right}
+.street-row .stb{flex:1;min-width:0}
+.street-row .stb .dim{display:flex;align-items:center;gap:5px;font-size:12px;margin-top:2px}
+.street-row .su-cta{flex:none;color:var(--accent);font-size:12px;font-weight:700}
+#street-list{max-height:44vh;overflow-y:auto;overscroll-behavior:contain}
+.st-chip .num{margin-left:4px;color:var(--t3);font-weight:700}
+.lasso-break{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 16px}
+.lb-chip{display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:1px solid var(--line);
+  border-radius:999px;padding:6px 12px;font-size:12.5px;color:var(--t2)}
+.lb-chip b{color:var(--t1)}
+.street-row .sw,.lb-chip .sw{width:9px;height:9px;border-radius:50%;flex:none}

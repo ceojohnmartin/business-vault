@@ -71,14 +71,34 @@
     stops.forEach((s) => { s.opp = STORE.oppScore(s.pin); });
     if (cands.length > 20) toast(`Routing the best 20 of ${cands.length} stops`);
     MMAP.showRoute(stops.map((s) => s.pin));
-    renderSheet();
+    renderSheet("callbacks first, then the closest door wins");
     openSheet("route-sheet");
     return true;
   }
 
-  function renderSheet() {
+  // route exactly these pins (bulk lasso) — nearest-neighbor from map center
+  function buildFrom(pins) {
+    if (!pins || !pins.length) { toast("Nothing to route"); return false; }
+    const m = MMAP.getMap();
+    const c = m ? m.getCenter() : { lat: pins[0].lat, lng: pins[0].lng };
+    const cands = pins.map((p) => {
+      const d = MDATA.DISPOSITIONS[p.disposition];
+      return { pin: p, tier: 1, whyLabel: (d ? d.label : p.disposition) +
+        (p.callbackAt ? " · ⏰ " + MUI.fmtTime(p.callbackAt) : "") };
+    });
+    stops = order(cands, { lat: c.lat, lng: c.lng }).slice(0, 20);
+    stops.forEach((s) => { s.opp = STORE.oppScore(s.pin); });
+    if (pins.length > 20) toast(`Routing the closest 20 of ${pins.length} doors`);
+    MMAP.showRoute(stops.map((s) => s.pin));
+    renderSheet("your lasso, walked in order — closest door first");
+    if (window.MAPP) MAPP.show("map");
+    openSheet("route-sheet");
+    return true;
+  }
+
+  function renderSheet(why) {
     $("#route-sub").textContent =
-      `${stops.length} stop${stops.length === 1 ? "" : "s"} — callbacks first, then the closest door wins`;
+      `${stops.length} stop${stops.length === 1 ? "" : "s"} — ${why}`;
     $("#route-list").innerHTML = stops.map((s, i) =>
       `<button class="route-stop" data-pid="${s.pin.id}" type="button">
          <span class="rs-n num">${i + 1}</span>
@@ -113,5 +133,5 @@
     $("#route-end").addEventListener("click", () => { tick(); closeSheet(); clear(); });
   }
 
-  window.MROUTE = { build, clear, bind, hasCandidates };
+  window.MROUTE = { build, buildFrom, clear, bind, hasCandidates };
 })();

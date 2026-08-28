@@ -398,6 +398,8 @@
     MSCHED.bind();
     MHOODS.bind();
     MROUTE.bind();
+    MSTREET.bind();
+    MSELECT.bind();
     bindMore();
     MVAULT.guard(); // ask the browser to never evict the vault
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }

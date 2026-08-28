@@ -8,7 +8,7 @@
   const { $, $$, openSheet, closeSheet, toast, tick } = MUI;
 
   let map = null;
-  let mode = null;          // null | "pencil" | "dots"
+  let mode = null;          // null | "pencil" | "dots" | "lasso"
   let dots = [];            // [[lng,lat],...] while tap-drawing
   let pending = null;       // points awaiting the save sheet
   let editingId = null;     // hood being edited in the sheet
@@ -69,9 +69,10 @@
     const dotMode = m === "dots";
     $("#draw-undo").hidden = !dotMode;
     $("#draw-done").hidden = !dotMode;
-    $("#draw-msg").textContent = dotMode
-      ? "Tap each corner of the area — then Done"
-      : "Trace the area with your finger";
+    $("#draw-msg").textContent =
+      m === "lasso" ? "Circle the doors you want to work with" :
+      dotMode ? "Tap each corner of the area — then Done"
+              : "Trace the area with your finger";
     if (dotMode) {
       refreshDraft();
     } else {
@@ -119,7 +120,7 @@
   }
 
   function pencilDown(e) {
-    if (mode !== "pencil") return;
+    if (mode !== "pencil" && mode !== "lasso") return;
     e.preventDefault();
     tracing = true;
     trace = [pencilPos(e)];
@@ -154,8 +155,10 @@
       const ll = map.unproject([p.x, p.y]);
       return [ll.lng, ll.lat];
     });
+    const finished = mode; // stopMode clears it
     stopMode();
-    openHoodSheet(coords, null);
+    if (finished === "lasso") MSELECT.open(coords);
+    else openHoodSheet(coords, null);
   }
 
   // Ramer–Douglas–Peucker in screen pixels — keeps the drawn shape's
@@ -170,10 +173,14 @@
       const A = points[a], B = points[b];
       let maxD = 0, idx = -1;
       const dx = B.x - A.x, dy = B.y - A.y;
-      const len = Math.hypot(dx, dy) || 1e-9;
+      const len = Math.hypot(dx, dy);
       for (let i = a + 1; i < b; i++) {
         const P = points[i];
-        const d = Math.abs(dy * P.x - dx * P.y + B.x * A.y - B.y * A.x) / len;
+        // a loop closed exactly on its start makes A≈B: the line formula
+        // degenerates to 0 for every point — fall back to point distance
+        const d = len < 1e-6
+          ? Math.hypot(P.x - A.x, P.y - A.y)
+          : Math.abs(dy * P.x - dx * P.y + B.x * A.y - B.y * A.x) / len;
         if (d > maxD) { maxD = d; idx = i; }
       }
       if (maxD > tol && idx > 0) {
@@ -425,6 +432,7 @@
         $("#hood-pencil").hidden = !manager;
         $("#hood-dots").hidden = !manager;
         $("#hood-heat").hidden = !manager;
+        // lasso stays for everyone — reps use it to route a pocket of doors
         $("#hood-heat").textContent = MMAP.heatMode() ? "🎨 Ownership view" : "🔥 Freshness view";
         renderRepsPanel(manager);
         renderHoodList();
@@ -440,6 +448,7 @@
     });
     $("#hood-pencil").addEventListener("click", () => { tick(); startMode("pencil"); });
     $("#hood-dots").addEventListener("click", () => { tick(); startMode("dots"); });
+    $("#hood-lasso").addEventListener("click", () => { tick(); startMode("lasso"); });
     $("#draw-cancel").addEventListener("click", () => { tick(); stopMode(); });
     $("#draw-undo").addEventListener("click", () => { tick(); dots.pop(); refreshDraft(); });
     $("#draw-done").addEventListener("click", () => {
@@ -475,5 +484,6 @@
     handleMapClick,
     onMapReady: (m) => { map = m; },
     isDrawing: () => mode !== null,
+    createFromPoints: (pts) => openHoodSheet(pts, null), // lasso → hood
   };
 })();

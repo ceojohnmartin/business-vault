@@ -64,9 +64,13 @@
         <button class="fab" id="fab-hoods" aria-label="Hoods — draw rep areas">
           <svg viewBox="0 0 24 24"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20V6.5Z"/><path d="M14 13.5l5.5-5.5M12.2 15.3l1.1-3.2 3.2-1.1"/></svg>
         </button>
+        <button class="fab" id="fab-street" aria-label="Street mode — work one street door by door">
+          <svg viewBox="0 0 24 24"><path d="M5 21 9.5 3M19 21 14.5 3"/><path d="M12 4v3M12 10.5v3M12 17v3"/></svg>
+        </button>
         <div class="layer-menu hood-menu" id="hood-menu" hidden>
           <button class="lm-opt" id="hood-pencil">✏️ Draw with pencil</button>
           <button class="lm-opt" id="hood-dots">📍 Tap the corners</button>
+          <button class="lm-opt" id="hood-lasso">⭕ Lasso doors</button>
           <button class="lm-opt" id="hood-heat">🔥 Freshness view</button>
           <div class="hood-list" id="hood-reps-panel" hidden></div>
           <div class="hood-list" id="hood-list"></div>
@@ -518,6 +522,25 @@
     <button class="btn btn-gold" id="profile-save">Save</button>
   </div>
 
+  <div class="sheet" id="street-sheet">
+    <div class="grab"></div>
+    <h2>Street mode</h2>
+    <div class="sub" id="street-sub"></div>
+    <div class="reasons" id="street-streets" style="margin-bottom:10px"></div>
+    <div class="reasons" id="street-filters" style="margin-bottom:12px"></div>
+    <div id="street-list"></div>
+  </div>
+
+  <div class="sheet" id="lasso-sheet">
+    <div class="grab"></div>
+    <h2 id="lasso-title">Doors selected</h2>
+    <div class="sub">Everything inside your circle</div>
+    <div class="lasso-break" id="lasso-break"></div>
+    <button class="btn btn-gold" id="lasso-route">🧭 Route these doors</button>
+    <button class="btn btn-ghost" id="lasso-hood" style="margin-top:10px">✂️ Make this a hood</button>
+    <button class="btn btn-danger" id="lasso-delete" style="margin-top:10px">Delete these pins</button>
+  </div>
+
   <div class="sheet" id="backup-sheet">
     <div class="grab"></div>
     <h2>Backup &amp; restore</h2>
@@ -581,6 +604,8 @@
 <script src="js/hoods.js"></script>
 <script src="js/customers.js"></script>
 <script src="js/route.js"></script>
+<script src="js/street.js"></script>
+<script src="js/select.js"></script>
 <script src="js/home.js"></script>
 <script src="js/schedule.js"></script>
 <script src="js/stats.js"></script>

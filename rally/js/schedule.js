@@ -129,6 +129,7 @@
     const me = STORE.currentUser();
     $("#ap-name").textContent = STORE.custName(cust);
     $("#ap-addr").textContent = STORE.custAddress(cust) || "No address";
+    renderApActions(cust, ap);
     const dflt = ap ? ap.ts : nextMorning();
     $("#ap-when").value = MUI.toLocalInput(dflt);
     apWho = ap ? (ap.userId || null) : (me ? me.id : null);
@@ -146,6 +147,29 @@
       $("#ap-setter").textContent = s ? `Set by ${s.name}` : "";
     }
     openSheet("appt-sheet");
+  }
+
+  // one-tap handoffs to the phone's own apps: call, text, navigate, calendar
+  function renderApActions(cust, ap) {
+    const phone = STORE.custPhone(cust);
+    const addr = STORE.custAddress(cust);
+    const hasNav = !!addr || (cust.lat != null && cust.lng != null);
+    const acts = [];
+    if (phone) {
+      acts.push(`<a class="ap-act" href="${MUI.telHref(phone)}"><span>📞</span>Call</a>`);
+      acts.push(`<a class="ap-act" href="${MUI.smsHref(phone)}"><span>💬</span>Text</a>`);
+    }
+    if (hasNav) {
+      acts.push(`<a class="ap-act" href="${MUI.navUrl(cust.lat, cust.lng, addr)}" target="_blank" rel="noopener"><span>🧭</span>Go</a>`);
+    }
+    if (ap && ap.ts) {
+      acts.push(`<button class="ap-act" id="ap-ics" type="button"><span>📅</span>Calendar</button>`);
+    }
+    const wrap = $("#ap-actions");
+    wrap.hidden = !acts.length;
+    wrap.innerHTML = acts.join("");
+    const ics = $("#ap-ics");
+    if (ics) ics.addEventListener("click", () => { tick(); MVAULT.exportICS(cust, ap); });
   }
 
   // who's running this one — the setter→closer/tech handoff

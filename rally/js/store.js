@@ -202,6 +202,8 @@
       .filter(Boolean).join(a.street ? ", " : " ").replace(", ,", ",").trim();
   };
   S.custPlanName = (c) => (c.plan && c.plan.name) || c.planName || "—";
+  S.custPhone = (c) =>
+    ((c.phones || []).map((p) => p.n).find((n) => n && n.trim()) || c.phone || "").trim();
   S.custMonthly = (c) => (c.plan && c.plan.monthly != null ? c.plan.monthly : c.monthly) || 0;
   S.custInitial = (c) => (c.plan && c.plan.initial != null ? c.plan.initial : c.initial) || 0;
   S.custSignedAt = (c) => (c.agreement && c.agreement.signedAt) || c.signedAt || null;

@@ -195,7 +195,9 @@
       <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-gmaps"><span class="ic">🛰️</span><span><span class="tt">Google map imagery</span><br><span class="dd" id="more-gmaps-sub"></span></span><span class="chev">›</span></button>
-      <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers (JSON)</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-csv"><span class="ic">📊</span><span><span class="tt">Export spreadsheet (CSV)</span><br><span class="dd">Opens in Excel, Sheets, or any CRM import</span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-backup"><span class="ic">🛟</span><span><span class="tt">Backup &amp; restore</span><br><span class="dd" id="more-backup-sub">Everything on this device, in one file</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-reset"><span class="ic">🗑️</span><span><span class="tt">Erase all data</span><br><span class="dd">Pins, knocks, customers, hoods and files on this device</span></span><span class="chev">›</span></button>
     </div>
     <p style="font-size:12px;color:var(--t3);text-align:center;margin-top:22px">RALLY · Everything stays on your device and works offline.</p>
@@ -416,6 +418,7 @@
     <div class="field"><label for="lead-note-in">Notes</label><textarea id="lead-note-in" placeholder="Anything the next knock should know"></textarea></div>
     <button class="btn btn-gold" id="lead-close-btn" style="margin-bottom:10px">Sold — create customer</button>
     <div class="btnrow">
+      <button class="btn btn-ghost" id="lead-nav" aria-label="Directions">🧭</button>
       <button class="btn btn-ghost" id="lead-reknock">Log another knock</button>
       <button class="btn btn-ghost" id="lead-save">Save</button>
     </div>
@@ -467,6 +470,7 @@
     <div class="grab"></div>
     <h2 id="ap-name">Customer</h2>
     <div class="sub" id="ap-addr"></div>
+    <div class="ap-actions" id="ap-actions" hidden></div>
     <div class="field"><label for="ap-when">Service date &amp; time</label><input id="ap-when" type="datetime-local"></div>
     <div class="field"><label>Who runs it</label><div class="reasons" id="ap-who"></div>
       <div class="dim" id="ap-setter" style="font-size:12px" hidden></div></div>
@@ -512,6 +516,16 @@
     <div class="field"><label for="set-name">Your name</label><input id="set-name"></div>
     <div class="field"><label for="set-team">Team</label><input id="set-team"></div>
     <button class="btn btn-gold" id="profile-save">Save</button>
+  </div>
+
+  <div class="sheet" id="backup-sheet">
+    <div class="grab"></div>
+    <h2>Backup &amp; restore</h2>
+    <div class="sub">One file with every pin, knock, customer, hood, teammate, setting and signed agreement on this device. Restore it on a new phone and pick up where you left off.</div>
+    <div class="bk-status" id="bk-status">Checking storage…</div>
+    <button class="btn btn-gold" id="bk-backup" style="margin-bottom:10px">⬇️ Back up everything</button>
+    <button class="btn btn-ghost" id="bk-restore">⬆️ Restore from a backup file</button>
+    <input type="file" id="bk-file" accept=".json,application/json" hidden>
   </div>
 
   <div class="sheet" id="goals-sheet">
@@ -570,6 +584,7 @@
 <script src="js/home.js"></script>
 <script src="js/schedule.js"></script>
 <script src="js/stats.js"></script>
+<script src="js/vault.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

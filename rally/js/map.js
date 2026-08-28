@@ -837,6 +837,10 @@
   }
 
   function bindLeadSheet() {
+    $("#lead-nav").addEventListener("click", () => {
+      const p = currentLead; if (!p) return;
+      window.open(MUI.navUrl(p.lat, p.lng, p.address), "_blank", "noopener");
+    });
     $("#lead-reknock").addEventListener("click", () => {
       const p = currentLead; if (!p) return;
       startKnock(p.lat, p.lng, p);

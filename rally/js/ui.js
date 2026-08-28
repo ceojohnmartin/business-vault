@@ -109,6 +109,20 @@
     return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
   };
 
+  // Hand off to the phone's own apps — the integrations that always work
+  const telHref = (phone) => "tel:" + String(phone).replace(/[^\d+]/g, "");
+  const smsHref = (phone) => "sms:" + String(phone).replace(/[^\d+]/g, "");
+  // Directions in the native maps app: address when we have one (better
+  // geocoding), raw coordinates otherwise. Apple devices get Apple Maps.
+  const navUrl = (lat, lng, addr) => {
+    const q = addr && addr.trim()
+      ? encodeURIComponent(addr.trim())
+      : lat.toFixed(6) + "," + lng.toFixed(6);
+    return /iPhone|iPad|Macintosh/.test(navigator.userAgent)
+      ? "https://maps.apple.com/?daddr=" + q
+      : "https://www.google.com/maps/dir/?api=1&destination=" + q;
+  };
+
   // Get a file to the user: iOS home-screen apps silently ignore
   // <a download>, so the share sheet is the primary path with a blob
   // anchor as the desktop fallback. Returns true unless nothing worked.
@@ -135,5 +149,5 @@
     return true;
   }
 
-  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey, fmtDate, fmtTime, esc, toLocalInput, shareOrDownload };
+  window.MUI = { $, $$, openSheet, closeSheet, toast, tick, celebrate, fmtMoney, fmtPct, fmtAgo, dayKey, fmtDate, fmtTime, esc, toLocalInput, shareOrDownload, telHref, smsHref, navUrl };
 })();

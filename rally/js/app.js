@@ -322,6 +322,30 @@
     });
 
     $("#more-export").addEventListener("click", () => MCUST.exportAll());
+    $("#more-csv").addEventListener("click", () => MVAULT.exportCSV());
+
+    $("#more-backup").addEventListener("click", async () => {
+      openSheet("backup-sheet");
+      const el = $("#bk-status");
+      el.textContent = "Checking storage…";
+      const info = await MVAULT.storageInfo();
+      const mb = (n) => (n / 1048576).toFixed(n >= 104857600 ? 0 : 1) + " MB";
+      const parts = [];
+      if (info.persisted !== null) {
+        parts.push(info.persisted
+          ? "🔒 Storage is protected — the browser won't evict it"
+          : "⚠️ Storage is not yet protected — install RALLY to your home screen and keep backups");
+      }
+      if (info.usage !== null) parts.push(`Using ${mb(info.usage)} of ${mb(info.quota)}`);
+      el.textContent = parts.join(" · ") || "This browser doesn't report storage details";
+    });
+    $("#bk-backup").addEventListener("click", () => MVAULT.backup());
+    $("#bk-restore").addEventListener("click", () => $("#bk-file").click());
+    $("#bk-file").addEventListener("change", (e) => {
+      const f = e.target.files && e.target.files[0];
+      if (f) MVAULT.restoreFile(f);
+      e.target.value = "";
+    });
 
     $("#more-reset").addEventListener("click", async () => {
       if (!confirm("Erase every pin, knock, customer, hood and file on this device? This cannot be undone.")) return;
@@ -375,6 +399,7 @@
     MHOODS.bind();
     MROUTE.bind();
     bindMore();
+    MVAULT.guard(); // ask the browser to never evict the vault
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }
     MHOME.render();
     renderGuide("");

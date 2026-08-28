@@ -63,6 +63,8 @@
         <div class="layer-menu hood-menu" id="hood-menu" hidden>
           <button class="lm-opt" id="hood-pencil">✏️ Draw with pencil</button>
           <button class="lm-opt" id="hood-dots">📍 Tap the corners</button>
+          <button class="lm-opt" id="hood-heat">🔥 Freshness view</button>
+          <div class="hood-list" id="hood-reps-panel" hidden></div>
           <div class="hood-list" id="hood-list"></div>
         </div>
       </div>
@@ -79,6 +81,16 @@
     <div class="net-hint" id="net-hint" hidden>Loading imagery…</div>
     <div id="gattr" hidden aria-hidden="true">Google</div>
     <div class="knock-hint" id="knock-hint">Tap the map to log your first door</div>
+    <div class="legend heat" id="heat-legend" hidden aria-hidden="true">
+      <div class="li" style="font-weight:800;color:var(--t1)">Days since worked</div>
+      <div class="li"><span class="sw" style="background:#4D9AFF"></span>Worked today</div>
+      <div class="li"><span class="sw" style="background:#00BFA6"></span>1–7 days</div>
+      <div class="li"><span class="sw" style="background:#B8E356"></span>8–30 days</div>
+      <div class="li"><span class="sw" style="background:#F5B301"></span>31–60 days</div>
+      <div class="li"><span class="sw" style="background:#FF8A3D"></span>61–120 days</div>
+      <div class="li"><span class="sw" style="background:#E5484D"></span>120+ days</div>
+      <div class="li"><span class="sw" style="background:#F25CA2"></span>Never knocked</div>
+    </div>
     <div class="legend" id="map-legend" hidden aria-hidden="true">
       <div class="li"><span class="pinsw" style="background:#22B558"></span>Sold</div>
       <div class="li"><span class="pinsw" style="background:#7C5CFC"></span>Go Back</div>

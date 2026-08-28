@@ -13,6 +13,7 @@
   let pending = null;       // points awaiting the save sheet
   let editingId = null;     // hood being edited in the sheet
   let assignTo = null;      // userId picked in the sheet (null = unassigned)
+  let preAssign = null;     // "Give area" flow: the rep the new hood is for
 
   // ---------- draft rendering (dot mode) ----------
   function draftData() {
@@ -196,7 +197,8 @@
   function openHoodSheet(points, hood) {
     pending = points;
     editingId = hood ? hood.id : null;
-    assignTo = hood ? (hood.assignedTo || null) : null;
+    assignTo = hood ? (hood.assignedTo || null) : preAssign;
+    preAssign = null;
     $("#hood-sheet-title").textContent = hood ? "Edit hood" : "Name this hood";
     $("#hood-name").value = hood ? hood.name : "";
     $("#hood-homes").value = hood && hood.homes ? hood.homes : "";
@@ -235,13 +237,33 @@
 
   function renderHoodHistory(hood) {
     const el = $("#hood-history");
-    const hist = (hood && hood.assignments || []).slice(-3).reverse();
-    if (!hist.length) { el.innerHTML = ""; return; }
-    el.innerHTML = `<div class="ce-sec" style="margin-top:14px">Assignment history</div>` +
-      hist.map((a) =>
-        `<div class="h-item" style="font-size:12.5px;color:var(--t3)">${MUI.esc(a.name)}
-           · ${MUI.fmtDate(a.assignedAt)}${a.unassignedAt ? " → " + MUI.fmtDate(a.unassignedAt) : " → now"}</div>`
-      ).join("");
+    if (!hood) { el.innerHTML = ""; return; }
+    let html = "";
+
+    // area history: what actually happened at the doors in here
+    const h = STORE.hoodHistory(hood);
+    if (h.doors) {
+      html += `<div class="ce-sec" style="margin-top:14px">Area history</div>
+        <div class="hood-hist-sum">
+          Last worked <b>${h.daysSince === 0 ? "today" : h.daysSince + "d ago"}</b> ·
+          ${h.sessions.length} session${h.sessions.length === 1 ? "" : "s"} ·
+          ${h.doors} doors · ${h.sales} sold${h.closeRate != null ? ` · <b>${h.closeRate}%</b> close` : ""}
+        </div>` +
+        h.sessions.slice(0, 3).map((s) =>
+          `<div class="h-item" style="font-size:12.5px;color:var(--t3)">
+             ${MUI.fmtDate(s.ts)}${s.rep ? " · " + MUI.esc(s.rep) : ""} · ${s.doors} doors · ${s.sales} sold</div>`
+        ).join("");
+    }
+
+    const hist = (hood.assignments || []).slice(-3).reverse();
+    if (hist.length) {
+      html += `<div class="ce-sec" style="margin-top:14px">Assignment history</div>` +
+        hist.map((a) =>
+          `<div class="h-item" style="font-size:12.5px;color:var(--t3)">${MUI.esc(a.name)}
+             · ${MUI.fmtDate(a.assignedAt)}${a.unassignedAt ? " → " + MUI.fmtDate(a.unassignedAt) : " → now"}</div>`
+        ).join("");
+    }
+    el.innerHTML = html;
   }
 
   async function saveHood() {
@@ -272,6 +294,48 @@
     closeSheet();
     renderHoodList();
     toast(who ? `${name} — assigned to ${who.name}` : `${name} saved`);
+  }
+
+  // ---------- manager rep panel ----------
+  // The whole team at a glance: turf, progress, sold — tap to fly to a
+  // rep's areas, or hand them fresh turf on the spot.
+  function renderRepsPanel(manager) {
+    const wrap = $("#hood-reps-panel");
+    wrap.hidden = !manager || !STORE.users.length;
+    if (wrap.hidden) { wrap.innerHTML = ""; return; }
+    wrap.innerHTML = `<div class="hood-sec">Reps</div>` + STORE.users.map((u) => {
+      const hoods = STORE.hoodsOf(u.id);
+      let knocked = 0, homes = 0, sold = 0;
+      hoods.forEach((t) => {
+        const st = STORE.hoodStats(t);
+        knocked += st.knocked; homes += st.homes || 0; sold += st.sold;
+      });
+      const meta = hoods.length
+        ? `${hoods.length} hood${hoods.length === 1 ? "" : "s"} · ${knocked}${homes ? "/" + homes : ""} knocked · ${sold} sold`
+        : "No turf yet";
+      return `<div class="hood-row rep-row" data-id="${u.id}">
+        <span class="dot" style="background:${u.color}"></span>
+        <span class="hn">${MUI.esc(u.name)}<span class="hr">${meta}</span></span>
+        <button class="hood-edit hood-give" data-id="${u.id}" aria-label="Give area">＋</button>
+      </div>`;
+    }).join("");
+    $$("#hood-reps-panel .rep-row").forEach((row) =>
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".hood-give")) return;
+        tick();
+        $("#hood-menu").hidden = true;
+        MMAP.focusRep(row.dataset.id);
+      }));
+    $$("#hood-reps-panel .hood-give").forEach((b) =>
+      b.addEventListener("click", () => {
+        tick();
+        const u = STORE.userById(b.dataset.id);
+        if (!u) return;
+        preAssign = u.id;
+        startMode("pencil"); // Quick Draw is the fast path for handing turf
+        $("#draw-msg").textContent = `Draw ${u.name}'s new area`;
+        toast(`Trace the turf for ${u.name}`);
+      }));
   }
 
   // ---------- hoods panel ----------
@@ -317,12 +381,23 @@
       const menu = $("#hood-menu");
       menu.hidden = !menu.hidden;
       if (!menu.hidden) {
-        // drawing is a manager tool; reps get their turf list only
+        // drawing and the heat view are manager tools; reps get their turf list only
         const manager = STORE.isManager();
         $("#hood-pencil").hidden = !manager;
         $("#hood-dots").hidden = !manager;
+        $("#hood-heat").hidden = !manager;
+        $("#hood-heat").textContent = MMAP.heatMode() ? "🎨 Ownership view" : "🔥 Freshness view";
+        renderRepsPanel(manager);
         renderHoodList();
       }
+    });
+    $("#hood-heat").addEventListener("click", () => {
+      tick();
+      MMAP.setHeatMode(!MMAP.heatMode());
+      $("#hood-menu").hidden = true;
+      toast(MMAP.heatMode()
+        ? "Freshness view — red and pink turf is ready to work"
+        : "Back to ownership colors");
     });
     $("#hood-pencil").addEventListener("click", () => { tick(); startMode("pencil"); });
     $("#hood-dots").addEventListener("click", () => { tick(); startMode("dots"); });

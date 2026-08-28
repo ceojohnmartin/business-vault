@@ -97,6 +97,18 @@
   // house-status colors so a hood can never read as a disposition.
   const HOOD_COLORS = ["#3E8BFF", "#00BFA6", "#FF8A3D", "#F25CA2", "#B8E356", "#8E9BFF"];
 
+  // Freshness heat scale (days since a hood was last worked). Every bucket
+  // is named in the on-map legend, so the colors only need distinctness.
+  const FRESH_SCALE = [
+    { max: 0,        label: "Worked today", color: "#4D9AFF" },
+    { max: 7,        label: "1–7 days",     color: "#00BFA6" },
+    { max: 30,       label: "8–30 days",    color: "#B8E356" },
+    { max: 60,       label: "31–60 days",   color: "#F5B301" },
+    { max: 120,      label: "61–120 days",  color: "#FF8A3D" },
+    { max: Infinity, label: "120+ days",    color: "#E5484D" },
+  ];
+  const FRESH_NEVER = { label: "Never knocked", color: "#F25CA2" };
+
   // ---------- Field Guide ----------
   // Each pest: what to know, what to say, what we do.
   const PESTS = [
@@ -211,7 +223,7 @@
 
   window.MDATA = {
     DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT,
-    PLANS, AGREEMENT, SOURCES, HOOD_COLORS, COMPANY_DEFAULTS,
+    PLANS, AGREEMENT, SOURCES, HOOD_COLORS, FRESH_SCALE, FRESH_NEVER, COMPANY_DEFAULTS,
     PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY,
   };
 })();

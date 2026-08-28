@@ -95,11 +95,11 @@
   // (agreement, appointments, service history) — never a dropdown someone
   // forgets to update. Each stage knows the next action and where it lives.
   const PIPELINE = [
-    { id: "lead",      label: "Lead",         chip: "#8E9BFF" },
-    { id: "appt",      label: "Appointment",  chip: "#F5B301" },
-    { id: "sold",      label: "Sold",         chip: "#3ECF6E" },
-    { id: "scheduled", label: "Scheduled",    chip: "#4D9AFF" },
-    { id: "active",    label: "Active",       chip: "#00BFA6" },
+    { id: "lead",      label: "Lead",         chip: "#5560E0" },
+    { id: "appt",      label: "Appointment",  chip: "#8F6B00" },
+    { id: "sold",      label: "Sold",         chip: "#15803D" },
+    { id: "scheduled", label: "Scheduled",    chip: "#1A66C9" },
+    { id: "active",    label: "Active",       chip: "#057A6C" },
   ];
 
   // Sources a customer can come from (FieldRoutes-style).

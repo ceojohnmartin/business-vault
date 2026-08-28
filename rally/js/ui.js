@@ -55,7 +55,7 @@
     const ctx = cv.getContext("2d");
     const W = (cv.width = innerWidth * devicePixelRatio);
     const H = (cv.height = innerHeight * devicePixelRatio);
-    const colors = ["#22B558", "#0A6CF0", "#5EA0FF", "#7C5CFC", "#101828"];
+    const colors = ["#22B558", "#17181A", "#9AA1AB", "#F5B301", "#FFFFFF"];
     const parts = Array.from({ length: 130 }, () => ({
       x: W / 2 + (Math.random() - 0.5) * W * 0.25,
       y: H * 0.42,

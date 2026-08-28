@@ -31,7 +31,7 @@
       glyphs: dir + "fonts/{fontstack}/{range}.pbf",
       sources: {},
       layers: [
-        { id: "bg", type: "background", paint: { "background-color": "#10141B" } },
+        { id: "bg", type: "background", paint: { "background-color": "#DDDEE0" } },
       ],
     };
   }

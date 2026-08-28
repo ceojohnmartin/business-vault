@@ -239,6 +239,9 @@
   }
 
   // ---------- hoods (territories) ----------
+  let heatMode = false;      // manager layer: color by freshness, not ownership
+  let emphasizeRep = null;   // manager tapped a rep — everyone else fades
+
   function hoodsGeoJSON() {
     const me = STORE.currentUser();
     const manager = STORE.isManager();
@@ -249,8 +252,11 @@
         .map((t) => {
           const u = t.assignedTo && STORE.userById(t.assignedTo);
           // reps see their own turf full-strength; the rest of the market
-          // stays visible but faded — "THIS is my area" at a glance
-          const dim = !manager && (!me || t.assignedTo !== me.id) ? 1 : 0;
+          // stays visible but faded — "THIS is my area" at a glance.
+          // A manager focusing one rep gets the same fade on everyone else.
+          const dim = manager
+            ? (emphasizeRep && t.assignedTo !== emphasizeRep ? 1 : 0)
+            : (!me || t.assignedTo !== me.id ? 1 : 0);
           return {
             type: "Feature",
             geometry: { type: "Polygon", coordinates: [[...t.points, t.points[0]]] },
@@ -258,11 +264,52 @@
               id: t.id, name: t.name || "Hood",
               rep: u ? u.name : "",
               color: STORE.hoodColor(t),
+              fresh: STORE.freshness(t).color,
               dim,
             },
           };
         }),
     };
+  }
+
+  function applyHeatPaint() {
+    if (!map || !map.getLayer("hoods-fill")) return;
+    const colorProp = ["get", heatMode ? "fresh" : "color"];
+    const dimmed = (full, faded) => ["case", ["==", ["get", "dim"], 1], faded, full];
+    map.setPaintProperty("hoods-fill", "fill-color", colorProp);
+    map.setPaintProperty("hoods-line", "line-color", colorProp);
+    map.setPaintProperty("hoods-fill", "fill-opacity", heatMode ? 0.3 : dimmed(0.16, 0.05));
+    map.setPaintProperty("hoods-line", "line-opacity", heatMode ? 0.95 : dimmed(0.9, 0.3));
+    const heatLegend = $("#heat-legend");
+    if (heatLegend) heatLegend.hidden = !heatMode;
+    updateHint(); // swaps the disposition legend out while heat is on
+  }
+
+  function setHeatMode(on) {
+    heatMode = !!on;
+    refreshHoods();
+    applyHeatPaint();
+  }
+
+  // manager taps a rep: fit their turf, fade everyone else until the next
+  // map touch
+  function focusRep(userId) {
+    const hoods = STORE.hoodsOf(userId).filter((t) => t.points && t.points.length);
+    if (!map || !hoods.length) { toast("No hoods assigned yet — give them one"); return; }
+    let minX = 180, minY = 90, maxX = -180, maxY = -90;
+    hoods.forEach((t) => t.points.forEach(([lng, lat]) => {
+      minX = Math.min(minX, lng); maxX = Math.max(maxX, lng);
+      minY = Math.min(minY, lat); maxY = Math.max(maxY, lat);
+    }));
+    emphasizeRep = userId;
+    refreshHoods();
+    map.fitBounds([[minX, minY], [maxX, maxY]], { padding: 70, maxZoom: 16.5 });
+  }
+
+  function clearEmphasis() {
+    if (!emphasizeRep) return;
+    emphasizeRep = null;
+    refreshHoods();
   }
 
   function refreshHoods() {
@@ -401,6 +448,7 @@
     map.on("click", (e) => {
       // hood drawing (dot mode) consumes clicks first
       if (window.MHOODS && MHOODS.handleMapClick(e)) return;
+      clearEmphasis();
       // 16px tolerance box: fat-fingering near a pin opens it instead of
       // silently creating a duplicate door
       const T = 16;
@@ -416,7 +464,7 @@
       }
     });
 
-    map.on("dragstart", () => { $("#hood-menu").hidden = true; });
+    map.on("dragstart", () => { $("#hood-menu").hidden = true; clearEmphasis(); });
 
     let saveT = null;
     map.on("moveend", () => {
@@ -445,7 +493,7 @@
   function updateHint() {
     const hasPins = STORE.pins.length > 0;
     $("#knock-hint").hidden = hasPins;
-    $("#map-legend").hidden = !hasPins;
+    $("#map-legend").hidden = !hasPins || heatMode; // heat legend takes the slot
   }
 
   function updateBrandToday() {
@@ -780,7 +828,8 @@
 
   window.MMAP = {
     init, refreshPins, refreshHoods, updateBrandToday, focusPin, focusHood, reloadImagery,
-    startKnock,
+    startKnock, focusRep, setHeatMode,
+    heatMode: () => heatMode,
     googleError: () => lastGoogleError,
     usingOwnKey: () => !!STORE.settings.googleKey,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },

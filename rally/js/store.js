@@ -316,6 +316,56 @@
   // hoods belonging to a user (for rep mode and the manager panel)
   S.hoodsOf = (userId) => S.territories.filter((t) => t.assignedTo === userId);
 
+  // every interaction that happened inside a hood, joined through pins
+  S.eventsInHood = function (t) {
+    const byPin = {};
+    S.pins.forEach((p) => { byPin[p.id] = p; });
+    return S.events.filter((e) => {
+      const p = byPin[e.pinId];
+      return p && S.inHood(t, p.lng, p.lat);
+    });
+  };
+
+  // Area history: door-by-door work grouped into day sessions, each
+  // attributed to whoever held the assignment that day.
+  S.hoodHistory = function (t) {
+    const evs = S.eventsInHood(t);
+    const byDay = new Map();
+    evs.forEach((e) => {
+      const k = MUI.dayKey(e.ts);
+      let d = byDay.get(k);
+      if (!d) { d = { ts: e.ts, doors: 0, sales: 0 }; byDay.set(k, d); }
+      d.doors++;
+      if (e.disposition === "sold") d.sales++;
+      if (e.ts > d.ts) d.ts = e.ts;
+    });
+    const repFor = (ts) => {
+      const a = (t.assignments || []).find((x) =>
+        x.assignedAt <= ts && (!x.unassignedAt || ts <= x.unassignedAt));
+      return a ? a.name : "";
+    };
+    const sessions = [...byDay.values()].sort((a, b) => b.ts - a.ts)
+      .map((d) => ({ ...d, rep: repFor(d.ts) }));
+    const doors = evs.length;
+    const sales = evs.filter((e) => e.disposition === "sold").length;
+    const lastWorked = sessions.length ? sessions[0].ts : null;
+    return {
+      sessions, doors, sales,
+      closeRate: doors ? Math.round((sales / doors) * 1000) / 10 : null,
+      lastWorked,
+      daysSince: lastWorked != null ? Math.floor((Date.now() - lastWorked) / 86400e3) : null,
+    };
+  };
+
+  // freshness bucket for the heat view — driven by the FRESH_SCALE table
+  S.freshness = function (t) {
+    const st = S.hoodStats(t);
+    if (!st.lastWorked) return MDATA.FRESH_NEVER;
+    const days = Math.floor((Date.now() - st.lastWorked) / 86400e3);
+    return MDATA.FRESH_SCALE.find((b) => days <= b.max) ||
+      MDATA.FRESH_SCALE[MDATA.FRESH_SCALE.length - 1];
+  };
+
   // ---------- callbacks ----------
   S.callbacksDue = function () {
     return S.pins

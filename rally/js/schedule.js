@@ -22,8 +22,24 @@
     const unscheduled = STORE.customers.filter(
       (c) => !STORE.nextAppointment(c) && !STORE.lastServiced(c));
     const appts = STORE.allAppointments();
+    const callbacks = STORE.callbacksDue();
 
     let html = "";
+
+    if (callbacks.length) {
+      html += `<div class="sched-warn cbs">
+        <div class="sw-title">⏰ Callbacks (${callbacks.length})</div>` +
+        callbacks.slice(0, 8).map((p) => {
+          const overdue = p.callbackAt <= Date.now();
+          const where = p.address || (p.lat.toFixed(4) + ", " + p.lng.toFixed(4));
+          return `<button class="sched-un cb-row" data-pid="${p.id}" type="button">
+             <span><b>${esc(where)}</b><br><span class="dim">${overdue ? "<b>Due now</b> — " : ""}${MUI.fmtDate(p.callbackAt)} ${MUI.fmtTime(p.callbackAt)}</span></span>
+             <span class="su-cta">Map ›</span>
+           </button>`;
+        }).join("") +
+        (callbacks.length > 8 ? `<div class="dim" style="font-size:12px;padding:4px 2px">+ ${callbacks.length - 8} more on the map</div>` : "") +
+        `</div>`;
+    }
 
     if (unscheduled.length) {
       html += `<div class="sched-warn">
@@ -43,7 +59,7 @@
     const visible = appts.filter((x) =>
       x.ap.status !== "done" || (x.ap.doneAt || x.ap.ts) >= cutoff);
 
-    if (!visible.length && !unscheduled.length) {
+    if (!visible.length && !unscheduled.length && !callbacks.length) {
       wrap.innerHTML = `<div class="empty"><div class="ic">📅</div>Nothing on the calendar yet.<br>Close a customer and the initial service lands here.</div>`;
       return;
     }
@@ -68,7 +84,12 @@
 
     wrap.innerHTML = html;
 
-    $$("#sched-list .sched-un").forEach((b) =>
+    $$("#sched-list .cb-row").forEach((b) =>
+      b.addEventListener("click", () => {
+        if (window.MAPP) MAPP.show("map");
+        if (window.MMAP) MMAP.focusPin(b.dataset.pid);
+      }));
+    $$("#sched-list .sched-un:not(.cb-row)").forEach((b) =>
       b.addEventListener("click", () => {
         const c = STORE.customers.find((x) => x.id === b.dataset.cid);
         if (!c) return;

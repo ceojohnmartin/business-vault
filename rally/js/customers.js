@@ -294,9 +294,26 @@
       `<div class="rowline"><span>Early-exit fee if cancelled early</span><b>${fmtMoney(etf)} max</b></div>` +
       `<div class="rowline total"><span>First-year value</span><b>${fmtMoney(initial + monthly * 12)}</b></div>`;
     $("#ca-doc").innerHTML = MCONTRACT.bodyHTML(cur, null);
+    // FieldRoutes-style gate: the customer scrolls the WHOLE agreement
+    // before the sign button unlocks — the disclosure actually happens
+    const doc = $("#ca-doc");
+    doc.scrollTop = 0;
+    scrolledDoc = false;
     // consents and signature are reset in openEditor, not here — flipping
     // tabs mid-signing must not wipe what the customer already did
-    requestAnimationFrame(setupSig);
+    requestAnimationFrame(() => {
+      setupSig();
+      // a doc short enough to show whole needs no scrolling
+      if (doc.scrollHeight <= doc.clientHeight + 12) scrolledDoc = true;
+      updateSignGate();
+    });
+  }
+
+  let scrolledDoc = false;
+  function updateSignGate() {
+    const btn = $("#ca-sign-save");
+    btn.disabled = !scrolledDoc;
+    btn.textContent = scrolledDoc ? "Sign & save agreement ✓" : "Scroll the agreement to sign";
   }
 
   function setupSig() {
@@ -335,6 +352,7 @@
   async function signAndSave() {
     collectInfo(); collectService(); collectPayment();
     if (!cur.first) { showTab("info"); toast("First name is required"); return; }
+    if (!scrolledDoc) { toast("Scroll through the whole agreement with the customer first"); return; }
     if (!$("#ca-consent1").checked || !$("#ca-consent2").checked) {
       toast("Both acknowledgment boxes are required"); return;
     }
@@ -347,6 +365,7 @@
       termMonths: MDATA.AGREEMENT.termMonths,
       consent: {
         esign: true, coolingOffVerbal: true, coolingOffNoticeGiven: true,
+        scrolledFullAgreement: true, // the sign button only unlocks after a full scroll
         capturedAt: new Date().toISOString(),
       },
     };
@@ -607,6 +626,14 @@
     });
 
     $("#ca-sign-save").addEventListener("click", signAndSave);
+    $("#ca-doc").addEventListener("scroll", () => {
+      if (scrolledDoc) return;
+      const d = $("#ca-doc");
+      if (d.scrollTop + d.clientHeight >= d.scrollHeight - 24) {
+        scrolledDoc = true;
+        updateSignGate();
+      }
+    });
     $("#ca-sig-clear").addEventListener("click", () => {
       if (sigCtx) { sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height); sigDrawn = false; }
     });

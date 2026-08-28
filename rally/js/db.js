@@ -5,7 +5,7 @@
    knock and customer across the rebrand. */
 (function () {
   const DB_NAME = "meridian-db";
-  const DB_VER = 2;
+  const DB_VER = 3;
   let dbp = null;
 
   function open() {
@@ -34,6 +34,10 @@
         }
         if (!db.objectStoreNames.contains("files")) {
           db.createObjectStore("files", { keyPath: "id" });
+        }
+        // v3: people — reps and managers with roles and territory colors
+        if (!db.objectStoreNames.contains("users")) {
+          db.createObjectStore("users", { keyPath: "id" });
         }
       };
       req.onsuccess = () => {

@@ -12,7 +12,7 @@
   let dots = [];            // [[lng,lat],...] while tap-drawing
   let pending = null;       // points awaiting the save sheet
   let editingId = null;     // hood being edited in the sheet
-  let color = MDATA.HOOD_COLORS[0];
+  let assignTo = null;      // userId picked in the sheet (null = unassigned)
 
   // ---------- draft rendering (dot mode) ----------
   function draftData() {
@@ -196,58 +196,108 @@
   function openHoodSheet(points, hood) {
     pending = points;
     editingId = hood ? hood.id : null;
-    color = hood ? hood.color : MDATA.HOOD_COLORS[STORE.territories.length % MDATA.HOOD_COLORS.length];
+    assignTo = hood ? (hood.assignedTo || null) : null;
     $("#hood-sheet-title").textContent = hood ? "Edit hood" : "Name this hood";
     $("#hood-name").value = hood ? hood.name : "";
-    $("#hood-rep").value = hood ? hood.rep : (STORE.settings.repName === "You" ? "" : STORE.settings.repName);
+    $("#hood-homes").value = hood && hood.homes ? hood.homes : "";
     $("#hood-delete").hidden = !hood;
-    renderSwatches();
+    $("#hood-newrep-wrap").hidden = true;
+    $("#hood-newrep").value = "";
+    renderRepChips();
+    renderHoodHistory(hood);
     openSheet("hood-sheet");
   }
 
-  function renderSwatches() {
-    $("#hood-colors").innerHTML = MDATA.HOOD_COLORS.map((c) =>
-      `<button type="button" class="hood-swatch${c === color ? " sel" : ""}" data-c="${c}" style="background:${c}" aria-label="Hood color"></button>`
-    ).join("");
-    $$("#hood-colors .hood-swatch").forEach((b) =>
-      b.addEventListener("click", () => { tick(); color = b.dataset.c; renderSwatches(); }));
+  // Assignment chips: the rep's territory color rides on the chip, so the
+  // manager sees exactly what the map will paint.
+  function renderRepChips() {
+    const chips = [
+      `<button type="button" class="reason rep-chip${assignTo === null ? " sel" : ""}" data-u="">
+         <span class="dot" style="background:#8A93A6"></span>Unassigned</button>`,
+      ...STORE.users.map((u) =>
+        `<button type="button" class="reason rep-chip${assignTo === u.id ? " sel" : ""}" data-u="${u.id}">
+           <span class="dot" style="background:${u.color}"></span>${MUI.esc(u.name)}</button>`),
+      `<button type="button" class="reason rep-chip" data-u="+">+ New rep</button>`,
+    ];
+    $("#hood-reps").innerHTML = chips.join("");
+    $$("#hood-reps .rep-chip").forEach((b) =>
+      b.addEventListener("click", () => {
+        tick();
+        if (b.dataset.u === "+") {
+          $("#hood-newrep-wrap").hidden = false;
+          $("#hood-newrep").focus();
+          return;
+        }
+        assignTo = b.dataset.u || null;
+        renderRepChips();
+      }));
+  }
+
+  function renderHoodHistory(hood) {
+    const el = $("#hood-history");
+    const hist = (hood && hood.assignments || []).slice(-3).reverse();
+    if (!hist.length) { el.innerHTML = ""; return; }
+    el.innerHTML = `<div class="ce-sec" style="margin-top:14px">Assignment history</div>` +
+      hist.map((a) =>
+        `<div class="h-item" style="font-size:12.5px;color:var(--t3)">${MUI.esc(a.name)}
+           · ${MUI.fmtDate(a.assignedAt)}${a.unassignedAt ? " → " + MUI.fmtDate(a.unassignedAt) : " → now"}</div>`
+      ).join("");
   }
 
   async function saveHood() {
     const name = $("#hood-name").value.trim() || "Hood " + (STORE.territories.length + 1);
-    const rep = $("#hood-rep").value.trim();
+    const homes = Math.max(0, Math.min(100000, Number($("#hood-homes").value) || 0)) || null;
+    // a typed-but-unadded new rep still counts — nobody loses that keystroke
+    const newRepName = $("#hood-newrep-wrap").hidden ? "" : $("#hood-newrep").value.trim();
     try {
-      if (editingId) {
-        const t = STORE.territories.find((x) => x.id === editingId);
-        if (t) { t.name = name; t.rep = rep; t.color = color; await STORE.updateTerritory(t); }
-      } else {
-        await STORE.addTerritory({ name, rep, color, points: pending });
+      if (newRepName) {
+        const u = await STORE.addUser({ name: newRepName, role: "rep" });
+        assignTo = u.id;
       }
+      let t;
+      if (editingId) {
+        t = STORE.territories.find((x) => x.id === editingId);
+        if (t) { t.name = name; t.homes = homes; await STORE.updateTerritory(t); }
+      } else {
+        t = await STORE.addTerritory({ name, homes, points: pending });
+      }
+      if (t) await STORE.assignTerritory(t, assignTo);
     } catch (_) {
       toast("Couldn't save the hood — try again");
       return;
     }
+    const who = assignTo && STORE.userById(assignTo);
     pending = null; editingId = null;
     MMAP.refreshHoods();
     closeSheet();
     renderHoodList();
-    toast(rep ? `${name} — assigned to ${rep}` : `${name} saved`);
+    toast(who ? `${name} — assigned to ${who.name}` : `${name} saved`);
   }
 
   // ---------- hoods panel ----------
   function renderHoodList() {
     const wrap = $("#hood-list");
-    if (!STORE.territories.length) {
-      wrap.innerHTML = `<div class="hood-empty">No hoods yet — cut your first area</div>`;
+    const manager = STORE.isManager();
+    const me = STORE.currentUser();
+    // reps see their own turf; managers see the whole board
+    const list = manager ? STORE.territories
+      : STORE.territories.filter((t) => me && t.assignedTo === me.id);
+    if (!list.length) {
+      wrap.innerHTML = `<div class="hood-empty">${manager
+        ? "No hoods yet — cut your first area"
+        : "No turf assigned to you yet — ask your manager"}</div>`;
       return;
     }
-    wrap.innerHTML = STORE.territories.map((t) =>
-      `<div class="hood-row" data-id="${t.id}">
-         <span class="dot" style="background:${t.color}"></span>
-         <span class="hn">${MUI.esc(t.name)}${t.rep ? `<span class="hr">${MUI.esc(t.rep)}</span>` : ""}</span>
-         <button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>
-       </div>`
-    ).join("");
+    wrap.innerHTML = list.map((t) => {
+      const u = t.assignedTo && STORE.userById(t.assignedTo);
+      const st = STORE.hoodStats(t);
+      const prog = st.pct != null ? `${st.pct}%` : `${st.knocked} knocked`;
+      return `<div class="hood-row" data-id="${t.id}">
+         <span class="dot" style="background:${STORE.hoodColor(t)}"></span>
+         <span class="hn">${MUI.esc(t.name)}<span class="hr">${u ? MUI.esc(u.name) + " · " : ""}${prog}</span></span>
+         ${manager ? `<button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>` : ""}
+       </div>`;
+    }).join("");
     $$("#hood-list .hood-row").forEach((row) =>
       row.addEventListener("click", (e) => {
         if (e.target.closest(".hood-edit")) return;
@@ -266,7 +316,13 @@
       tick();
       const menu = $("#hood-menu");
       menu.hidden = !menu.hidden;
-      if (!menu.hidden) renderHoodList();
+      if (!menu.hidden) {
+        // drawing is a manager tool; reps get their turf list only
+        const manager = STORE.isManager();
+        $("#hood-pencil").hidden = !manager;
+        $("#hood-dots").hidden = !manager;
+        renderHoodList();
+      }
     });
     $("#hood-pencil").addEventListener("click", () => { tick(); startMode("pencil"); });
     $("#hood-dots").addEventListener("click", () => { tick(); startMode("dots"); });

@@ -118,8 +118,34 @@
     if (window.MAPP) MAPP.show(returnTo);
   }
 
+  // pipeline strip + "what's next" banner across the top of the editor
+  function renderPipe() {
+    if (!cur) return;
+    const stage = STORE.custStage(cur);
+    const segs = MDATA.PIPELINE.map((s, i) =>
+      `<span class="pipe-seg${i <= stage.idx ? " on" : ""}"${i <= stage.idx ? ` style="background:${stage.chip}"` : ""}></span>`
+    ).join("");
+    const signed = STORE.custSignedAt(cur);
+    const payGap = signed && cur.payment && cur.payment.method !== "collect" && !cur.payment.last4;
+    $("#ce-pipe").innerHTML =
+      `<div class="pipe-track">${segs}</div>
+       <button class="pipe-next" type="button" ${stage.nextTab ? `data-tab="${stage.nextTab}"` : "disabled"}>
+         <span class="pn-stage" style="color:${stage.chip}">${stage.label}</span>
+         <span class="pn-act">${stage.nextLabel}${payGap ? " · payment method missing" : ""}</span>
+         ${stage.nextTab ? '<span class="chev">›</span>' : ""}
+       </button>`;
+    const btn = $("#ce-pipe .pipe-next");
+    if (btn && stage.nextTab) {
+      btn.addEventListener("click", () => {
+        collectInfo(); collectService(); collectPayment();
+        showTab(stage.nextTab);
+      });
+    }
+  }
+
   function showTab(t) {
     curTab = t;
+    renderPipe();
     $$(".ce-tab").forEach((b) => b.classList.toggle("active", b.dataset.t === t));
     ["info", "service", "referrals", "payment", "agree", "files"].forEach((k) =>
       $("#ce-" + k).classList.toggle("active", k === t));
@@ -474,35 +500,43 @@
     return true;
   }
 
-  // ---------- the customers screen ----------
-  function statusLine(c) {
-    const serviced = STORE.lastServiced(c);
-    if (serviced) return `<span class="st-serviced">Serviced: ${MUI.fmtDate(serviced)} ${MUI.fmtTime(serviced)}</span>`;
-    const next = STORE.nextAppointment(c);
-    if (next) return `<span class="st-scheduled">Scheduled: ${MUI.fmtDate(next.ts)} ${MUI.fmtTime(next.ts)}</span>`;
-    return `<span class="st-none">Not Scheduled</span>`;
+  // ---------- the customers screen (the pipeline) ----------
+  // Every card says what to DO next, not what stage number it's in.
+  function actionLine(c, stage) {
+    if (stage.id === "active") {
+      const s = STORE.lastServiced(c);
+      return `<span class="st-serviced">Serviced: ${MUI.fmtDate(s)} ${MUI.fmtTime(s)} ✓</span>`;
+    }
+    if (stage.id === "scheduled") return `<span class="st-scheduled">${stage.nextLabel}</span>`;
+    return `<span class="st-act">${stage.nextLabel}</span>`;
   }
 
-  function matchesFilter(c) {
-    if (listFilter === "all") return true;
-    const serviced = !!STORE.lastServiced(c);
-    const scheduled = !!STORE.nextAppointment(c);
-    if (listFilter === "serviced") return serviced;
-    if (listFilter === "scheduled") return !serviced && scheduled;
-    if (listFilter === "notsched") return !serviced && !scheduled;
-    return true;
+  function renderChips(all) {
+    const counts = { all: all.length };
+    MDATA.PIPELINE.forEach((s) => (counts[s.id] = 0));
+    all.forEach((c) => { counts[STORE.custStage(c).id]++; });
+    const chip = (id, label) =>
+      `<button class="stage-chip${listFilter === id ? " sel" : ""}" data-f="${id}" type="button">
+         ${label}${counts[id] ? `<span class="n num">${counts[id]}</span>` : ""}</button>`;
+    const plural = { lead: "Leads", appt: "Appointments", sold: "Sold", scheduled: "Scheduled", active: "Active" };
+    $("#cust-chips").innerHTML =
+      chip("all", "All") + MDATA.PIPELINE.map((s) => chip(s.id, plural[s.id] || s.label)).join("");
+    $$("#cust-chips .stage-chip").forEach((b) =>
+      b.addEventListener("click", () => {
+        tick();
+        listFilter = b.dataset.f;
+        renderList();
+      }));
   }
 
   function renderList() {
     const q = ($("#cust-q").value || "").trim().toLowerCase();
     const all = STORE.customers.slice().sort((a, b) => (b.soldAt || b.createdAt || 0) - (a.soldAt || a.createdAt || 0));
+    renderChips(all);
     const list = all.filter((c) =>
-      matchesFilter(c) &&
+      (listFilter === "all" || STORE.custStage(c).id === listFilter) &&
       (!q || STORE.custName(c).toLowerCase().includes(q) ||
         STORE.custAddress(c).toLowerCase().includes(q)));
-
-    const nFilters = listFilter === "all" ? 0 : 1;
-    $("#cust-filter-n").textContent = nFilters ? ` (${nFilters})` : "";
 
     if (!all.length) {
       $("#cust-list").innerHTML =
@@ -510,17 +544,26 @@
       return;
     }
     $("#cust-list").innerHTML = list.map((c) => {
-      const soldAt = c.soldAt || (STORE.custSignedAt(c) ? new Date(STORE.custSignedAt(c)).getTime() : c.createdAt);
+      const stage = STORE.custStage(c);
+      const signed = STORE.custSignedAt(c);
+      const when = signed ? new Date(signed).getTime() : (c.soldAt || c.createdAt);
+      const who = esc(c.soldBy || STORE.settings.repName);
       return `<button class="cust-row" data-cid="${c.id}" type="button">
-         <div class="crn">${esc(STORE.custName(c))}</div>
+         <div class="crn">${esc(STORE.custName(c))}
+           <span class="stage-tag" style="color:${stage.chip};border-color:${stage.chip}">${stage.label}</span></div>
          <div class="cra">${esc(STORE.custAddress(c)) || "No address"}</div>
-         <div class="crs">Sold: ${MUI.fmtDate(soldAt)} by ${esc(c.soldBy || STORE.settings.repName)}</div>
-         <div class="crst">${statusLine(c)}</div>
+         <div class="crs">${signed ? "Sold" : "Added"}: ${MUI.fmtDate(when)} by ${who}</div>
+         <div class="crst">${actionLine(c, stage)}</div>
        </button>`;
-    }).join("") || `<div class="empty">Nothing matches.</div>`;
+    }).join("") || `<div class="empty">Nothing in this stage.</div>`;
 
     $$("#cust-list .cust-row").forEach((b) =>
       b.addEventListener("click", () => open(b.dataset.cid)));
+  }
+
+  function setFilter(id) {
+    listFilter = id;
+    renderList();
   }
 
   // ---------- export (More menu) ----------
@@ -558,15 +601,6 @@
   function bind() {
     $("#cust-fab").addEventListener("click", () => { tick(); startNew(); });
     $("#cust-q").addEventListener("input", renderList);
-    $("#cust-filter").addEventListener("click", () => openSheet("filter-sheet"));
-    $$("#filter-sheet .f-opt").forEach((b) =>
-      b.addEventListener("click", () => {
-        tick();
-        listFilter = b.dataset.f;
-        $$("#filter-sheet .f-opt").forEach((x) => x.classList.toggle("sel", x === b));
-        closeSheet();
-        renderList();
-      }));
 
     $("#ce-back").addEventListener("click", () => {
       // leaving without saving is fine for an existing record; warn on a draft
@@ -659,5 +693,5 @@
     });
   }
 
-  window.MCUST = { bind, renderList, open, startNew, startForPin, fillAddress, exportAll };
+  window.MCUST = { bind, renderList, open, startNew, startForPin, fillAddress, exportAll, setFilter };
 })();

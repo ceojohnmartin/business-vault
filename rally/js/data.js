@@ -90,6 +90,18 @@
       "(mice and rats, covered only under plans that include rodent service)",
   };
 
+  // ---------- pipeline ----------
+  // Milestone stages, in order. A record's stage is DERIVED from its state
+  // (agreement, appointments, service history) — never a dropdown someone
+  // forgets to update. Each stage knows the next action and where it lives.
+  const PIPELINE = [
+    { id: "lead",      label: "Lead",         chip: "#8E9BFF" },
+    { id: "appt",      label: "Appointment",  chip: "#F5B301" },
+    { id: "sold",      label: "Sold",         chip: "#3ECF6E" },
+    { id: "scheduled", label: "Scheduled",    chip: "#4D9AFF" },
+    { id: "active",    label: "Active",       chip: "#00BFA6" },
+  ];
+
   // Sources a customer can come from (FieldRoutes-style).
   const SOURCES = ["Door to Door", "Referral", "Online", "Phone-in", "Alumni / winback", "Other"];
 
@@ -223,7 +235,7 @@
 
   window.MDATA = {
     DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT,
-    PLANS, AGREEMENT, SOURCES, HOOD_COLORS, FRESH_SCALE, FRESH_NEVER, COMPANY_DEFAULTS,
+    PLANS, AGREEMENT, PIPELINE, SOURCES, HOOD_COLORS, FRESH_SCALE, FRESH_NEVER, COMPANY_DEFAULTS,
     PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY,
   };
 })();

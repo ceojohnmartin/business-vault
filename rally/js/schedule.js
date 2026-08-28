@@ -5,7 +5,8 @@
 (function () {
   const { $, $$, openSheet, closeSheet, toast, tick, esc } = MUI;
 
-  let sel = null; // {cust, ap} the appointment open in the action sheet
+  let sel = null;      // {cust, ap} the appointment open in the action sheet
+  let apWho = null;    // assignee picked in the sheet
 
   function dayLabel(ts) {
     const d = new Date(ts); d.setHours(0, 0, 0, 0);
@@ -53,11 +54,15 @@
     }
 
     // Scheduled visits ALWAYS show, however overdue — an unserviced
-    // customer must never fall off this screen. Completed visits age out
-    // after 14 days to keep the list about what's next.
+    // customer must never fall off this screen. Completed and no-show
+    // visits age out after 14 days to keep the list about what's next.
+    // Reps see their own book (plus unassigned); managers see everything.
+    const me = STORE.currentUser();
+    const manager = STORE.isManager();
     const cutoff = Date.now() - 14 * 86400e3;
     const visible = appts.filter((x) =>
-      x.ap.status !== "done" || (x.ap.doneAt || x.ap.ts) >= cutoff);
+      (manager || !x.ap.userId || (me && x.ap.userId === me.id)) &&
+      (!["done", "noshow"].includes(x.ap.status) || (x.ap.doneAt || x.ap.ts) >= cutoff));
 
     if (!visible.length && !unscheduled.length && !callbacks.length) {
       wrap.innerHTML = `<div class="empty"><div class="ic">📅</div>Nothing on the calendar yet.<br>Close a customer and the initial service lands here.</div>`;
@@ -71,14 +76,20 @@
         lastKey = key;
       }
       const done = ap.status === "done";
+      const who = ap.userId && STORE.userById(ap.userId);
+      const stChip =
+        done ? `<span class="sr-st ok">Serviced ✓</span>` :
+        ap.status === "noshow" ? `<span class="sr-st bad">No-show</span>` :
+        ap.status === "confirmed" ? `<span class="sr-st ok">Confirmed</span>` :
+        `<span class="sr-st">Scheduled</span>`;
       html += `<button class="sched-row${done ? " done" : ""}" data-cid="${cust.id}" data-ap="${ap.id}" type="button">
         <span class="sr-time num">${MUI.fmtTime(ap.ts)}</span>
         <span class="sr-body">
           <b>${esc(STORE.custName(cust))}</b>
           <span class="dim">${esc(STORE.custAddress(cust)) || "No address"}</span>
-          <span class="dim">${esc(STORE.custPlanName(cust))} · ${ap.type === "initial" ? "Initial service" : "Regular service"}</span>
+          <span class="dim">${esc(STORE.custPlanName(cust))} · ${ap.type === "initial" ? "Initial service" : "Regular service"}${who ? ` · <span style="color:${who.color}">●</span> ${esc(who.name)}` : ""}</span>
         </span>
-        <span class="sr-st ${done ? "ok" : ""}">${done ? "Serviced ✓" : "Scheduled"}</span>
+        ${stChip}
       </button>`;
     });
 
@@ -108,14 +119,42 @@
 
   function openApptSheet() {
     const { cust, ap } = sel;
+    const me = STORE.currentUser();
     $("#ap-name").textContent = STORE.custName(cust);
     $("#ap-addr").textContent = STORE.custAddress(cust) || "No address";
     const dflt = ap ? ap.ts : nextMorning();
     $("#ap-when").value = MUI.toLocalInput(dflt);
+    apWho = ap ? (ap.userId || null) : (me ? me.id : null);
+    renderApWho();
+    const open = ap && ["scheduled", "confirmed"].includes(ap.status);
+    $("#ap-confirm").hidden = !open || ap.status === "confirmed";
+    $("#ap-noshow").hidden = !open;
     $("#ap-done").hidden = !ap || ap.status === "done";
     $("#ap-undone").hidden = !ap || ap.status !== "done";
     $("#ap-save").textContent = ap ? "Reschedule" : "Schedule";
+    // setter attribution: show who booked it once it exists
+    $("#ap-setter").hidden = !(ap && ap.setterId);
+    if (ap && ap.setterId) {
+      const s = STORE.userById(ap.setterId);
+      $("#ap-setter").textContent = s ? `Set by ${s.name}` : "";
+    }
     openSheet("appt-sheet");
+  }
+
+  // who's running this one — the setter→closer/tech handoff
+  function renderApWho() {
+    $("#ap-who").innerHTML = STORE.users.map((u) =>
+      `<button type="button" class="reason rep-chip${apWho === u.id ? " sel" : ""}" data-u="${u.id}">
+         <span class="dot" style="background:${u.color}"></span>${esc(u.name)}</button>`
+    ).join("") +
+      `<button type="button" class="reason rep-chip${apWho === null ? " sel" : ""}" data-u="">
+         <span class="dot" style="background:#8A93A6"></span>Anyone</button>`;
+    $$("#ap-who .rep-chip").forEach((b) =>
+      b.addEventListener("click", () => {
+        tick();
+        apWho = b.dataset.u || null;
+        renderApWho();
+      }));
   }
 
   const nextMorning = () => {
@@ -129,14 +168,33 @@
       const v = $("#ap-when").value;
       const ts = v ? new Date(v).getTime() : NaN;
       if (isNaN(ts)) { toast("Pick a date and time"); return; }
+      const me = STORE.currentUser();
+      const handoff = apWho && me && apWho !== me.id ? STORE.userById(apWho) : null;
       try {
-        if (sel.ap) await STORE.setAppointment(sel.cust, sel.ap.id, { ts, status: "scheduled" });
-        else await STORE.addAppointment(sel.cust, ts, "initial");
+        if (sel.ap) await STORE.setAppointment(sel.cust, sel.ap.id, { ts, status: "scheduled", userId: apWho });
+        else await STORE.addAppointment(sel.cust, ts, "initial", apWho);
       } catch (_) { toast("Couldn't save — try again"); return; }
       closeSheet();
       render();
       if (window.MCUST) MCUST.renderList();
-      toast("On the calendar");
+      toast(handoff ? `On the calendar — handed to ${handoff.name}` : "On the calendar");
+    });
+
+    $("#ap-confirm").addEventListener("click", async () => {
+      tick();
+      try { await STORE.setAppointment(sel.cust, sel.ap.id, { status: "confirmed" }); }
+      catch (_) { toast("Couldn't save — try again"); return; }
+      closeSheet(); render();
+      toast("Confirmed with the customer ✓");
+    });
+
+    $("#ap-noshow").addEventListener("click", async () => {
+      tick();
+      try { await STORE.setAppointment(sel.cust, sel.ap.id, { status: "noshow" }); }
+      catch (_) { toast("Couldn't save — try again"); return; }
+      closeSheet(); render();
+      if (window.MCUST) MCUST.renderList();
+      toast("No-show — they're back in the reschedule pool");
     });
 
     $("#ap-done").addEventListener("click", async () => {

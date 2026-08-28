@@ -60,7 +60,7 @@
     const unscheduled = STORE.customers.filter(
       (c) => !STORE.nextAppointment(c) && !STORE.lastServiced(c));
     const nextAp = STORE.allAppointments().filter((x) =>
-      x.ap.status === "scheduled" && x.ap.ts >= Date.now() - 3600e3)[0] || null;
+      ["scheduled", "confirmed"].includes(x.ap.status) && x.ap.ts >= Date.now() - 3600e3)[0] || null;
     const rank = weekRank();
     const streak = STORE.streak();
 
@@ -81,6 +81,11 @@
     if (unscheduled.length) {
       upNext += row("sched", "⚠️", `<b>${unscheduled.length} customer${unscheduled.length === 1 ? "" : "s"} not scheduled</b>`,
         "Set the initial service before it goes cold");
+    }
+    const leads = STORE.customers.filter((c) => STORE.custStage(c).id === "lead");
+    if (leads.length) {
+      upNext += row("leads", "🎯", `<b>${leads.length} lead${leads.length === 1 ? "" : "s"} to work</b>`,
+        "Sign them or book the sit");
     }
 
     $("#home-body").innerHTML = `
@@ -142,6 +147,7 @@
       b.addEventListener("click", () => {
         const kind = b.dataset.k;
         if (kind === "cb" && b.dataset.pid) { MAPP.show("map"); MMAP.focusPin(b.dataset.pid); }
+        else if (kind === "leads") { MAPP.show("customers"); MCUST.setFilter("lead"); }
         else MAPP.show("schedule");
       }));
   }

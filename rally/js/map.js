@@ -772,7 +772,9 @@
     const sold = pin.disposition === "sold";
     const hasAgreement = STORE.customers.some((c) => c.pinId === pin.id);
     $("#lead-close-btn").hidden = hasAgreement;
-    $("#lead-close-btn").textContent = sold ? "Create the customer" : "Sold — create customer";
+    // an interested door becomes a LEAD — name and number captured now,
+    // agreement whenever they're ready
+    $("#lead-close-btn").textContent = sold ? "Create the customer" : "＋ Add as lead";
     openSheet("lead-sheet");
   }
 

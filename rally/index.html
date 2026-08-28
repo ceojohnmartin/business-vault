@@ -32,9 +32,7 @@
       <span class="applogo">R</span>
       <div class="guide-search" style="flex:1;margin:0"><input id="cust-q" type="search" placeholder="Search Customers" autocomplete="off"></div>
     </div>
-    <div class="cust-filter-row">
-      <button class="filter-chip" id="cust-filter">⏳ Filter<span id="cust-filter-n"></span></button>
-    </div>
+    <div class="stage-chips" id="cust-chips"></div>
     <div id="cust-list"></div>
     <button class="fab-new" id="cust-fab" aria-label="New customer">
       <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6"/><path d="M4 20c.7-3.7 3-5.7 6-5.7 1.2 0 2.3.3 3.2.9"/><path d="M18 14v6M15 17h6"/></svg>
@@ -208,6 +206,7 @@
       <div class="ce-title" id="ce-title">Creating Customer</div>
       <span style="width:34px"></span>
     </div>
+    <div class="ce-pipe" id="ce-pipe"></div>
     <div class="ce-tabs">
       <button class="ce-tab active" data-t="info">INFO</button>
       <button class="ce-tab" data-t="service">SERVICE</button>
@@ -457,24 +456,18 @@
     <button class="btn btn-gold" id="team-add">Add teammate</button>
   </div>
 
-  <div class="sheet" id="filter-sheet">
-    <div class="grab"></div>
-    <h2>Filter customers</h2>
-    <div class="sub">Status on the route</div>
-    <div class="more-list">
-      <button class="more-item f-opt sel" data-f="all"><span class="ic">👥</span><span class="tt">All customers</span></button>
-      <button class="more-item f-opt" data-f="notsched"><span class="ic">⚠️</span><span class="tt">Not scheduled</span></button>
-      <button class="more-item f-opt" data-f="scheduled"><span class="ic">📅</span><span class="tt">Scheduled</span></button>
-      <button class="more-item f-opt" data-f="serviced"><span class="ic">✅</span><span class="tt">Serviced</span></button>
-    </div>
-  </div>
-
   <div class="sheet" id="appt-sheet">
     <div class="grab"></div>
     <h2 id="ap-name">Customer</h2>
     <div class="sub" id="ap-addr"></div>
     <div class="field"><label for="ap-when">Service date &amp; time</label><input id="ap-when" type="datetime-local"></div>
+    <div class="field"><label>Who runs it</label><div class="reasons" id="ap-who"></div>
+      <div class="dim" id="ap-setter" style="font-size:12px" hidden></div></div>
     <button class="btn btn-gold" id="ap-save" style="margin-bottom:10px">Schedule</button>
+    <div class="btnrow" style="position:static;background:none;padding:0;margin-bottom:10px">
+      <button class="btn btn-ghost" id="ap-confirm">Confirmed ✓</button>
+      <button class="btn btn-ghost" id="ap-noshow">No-show</button>
+    </div>
     <button class="btn btn-ghost" id="ap-done" style="margin-bottom:10px">Mark serviced ✓</button>
     <button class="btn btn-ghost" id="ap-undone" style="margin-bottom:10px" hidden>Undo serviced</button>
     <button class="btn btn-ghost" id="ap-open">Open customer</button>

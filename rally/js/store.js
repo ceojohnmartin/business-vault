@@ -205,9 +205,16 @@
   S.custSignedAt = (c) => (c.agreement && c.agreement.signedAt) || c.signedAt || null;
 
   // ---------- appointments (embedded on customers) ----------
-  S.addAppointment = async function (cust, ts, type) {
+  // status: scheduled | confirmed | done | noshow. setterId = who booked it
+  // (attribution survives reassignment); userId = who runs it.
+  S.addAppointment = async function (cust, ts, type, userId) {
     cust.appointments = cust.appointments || [];
-    const ap = { id: MDB.uid(), ts, type: type || "initial", status: "scheduled", doneAt: null };
+    const me = S.currentUser();
+    const ap = {
+      id: MDB.uid(), ts, type: type || "initial", status: "scheduled", doneAt: null,
+      userId: userId || (me ? me.id : null),
+      setterId: me ? me.id : null,
+    };
     cust.appointments.push(ap);
     await S.updateCustomer(cust);
     return ap;
@@ -236,10 +243,31 @@
     return t || null;
   };
 
+  const UPCOMING = ["scheduled", "confirmed"];
   S.nextAppointment = function (c) {
-    const up = (c.appointments || []).filter((a) => a.status === "scheduled").sort((x, y) => x.ts - y.ts);
+    const up = (c.appointments || []).filter((a) => UPCOMING.includes(a.status)).sort((x, y) => x.ts - y.ts);
     return up[0] || null;
   };
+
+  // ---------- pipeline stage (derived, never hand-set) ----------
+  S.custStage = function (c) {
+    const signed = !!STORE.custSignedAt(c);
+    const next = S.nextAppointment(c);
+    const serviced = !!S.lastServiced(c);
+    if (signed) {
+      if (serviced) return stageInfo("active", "Active customer ✓", null);
+      if (next) return stageInfo("scheduled",
+        `Initial service ${MUI.fmtDate(next.ts)} ${MUI.fmtTime(next.ts)}`, "service");
+      return stageInfo("sold", "→ Schedule the initial service", "service");
+    }
+    if (next) return stageInfo("appt",
+      `→ Run the sit · ${MUI.fmtDate(next.ts)} ${MUI.fmtTime(next.ts)}`, "agree");
+    return stageInfo("lead", "→ Sign them, or book the sit", "agree");
+  };
+  function stageInfo(id, nextLabel, nextTab) {
+    const st = MDATA.PIPELINE.find((s) => s.id === id);
+    return { id, label: st.label, chip: st.chip, idx: MDATA.PIPELINE.indexOf(st), nextLabel, nextTab };
+  }
 
   // ---------- territories (hoods) ----------
   S.addTerritory = async function (t) {

@@ -694,3 +694,29 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .pipe-next .pn-act{flex:1;min-width:0;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pipe-next .chev{color:var(--t3)}
 .sr-st.bad{background:rgba(229,72,77,.14);color:#FF8A8E}
+
+/* ---------- Phases 12–15: coaching, route, opportunity, best area ---------- */
+.coach-card{background:var(--s1);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.cc-head{display:flex;align-items:center;gap:9px;font-size:15px}
+.cc-head .dot{width:11px;height:11px;border-radius:4px;flex:none}
+.cc-tag{margin-left:auto;font-size:10.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--accent);background:var(--accent-dim);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.cc-nums{font-size:12.5px;color:var(--t3);margin-top:4px}
+.cc-note{font-size:13.5px;color:var(--t2);margin-top:6px}
+.route-stop{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--s2);
+  border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px 13px;margin-bottom:8px;font-size:13.5px}
+.route-stop:active{transform:scale(.985)}
+.rs-n{flex:none;width:26px;height:26px;border-radius:50%;background:var(--accent-btn);color:#fff;
+  font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center}
+.rs-body{flex:1;min-width:0}
+.rs-body .dim{display:block;font-size:12px}
+.rs-opp{flex:none;font-weight:800;color:var(--sold-ink);font-size:15px}
+.lead-opp{display:flex;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:var(--t3)}
+.lead-opp .opp-n{flex:none;font-weight:800;font-size:13px;color:var(--sold-ink);
+  background:rgba(34,181,88,.12);border:1px solid rgba(34,181,88,.3);border-radius:8px;padding:2px 8px}
+.cb-route-btn{float:right;border:1px solid rgba(77,154,255,.4);color:var(--accent);border-radius:999px;
+  padding:4px 12px;font-size:12px;font-weight:700}
+.hm-best{width:100%;text-align:left}
+.hm-best:active{transform:scale(.99)}
+.hm-best h3 .r{font-size:16px;color:var(--sold-ink);font-weight:800}

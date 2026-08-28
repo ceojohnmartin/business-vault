@@ -358,6 +358,54 @@
     });
   }
 
+  // ---------- re-knock route rendering ----------
+  const emptyFC = () => ({ type: "FeatureCollection", features: [] });
+
+  function addRouteLayers() {
+    map.addSource("route", { type: "geojson", data: emptyFC() });
+    map.addLayer({
+      id: "route-line", type: "line", source: "route",
+      filter: ["==", ["geometry-type"], "LineString"],
+      paint: { "line-color": "#5EA0FF", "line-width": 3, "line-dasharray": [0.8, 1.6], "line-opacity": 0.9 },
+    });
+    map.addLayer({
+      id: "route-stops", type: "circle", source: "route",
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: {
+        "circle-color": "#0A6CF0", "circle-radius": 9.5,
+        "circle-stroke-color": "#FFFFFF", "circle-stroke-width": 2,
+      },
+    });
+    map.addLayer({
+      id: "route-nums", type: "symbol", source: "route",
+      filter: ["==", ["geometry-type"], "Point"],
+      layout: {
+        "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 11,
+        "text-allow-overlap": true,
+      },
+      paint: { "text-color": "#FFFFFF" },
+    });
+  }
+
+  function showRoute(pins) {
+    if (!map || !map.getSource("route")) return;
+    map.getSource("route").setData({
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", properties: {},
+          geometry: { type: "LineString", coordinates: pins.map((p) => [p.lng, p.lat]) } },
+        ...pins.map((p, i) => ({
+          type: "Feature", properties: { n: String(i + 1) },
+          geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+        })),
+      ],
+    });
+  }
+
+  function clearRoute() {
+    if (map && map.getSource("route")) map.getSource("route").setData(emptyFC());
+  }
+
   const PIN_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 10, 0.30, 14, 0.52, 16, 0.72, 18, 0.95];
 
   function init() {
@@ -439,6 +487,7 @@
           "icon-ignore-placement": true,
         },
       });
+      addRouteLayers();
       refreshPins();
       refreshHoods();
       reloadImagery();
@@ -760,6 +809,15 @@
       const due = pin.callbackAt <= Date.now();
       cb.innerHTML = `${due ? "⏰ <b>Callback due</b>" : "⏰ Callback"} · ${MUI.fmtDate(pin.callbackAt)} ${MUI.fmtTime(pin.callbackAt)}`;
     }
+    // explainable opportunity score — why this door is (or isn't) worth a swing
+    const opp = STORE.oppScore(pin);
+    const oppEl = $("#lead-opp");
+    oppEl.hidden = !opp.score;
+    if (opp.score) {
+      oppEl.innerHTML =
+        `<span class="opp-n num">${opp.score}</span>
+         <span class="opp-why">${opp.why.map((w) => MUI.esc(w)).join(" · ")}</span>`;
+    }
     const hist = $("#lead-history");
     hist.innerHTML = pin.history.slice().reverse().map((h) =>
       `<div class="h-item"><span class="sw ${h.disposition}"></span>` +
@@ -830,7 +888,7 @@
 
   window.MMAP = {
     init, refreshPins, refreshHoods, updateBrandToday, focusPin, focusHood, reloadImagery,
-    startKnock, focusRep, setHeatMode,
+    startKnock, focusRep, setHeatMode, showRoute, clearRoute,
     heatMode: () => heatMode,
     googleError: () => lastGoogleError,
     usingOwnKey: () => !!STORE.settings.googleKey,

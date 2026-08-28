@@ -142,7 +142,9 @@
     }
     // a callback either gets a fresh time or is cleared by the new outcome
     pin.callbackAt = disposition === "goback" ? (callbackAt || pin.callbackAt || null) : null;
-    const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition, reason: reason || null, dm: !!dm };
+    const me = S.currentUser();
+    const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition, reason: reason || null, dm: !!dm,
+      repId: me ? me.id : null };
     S.events.push(ev);
     await MDB.put("pins", pin);
     await MDB.put("events", ev);
@@ -394,11 +396,107 @@
       MDATA.FRESH_SCALE[MDATA.FRESH_SCALE.length - 1];
   };
 
+  // Smart Split: replace one hood with N weight-balanced children.
+  // The parent is retired (deleted) — its knock history lives on the pins,
+  // which fall inside whichever child contains them.
+  S.splitTerritory = async function (t, n) {
+    const pins = S.pins
+      .filter((p) => S.inHood(t, p.lng, p.lat))
+      .map((p) => [p.lng, p.lat]);
+    const { rings, shares } = MGEO.splitPolygon(t.points, n, pins);
+    const letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
+    const kids = [];
+    for (let i = 0; i < rings.length; i++) {
+      kids.push(await S.addTerritory({
+        name: `${t.name} ${letters[i] || i + 1}`,
+        homes: t.homes ? Math.max(1, Math.round(t.homes * shares[i])) : null,
+        points: rings[i],
+        assignments: [],
+      }));
+    }
+    await S.deleteTerritory(t.id);
+    return kids;
+  };
+
   // ---------- callbacks ----------
   S.callbacksDue = function () {
     return S.pins
       .filter((p) => p.callbackAt)
       .sort((a, b) => a.callbackAt - b.callbackAt);
+  };
+
+  // ---------- per-rep activity (events carry repId going forward) ----------
+  S.repStats = function (userId, fromTs) {
+    const evs = S.events.filter((e) =>
+      e.repId === userId && (!fromTs || e.ts >= fromTs));
+    const doors = evs.length;
+    const convos = evs.filter(isContact).length;
+    const dms = evs.filter((e) => e.dm).length;
+    const sales = evs.filter((e) => e.disposition === "sold").length;
+    return { doors, convos, dms, sales };
+  };
+
+  // ---------- opportunity score (house level, explainable) ----------
+  // Property + sales-history factors only — never personal traits.
+  S.oppScore = function (pin) {
+    let score = 50;
+    const why = [];
+    const attempts = (pin.history || []).length;
+    if (pin.disposition === "goback") {
+      score += 22; why.push("They asked for a comeback");
+      if (pin.callbackAt && pin.callbackAt <= Date.now()) { score += 10; why.push("Callback is due"); }
+    } else if (pin.disposition === "nothome") {
+      score += 10; why.push("Never answered — still uncontacted");
+      if (attempts >= 3) { score -= 8; why.push(attempts + " attempts already"); }
+    } else if (pin.disposition === "notint") {
+      score -= 25; why.push("Said no" + (pin.reason ? " — " + pin.reason : ""));
+      if (pin.reason && MDATA.REKNOCK_REASONS.includes(pin.reason)) {
+        score += 18; why.push("…but it was a soft no");
+      }
+    } else if (pin.disposition === "sold") {
+      return { score: 0, why: ["Already a customer"] };
+    } else if (pin.disposition === "dnk") {
+      return { score: 0, why: ["Do Not Knock"] };
+    }
+    // social proof: sold doors nearby (~150m box)
+    const near = S.pins.filter((p) =>
+      p.disposition === "sold" && p.id !== pin.id &&
+      Math.abs(p.lat - pin.lat) < 0.0014 &&
+      Math.abs(p.lng - pin.lng) < 0.0014 / Math.max(0.2, Math.cos(pin.lat * Math.PI / 180))).length;
+    if (near) { score += Math.min(15, near * 5); why.push(near + " customer" + (near === 1 ? "" : "s") + " nearby"); }
+    // freshness: knocked today is cold
+    const ageH = (Date.now() - pin.updatedAt) / 3600e3;
+    if (ageH < 4) { score -= 12; why.push("Hit " + Math.max(1, Math.round(ageH)) + "h ago"); }
+    else if (ageH > 72) { score += 6; why.push("Cooled off " + Math.round(ageH / 24) + " days"); }
+    return { score: Math.max(0, Math.min(99, Math.round(score))), why };
+  };
+
+  // ---------- best area today (manager recommendation, explainable) ----------
+  S.bestHoods = function () {
+    return S.territories
+      .filter((t) => t.points && t.points.length >= 3)
+      .map((t) => {
+        const st = S.hoodStats(t);
+        const h = S.hoodHistory(t);
+        let score = 0;
+        const why = [];
+        const days = h.daysSince;
+        if (days == null) { score += 40; why.push("Never worked"); }
+        else { score += Math.min(35, days * 1.2); why.push(days === 0 ? "Worked today" : "Rested " + days + "d"); }
+        if (st.homes) {
+          const remaining = Math.max(0, st.homes - st.knocked);
+          score += Math.min(30, remaining / Math.max(1, st.homes) * 30);
+          why.push(remaining + " doors available");
+        }
+        if (h.closeRate != null && h.doors >= 10) {
+          score += Math.min(20, h.closeRate * 2.5);
+          why.push(h.closeRate + "% historical close");
+        }
+        if (st.callbacks) { score += Math.min(10, st.callbacks * 2); why.push(st.callbacks + " callbacks waiting"); }
+        const u = t.assignedTo && S.userById(t.assignedTo);
+        return { t, score: Math.round(score), why, rep: u ? u.name : null, st };
+      })
+      .sort((a, b) => b.score - a.score);
   };
 
   // ---------- files (blobs: signed agreements, photos) ----------

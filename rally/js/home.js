@@ -87,6 +87,25 @@
       upNext += row("leads", "🎯", `<b>${leads.length} lead${leads.length === 1 ? "" : "s"} to work</b>`,
         "Sign them or book the sit");
     }
+    if (window.MROUTE && MROUTE.hasCandidates()) {
+      upNext += row("route", "🧭", `<b>Re-knock route ready</b>`,
+        "Callbacks and not-homes, ordered — one tap");
+    }
+
+    // manager intelligence: where should the team knock today?
+    let bestCard = "";
+    if (STORE.isManager()) {
+      const ranked = STORE.bestHoods();
+      const best = ranked.length ? ranked[0] : null;
+      if (best && best.score > 0) {
+        bestCard = `<div class="ce-sec" style="margin:16px 0 8px">Best area today</div>
+          <button class="panel hm-best" id="hm-best" data-tid="${best.t.id}" type="button">
+            <h3><span class="dot" style="background:${STORE.hoodColor(best.t)};display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px"></span>
+              ${esc(best.t.name)}<span class="r num">${best.score}</span></h3>
+            <div class="hm-turf-line">${best.why.map(esc).join(" · ")}${best.rep ? ` · <b>${esc(best.rep)}</b>'s turf` : " · unassigned"}</div>
+          </button>`;
+      }
+    }
 
     $("#home-body").innerHTML = `
       <div class="hm-greet">
@@ -127,6 +146,7 @@
       </button>
 
       ${upNext ? `<div class="ce-sec" style="margin:16px 0 8px">Up next</div>${upNext}` : ""}
+      ${bestCard}
 
       <div class="hm-foot">
         <button class="hm-chip wide" id="hm-rank" type="button">
@@ -148,8 +168,14 @@
         const kind = b.dataset.k;
         if (kind === "cb" && b.dataset.pid) { MAPP.show("map"); MMAP.focusPin(b.dataset.pid); }
         else if (kind === "leads") { MAPP.show("customers"); MCUST.setFilter("lead"); }
+        else if (kind === "route") { MAPP.show("map"); MROUTE.build(); }
         else MAPP.show("schedule");
       }));
+    const bestBtn = $("#hm-best");
+    if (bestBtn) bestBtn.addEventListener("click", () => {
+      const t = STORE.territories.find((x) => x.id === bestBtn.dataset.tid);
+      if (t) { MAPP.show("map"); MMAP.focusHood(t); }
+    });
   }
 
   const row = (kind, ic, title, sub, pid) =>

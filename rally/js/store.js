@@ -17,7 +17,6 @@
       companyAddress: "", companyLicense: "",
       frSubdomain: "", frKey: "", frToken: "",
       googleKey: "", googleSessions: null, googleLastError: "",
-      basemap: "hybrid", // hybrid | satellite | street
       lastCenter: null, lastZoom: null,
     },
     ready: null,

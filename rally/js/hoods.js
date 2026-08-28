@@ -266,7 +266,6 @@
       tick();
       const menu = $("#hood-menu");
       menu.hidden = !menu.hidden;
-      $("#layer-menu").hidden = true;
       if (!menu.hidden) renderHoodList();
     });
     $("#hood-pencil").addEventListener("click", () => { tick(); startMode("pencil"); });

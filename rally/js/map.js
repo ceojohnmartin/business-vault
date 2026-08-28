@@ -1,11 +1,13 @@
 /* RALLY — the knocking map.
-   Street view is a custom light vector cartography (OpenFreeMap positron
-   tiles restyled to a clean Apple-Maps-like palette — crisp at every zoom).
-   Satellite/Hybrid ride Esri imagery, upgraded to Google tiles when a key
-   is present. Pins are glossy 3D teardrop markers in the disposition
-   colors. Hoods (rep territories) render as tinted polygons under the
-   pins. All data is local-first; if the style can't be fetched offline on
-   first run, a raster fallback loads instead. */
+   One view, on purpose: Google hybrid — vivid satellite imagery with
+   Google's own street labels, 512px retina tiles, the same look the top
+   competitor apps run. No basemap menu, no fallback cartography; the
+   built-in office key makes imagery a given, not a setting. Glyphs for
+   hood labels are bundled with the app, so the map has exactly one
+   external dependency: Google tiles. Offline, cached tiles keep knocked
+   neighborhoods rendering; brand-new ground waits for signal.
+   Pins are glossy 3D teardrop markers in the disposition colors; hoods
+   (rep territories) render as tinted polygons under the pins. */
 (function () {
   const { $, $$, openSheet, closeSheet, toast, tick } = MUI;
   const D = MDATA.DISPOSITIONS;
@@ -16,173 +18,41 @@
   let selectedPinId = "";
   let knock = null; // {mode:'new'|'re', lat, lng, pinId, disposition, reason, dm}
   let currentLead = null;
-  let BASEMAPS = { street: [], satellite: ["base-sat"], hybrid: ["base-sat", "base-hyb-labels"] };
-  let HYB_FALLBACK = ["base-sat", "base-hyb-labels"]; // what hybrid uses without a Google key
   let lastGoogleError = ""; // Google's own explanation when imagery is refused
-  const ALL_BASE = new Set(); // every basemap layer id ever registered
+  let wiringP = null;       // in-flight imagery wire-up, shared by all callers
 
-  const SUBS = ["a", "b", "c", "d"];
-  const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
-  const VECTOR_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
-  const GLYPHS_URL = "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf";
-
-  // ---------- the Apple-2026 light palette ----------
-  const APPLE = {
-    land: "#F6F5F1", residential: "#EFEEE8", park: "#CBE7B9", wood: "#C6E2B0",
-    water: "#A5CDF5", building: "#ECEAE3", buildingLine: "#E1DED6",
-    road: "#FFFFFF", roadCasing: "#E2DFD7",
-    motorway: "#FBD879", motorwayCasing: "#EFBC50",
-    tunnel: "#F7F0DE", tunnelCasing: "#EDE3C8",
-    rail: "#DDD9E4", boundary: "#C8C2D4", runway: "#ECEAE3",
-    placeText: "#26303E", minorPlaceText: "#5A6575",
-    roadText: "#6E7A8A", waterText: "#4A80C4", halo: "#FFFFFF",
-  };
-
-  // Recolor the positron layer set into the palette above.
-  function appleize(style) {
-    const set = (l, prop, val) => { (l.paint = l.paint || {})[prop] = val; };
-    style.layers.forEach((l) => {
-      const id = l.id;
-      if (id === "background") set(l, "background-color", APPLE.land);
-      else if (id === "park") { set(l, "fill-color", APPLE.park); set(l, "fill-opacity", 0.75); }
-      else if (id === "landuse_residential") { set(l, "fill-color", APPLE.residential); set(l, "fill-opacity", 0.6); }
-      else if (id === "landcover_wood") { set(l, "fill-color", APPLE.wood); set(l, "fill-opacity", 0.35); }
-      else if (id === "water" || id === "waterway") {
-        set(l, l.type === "line" ? "line-color" : "fill-color", APPLE.water);
-      } else if (id === "building") {
-        set(l, "fill-color", APPLE.building); set(l, "fill-outline-color", APPLE.buildingLine);
-      } else if (/aeroway/.test(id)) {
-        set(l, l.type === "line" ? "line-color" : "fill-color", APPLE.runway);
-      } else if (/^railway/.test(id)) set(l, "line-color", APPLE.rail);
-      else if (/^boundary/.test(id)) set(l, "line-color", APPLE.boundary);
-      else if (l.type === "line" && /motorway/.test(id) && /casing/.test(id)) {
-        set(l, "line-color", /tunnel/.test(id) ? APPLE.tunnelCasing : APPLE.motorwayCasing);
-      } else if (l.type === "line" && /motorway/.test(id)) {
-        set(l, "line-color", /tunnel/.test(id) ? APPLE.tunnel : APPLE.motorway);
-      } else if (l.type === "line" && /casing/.test(id)) set(l, "line-color", APPLE.roadCasing);
-      else if (/^highway|^road_pier/.test(id) && l.type === "line") set(l, "line-color", APPLE.road);
-      else if (id === "road_area_pier") set(l, "fill-color", APPLE.land);
-      else if (l.type === "symbol") {
-        const txt = /highway|road_shield/.test(id) ? APPLE.roadText
-          : /water/.test(id) ? APPLE.waterText
-          : /label_state|label_other|airport/.test(id) ? APPLE.minorPlaceText
-          : APPLE.placeText;
-        set(l, "text-color", txt);
-        set(l, "text-halo-color", APPLE.halo);
-        set(l, "text-halo-width", 1.1);
-      }
-    });
-    return style;
-  }
-
-  function rasterFallbackStyle() {
+  // ---------- style ----------
+  // Near-black ground: in dead zones with no cached tiles, pins and hoods
+  // float on premium dark instead of a beige void.
+  function baseStyle() {
+    const dir = new URL(".", location.href).href;
     return {
       version: 8,
-      glyphs: GLYPHS_URL, // hood labels need glyphs even in fallback
-      sources: {
-        carto: {
-          type: "raster",
-          tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png`),
-          tileSize: 256,
-          attribution: "© OpenStreetMap contributors © CARTO",
-        },
-      },
-      layers: [{ id: "base-street", type: "raster", source: "carto" }],
+      glyphs: dir + "fonts/{fontstack}/{range}.pbf",
+      sources: {},
+      layers: [
+        { id: "bg", type: "background", paint: { "background-color": "#10141B" } },
+      ],
     };
-  }
-
-  async function buildStyle() {
-    let style = null;
-    let vector = false;
-    try {
-      // hard timeout: a hanging fetch on flaky signal must never delay the map.
-      // The timer stays armed through the BODY read too — an abort mid-body
-      // rejects json() and drops us to the raster fallback.
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 6000);
-      try {
-        const r = await fetch(VECTOR_STYLE_URL, { signal: ctrl.signal });
-        if (r.ok) { style = appleize(await r.json()); vector = true; }
-      } finally {
-        clearTimeout(t);
-      }
-    } catch (_) { /* offline or slow first run — raster fallback below */ }
-    if (!style) style = rasterFallbackStyle();
-    if (!style.glyphs) style.glyphs = GLYPHS_URL;
-    BASEMAPS.street = style.layers.map((l) => l.id);
-
-    // imagery modes ride on top of the street layers
-    style.sources.sat = {
-      type: "raster",
-      tiles: [`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`],
-      tileSize: 128, maxzoom: 19, // half tileSize = retina oversampling
-      attribution: "© Esri, Maxar, Earthstar Geographics",
-    };
-    style.layers.push(
-      // color-graded toward the vivid Google look: more saturation + contrast
-      { id: "base-sat", type: "raster", source: "sat", layout: { visibility: "none" },
-        paint: { "raster-contrast": 0.14, "raster-saturation": 0.15, "raster-brightness-min": 0.02 } }
-    );
-
-    if (vector) {
-      // Google-style hybrid labels: clone the vector label layers and set
-      // them bold-white with a dark casing — crisp at every zoom over imagery
-      const hybIds = [];
-      const clones = [];
-      style.layers.forEach((l) => {
-        if (l.type !== "symbol" || l.id.startsWith("hyb-")) return;
-        const c = JSON.parse(JSON.stringify(l));
-        c.id = "hyb-" + l.id;
-        c.layout = c.layout || {};
-        c.layout.visibility = "none";
-        c.paint = Object.assign({}, c.paint, {
-          "text-color": "#FFFFFF",
-          "text-halo-color": "rgba(18,22,30,.80)",
-          "text-halo-width": 1.6,
-        });
-        clones.push(c);
-        hybIds.push(c.id);
-      });
-      style.layers.push(...clones); // above the imagery layer
-      HYB_FALLBACK = ["base-sat", ...hybIds];
-    } else {
-      // raster fallback labels (white text, prerendered) when vector is unavailable
-      style.sources["hyb-labels"] = {
-        type: "raster",
-        tiles: SUBS.map((s) => `https://${s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png`),
-        tileSize: 256,
-      };
-      style.layers.push(
-        { id: "base-hyb-labels", type: "raster", source: "hyb-labels", layout: { visibility: "none" } }
-      );
-      HYB_FALLBACK = ["base-sat", "base-hyb-labels"];
-    }
-    BASEMAPS.satellite = ["base-sat"];
-    BASEMAPS.hybrid = HYB_FALLBACK.slice();
-    style.layers.forEach((l) => ALL_BASE.add(l.id));
-    return style;
   }
 
   // ---------- Google imagery (Map Tiles API) ----------
-  // With the office's own Google key, Satellite/Hybrid become actual Google
-  // tiles — the same imagery+labels the big competitor apps render.
-  // the office key wins; otherwise the app ships with one
+  // the office key ships built in; a device key wins if a rep sets one
   const effectiveKey = () =>
     (STORE.settings.googleKey || MDATA.DEFAULT_GOOGLE_KEY || "").trim();
 
-  async function googleSession(kind) {
+  const tileUrl = (sess) =>
+    `https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}` +
+    `?session=${encodeURIComponent(sess)}&key=${encodeURIComponent(effectiveKey())}`;
+
+  async function googleSession() {
     const s = STORE.settings;
     const gkey = effectiveKey();
-    if (!gkey) return null;
-    const cached = s.googleSessions && s.googleSessions[kind];
+    if (!gkey) { lastGoogleError = "No Google key on this device"; return null; }
+    const cached = s.googleSessions && s.googleSessions.hybrid;
     if (cached && Number(cached.expiry) * 1000 > Date.now() + 3600e3) return cached.session;
     try {
-      const body = {
-        mapType: "satellite", language: "en-US", region: "US",
-        highDpi: true, scale: "scaleFactor2x",
-      };
-      if (kind === "hybrid") body.layerTypes = ["layerRoadmap"];
-      // never let a hanging request freeze the settings screen
+      // never let a hanging request freeze the map or the settings screen
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 8000);
       let r;
@@ -190,7 +60,12 @@
         r = await fetch(
           "https://tile.googleapis.com/v1/createSession?key=" + encodeURIComponent(gkey),
           { method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body), signal: ctrl.signal }
+            body: JSON.stringify({
+              mapType: "satellite", layerTypes: ["layerRoadmap"],
+              language: "en-US", region: "US",
+              highDpi: true, scale: "scaleFactor2x",
+            }),
+            signal: ctrl.signal }
         );
       } finally {
         clearTimeout(t);
@@ -200,88 +75,71 @@
         // Surface Google's own words — "enable the API", "billing", "bad key" —
         // so the fix is obvious instead of a dead end.
         lastGoogleError = (j && j.error && j.error.message) || ("HTTP " + r.status);
-        return null;
+        // an expired session still matches the tile cache → stale imagery beats none
+        return cached ? cached.session : null;
       }
       lastGoogleError = "";
       s.googleSessions = Object.assign({}, s.googleSessions, {
-        [kind]: { session: j.session, expiry: j.expiry },
+        hybrid: { session: j.session, expiry: j.expiry },
       });
       STORE.saveSettings();
       return j.session;
     } catch (err) {
       lastGoogleError = !navigator.onLine
-        ? "You're offline — connect and try again"
+        ? "Offline — imagery returns when you reconnect"
         : (err && err.name === "AbortError")
           ? "Google didn't respond in time — try again"
           : "Couldn't reach Google — check your connection";
-      return null;
+      return cached ? cached.session : null;
     }
   }
 
-  // Called after map load and whenever the key changes: swaps Satellite and
-  // Hybrid onto Google tiles when a session is available. Fallback stays wired.
-  async function reloadImagery() {
-    const key = effectiveKey();
-    const kinds = [["satellite", "g-sat"], ["hybrid", "g-hyb"]];
-    let keyWorks = false;
-    // Validate the key FIRST, independent of the map — the map can still be
-    // building its style when a rep saves a key, and a valid key must never
-    // be reported as rejected just because we weren't ready yet.
-    const sessions = await Promise.all(
-      kinds.map(([kind]) => (key ? googleSession(kind) : Promise.resolve(null)))
-    );
-    for (let i = 0; i < kinds.length; i++) {
-      const [kind, layerId] = kinds[i];
-      const sess = sessions[i];
-      if (!sess) {
-        BASEMAPS[kind] = kind === "hybrid" ? HYB_FALLBACK.slice() : ["base-sat"];
-        continue;
-      }
-      keyWorks = true;
+  // Wire (or re-wire) the Google layer. Runs on style load, when the key
+  // changes, and when the device comes back online. Concurrent callers
+  // share one in-flight attempt so a busy moment never reads as a bad key.
+  function reloadImagery() {
+    if (wiringP) return wiringP;
+    wiringP = wireImagery().finally(() => { wiringP = null; });
+    return wiringP;
+  }
+
+  async function wireImagery() {
+    {
+      const sess = await googleSession();
+      updateNetHint(!!sess);
       const styleReady = map && map.isStyleLoaded && map.isStyleLoaded();
-      if (!styleReady) continue; // style.load re-runs this with the cached session
-      if (!map.getSource(layerId)) {
+      if (!sess || !styleReady) return !!sess;
+      const src = map.getSource("g-hyb");
+      if (src) {
+        // session rotated → point the existing source at the new URL
+        try { src.setTiles([tileUrl(sess)]); } catch (_) {}
+      } else {
         try {
-          map.addSource(layerId, {
-            type: "raster",
-            tiles: [`https://tile.googleapis.com/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(sess)}&key=${encodeURIComponent(key)}`],
-            tileSize: 512, maxzoom: 22,
-            attribution: "© Google",
+          map.addSource("g-hyb", {
+            type: "raster", tiles: [tileUrl(sess)],
+            tileSize: 512, maxzoom: 22, attribution: "© Google",
           });
           map.addLayer(
-            { id: layerId, type: "raster", source: layerId, layout: { visibility: "none" } },
+            { id: "g-hyb", type: "raster", source: "g-hyb" },
             map.getLayer("hoods-fill") ? "hoods-fill" : undefined
           );
-        } catch (_) { continue; }
+        } catch (_) { return false; }
       }
-      if (map.getLayer(layerId)) {
-        BASEMAPS[kind] = [layerId];
-        ALL_BASE.add(layerId);
-      }
+      const gattr = $("#gattr");
+      if (gattr) gattr.hidden = false; // Google attribution is required on-screen
+      return true;
     }
-    if (map) applyBasemap(STORE.settings.basemap);
-    return keyWorks;
   }
 
-  function applyBasemap(mode) {
-    if (!BASEMAPS[mode]) mode = "street";
-    STORE.settings.basemap = mode;
-    STORE.saveSettings();
-    if (map) {
-      const on = BASEMAPS[mode];
-      // ALL_BASE holds every basemap layer ever registered, so a layer
-      // dropped from BASEMAPS (e.g. Google key removed) still gets hidden
-      ALL_BASE.forEach((id) => {
-        if (map.getLayer(id)) {
-          map.setLayoutProperty(id, "visibility", on.includes(id) ? "visible" : "none");
-        }
-      });
+  function updateNetHint(haveImagery) {
+    const el = $("#net-hint");
+    if (!el) return;
+    el.hidden = haveImagery || !!(map && map.getSource("g-hyb"));
+    if (!el.hidden) {
+      el.textContent = navigator.onLine
+        ? (lastGoogleError || "Loading imagery…")
+        : "Offline — knocked areas still work; imagery returns with signal";
     }
-    $$("#layer-menu .lm-opt").forEach((b) =>
-      b.classList.toggle("sel", b.dataset.bm === mode));
-    // Google attribution is required whenever Google tiles are on screen
-    const gattr = $("#gattr");
-    if (gattr) gattr.hidden = !BASEMAPS[mode].some((id) => id.startsWith("g-"));
   }
 
   // ---------- teardrop pin images ----------
@@ -406,17 +264,18 @@
   function addHoodLayers() {
     // The label rides a SEPARATE source on purpose: MapLibre parses all of
     // a source's layers in one worker job, so a symbol layer waiting on
-    // glyphs it can't fetch (offline first run) would stall the fill and
-    // line of the same source. Split sources = the tint always renders.
+    // glyphs would stall the fill and line of the same source. Split
+    // sources = the tint always renders (glyphs are bundled locally now,
+    // but the isolation stays cheap insurance).
     map.addSource("hoods", { type: "geojson", data: hoodsGeoJSON() });
     map.addSource("hoods-labels", { type: "geojson", data: hoodsGeoJSON() });
     map.addLayer({
       id: "hoods-fill", type: "fill", source: "hoods",
-      paint: { "fill-color": ["get", "color"], "fill-opacity": 0.14 },
+      paint: { "fill-color": ["get", "color"], "fill-opacity": 0.16 },
     });
     map.addLayer({
       id: "hoods-line", type: "line", source: "hoods",
-      paint: { "line-color": ["get", "color"], "line-width": 2.25, "line-opacity": 0.85 },
+      paint: { "line-color": ["get", "color"], "line-width": 2.25, "line-opacity": 0.9 },
     });
     map.addLayer({
       id: "hoods-label", type: "symbol", source: "hoods-labels",
@@ -428,8 +287,9 @@
         "text-line-height": 1.25,
       },
       paint: {
-        "text-color": ["get", "color"],
-        "text-halo-color": "rgba(255,255,255,.95)",
+        // white labels with a dark casing read on imagery at any zoom
+        "text-color": "#FFFFFF",
+        "text-halo-color": "rgba(14,17,22,.78)",
         "text-halo-width": 1.8,
       },
     });
@@ -447,16 +307,6 @@
       return;
     }
     const s = STORE.settings;
-    // one-time migration: the clean vector street map becomes the default view
-    if (!s.mapV2) { s.mapV2 = true; s.basemap = "street"; STORE.saveSettings(); }
-    // one-time migration: with the office Google key built in, Hybrid
-    // (Google imagery + labels) is the premium default. Reps can still
-    // switch views and their choice sticks from then on.
-    if (!s.mapV3 && MDATA.DEFAULT_GOOGLE_KEY) {
-      s.mapV3 = true;
-      s.basemap = "hybrid";
-      STORE.saveSettings();
-    }
 
     bindKnockSheet();
     bindLeadSheet();
@@ -466,116 +316,101 @@
       const c = map.getCenter();
       startKnock(c.lat, c.lng);
     });
-    $("#fab-layers").addEventListener("click", () => {
-      tick();
-      $("#layer-menu").hidden = !$("#layer-menu").hidden;
-      $("#hood-menu").hidden = true; // one popover at a time
-    });
-    $$("#layer-menu .lm-opt").forEach((b) =>
-      b.addEventListener("click", () => {
-        tick();
-        applyBasemap(b.dataset.bm);
-        $("#layer-menu").hidden = true;
-      }));
+    // signal returning is the moment to fetch a session and light imagery up
+    addEventListener("online", () => reloadImagery());
     updateHint();
     updateBrandToday();
 
-    buildStyle().then((style) => {
-      map = new maplibregl.Map({
-        container: "map",
-        style,
-        center: s.lastCenter || [-98.35, 39.5],
-        zoom: s.lastZoom != null ? s.lastZoom : (s.lastCenter ? 16 : 4),
-        attributionControl: { compact: true },
-        maxPitch: 0,
-        dragRotate: false,
-      });
-      map.touchZoomRotate.disableRotation();
-      // Failed tile fetches are routine in dead zones — never surface them as errors.
-      map.on("error", (e) => {
-        if (e && e.error && /tile|source|ajax|fetch|glyph/i.test(String(e.error.message || ""))) return;
-      });
+    map = new maplibregl.Map({
+      container: "map",
+      style: baseStyle(),
+      center: s.lastCenter || [-98.35, 39.5],
+      zoom: s.lastZoom != null ? s.lastZoom : (s.lastCenter ? 16 : 4),
+      attributionControl: { compact: true },
+      maxPitch: 0,
+      dragRotate: false,
+    });
+    map.touchZoomRotate.disableRotation();
+    // Failed tile fetches are routine in dead zones — never surface them as errors.
+    map.on("error", (e) => {
+      if (e && e.error && /tile|source|ajax|fetch|glyph/i.test(String(e.error.message || ""))) return;
+    });
 
-      map.on("style.load", () => {
-        registerPinImages();
-        addHoodLayers();
-        map.addSource("pins", { type: "geojson", data: pinsGeoJSON() });
-        // soft contact shadow at the pin's tip so it floats on any ground
-        map.addLayer({
-          id: "pins-shadow",
-          type: "circle",
-          source: "pins",
-          paint: {
-            "circle-color": "rgba(16,24,40,.30)",
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 14, 4.5, 17, 7],
-            "circle-blur": 1.1,
-            "circle-translate": [1, 1],
-          },
-        });
-        map.addLayer({
-          id: "pins-selected",
-          type: "circle",
-          source: "pins",
-          filter: ["==", ["get", "id"], ""],
-          paint: {
-            "circle-color": "rgba(10,108,240,.12)",
-            "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 7, 14, 11, 17, 15],
-            "circle-stroke-width": 2.5,
-            "circle-stroke-color": "#0A6CF0",
-          },
-        });
-        map.addLayer({
-          id: "pins-icon",
-          type: "symbol",
-          source: "pins",
-          layout: {
-            "icon-image": ["concat", "pin-", ["get", "disposition"]],
-            "icon-size": PIN_ICON_SIZE,
-            "icon-anchor": "bottom",
-            "icon-allow-overlap": true,
-            "icon-ignore-placement": true,
-          },
-        });
-        applyBasemap(STORE.settings.basemap);
-        refreshPins();
-        refreshHoods();
-        reloadImagery(); // upgrades Satellite/Hybrid to Google tiles if a key is set
-        if (window.MHOODS) MHOODS.onMapReady(map);
+    map.on("style.load", () => {
+      registerPinImages();
+      addHoodLayers();
+      map.addSource("pins", { type: "geojson", data: pinsGeoJSON() });
+      // soft contact shadow at the pin's tip so it floats on any ground
+      map.addLayer({
+        id: "pins-shadow",
+        type: "circle",
+        source: "pins",
+        paint: {
+          "circle-color": "rgba(0,0,0,.35)",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 14, 4.5, 17, 7],
+          "circle-blur": 1.1,
+          "circle-translate": [1, 1],
+        },
       });
+      map.addLayer({
+        id: "pins-selected",
+        type: "circle",
+        source: "pins",
+        filter: ["==", ["get", "id"], ""],
+        paint: {
+          "circle-color": "rgba(94,160,255,.18)",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 7, 14, 11, 17, 15],
+          "circle-stroke-width": 2.5,
+          "circle-stroke-color": "#5EA0FF",
+        },
+      });
+      map.addLayer({
+        id: "pins-icon",
+        type: "symbol",
+        source: "pins",
+        layout: {
+          "icon-image": ["concat", "pin-", ["get", "disposition"]],
+          "icon-size": PIN_ICON_SIZE,
+          "icon-anchor": "bottom",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      });
+      refreshPins();
+      refreshHoods();
+      reloadImagery();
+      if (window.MHOODS) MHOODS.onMapReady(map);
+    });
 
-      map.on("click", (e) => {
-        // hood drawing (dot mode) consumes clicks first
-        if (window.MHOODS && MHOODS.handleMapClick(e)) return;
-        // 16px tolerance box: fat-fingering near a pin opens it instead of
-        // silently creating a duplicate door
-        const T = 16;
-        const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
-        const hits = map.getLayer("pins-icon")
-          ? map.queryRenderedFeatures(bbox, { layers: ["pins-icon"] })
-          : [];
-        if (hits.length) {
-          const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);
-          if (pin) openLead(pin);
-        } else {
-          startKnock(e.lngLat.lat, e.lngLat.lng);
-        }
-      });
+    map.on("click", (e) => {
+      // hood drawing (dot mode) consumes clicks first
+      if (window.MHOODS && MHOODS.handleMapClick(e)) return;
+      // 16px tolerance box: fat-fingering near a pin opens it instead of
+      // silently creating a duplicate door
+      const T = 16;
+      const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
+      const hits = map.getLayer("pins-icon")
+        ? map.queryRenderedFeatures(bbox, { layers: ["pins-icon"] })
+        : [];
+      if (hits.length) {
+        const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);
+        if (pin) openLead(pin);
+      } else {
+        startKnock(e.lngLat.lat, e.lngLat.lng);
+      }
+    });
 
-      map.on("dragstart", () => {
-        $("#layer-menu").hidden = true;
-        $("#hood-menu").hidden = true;
-      });
+    map.on("dragstart", () => { $("#hood-menu").hidden = true; });
 
-      let saveT = null;
-      map.on("moveend", () => {
-        clearTimeout(saveT);
-        saveT = setTimeout(() => {
-          const c = map.getCenter();
-          STORE.settings.lastCenter = [c.lng, c.lat];
-          STORE.settings.lastZoom = map.getZoom();
-          STORE.saveSettings();
-        }, 600);
-      });
+    let saveT = null;
+    map.on("moveend", () => {
+      clearTimeout(saveT);
+      saveT = setTimeout(() => {
+        const c = map.getCenter();
+        STORE.settings.lastCenter = [c.lng, c.lat];
+        STORE.settings.lastZoom = map.getZoom();
+        STORE.saveSettings();
+      }, 600);
     });
   }
 
@@ -642,7 +477,7 @@
       if (tempMarker) tempMarker.remove();
       const el = document.createElement("div");
       el.style.cssText =
-        "width:18px;height:18px;border-radius:50%;background:rgba(10,108,240,.2);border:2px solid #0A6CF0";
+        "width:18px;height:18px;border-radius:50%;background:rgba(94,160,255,.25);border:2px solid #5EA0FF";
       tempMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
     }
     // reset sheet

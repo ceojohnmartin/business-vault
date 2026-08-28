@@ -4,7 +4,7 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "rally-v2";
+const CACHE = "rally-v3";
 const TILE_CACHE = "rally-tiles-v1";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
@@ -16,6 +16,7 @@ const CORE = [
   "./js/db.js", "./js/data.js", "./js/ui.js", "./js/store.js",
   "./js/contract.js", "./js/map.js", "./js/hoods.js", "./js/customers.js",
   "./js/schedule.js", "./js/stats.js", "./js/app.js",
+  "./fonts/Noto Sans Bold/0-255.pbf", "./fonts/Noto Sans Bold/256-511.pbf",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png",
 ];
 
@@ -88,48 +89,15 @@ async function cacheFirst(req, cacheName, afterPut) {
   return r;
 }
 
-/* Mutable map metadata (style JSON, TileJSON): serve the cached copy
-   instantly, refresh it in the background — so a rotated tile snapshot
-   heals on the next launch instead of 404ing forever. */
-async function staleWhileRevalidate(req, cacheName) {
-  const cached = await caches.match(req);
-  const fetching = fetch(req)
-    .then((r) => {
-      if (cacheable(r)) {
-        const copy = r.clone();
-        caches.open(cacheName).then((c) => c.put(req, copy));
-      }
-      return r;
-    })
-    .catch(() => null);
-  return cached || (await fetching) || Response.error();
-}
-
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   const url = new URL(e.request.url);
 
   if (url.origin === location.origin) {
     e.respondWith(networkFirstShell(e.request));
-  } else if (
-    url.hostname.endsWith("tiles.openfreemap.org") &&
-    (url.pathname === "/planet" || url.pathname.startsWith("/styles/"))
-  ) {
-    // style JSON + TileJSON: instant from cache, refreshed in background
-    e.respondWith(staleWhileRevalidate(e.request, CACHE));
-  } else if (
-    url.hostname.endsWith("tiles.openfreemap.org") &&
-    !TILE_RE.test(url.pathname)
-  ) {
-    // glyphs + sprites: tiny, load-bearing, in the untrimmed app cache
-    e.respondWith(cacheFirst(e.request, CACHE));
-  } else if (
-    url.hostname.endsWith("basemaps.cartocdn.com") ||
-    url.hostname.endsWith("arcgisonline.com") ||
-    url.hostname.endsWith("tiles.openfreemap.org") ||
-    url.hostname === "tile.googleapis.com"
-  ) {
-    // actual map tiles: cache-first with a cap
+  } else if (url.hostname === "tile.googleapis.com") {
+    // Google map tiles: cache-first with a cap, so knocked neighborhoods
+    // keep rendering offline
     e.respondWith(cacheFirst(e.request, TILE_CACHE, trimTiles));
   } else if (/fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) {
     e.respondWith(cacheFirst(e.request, CACHE));

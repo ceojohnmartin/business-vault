@@ -93,8 +93,9 @@
   // Sources a customer can come from (FieldRoutes-style).
   const SOURCES = ["Door to Door", "Referral", "Online", "Phone-in", "Alumni / winback", "Other"];
 
-  // Hood (territory) colors — assign per rep area.
-  const HOOD_COLORS = ["#0A6CF0", "#22B558", "#F5B301", "#7C5CFC", "#E5484D", "#0E9888"];
+  // Rep territory colors — ownership, deliberately DISTINCT from the five
+  // house-status colors so a hood can never read as a disposition.
+  const HOOD_COLORS = ["#3E8BFF", "#00BFA6", "#FF8A3D", "#F25CA2", "#B8E356", "#8E9BFF"];
 
   // ---------- Field Guide ----------
   // Each pest: what to know, what to say, what we do.

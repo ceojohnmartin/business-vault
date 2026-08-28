@@ -2,10 +2,11 @@
    Reads are instant (memory); every mutation persists before it reports done. */
 (function () {
   const S = {
-    pins: [],        // {id,lat,lng,address,disposition,reason,dm,note,history[],createdAt,updatedAt}
-    events: [],      // {id,ts,pinId,disposition,reason,dm}
+    pins: [],        // properties: {id,lat,lng,address,disposition,reason,dm,note,callbackAt,history[],createdAt,updatedAt}
+    events: [],      // interactions: {id,ts,pinId,disposition,reason,dm}
     customers: [],   // full customer records (see MCUST) — legacy flat agreements still readable
-    territories: [], // hoods: {id,name,rep,color,points:[[lng,lat],...],createdAt}
+    territories: [], // hoods: {id,name,assignedTo,assignments[],homes,color,points:[[lng,lat],...],createdAt}
+    users: [],       // people: {id,name,role:'manager'|'rep',color,createdAt}
     settings: {
       repName: "You",
       teamName: "My Team",
@@ -18,6 +19,7 @@
       frSubdomain: "", frKey: "", frToken: "",
       googleKey: "", googleSessions: null, googleLastError: "",
       lastCenter: null, lastZoom: null,
+      currentUserId: null, // whose device this is
     },
     ready: null,
   };
@@ -27,6 +29,7 @@
     MDB.getAll("events").then((r) => (S.events = r.sort((a, b) => a.ts - b.ts))),
     MDB.getAll("customers").then((r) => (S.customers = r)),
     MDB.getAll("territories").then((r) => (S.territories = r)),
+    MDB.getAll("users").then((r) => (S.users = r)),
     MDB.kvGet("settings", null).then((r) => {
       if (r) Object.assign(S.settings, r);
       // devices that saved settings before the company shipped as a
@@ -35,12 +38,90 @@
         if (!S.settings[k]) S.settings[k] = MDATA.COMPANY_DEFAULTS[k];
       });
     }),
-  ]);
+  ]).then(async () => {
+    // one-time seed: the device owner becomes the first user — a manager,
+    // so everything stays visible until they build out the team
+    if (!S.users.length) {
+      const me = {
+        id: MDB.uid(),
+        name: S.settings.repName === "You" ? "Me" : S.settings.repName,
+        role: "manager",
+        color: MDATA.HOOD_COLORS[0],
+        createdAt: Date.now(),
+      };
+      S.users.push(me);
+      S.settings.currentUserId = me.id;
+      await MDB.put("users", me).catch(() => {});
+      await S.saveSettings().catch(() => {});
+      // adopt any legacy hoods that carry a bare rep-name string
+      await Promise.all(S.territories.map(async (t) => {
+        if (t.rep && !t.assignedTo) {
+          let u = S.users.find((x) => x.name.toLowerCase() === t.rep.toLowerCase());
+          if (!u) {
+            u = { id: MDB.uid(), name: t.rep, role: "rep",
+              color: MDATA.HOOD_COLORS[S.users.length % MDATA.HOOD_COLORS.length],
+              createdAt: Date.now() };
+            S.users.push(u);
+            await MDB.put("users", u).catch(() => {});
+          }
+          t.assignedTo = u.id;
+          t.assignments = t.assignments || [{
+            userId: u.id, name: u.name, assignedBy: me.name,
+            assignedAt: t.createdAt || Date.now(), unassignedAt: null,
+          }];
+          await MDB.put("territories", t).catch(() => {});
+        }
+      }));
+    }
+    if (!S.settings.currentUserId || !S.users.some((u) => u.id === S.settings.currentUserId)) {
+      S.settings.currentUserId = S.users[0] ? S.users[0].id : null;
+      await S.saveSettings().catch(() => {});
+    }
+  });
 
   S.saveSettings = () => MDB.kvSet("settings", S.settings);
 
+  // ---------- people ----------
+  S.currentUser = () =>
+    S.users.find((u) => u.id === S.settings.currentUserId) || S.users[0] || null;
+  S.isManager = () => {
+    const u = S.currentUser();
+    return !u || u.role === "manager"; // a device with no team yet sees everything
+  };
+  S.userById = (id) => S.users.find((u) => u.id === id) || null;
+
+  S.addUser = async function ({ name, role }) {
+    const u = {
+      id: MDB.uid(), name: name.trim(), role: role === "manager" ? "manager" : "rep",
+      color: MDATA.HOOD_COLORS[S.users.length % MDATA.HOOD_COLORS.length],
+      createdAt: Date.now(),
+    };
+    S.users.push(u);
+    await MDB.put("users", u);
+    return u;
+  };
+  S.updateUser = async function (u) {
+    await MDB.put("users", u);
+    return u;
+  };
+  S.deleteUser = async function (id) {
+    S.users = S.users.filter((u) => u.id !== id);
+    await MDB.del("users", id);
+    // their hoods go back to the pool; history keeps the record
+    await Promise.all(S.territories.map((t) => {
+      if (t.assignedTo !== id) return null;
+      t.assignedTo = null;
+      (t.assignments || []).forEach((a) => { if (a.userId === id && !a.unassignedAt) a.unassignedAt = Date.now(); });
+      return MDB.put("territories", t);
+    }));
+    if (S.settings.currentUserId === id) {
+      S.settings.currentUserId = S.users[0] ? S.users[0].id : null;
+      await S.saveSettings();
+    }
+  };
+
   // ---------- knocks & pins ----------
-  S.addKnock = async function ({ lat, lng, pinId, disposition, reason, dm, note }) {
+  S.addKnock = async function ({ lat, lng, pinId, disposition, reason, dm, note, callbackAt }) {
     const now = Date.now();
     let pin = pinId ? S.pins.find((p) => p.id === pinId) : null;
     const entry = { ts: now, disposition, reason: reason || null, dm: !!dm, note: note || "" };
@@ -59,6 +140,8 @@
       };
       S.pins.push(pin);
     }
+    // a callback either gets a fresh time or is cleared by the new outcome
+    pin.callbackAt = disposition === "goback" ? (callbackAt || pin.callbackAt || null) : null;
     const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition, reason: reason || null, dm: !!dm };
     S.events.push(ev);
     await MDB.put("pins", pin);
@@ -162,6 +245,7 @@
   S.addTerritory = async function (t) {
     t.id = MDB.uid();
     t.createdAt = Date.now();
+    t.assignments = t.assignments || [];
     S.territories.push(t);
     await MDB.put("territories", t);
     return t;
@@ -173,6 +257,70 @@
   S.deleteTerritory = async function (id) {
     S.territories = S.territories.filter((t) => t.id !== id);
     await MDB.del("territories", id);
+  };
+
+  // Assignment is history, never an overwrite: the old rep's run is closed
+  // out and the new one opened, so "who worked this hood when" survives.
+  S.assignTerritory = async function (t, userId) {
+    if (t.assignedTo === userId) return t;
+    const now = Date.now();
+    t.assignments = t.assignments || [];
+    t.assignments.forEach((a) => { if (!a.unassignedAt) a.unassignedAt = now; });
+    t.assignedTo = userId || null;
+    if (userId) {
+      const u = S.userById(userId);
+      t.assignments.push({
+        userId, name: u ? u.name : "?",
+        assignedBy: (S.currentUser() || {}).name || "",
+        assignedAt: now, unassignedAt: null,
+      });
+    }
+    await MDB.put("territories", t);
+    return t;
+  };
+
+  S.hoodColor = (t) => {
+    const u = t.assignedTo && S.userById(t.assignedTo);
+    return u ? u.color : (t.color || "#8A93A6"); // unassigned = neutral
+  };
+
+  // ray-cast point-in-polygon on the hood's [lng,lat] ring
+  S.inHood = function (t, lng, lat) {
+    const pts = t.points || [];
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
+      if (((yi > lat) !== (yj > lat)) &&
+          (lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)) inside = !inside;
+    }
+    return inside;
+  };
+
+  // live territory numbers, straight from the pins inside the polygon
+  S.hoodStats = function (t) {
+    let knocked = 0, sold = 0, callbacks = 0;
+    let lastWorked = 0;
+    S.pins.forEach((p) => {
+      if (!S.inHood(t, p.lng, p.lat)) return;
+      knocked++;
+      if (p.disposition === "sold") sold++;
+      if (p.callbackAt) callbacks++;
+      if (p.updatedAt > lastWorked) lastWorked = p.updatedAt;
+    });
+    const homes = Number(t.homes) || 0;
+    const remaining = homes ? Math.max(0, homes - knocked) : null;
+    const pct = homes ? Math.min(100, Math.round((knocked / homes) * 100)) : null;
+    return { knocked, sold, callbacks, homes, remaining, pct, lastWorked: lastWorked || null };
+  };
+
+  // hoods belonging to a user (for rep mode and the manager panel)
+  S.hoodsOf = (userId) => S.territories.filter((t) => t.assignedTo === userId);
+
+  // ---------- callbacks ----------
+  S.callbacksDue = function () {
+    return S.pins
+      .filter((p) => p.callbackAt)
+      .sort((a, b) => a.callbackAt - b.callbackAt);
   };
 
   // ---------- files (blobs: signed agreements, photos) ----------

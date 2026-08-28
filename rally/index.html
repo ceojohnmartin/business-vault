@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>RALLY — Door-to-Door Sales</title>
 <meta name="description" content="RALLY: the door-to-door pest control sales app. Knocking map with hoods, real service agreements signed on the glass, scheduling, and your numbers live.">
-<meta name="theme-color" content="#F5F7FB">
+<meta name="theme-color" content="#0C0F14">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap">
@@ -48,6 +48,7 @@
       <div class="map-brand">
         <div class="wordmark">RALLY</div>
         <div class="today" id="brand-today">0 doors today</div>
+        <button class="brand-hood" id="brand-hood" hidden></button>
       </div>
       <div class="map-actions">
         <button class="fab" id="fab-locate" aria-label="Center on my location">
@@ -83,7 +84,7 @@
       <div class="li"><span class="pinsw" style="background:#7C5CFC"></span>Go Back</div>
       <div class="li"><span class="pinsw" style="background:#F5B301"></span>Not Home</div>
       <div class="li"><span class="pinsw" style="background:#E5484D"></span>Not Interested</div>
-      <div class="li"><span class="pinsw" style="background:#0B0F16;box-shadow:0 0 0 1.5px #D5DBE6"></span>Do Not Knock</div>
+      <div class="li"><span class="pinsw" style="background:#0B0F16;box-shadow:0 0 0 1.5px rgba(255,255,255,.4)"></span>Do Not Knock</div>
     </div>
   </div>
 
@@ -171,6 +172,7 @@
     <div class="more-list">
       <button class="more-item" id="more-guide"><span class="ic">📖</span><span><span class="tt">Field guide</span><br><span class="dd">Every pest: signs, facts, the pitch</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-company"><span class="ic">🏢</span><span><span class="tt">Company &amp; agreement</span><br><span class="dd" id="more-company-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-team"><span class="ic">🧢</span><span><span class="tt">Team &amp; roles</span><br><span class="dd" id="more-team-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-profile"><span class="ic">👤</span><span><span class="tt">Profile</span><br><span class="dd" id="more-profile-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
@@ -360,6 +362,17 @@
         <button class="reason" data-r="Other">Other</button>
       </div>
     </div>
+    <div id="knock-cb-wrap" hidden>
+      <div class="sub" style="margin-bottom:8px">When should we swing back? Tap to save.</div>
+      <div class="reasons">
+        <button class="reason cb-chip" data-cb="30m">In 30 min</button>
+        <button class="reason cb-chip" data-cb="evening">This evening</button>
+        <button class="reason cb-chip" data-cb="tomorrow">Tomorrow AM</button>
+        <button class="reason cb-chip" data-cb="custom">Pick a time…</button>
+        <button class="reason cb-chip" data-cb="none">No time</button>
+      </div>
+      <input type="datetime-local" id="knock-cb-custom" class="cb-custom" hidden aria-label="Custom callback time">
+    </div>
     <div class="dm-row" id="knock-dm-wrap" hidden>
       <div><div class="ttl">Spoke with the decision-maker?</div><div class="hint">Homeowner or spouse who can sign. “Ask my spouse” = a convo, not a DM.</div></div>
       <button class="switch" id="dm-switch" aria-label="Decision-maker conversation"></button>
@@ -374,7 +387,8 @@
   <div class="sheet" id="lead-sheet">
     <div class="grab"></div>
     <div class="lead-head">
-      <div><div class="addr" id="lead-addr"></div><div class="coords num" id="lead-coords"></div></div>
+      <div><div class="addr" id="lead-addr"></div><div class="coords num" id="lead-coords"></div>
+        <div class="lead-cb" id="lead-cb" hidden></div></div>
       <span class="badge" id="lead-badge"></span>
     </div>
     <div class="hist" id="lead-history"></div>
@@ -396,12 +410,33 @@
   <div class="sheet" id="hood-sheet">
     <div class="grab"></div>
     <h2 id="hood-sheet-title">Name this hood</h2>
-    <div class="sub">The area shows on the map with the rep who owns it</div>
+    <div class="sub">The area paints the map in its rep's color</div>
     <div class="field"><label for="hood-name">Hood name</label><input id="hood-name" placeholder="Willow Creek east" autocomplete="off"></div>
-    <div class="field"><label for="hood-rep">Assigned rep</label><input id="hood-rep" placeholder="Who owns this turf" autocomplete="off"></div>
-    <div class="field"><label>Color</label><div class="hood-colors" id="hood-colors"></div></div>
+    <div class="field"><label for="hood-homes">Homes in this hood <span style="text-transform:none;letter-spacing:0">(for % complete — optional)</span></label>
+      <input id="hood-homes" type="number" inputmode="numeric" min="0" placeholder="e.g. 184"></div>
+    <div class="field"><label>Assigned rep</label>
+      <div class="reasons" id="hood-reps"></div>
+      <div id="hood-newrep-wrap" hidden style="margin-top:8px">
+        <input id="hood-newrep" placeholder="New rep's name" autocomplete="off"
+          style="width:100%;background:var(--s1);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;font-size:15px">
+      </div>
+    </div>
+    <div id="hood-history"></div>
     <button class="btn btn-gold" id="hood-save">Save hood</button>
     <button class="btn btn-danger" id="hood-delete" style="margin-top:10px" hidden>Delete hood</button>
+  </div>
+
+  <div class="sheet" id="team-sheet">
+    <div class="grab"></div>
+    <h2>Team &amp; roles</h2>
+    <div class="sub">Reps get a territory color; managers see and cut every hood. “This device” controls whose map this phone shows.</div>
+    <div id="team-list"></div>
+    <div class="frow" style="margin-top:12px">
+      <div class="field"><label for="team-new-name">Name</label><input id="team-new-name" autocomplete="off"></div>
+      <div class="field"><label for="team-new-role">Role</label>
+        <select id="team-new-role"><option value="rep">Rep</option><option value="manager">Manager</option></select></div>
+    </div>
+    <button class="btn btn-gold" id="team-add">Add teammate</button>
   </div>
 
   <div class="sheet" id="filter-sheet">

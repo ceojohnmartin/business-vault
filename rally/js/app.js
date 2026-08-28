@@ -89,6 +89,10 @@
     $("#more-company-sub").textContent = s.companyName
       ? s.companyName + (s.companyLicense ? " · lic. " + s.companyLicense : "")
       : "Set the name printed on every agreement";
+    const me = STORE.currentUser();
+    $("#more-team-sub").textContent = me
+      ? `${STORE.users.length} teammate${STORE.users.length === 1 ? "" : "s"} · this device: ${me.name} (${me.role})`
+      : "Add your reps and managers";
     $("#more-profile-sub").textContent = `${s.repName} · ${s.teamName}`;
     $("#more-goals-sub").textContent =
       `${s.doorGoal} doors/day · ${fmtMoney(s.commissionPerSale)}/sale`;
@@ -107,9 +111,77 @@
       : "Signed customers land here";
   }
 
+  // ---------- team & roles ----------
+  function renderTeam() {
+    const cur = STORE.settings.currentUserId;
+    $("#team-list").innerHTML = STORE.users.map((u) => {
+      const hoods = STORE.hoodsOf(u.id).length;
+      return `<div class="team-row">
+        <span class="dot" style="background:${u.color}"></span>
+        <span class="tn"><b>${esc(u.name)}</b><span class="tr">${u.role === "manager" ? "Manager" : "Rep"} · ${hoods} hood${hoods === 1 ? "" : "s"}</span></span>
+        ${u.id === cur
+          ? '<span class="me-chip">This device</span>'
+          : `<button class="team-btn team-me" data-id="${u.id}" type="button">Use</button>`}
+        <button class="team-btn team-role" data-id="${u.id}" type="button">${u.role === "manager" ? "Make rep" : "Make mgr"}</button>
+        <button class="mini-x team-del" data-id="${u.id}" type="button" aria-label="Remove">✕</button>
+      </div>`;
+    }).join("");
+
+    const afterChange = () => {
+      renderTeam(); renderMore();
+      if (window.MMAP) { MMAP.refreshHoods(); MMAP.updateBrandToday(); }
+    };
+    $$("#team-list .team-me").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const u = STORE.userById(b.dataset.id);
+        if (!u) return;
+        STORE.settings.currentUserId = u.id;
+        STORE.settings.repName = u.name; // sales + leaderboard follow the device identity
+        await STORE.saveSettings();
+        afterChange();
+        toast(`This device is now ${u.name} (${u.role})`);
+      }));
+    $$("#team-list .team-role").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const u = STORE.userById(b.dataset.id);
+        if (!u) return;
+        const managers = STORE.users.filter((x) => x.role === "manager");
+        if (u.role === "manager" && managers.length === 1) {
+          toast("Every team needs at least one manager"); return;
+        }
+        u.role = u.role === "manager" ? "rep" : "manager";
+        await STORE.updateUser(u);
+        afterChange();
+      }));
+    $$("#team-list .team-del").forEach((b) =>
+      b.addEventListener("click", async () => {
+        const u = STORE.userById(b.dataset.id);
+        if (!u) return;
+        if (STORE.users.length === 1) { toast("Can't remove the last teammate"); return; }
+        const managers = STORE.users.filter((x) => x.role === "manager");
+        if (u.role === "manager" && managers.length === 1) {
+          toast("Every team needs at least one manager"); return;
+        }
+        if (!confirm(`Remove ${u.name}? Their hoods go back to the pool (history is kept).`)) return;
+        await STORE.deleteUser(u.id);
+        afterChange();
+      }));
+  }
+
   function bindMore() {
     $("#more-guide").addEventListener("click", () => show("guide"));
     $("#guide-back").addEventListener("click", () => show("more"));
+
+    $("#more-team").addEventListener("click", () => { renderTeam(); openSheet("team-sheet"); });
+    $("#team-add").addEventListener("click", async () => {
+      const name = $("#team-new-name").value.trim();
+      if (!name) { toast("Give them a name first"); return; }
+      await STORE.addUser({ name, role: $("#team-new-role").value });
+      $("#team-new-name").value = "";
+      renderTeam(); renderMore();
+      if (window.MMAP) MMAP.refreshHoods();
+      toast(name + " is on the team");
+    });
 
     $("#more-company").addEventListener("click", () => {
       const s = STORE.settings;
@@ -139,6 +211,13 @@
     $("#profile-save").addEventListener("click", async () => {
       STORE.settings.repName = $("#set-name").value.trim() || "You";
       STORE.settings.teamName = $("#set-team").value.trim() || "My Team";
+      // the profile IS the current user — one identity, no drift
+      const me = STORE.currentUser();
+      if (me && STORE.settings.repName !== "You") {
+        me.name = STORE.settings.repName;
+        await STORE.updateUser(me);
+        if (window.MMAP) MMAP.refreshHoods();
+      }
       await STORE.saveSettings();
       renderMore(); closeSheet(); toast("Saved");
     });

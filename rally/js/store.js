@@ -133,22 +133,32 @@
       if (note) pin.note = note;
       pin.history.push(entry);
       pin.updatedAt = now;
+      pin.lastKnockAt = now; // notes and edits bump updatedAt; only a knock bumps this
     } else {
       pin = {
         id: MDB.uid(), lat, lng, address: "",
         disposition, reason: reason || null, dm: !!dm, note: note || "",
-        history: [entry], createdAt: now, updatedAt: now,
+        history: [entry], createdAt: now, updatedAt: now, lastKnockAt: now,
       };
       S.pins.push(pin);
     }
     // a callback either gets a fresh time or is cleared by the new outcome
     pin.callbackAt = disposition === "goback" ? (callbackAt || pin.callbackAt || null) : null;
     const me = S.currentUser();
+    // credit the knock to a LIVE territory: a stale id from a deleted or
+    // split hood must not siphon this work into a ghost
+    const liveTid = (() => {
+      const t0 = pin.territoryId &&
+        S.territories.find((t) => t.id === pin.territoryId && !t.archived);
+      if (t0) return t0.id;
+      const t1 = S.territories.find((t) => !t.archived && t.points && t.points.length >= 3 &&
+        S.inHood(t, pin.lng, pin.lat));
+      return t1 ? t1.id : null;
+    })();
+    if (pin.territoryId && liveTid !== pin.territoryId) pin.territoryId = liveTid;
     const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition, reason: reason || null, dm: !!dm,
       repId: me ? me.id : null,
-      territoryId: pin.territoryId ||
-        (S.territories.find((t) => !t.archived && t.points && t.points.length >= 3 &&
-          S.inHood(t, pin.lng, pin.lat)) || {}).id || null };
+      territoryId: liveTid };
     S.events.push(ev);
     await MDB.put("pins", pin);
     await MDB.put("events", ev);
@@ -172,33 +182,63 @@
   S.buildDoorIndex = function () {
     const byExt = new Map(), byParcel = new Map(), byAddr = new Map(), grid = new Map();
     const cell = (lat, lng) => Math.round(lat * 7000) + ":" + Math.round(lng * 7000); // ~15m cells
+    // "123 maple st" exists in every town in America, so the address tier
+    // is scoped by zip (or city) — a bare street line only ever matches a
+    // pin on the SAME street nearby, never one across the state.
+    const streetOf = (addr) => MPROP.normAddr(String(addr || "").split(",")[0]);
+    const scopeOf = (city, zip, addr) => {
+      const tail = String(addr || "").split(",").slice(1).join(",");
+      return String(zip || city || tail || "").trim().toLowerCase();
+    };
+    const addrKeys = (street, scope) => (street ? [scope ? street + "|" + scope : null, street] : [null, null]);
+    const gridAdd = (p) => {
+      const k = cell(p.lat, p.lng);
+      const arr = grid.get(k);
+      if (arr) arr.push(p); else grid.set(k, [p]);
+    };
+    const nearSameSpot = (p, prop) =>
+      Math.abs(p.lat - prop.lat) < 0.00014 && Math.abs(p.lng - prop.lng) < 0.0002;
+    const nearSameStreet = (p, prop) =>
+      Math.abs(p.lat - prop.lat) < 0.005 && Math.abs(p.lng - prop.lng) < 0.007; // ~½ mile
     S.pins.forEach((p) => {
       if (p.prop && p.prop.externalId) byExt.set(p.prop.externalId, p);
       if (p.prop && p.prop.parcelId) byParcel.set(p.prop.parcelId, p);
-      const a = MPROP.normAddr(p.address);
-      if (a) byAddr.set(a, p);
-      grid.set(cell(p.lat, p.lng), p);
+      const g = p.geo || {};
+      const [scoped, loose] = addrKeys(streetOf(p.address), scopeOf(g.city, g.zip, p.address));
+      if (scoped) byAddr.set(scoped, p);
+      if (loose && !byAddr.has(loose)) byAddr.set(loose, p);
+      gridAdd(p);
     });
     return {
       match(prop) {
         if (prop.externalId && byExt.has(prop.externalId)) return byExt.get(prop.externalId);
         if (prop.parcelId && byParcel.has(prop.parcelId)) return byParcel.get(prop.parcelId);
-        const a = MPROP.normAddr(prop.address);
-        if (a && byAddr.has(a)) return byAddr.get(a);
-        // check the 9 surrounding ~15m cells
+        const street = streetOf(prop.address);
+        const [scoped, loose] = addrKeys(street, scopeOf(prop.city, prop.zip, prop.address));
+        if (scoped && byAddr.has(scoped)) return byAddr.get(scoped);
+        if (loose && byAddr.has(loose)) {
+          // an unscoped street-line match counts only when it's plausibly
+          // the same physical street — cross-town twins fall through
+          const p = byAddr.get(loose);
+          if (nearSameStreet(p, prop)) return p;
+        }
+        // coordinate tier: ±2 cells fully covers the accept tolerance
         const cy = Math.round(prop.lat * 7000), cx = Math.round(prop.lng * 7000);
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          const p = grid.get((cy + dy) + ":" + (cx + dx));
-          if (p && Math.abs(p.lat - prop.lat) < 0.00014 && Math.abs(p.lng - prop.lng) < 0.0002) return p;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+          const arr = grid.get((cy + dy) + ":" + (cx + dx));
+          if (!arr) continue;
+          for (const p of arr) if (nearSameSpot(p, prop)) return p;
         }
         return null;
       },
       add(pin) {
         if (pin.prop && pin.prop.externalId) byExt.set(pin.prop.externalId, pin);
         if (pin.prop && pin.prop.parcelId) byParcel.set(pin.prop.parcelId, pin);
-        const a = MPROP.normAddr(pin.address);
-        if (a) byAddr.set(a, pin);
-        grid.set(cell(pin.lat, pin.lng), pin);
+        const g = pin.geo || {};
+        const [scoped, loose] = addrKeys(streetOf(pin.address), scopeOf(g.city, g.zip, pin.address));
+        if (scoped) byAddr.set(scoped, pin);
+        if (loose && !byAddr.has(loose)) byAddr.set(loose, pin);
+        gridAdd(pin);
       },
     };
   };
@@ -379,6 +419,10 @@
   S.deleteTerritory = async function (id) {
     S.territories = S.territories.filter((t) => t.id !== id);
     await MDB.del("territories", id);
+    // release the pins that pointed here — future knocks re-attribute by
+    // whichever live polygon actually contains them
+    const orphans = S.pins.filter((p) => p.territoryId === id);
+    for (const p of orphans) { p.territoryId = null; await MDB.put("pins", p); }
   };
 
   // Assignment is history, never an overwrite: the old rep's run is closed
@@ -422,21 +466,27 @@
   // "Knocked" means SOMEONE WENT TO THE DOOR (the pin has history) —
   // imported unworked inventory counts as doors, never as work done.
   S.hoodStats = function (t) {
-    let doors = 0, knocked = 0, sold = 0, callbacks = 0, lastWorked = 0;
+    let doors = 0, knocked = 0, sold = 0, callbacks = 0, lastWorked = 0, imported = 0;
     const by = { unworked: 0, nothome: 0, goback: 0, notint: 0, sold: 0, dnk: 0 };
     S.pins.forEach((p) => {
       if (!S.inHood(t, p.lng, p.lat)) return;
       doors++;
+      if (p.importedAt || p.prop) imported++;
       if (by[p.disposition] != null) by[p.disposition]++;
       if (p.history && p.history.length) {
         knocked++;
-        if (p.updatedAt > lastWorked) lastWorked = p.updatedAt;
+        // adding a note bumps updatedAt; only an actual knock counts as work
+        const ts = p.lastKnockAt ||
+          (p.history[p.history.length - 1] && p.history[p.history.length - 1].ts) || 0;
+        if (ts > lastWorked) lastWorked = ts;
       }
       if (p.disposition === "sold") sold++;
       if (p.callbackAt) callbacks++;
     });
-    // real imported inventory beats a manual estimate as the denominator
-    const homes = Math.max(Number(t.homes) || 0, by.unworked ? doors : 0);
+    // real imported inventory beats a manual estimate as the denominator —
+    // and stays the denominator even once the last unworked door is worked,
+    // so a finished territory keeps its 100% instead of losing the bar
+    const homes = Math.max(Number(t.homes) || 0, imported ? doors : 0);
     const remaining = homes ? Math.max(0, homes - knocked) : null;
     const pct = homes ? Math.min(100, Math.round((knocked / homes) * 100)) : null;
     return { doors, by, knocked, sold, callbacks, homes, remaining, pct, lastWorked: lastWorked || null };

@@ -175,6 +175,7 @@ input::placeholder,textarea::placeholder{color:var(--t3)}
 .sw.goback{background:var(--goback)}
 .sw.dnk{background:var(--dnk);box-shadow:0 0 0 2px rgba(16,24,40,.25)}
 .sw.notint{background:var(--notint)}
+.sw.unworked{background:#2E86FF}
 
 /* reason picker */
 .reasons{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 14px}

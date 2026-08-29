@@ -97,7 +97,7 @@ out tags center;`;
     if (!r.ok) throw new Error("Property provider unavailable (HTTP " + r.status + ")");
     const j = await r.json();
     const els = (j && j.elements) || [];
-    return els.map((el) => {
+    const out = els.map((el) => {
       const c = el.center || (el.lat != null ? { lat: el.lat, lon: el.lon } : null);
       if (!c || !inRing(ring, c.lon, c.lat)) return null;
       const tags = el.tags || {};
@@ -118,11 +118,37 @@ out tags center;`;
         lastSaleDate: null, lastSalePrice: null,
       };
     }).filter(Boolean);
+    // Overpass reports its own truncation (timeout, memory) in `remark` —
+    // a partial answer must never pass silently as a complete one
+    if (j && j.remark) {
+      out.warnings = ["The map server cut this search short — some doors may be missing. Try a smaller area."];
+    }
+    return out;
   }
 
   // ---------- provider: Regrid (licensed parcel data) ----------
   const regridToken = () =>
     (STORE.settings.regridKey || MDATA.DEFAULT_REGRID_KEY || "").trim();
+
+  const PAGE = 1000;      // Regrid's per-request ceiling
+  const MAX_PAGES = 5;    // 5,000 parcels ≫ any drawable territory
+
+  async function regridPage(token, geojson, offset, signal) {
+    // The token rides in the Authorization header, never the URL — URLs land
+    // in proxy logs, HAR exports and error monitors; headers don't.
+    const r = await fetch("https://app.regrid.com/api/v2/parcels/polygon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ geojson, limit: PAGE, offset }),
+      signal,
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j) {
+      const why = (j && (j.error || j.message)) || ("HTTP " + r.status);
+      throw new Error("Regrid refused the request — " + why);
+    }
+    return (j.parcels && j.parcels.features) || j.features || [];
+  }
 
   async function regridSearch(ring, onStatus) {
     const token = regridToken();
@@ -133,22 +159,24 @@ out tags center;`;
       coordinates: [[...ring, ring[0]]],
     };
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 28000);
-    let r;
+    const t = setTimeout(() => ctrl.abort(), 90000);
+    let feats = [], truncated = false;
     try {
-      r = await fetch("https://app.regrid.com/api/v2/parcels/polygon?token=" + encodeURIComponent(token), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ geojson, limit: 1000 }),
-        signal: ctrl.signal,
-      });
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const batch = await regridPage(token, geojson, page * PAGE, ctrl.signal);
+        if (page > 0 && batch.length && feats.length &&
+            featId(batch[0]) === featId(feats[0])) {
+          // the API ignored our offset — same first parcel back again.
+          // Keep page one and say so rather than importing duplicates.
+          truncated = true;
+          break;
+        }
+        feats = feats.concat(batch);
+        if (batch.length < PAGE) break;
+        if (page === MAX_PAGES - 1) truncated = true;
+        onStatus(`Searching parcel records… ${feats.length} so far`);
+      }
     } finally { clearTimeout(t); }
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !j) {
-      const why = (j && (j.error || j.message)) || ("HTTP " + r.status);
-      throw new Error("Regrid refused the request — " + why);
-    }
-    const feats = (j.parcels && j.parcels.features) || j.features || [];
     const out = feats.map((f) => {
       const props = f.properties || {};
       const fields = props.fields || props;
@@ -164,12 +192,18 @@ out tags center;`;
         .filter(Boolean)[0] || "";
       const mail = [fields.mailadd, [fields.mail_city, fields.mail_state2].filter(Boolean).join(", "), fields.mail_zip]
         .filter(Boolean).join(", ");
-      const occupied = situs && mail
-        ? normAddr(situs) !== "" && normAddr(mail).startsWith(normAddr(situs).slice(0, 12))
-        : null;
+      // whole-street-line comparison, and it is only ever presented as an
+      // estimate — never as a licensed fact about the homeowner
+      const nSitus = normAddr(situs);
+      const occupied = nSitus && mail ? normAddr(mail).startsWith(nSitus) : null;
+      // a missing id must NOT collapse to a shared sentinel — one bad
+      // response would then dedupe every parcel into a single door
+      const rid = props.ll_uuid || fields.ll_uuid || f.id || props.id || fields.ogc_fid || null;
+      const apn = fields.parcelnumb || fields.apn || null;
       return {
-        externalId: "regrid-" + (props.ll_uuid || fields.ll_uuid || props.id || fields.ogc_fid || ""),
-        parcelId: fields.parcelnumb || fields.apn || null,
+        externalId: rid ? "regrid-" + rid : null,
+        // county APNs repeat across counties — scope the key
+        parcelId: apn ? [fields.state2, fields.county, apn].filter(Boolean).join(":") : null,
         source: "regrid",
         lat, lng,
         address: situs,
@@ -184,11 +218,17 @@ out tags center;`;
         lastSalePrice: numOrNull(fields.saleprice),
       };
     }).filter(Boolean);
-    if (feats.length >= 1000) {
-      out.warnings = ["Provider returned its 1,000-parcel cap — draw a smaller area to be sure nothing was missed"];
+    if (truncated) {
+      out.warnings = [`Provider stopped at ${feats.length.toLocaleString()} parcels — draw a smaller area to be sure nothing was missed`];
     }
     return out;
   }
+
+  const featId = (f) => {
+    const p = (f && f.properties) || {};
+    const fl = p.fields || p;
+    return p.ll_uuid || fl.ll_uuid || f.id || p.id || fl.ogc_fid || JSON.stringify(fl.parcelnumb || "");
+  };
 
   const numOrNull = (v) => {
     const n = Number(v);
@@ -208,18 +248,24 @@ out tags center;`;
   function demoSearch(ring, onStatus) {
     onStatus("Generating demo doors…");
     const { minX, minY, maxX, maxY } = ringBBox(ring);
-    const lat0 = (minY + maxY) / 2;
+    // Anchor rows/lots to a WORLD grid, not this polygon's bbox: two
+    // overlapping draws must produce the exact same houses, or the dedupe
+    // sees "new" doors a few meters from the old ones and doubles them up.
     const stepLat = 30 / 110570;                                   // ~30 m rows
-    const stepLng = 34 / (111320 * Math.max(0.2, Math.cos(lat0 * Math.PI / 180))); // ~34 m lots
+    const latRef = Math.round(((minY + maxY) / 2) * 10) / 10;      // quantized so nearby draws share it
+    const stepLng = 34 / (111320 * Math.max(0.2, Math.cos(latRef * Math.PI / 180))); // ~34 m lots
+    const row0 = Math.floor(minY / stepLat), col0 = Math.floor(minX / stepLng);
     const out = [];
-    let row = 0;
-    for (let lat = minY + stepLat / 2; lat < maxY && out.length < 2000; lat += stepLat, row++) {
-      let num = 100 + row * 100;
-      for (let lng = minX + stepLng / 2; lng < maxX && out.length < 2000; lng += stepLng) {
-        num += 2;
-        if (!inRing(ring, lng, lat)) continue;
+    for (let r = row0; r * stepLat < maxY && out.length < 2000; r++) {
+      const lat = (r + 0.5) * stepLat;
+      if (lat < minY) continue;
+      for (let c = col0; c * stepLng < maxX && out.length < 2000; c++) {
+        const lng = (c + 0.5) * stepLng;
+        if (lng < minX || !inRing(ring, lng, lat)) continue;
+        // stable street numbering derived from the world cell, not the draw
+        const num = 100 + (((r % 90) + 90) % 90) * 100 + ((((c % 48) + 48) % 48) + 1) * 2;
         out.push({
-          externalId: "demo-" + lat.toFixed(6) + "-" + lng.toFixed(6),
+          externalId: "demo-" + r + "-" + c,
           parcelId: null, source: "demo",
           lat, lng,
           address: num + " Demo Ave", city: "Demoville", state: "", zip: "",
@@ -229,6 +275,9 @@ out tags center;`;
           lastSaleDate: null, lastSalePrice: null,
         });
       }
+    }
+    if (out.length >= 2000) {
+      out.warnings = ["Demo generation stopped at 2,000 doors — draw a smaller area to see them all"];
     }
     return Promise.resolve(out);
   }

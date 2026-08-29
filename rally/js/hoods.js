@@ -230,25 +230,33 @@
   // Nothing is written until the manager confirms (toggle+Save on a new
   // territory, an explicit button on a saved one), and the dedupe means
   // an overlapping draw can never duplicate a door or touch history.
-  let lastScan = null;   // { fresh: [props], res: search result }
+  let lastScan = null;   // { fresh: [props], res: search result, forId }
   let importOn = false;  // pending-mode toggle: import on save
+  let scanGen = 0;       // a scan is only valid for the sheet that started it
 
   async function scanDoors(points, hood) {
     const st = $("#hd-status");
+    const gen = ++scanGen;
     lastScan = null; importOn = false;
     $("#hd-import-row").hidden = true;
     st.textContent = "Searching properties…";
     let res;
     try {
-      res = await MPROP.searchByPolygon(points, (m) => { st.textContent = m; });
+      res = await MPROP.searchByPolygon(points, (m) => { if (gen === scanGen) st.textContent = m; });
     } catch (err) {
+      if (gen !== scanGen) return;
       st.innerHTML = `⚠️ ${MUI.esc(err.message)}<br><span class="dim">Knocking works without this — doors can be pinned by hand.</span>`;
       return;
     }
+    // an Overpass round trip can take 25s — if the manager has since closed
+    // this sheet or opened another territory, these results belong to a
+    // polygon that is no longer on screen. Importing them would pin one
+    // hood's doors under another hood's id. Drop them.
+    if (gen !== scanGen) return;
     const idx = STORE.buildDoorIndex();
     const fresh = res.eligible.filter((p) => !idx.match(p));
     const dupes = res.eligible.length - fresh.length;
-    lastScan = { fresh, res };
+    lastScan = { fresh, res, forId: hood ? hood.id : null };
     const acres = Math.max(1, Math.round(res.areaKm2 * 247.105));
     if (!res.eligible.length) {
       st.innerHTML = `No residential doors found in this area` +
@@ -274,6 +282,8 @@
 
   async function runImport(territoryId) {
     if (!lastScan || !lastScan.fresh.length) return { added: 0, skipped: 0, failed: 0 };
+    // an edit-mode scan is bound to its territory; never import it into another
+    if (lastScan.forId && lastScan.forId !== territoryId) return { added: 0, skipped: 0, failed: 0 };
     const fresh = lastScan.fresh;
     const st = $("#hd-status");
     const r = await STORE.importDoors(fresh, {
@@ -291,6 +301,7 @@
   function setupDoorsBlock(points, hood) {
     const wrap = $("#hood-doors");
     const manager = STORE.isManager();
+    scanGen++; // sheet context changed: any scan still in flight is void
     lastScan = null; importOn = false;
     $("#hd-import-row").hidden = true;
     if (!manager || !points || points.length < 3) { wrap.hidden = true; return; }
@@ -401,7 +412,22 @@
     el.innerHTML = html;
   }
 
+  let saving = false; // a double-tap on Save must not mint a second hood
+
   async function saveHood() {
+    if (saving) return;
+    saving = true;
+    const saveBtn = $("#hood-save");
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      await saveHoodInner();
+    } finally {
+      saving = false;
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  }
+
+  async function saveHoodInner() {
     const creating = !editingId;
     const name = $("#hood-name").value.trim() || "Hood " + (STORE.territories.length + 1);
     const homes = Math.max(0, Math.min(100000, Number($("#hood-homes").value) || 0)) || null;
@@ -608,7 +634,9 @@
         // saved territory: the button IS the confirmation
         const btn = $("#hd-import-btn");
         btn.disabled = true;
-        try { await runImport(editingId); } finally { btn.disabled = false; }
+        try { await runImport(editingId); }
+        catch (_) { toast("Import hit an error — scan the territory again to retry"); }
+        finally { btn.disabled = false; }
         const t = STORE.territories.find((x) => x.id === editingId);
         setupDoorsBlock(pending, t || null);
       } else {

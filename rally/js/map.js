@@ -916,8 +916,10 @@
     add("Type", pr.propertyType);
     if (pr.owner) {
       add("Owner", pr.owner.name);
-      if (pr.owner.occupied === true) add("Owner occupied", "Yes");
-      else if (pr.owner.occupied === false) add("Owner occupied", "No — mail goes elsewhere");
+      // derived from comparing situs vs mailing address — an estimate,
+      // and labeled like one, never a licensed fact about the person
+      if (pr.owner.occupied === true) add("Owner occupied", "Likely");
+      else if (pr.owner.occupied === false) add("Owner occupied", "Mailing address differs");
     }
     add("Year built", pr.yearBuilt);
     if (pr.sqft) add("Square feet", Number(pr.sqft).toLocaleString());
@@ -980,7 +982,7 @@
     const hist = $("#lead-history");
     hist.innerHTML = (pin.history || []).slice().reverse().map((h) =>
       `<div class="h-item"><span class="sw ${h.disposition}"></span>` +
-      `<span>${D[h.disposition].label}${h.reason ? " — " + esc(h.reason) : ""}${h.dm ? " · DM" : ""}` +
+      `<span>${(D[h.disposition] || D.unworked).label}${h.reason ? " — " + esc(h.reason) : ""}${h.dm ? " · DM" : ""}` +
       `${h.note ? `<span style="color:var(--t3)"> · “${esc(h.note)}”</span>` : ""}</span>` +
       `<time>${MUI.fmtAgo(h.ts)}</time></div>`
     ).join("") || `<div class="hood-empty">Fresh door — no attempts yet</div>`;

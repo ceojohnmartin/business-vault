@@ -29,7 +29,7 @@
   function turfSummary() {
     const me = STORE.currentUser();
     const manager = STORE.isManager();
-    const hoods = manager ? STORE.territories : (me ? STORE.hoodsOf(me.id) : []);
+    const hoods = manager ? STORE.activeTerritories() : (me ? STORE.hoodsOf(me.id) : []);
     let homes = 0, knocked = 0, sold = 0, callbacks = 0;
     hoods.forEach((t) => {
       const st = STORE.hoodStats(t);

@@ -86,7 +86,9 @@
       html += `<div class="sched-day">${dayLabel(items[0].ap.ts)}</div>`;
       const lanes = new Map(); // techId -> visits
       items.forEach((x) => {
-        const k = x.ap.userId || "";
+        // a deleted tech's visits belong in the one Unassigned lane, not a
+        // ghost lane per stale id
+        const k = (x.ap.userId && STORE.userById(x.ap.userId)) ? x.ap.userId : "";
         if (!lanes.has(k)) lanes.set(k, []);
         lanes.get(k).push(x);
       });

@@ -120,6 +120,8 @@
         <div class="doc-box-sub">${esc(p.blurb)}</div>
         <table class="doc-price">
           <tr><td>Initial service (standard price)</td><td class="r">${fmtMoney(list)}</td></tr>
+          ${(c.specialty || []).map((sv) =>
+            `<tr><td>Add-on — ${esc(sv.name)}</td><td class="r">${fmtMoney(sv.initial)} initial · ${fmtMoney(sv.monthly)}/mo</td></tr>`).join("")}
           <tr class="disc"><td>Initial service discount</td><td class="r">−${fmtMoney(discount)}</td></tr>
           <tr class="tot"><td>Initial service — due at first treatment</td><td class="r">${fmtMoney(initial)}</td></tr>
           <tr class="tot"><td>Recurring charge (billed ${bill.id === "monthly" ? "monthly" : fmtMoney(perCharge) + " every " + bill.every})</td><td class="r">${fmtMoney(monthly)}/mo</td></tr>
@@ -144,7 +146,7 @@
 
         <li><b>Price changes.</b> Pricing is fixed for the initial term. During any renewal period, Company may adjust the recurring charge with at least ${A.priceNoticeDays} days' written notice. Customer may cancel without any fee within ${A.priceExitDays} days of the notice, and the old price applies until the cancellation takes effect.</li>
 
-        <li><b>Limitations on services.</b> This Agreement covers only the pests listed for the selected plan. It does <b>not</b> include suppression, control, or prevention of ${esc(A.exclusions)}, unless separately contracted in writing. Termite and other wood-destroying-organism work, where offered, is provided only under a separate agreement on the form and terms required by the applicable state regulator.</li>
+        <li><b>Limitations on services.</b> This Agreement covers only the pests listed for the selected plan. It does <b>not</b> include suppression, control, or prevention of ${esc(A.exclusions)}, unless separately contracted in writing.${(c.specialty || []).length ? ` The specialty add-on service${c.specialty.length === 1 ? "" : "s"} itemized in the pricing table above (${c.specialty.map((sv) => esc(sv.name)).join(", ")}) ${c.specialty.length === 1 ? "is" : "are"} separately contracted here and included in this Agreement at the add-on pricing shown.` : ""} Termite and other wood-destroying-organism work, where offered, is provided only under a separate agreement on the form and terms required by the applicable state regulator.</li>
 
         <li><b>Access; customer obligations.</b> Customer grants Company and its licensed applicators reasonable access to the exterior (and, on request, interior) of the property during normal service hours, and agrees to secure pets during service and to keep children and pets off treated areas until dry. Customer will inform Company of any known sensitivities or allergies before the first treatment.</li>
 

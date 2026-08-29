@@ -34,7 +34,8 @@
         ach: { name: "", routing: "", account: "", type: "checking" },
         billingAddress: { street: "", city: "", state: "", zip: "" },
       },
-      status: "active",                    // active | frozen | canceled
+      acct: "active",                      // account status: active | frozen | canceled
+      source: "Door to Door",
       appointments: [], referrals: [], files: [],
       agreement: null,
       pinId: null, lat: null, lng: null,
@@ -42,9 +43,26 @@
     };
   }
 
-  // legacy flat records edit cleanly: lift them into the new shape once
+  // legacy flat records edit cleanly: lift them into the new shape once.
+  // IMPORTANT: blank() fills every new field with today's defaults, so
+  // "was this present on the original record" must be read from c, not n —
+  // otherwise a legacy customer silently repriced onto the current sticker.
   function normalize(c) {
     const n = Object.assign(blank(), JSON.parse(JSON.stringify(c)));
+    if (!c.plan || !c.plan.id) {
+      // pre-plan-object record: its OWN contracted numbers, never remapped
+      if (c.planName || c.monthly != null || c.initial != null) {
+        n.plan = {
+          id: "legacy", name: c.planName || "Pro",
+          monthly: c.monthly != null ? c.monthly : 69,
+          initial: c.initial != null ? c.initial : 49,
+        };
+      }
+    }
+    if (!c.termMonths) {
+      // the signed term is the record's term; only a genuinely new draft is 24
+      n.termMonths = (c.agreement && c.agreement.termMonths) || MDATA.DEFAULT_TERM;
+    }
     if (typeof c.address === "string") {
       const parts = c.address.split(",").map((s) => s.trim());
       n.address = { street: parts[0] || "", city: parts[1] || "", state: "", zip: "" };
@@ -52,27 +70,18 @@
     if (!Array.isArray(n.phones) || !n.phones.length) {
       n.phones = [{ n: c.phone || "" }];
     }
-    if (!n.plan || !n.plan.id) {
-      // legacy plan names that no longer exist keep their own identity and
-      // contracted prices — never silently remapped onto a current plan
-      const match = MDATA.PLANS.find((p) => p.name === c.planName);
-      n.plan = {
-        id: match ? match.id : "legacy",
-        name: c.planName || "Pro",
-        monthly: c.monthly != null ? c.monthly : 69,
-        initial: c.initial != null ? c.initial : 49,
-      };
-    }
     // the old single notes box becomes Forever Notes
     if (!n.notesForever && c.notes) n.notesForever = c.notes;
     // old flat payment records get the new nested shape without losing last4
     if (!n.payment.card) n.payment.card = { name: "", number: "", exp: "" };
     if (!n.payment.ach) n.payment.ach = { name: "", routing: "", account: "", type: "checking" };
     if (!n.payment.billingAddress) n.payment.billingAddress = { street: "", city: "", state: "", zip: "" };
-    if (n.payment.method === "collect") n.payment.method = "card";
-    if (!n.termMonths) n.termMonths = (c.agreement && c.agreement.termMonths) || MDATA.DEFAULT_TERM;
+    // "collect at service" no longer exists, and the customer never gave a
+    // card — an honest migration records NO method, not a fabricated one
+    if (n.payment.method === "collect") n.payment.method = "";
+    if (n.payment.method == null) n.payment.method = "";
     if (!n.billing) n.billing = "monthly";
-    if (!n.status) n.status = "active";
+    if (!n.acct) n.acct = "active";
     // a legacy record's sale facts are what they were, not today's
     if (!c.soldAt) {
       n.soldAt = c.signedAt ? new Date(c.signedAt).getTime() : (c.createdAt || n.soldAt);
@@ -118,6 +127,11 @@
 
   function openEditor(title) {
     curTab = "info";
+    // per-customer UI state never leaks into the next record
+    planOpen = false;
+    specEditing = null;
+    const pe = $("#cs-price-edit");
+    if (pe) pe.hidden = true;
     $("#ce-title").textContent = title;
     document.body.classList.add("editing");
     $("#screen-custedit").classList.add("active");
@@ -159,7 +173,9 @@
   // ---------- INFO ----------
   // 3855803160 -> 385-580-3160 as they type; anything non-US-shaped is left alone
   function fmtPhone(v) {
-    const d = String(v || "").replace(/\D/g, "").slice(0, 10);
+    const str = String(v || "");
+    const d = str.replace(/\D/g, "");
+    if (d.length > 10) return str; // +1 / international — keep as typed
     if (d.length <= 3) return d;
     if (d.length <= 6) return d.slice(0, 3) + "-" + d.slice(3);
     return d.slice(0, 3) + "-" + d.slice(3, 6) + "-" + d.slice(6);
@@ -178,6 +194,7 @@
     ["text", "email", "voice"].forEach((k) =>
       $("#ci-rem-" + k).classList.toggle("on", !!cur.reminders[k]));
     $("#ci-switch").classList.toggle("on", !!cur.switchOver);
+    $$("#ci-acct .seg-opt").forEach((b) => b.classList.toggle("sel", b.dataset.a === (cur.acct || "active")));
     renderPhones();
     renderContacts();
     renderPestChips();
@@ -264,7 +281,9 @@
     if (!navigator.geolocation) { toast("Location isn't available on this device"); return; }
     btn.disabled = true; btn.textContent = "📍 Finding you…";
     const done = () => { btn.disabled = false; btn.textContent = "📍 Use my location"; };
+    const snap = cur; // the fix must land on the record that asked for it
     navigator.geolocation.getCurrentPosition(async (pos) => {
+      if (cur !== snap) { done(); return; } // editor closed or switched customers
       const { latitude: lat, longitude: lng } = pos.coords;
       cur.lat = lat; cur.lng = lng;
       try {
@@ -464,7 +483,10 @@
     ci.hidden = std;
     if (!std) ci.value = cur.termMonths;
     $$("#cs-billing .seg-opt").forEach((b) => b.classList.toggle("sel", b.dataset.b === cur.billing));
+    updateBillingMath();
+  }
 
+  function updateBillingMath() {
     const bill = MDATA.BILLING.find((b) => b.id === cur.billing) || MDATA.BILLING[0];
     const mo = (Number($("#cs-monthly").value) || cur.plan.monthly) + specSum("monthly");
     const init = (Number($("#cs-initial").value) || cur.plan.initial) + specSum("initial");
@@ -483,9 +505,12 @@
     const f = planFloor();
     const list = planDef();
     // never store an unprofitable number: the UI already said UNPROFITABLE,
-    // and the record snaps up to the floor on save
-    const init = Math.min(Math.max(Number($("#cs-initial").value) || list.initial, f.initial), 100000);
-    const mo = Math.min(Math.max(Number($("#cs-monthly").value) || list.monthly, f.monthly), 100000);
+    // and the record snaps up to the floor on save. An EMPTY field means
+    // "sticker"; a typed number (0 included) clamps to the floor, not the
+    // sticker — a deliberate $0 quote becomes the cheapest legal price.
+    const rawI = $("#cs-initial").value, rawM = $("#cs-monthly").value;
+    const init = Math.min(Math.max(rawI === "" ? list.initial : (Number(rawI) || 0), f.initial), 100000);
+    const mo = Math.min(Math.max(rawM === "" ? list.monthly : (Number(rawM) || 0), f.monthly), 100000);
     cur.plan.initial = init;
     cur.plan.monthly = mo;
     $("#cs-initial").value = init;
@@ -497,6 +522,12 @@
         sv.initial = Math.max(Number(sv.initial) || 0, d.floorInitial);
         sv.monthly = Math.max(Number(sv.monthly) || 0, d.floorMonthly);
       }
+    });
+    // a custom quote left at $0/$0 (sheet dismissed) was never actually
+    // quoted — it must not ride the agreement as a free line item
+    cur.specialty = (cur.specialty || []).filter((sv) => {
+      const d = MDATA.SPECIALTY.find((x) => x.id === sv.id);
+      return !(d && d.custom && !Number(sv.initial) && !Number(sv.monthly));
     });
     const tc = $("#cs-term-custom");
     if (!tc.hidden && tc.value) {
@@ -519,6 +550,8 @@
   const fmtCard = (v) => String(v || "").replace(/\D/g, "").slice(0, 19).replace(/(.{4})/g, "$1 ").trim();
 
   function renderPayment() {
+    // method can honestly be "" (migrated collect-at-service): no bubble
+    // lights up and both panels stay closed until the rep picks one
     $$(".pay-m").forEach((b) => b.classList.toggle("sel", b.dataset.m === cur.payment.method));
     $("#cp-card").hidden = cur.payment.method !== "card";
     $("#cp-ach").hidden = cur.payment.method !== "ach";
@@ -563,10 +596,23 @@
       street: $("#cp-b-street").value.trim(), city: $("#cp-b-city").value.trim(),
       state: $("#cp-b-state").value.trim(), zip: $("#cp-b-zip").value.trim(),
     };
-    // last4 keeps status lines working without touching the full number
-    cur.payment.last4 = cur.payment.method === "ach"
+    // last4 keeps status lines working without touching the full number.
+    // A legacy record carries last4 with no stored number — an empty field
+    // must never erase the only payment reference the record has.
+    const n4 = cur.payment.method === "ach"
       ? cur.payment.ach.account.slice(-4)
       : cur.payment.card.number.slice(-4);
+    if (n4) cur.payment.last4 = n4;
+  }
+
+  // The unselected method's numbers must not ride the record (and its
+  // backups) forever — scrub them when the customer is actually saved.
+  function scrubUnusedPayment() {
+    if (cur.payment.method === "card") {
+      cur.payment.ach.routing = ""; cur.payment.ach.account = "";
+    } else if (cur.payment.method === "ach") {
+      cur.payment.card.number = ""; cur.payment.card.exp = "";
+    }
   }
 
   // ---------- AGREE ----------
@@ -751,6 +797,7 @@
   // ---------- persist ----------
   async function persist(announce) {
     collectInfo(); collectService(); collectPayment();
+    scrubUnusedPayment();
     if (!cur.first) { showTab("info"); toast("First name is required"); return false; }
     try {
       if (curId) {
@@ -796,7 +843,7 @@
   ];
 
   function stageOf(c) {
-    if (c.status === "canceled") return "canceled";
+    if (c.acct === "canceled") return "canceled";
     const signed = STORE.custSignedAt(c);
     const next = STORE.nextAppointment(c);
     const serviced = STORE.lastServiced(c);
@@ -812,8 +859,8 @@
       if (flt.stage === "sold" ? !STORE.custSignedAt(c) || st === "canceled" : st !== flt.stage) return false;
     }
     if (flt.scope === "mine" && c.soldBy && c.soldBy !== STORE.settings.repName) return false;
-    if (flt.sales === "active" && (c.status === "frozen" || c.status === "canceled")) return false;
-    if (flt.sales === "frozen" && c.status !== "frozen") return false;
+    if (flt.sales === "active" && (c.acct === "frozen" || c.acct === "canceled")) return false;
+    if (flt.sales === "frozen" && c.acct !== "frozen") return false;
     if (flt.service !== "all") {
       const signed = STORE.custSignedAt(c), next = STORE.nextAppointment(c), serviced = STORE.lastServiced(c);
       if (flt.service === "needed" && (!signed || serviced)) return false;
@@ -839,9 +886,14 @@
   // small pop menu anchored under a pill
   function popMenu(anchor, opts, curVal, onPick) {
     const old = document.querySelector(".pop-menu");
-    if (old) { old.remove(); return; }
+    if (old) {
+      const same = old.dataset.anchor === (anchor.id || "");
+      old.remove();
+      if (same) return; // second tap on the same pill = toggle off
+    }
     const m = document.createElement("div");
     m.className = "pop-menu";
+    m.dataset.anchor = anchor.id || "";
     m.innerHTML = opts.map(([id, label]) =>
       `<button type="button" data-v="${id}" class="${id === curVal ? "sel" : ""}">${label}${id === curVal ? " ✓" : ""}</button>`).join("");
     const r = anchor.getBoundingClientRect();
@@ -864,7 +916,10 @@
     panel.innerHTML =
       bub("scope", "Customers", [["mine", "My customers"], ["all", "All customers"]], flt.scope) +
       bub("service", "Service", SERVICE_OPTS, flt.service) +
-      bub("sales", "Sales status", [["all", "All"], ["active", "Active"], ["frozen", "Frozen"]], flt.sales);
+      bub("sales", "Sales status", [["all", "All"], ["active", "Active"], ["frozen", "Frozen"]], flt.sales) +
+      `<button type="button" class="pill" id="fp-close">✕ Hide filters</button>`;
+    const fc = panel.querySelector("#fp-close");
+    if (fc) fc.addEventListener("click", () => { panelOpen = false; renderPanel(); });
     panel.querySelectorAll(".fp").forEach((b) =>
       b.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -911,6 +966,15 @@
       (!q || STORE.custName(c).toLowerCase().includes(q) ||
         STORE.custAddress(c).toLowerCase().includes(q))));
 
+    // scoping to "my customers" must say so when it's actually hiding rows
+    const note = $("#cf-scope-note");
+    if (note) {
+      const hiddenByScope = flt.scope === "mine"
+        ? all.filter((c) => c.soldBy && c.soldBy !== STORE.settings.repName).length : 0;
+      note.hidden = !hiddenByScope;
+      note.textContent = hiddenByScope ? `Mine · ${hiddenByScope} more from the team` : "";
+      note.onclick = () => { flt.scope = "all"; renderList(); };
+    }
     if (!all.length) {
       $("#cust-list").innerHTML = `<div class="empty plain">No customers yet.</div>`;
       return;
@@ -920,7 +984,7 @@
       const signed = STORE.custSignedAt(c);
       const when = signed ? new Date(signed).getTime() : (c.soldAt || c.createdAt);
       const who = esc(c.soldBy || STORE.settings.repName);
-      const flag = c.status === "frozen" ? " · ❄️ Frozen" : c.status === "canceled" ? " · Canceled" : "";
+      const flag = c.acct === "frozen" ? " · ❄️ Frozen" : c.acct === "canceled" ? " · Canceled" : "";
       return `<button class="cust-row" data-cid="${c.id}" type="button">
          <div class="crn">${esc(STORE.custName(c))}
            <span class="stage-tag" style="color:${stage.chip};border-color:${stage.chip}">${stage.label}</span></div>
@@ -962,14 +1026,30 @@
   // ---------- export (More menu) ----------
   async function exportAll() {
     if (!STORE.customers.length) { toast("Nothing to export yet"); return; }
+    // The export gets handed to the office — full card/ACH numbers stay on
+    // this locked device, exactly as the payment tab promises. The office
+    // reads them off the device screen when entering billing.
+    const redacted = STORE.customers.map((c) => {
+      const copy = JSON.parse(JSON.stringify(c));
+      if (copy.payment) {
+        copy.payment = {
+          method: copy.payment.method || "",
+          last4: copy.payment.last4 || "",
+          autopay: !!copy.payment.autopay,
+          billingAddress: copy.payment.billingAddress || null,
+        };
+      }
+      return copy;
+    });
     const payload = {
       exportedAt: new Date().toISOString(),
       rep: STORE.settings.repName,
       fieldroutes: {
         subdomain: STORE.settings.frSubdomain || null,
-        note: "Map each record to customer/create + subscription/create + appointment/create.",
+        note: "Map each record to customer/create + subscription/create + appointment/create. " +
+          "Payment methods are redacted to last-4 — enter full billing details directly in FieldRoutes.",
       },
-      customers: STORE.customers,
+      customers: redacted,
     };
     const json = JSON.stringify(payload, null, 2);
     const name = "rally-customers-" + MUI.dayKey(Date.now()) + ".json";
@@ -1049,6 +1129,12 @@
       cur.switchOver = !cur.switchOver;
       $("#ci-switch").classList.toggle("on", cur.switchOver);
     });
+    $$("#ci-acct .seg-opt").forEach((b) =>
+      b.addEventListener("click", () => {
+        tick();
+        cur.acct = b.dataset.a;
+        $$("#ci-acct .seg-opt").forEach((x) => x.classList.toggle("sel", x === b));
+      }));
     $("#ci-notes-forever").addEventListener("input", () => { cur.notesForever = $("#ci-notes-forever").value; });
     $("#ci-notes-initial").addEventListener("input", () => { cur.notesInitial = $("#ci-notes-initial").value; });
 
@@ -1079,8 +1165,13 @@
         renderTermBilling();
       }));
     $("#cs-term-custom").addEventListener("input", () => {
-      const v = Math.min(Math.max(Math.round(Number($("#cs-term-custom").value) || 0), 1), 120);
-      if (v) { cur.termMonths = v; renderTermBilling(); }
+      const raw = $("#cs-term-custom").value;
+      if (raw === "") return; // mid-edit blank is not "1 month"
+      const v = Math.min(Math.max(Math.round(Number(raw) || 0), 1), 120);
+      cur.termMonths = v;
+      // update ONLY the math box — re-rendering the segments would hide
+      // this input the instant a typed value happens to match a preset
+      updateBillingMath();
     });
     $$("#cs-billing .seg-opt").forEach((b) =>
       b.addEventListener("click", () => { tick(); cur.billing = b.dataset.b; renderTermBilling(); }));
@@ -1088,7 +1179,16 @@
     // specialty price sheet
     ["sp-initial", "sp-monthly"].forEach((id) =>
       $("#" + id).addEventListener("input", specPriceCheck));
-    $("#sp-cancel").addEventListener("click", () => { closeSheet(); specEditing = null; });
+    $("#sp-cancel").addEventListener("click", () => {
+      // cancelling a custom quote that was never priced = not sold
+      const d = MDATA.SPECIALTY.find((x) => x.id === specEditing);
+      const on = (cur.specialty || []).find((x) => x.id === specEditing);
+      if (d && d.custom && on && !Number(on.initial) && !Number(on.monthly)) {
+        cur.specialty = cur.specialty.filter((x) => x.id !== specEditing);
+        renderSpecialty(); renderTermBilling();
+      }
+      closeSheet(); specEditing = null;
+    });
     $("#sp-save").addEventListener("click", () => {
       if (!specPriceCheck()) return;
       const on = (cur.specialty || []).find((x) => x.id === specEditing);
@@ -1116,8 +1216,16 @@
       ccCheckLine();
     });
     $("#cp-cc-exp").addEventListener("input", () => {
-      let v = $("#cp-cc-exp").value.replace(/[^\d]/g, "").slice(0, 4);
-      if (v.length > 2) v = v.slice(0, 2) + "/" + v.slice(2);
+      const raw = $("#cp-cc-exp").value;
+      // "1/27" means January — pad the single-digit month instead of
+      // shifting its digits into the year
+      const m = /^(\d{1,2})\s*\/\s*(\d{0,2})/.exec(raw);
+      let v;
+      if (m && m[1].length === 1) v = ("0" + m[1]) + (m[2] ? "/" + m[2] : "/");
+      else {
+        v = raw.replace(/[^\d]/g, "").slice(0, 4);
+        if (v.length > 2) v = v.slice(0, 2) + "/" + v.slice(2);
+      }
       $("#cp-cc-exp").value = v;
     });
     $$("#cp-ach-type .seg-opt").forEach((b) =>
@@ -1154,12 +1262,25 @@
     $("#ca-sig-clear").addEventListener("click", () => {
       if (sigCtx) { sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height); sigDrawn = false; }
     });
-    $("#ca-print").addEventListener("click", () => {
-      if (cur && cur.agreement) MCONTRACT.print(MCONTRACT.docHTML(cur, cur.agreement.signature));
+    // A signed agreement is a DOCUMENT, not a template: print/share the
+    // exact copy filed at signing. Regenerating from today's price sheet
+    // would silently change the discount and exit-fee arithmetic the
+    // customer actually signed. Fall back to regeneration only if the
+    // filed copy is somehow gone.
+    const signedDoc = async () => {
+      const f = (cur.files || []).find((x) => x.kind === "agreement");
+      if (f) {
+        const rec = await STORE.getFile(f.id).catch(() => null);
+        if (rec) return rec.blob.text();
+      }
+      return MCONTRACT.docHTML(cur, cur.agreement && cur.agreement.signature);
+    };
+    $("#ca-print").addEventListener("click", async () => {
+      if (cur && cur.agreement) MCONTRACT.print(await signedDoc());
     });
-    $("#ca-share").addEventListener("click", () => {
+    $("#ca-share").addEventListener("click", async () => {
       if (cur && cur.agreement)
-        MCONTRACT.share(MCONTRACT.docHTML(cur, cur.agreement.signature), `Agreement — ${STORE.custName(cur)}.html`);
+        MCONTRACT.share(await signedDoc(), `Agreement — ${STORE.custName(cur)}.html`);
     });
     const sp = $("#ca-sig");
     sp.addEventListener("mousedown", sigStart);

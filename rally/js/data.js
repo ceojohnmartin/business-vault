@@ -3,12 +3,19 @@
   // Disposition system. Colors are the app's entire chromatic language —
   // identical on pins, badges, funnels and history rows.
   const DISPOSITIONS = {
+    unworked:{ label: "Unworked",       color: "#2E86FF", contact: false }, // imported door, never knocked
     sold:    { label: "Sold",           color: "#22B558", contact: true  },
     goback:  { label: "Go Back",        color: "#7C5CFC", contact: true  },
     nothome: { label: "Not Home",       color: "#F5B301", contact: false },
     notint:  { label: "Not Interested", color: "#E5484D", contact: true  },
     dnk:     { label: "Do Not Knock",   color: "#0B0F16", contact: false },
   };
+
+  // Optional "why" for a Do Not Knock / Not Qualified door.
+  const DNK_REASONS = [
+    "Renter", "Vacant", "Commercial", "Existing customer",
+    "Bad fit", "Inaccessible", "Other",
+  ];
 
   // Why they said no — ranked by how often each appears in real
   // D2D taxonomies (D2DU / D2D Experts objection lists, PestPac and
@@ -34,6 +41,55 @@
   // Google project (this site + Map Tiles API). A device can still
   // override it in More -> Google map imagery.
   const DEFAULT_GOOGLE_KEY = "AIzaSyDyf6DCg6-kmOlKgHmTB77ctVkTCbOZHmY";
+
+  // Regrid parcel-data token. Ships empty — paste one in More → Property
+  // data (or set a default here for an office build). Never commit a real
+  // token to a public repo.
+  const DEFAULT_REGRID_KEY = "";
+
+  // ---------- residential eligibility (configurable, never baked into UI) ----------
+  // Which parcels become knockable RALLY doors when a territory is imported.
+  // Two rule sets because the two live providers speak different languages:
+  // OSM tags buildings; Regrid describes land use in prose.
+  const ELIGIBILITY = {
+    osm: {
+      // building=<tag> → shown property type; presence here = eligible
+      eligible: {
+        house: "Single-family home", detached: "Detached home",
+        residential: "Residential", bungalow: "Bungalow",
+        semidetached_house: "Semi-detached home", terrace: "Townhome",
+        townhouse: "Townhome", duplex: "Duplex",
+        static_caravan: "Manufactured home", cabin: "Cabin",
+        farm: "Farmhouse", ger: "Residential",
+      },
+      // explicitly not knockable doors
+      excluded: [
+        "apartments", "commercial", "retail", "office", "industrial",
+        "warehouse", "church", "chapel", "cathedral", "mosque", "synagogue",
+        "temple", "school", "kindergarten", "university", "college",
+        "hospital", "government", "civic", "public", "hotel", "garage",
+        "garages", "shed", "barn", "greenhouse", "hut", "carport", "roof",
+        "service", "construction", "ruins", "parking", "stadium", "train_station",
+      ],
+    },
+    regrid: {
+      eligiblePatterns: [
+        /single\s*family/i, /\bsfr\b/i, /residential/i, /townho(me|use)/i,
+        /duplex/i, /triplex/i, /fourplex/i, /condominium/i, /\bcondo\b/i,
+        /manufactured/i, /mobile\s*home/i, /rural\s*home/i,
+      ],
+      excludedPatterns: [
+        /commercial/i, /industrial/i, /church/i, /religious/i, /school/i,
+        /educat/i, /government/i, /municipal/i, /exempt/i, /park/i,
+        /vacant/i, /agricultur/i, /apartment/i, /multi[-\s]?family\s*(1[0-9]|[5-9])/i,
+        /office/i, /retail/i, /warehouse/i, /utility/i, /railroad/i,
+        /right[-\s]?of[-\s]?way/i, /common\s*area/i,
+      ],
+    },
+    // draw guard: refuse to scan absurdly large areas (protects the free
+    // provider and keeps imports neighborhood-sized)
+    maxAreaKm2: 9,
+  };
 
   // What counts as a DM (decision-maker) conversation.
   const DM_HINT = "Homeowner or spouse with authority to sign. “Ask my spouse” = a convo, not a DM.";
@@ -115,9 +171,9 @@
     { max: 0,        label: "Worked today", color: "#4D9AFF" },
     { max: 7,        label: "1–7 days",     color: "#00BFA6" },
     { max: 30,       label: "8–30 days",    color: "#B8E356" },
-    { max: 60,       label: "31–60 days",   color: "#F5B301" },
+    { max: 60,       label: "31–60 days",   color: "#E09F3E" },
     { max: 120,      label: "61–120 days",  color: "#FF8A3D" },
-    { max: Infinity, label: "120+ days",    color: "#E5484D" },
+    { max: Infinity, label: "120+ days",    color: "#B4433A" },
   ];
   const FRESH_NEVER = { label: "Never knocked", color: "#F25CA2" };
 
@@ -234,8 +290,8 @@
   ];
 
   window.MDATA = {
-    DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DM_HINT,
+    DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DNK_REASONS, DM_HINT,
     PLANS, AGREEMENT, PIPELINE, SOURCES, HOOD_COLORS, FRESH_SCALE, FRESH_NEVER, COMPANY_DEFAULTS,
-    PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY,
+    PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY, DEFAULT_REGRID_KEY, ELIGIBILITY,
   };
 })();

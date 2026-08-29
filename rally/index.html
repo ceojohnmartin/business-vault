@@ -58,9 +58,6 @@
         <button class="fab" id="fab-locate" aria-label="Center on my location">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
         </button>
-        <button class="fab" id="fab-knock" aria-label="Log a door at map center">
-          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
         <button class="fab" id="fab-hoods" aria-label="Hoods — draw rep areas">
           <svg viewBox="0 0 24 24"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20V6.5Z"/><path d="M14 13.5l5.5-5.5M12.2 15.3l1.1-3.2 3.2-1.1"/></svg>
         </button>
@@ -68,8 +65,8 @@
           <svg viewBox="0 0 24 24"><path d="M5 21 9.5 3M19 21 14.5 3"/><path d="M12 4v3M12 10.5v3M12 17v3"/></svg>
         </button>
         <div class="layer-menu hood-menu" id="hood-menu" hidden>
-          <button class="lm-opt" id="hood-pencil">✏️ Draw with pencil</button>
-          <button class="lm-opt" id="hood-dots">📍 Tap the corners</button>
+          <button class="lm-opt" id="hood-pencil">➕ Create territory — trace it</button>
+          <button class="lm-opt" id="hood-dots">📍 Create territory — tap corners</button>
           <button class="lm-opt" id="hood-lasso">⭕ Lasso doors</button>
           <button class="lm-opt" id="hood-heat">🔥 Freshness view</button>
           <div class="hood-list" id="hood-reps-panel" hidden></div>
@@ -94,12 +91,13 @@
       <div class="li"><span class="sw" style="background:#4D9AFF"></span>Worked today</div>
       <div class="li"><span class="sw" style="background:#00BFA6"></span>1–7 days</div>
       <div class="li"><span class="sw" style="background:#B8E356"></span>8–30 days</div>
-      <div class="li"><span class="sw" style="background:#F5B301"></span>31–60 days</div>
+      <div class="li"><span class="sw" style="background:#E09F3E"></span>31–60 days</div>
       <div class="li"><span class="sw" style="background:#FF8A3D"></span>61–120 days</div>
-      <div class="li"><span class="sw" style="background:#E5484D"></span>120+ days</div>
+      <div class="li"><span class="sw" style="background:#B4433A"></span>120+ days</div>
       <div class="li"><span class="sw" style="background:#F25CA2"></span>Never knocked</div>
     </div>
     <div class="legend" id="map-legend" hidden aria-hidden="true">
+      <div class="li"><span class="pinsw" style="background:#2E86FF"></span>Unworked</div>
       <div class="li"><span class="pinsw" style="background:#22B558"></span>Sold</div>
       <div class="li"><span class="pinsw" style="background:#7C5CFC"></span>Go Back</div>
       <div class="li"><span class="pinsw" style="background:#F5B301"></span>Not Home</div>
@@ -199,6 +197,7 @@
       <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-gmaps"><span class="ic">🛰️</span><span><span class="tt">Google map imagery</span><br><span class="dd" id="more-gmaps-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-prop"><span class="ic">🏘️</span><span><span class="tt">Property data</span><br><span class="dd" id="more-prop-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers (JSON)</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-csv"><span class="ic">📊</span><span><span class="tt">Export spreadsheet (CSV)</span><br><span class="dd">Opens in Excel, Sheets, or any CRM import</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-backup"><span class="ic">🛟</span><span><span class="tt">Backup &amp; restore</span><br><span class="dd" id="more-backup-sub">Everything on this device, in one file</span></span><span class="chev">›</span></button>
@@ -409,7 +408,7 @@
     </div>
   </div>
 
-  <div class="sheet" id="lead-sheet">
+  <div class="sheet prop-sheet" id="lead-sheet">
     <div class="grab"></div>
     <div class="lead-head">
       <div><div class="addr" id="lead-addr"></div><div class="coords num" id="lead-coords"></div>
@@ -417,9 +416,42 @@
         <div class="lead-opp" id="lead-opp" hidden></div></div>
       <span class="badge" id="lead-badge"></span>
     </div>
-    <div class="hist" id="lead-history"></div>
+
+    <!-- the fast path: outcome in one tap, next door -->
+    <div class="pq-row" id="prop-quick">
+      <button type="button" class="pq" data-q="nothome"><span class="sw nothome"></span>Not home</button>
+      <button type="button" class="pq" data-q="notint"><span class="sw notint"></span>No</button>
+      <button type="button" class="pq" data-q="goback"><span class="sw goback"></span>Callback</button>
+      <button type="button" class="pq" data-q="sold"><span class="sw sold"></span>Sold</button>
+      <button type="button" class="pq" data-q="dnk"><span class="sw dnk"></span>Not qualified</button>
+    </div>
+    <div class="reasons" id="prop-cbchips" hidden>
+      <button type="button" class="reason pcb" data-cb="30m">In 30 min</button>
+      <button type="button" class="reason pcb" data-cb="evening">This evening</button>
+      <button type="button" class="reason pcb" data-cb="tomorrow">Tomorrow AM</button>
+      <button type="button" class="reason pcb" data-cb="custom">Pick a time…</button>
+      <input id="prop-cb-custom" type="datetime-local" class="cb-custom" hidden>
+    </div>
+    <div class="reasons" id="prop-nqchips" hidden></div>
+
+    <div class="ps-sec" id="prop-facts-sec" hidden>
+      <h4>Property</h4>
+      <div id="prop-facts"></div>
+    </div>
+
+    <div class="ps-sec">
+      <h4>RALLY history <span class="ps-meta" id="prop-knockmeta"></span></h4>
+      <div class="hist" id="lead-history"></div>
+      <div id="prop-notes"></div>
+    </div>
+
+    <div class="ps-sec">
+      <h4>Customer history</h4>
+      <div id="prop-crm"></div>
+    </div>
+
     <div class="field"><label for="lead-addr-in">Address</label><input id="lead-addr-in" placeholder="123 Maple St"></div>
-    <div class="field"><label for="lead-note-in">Notes</label><textarea id="lead-note-in" placeholder="Anything the next knock should know"></textarea></div>
+    <div class="field"><label for="lead-note-in">Add a note</label><textarea id="lead-note-in" placeholder="Anything the next knock should know"></textarea></div>
     <button class="btn btn-gold" id="lead-close-btn" style="margin-bottom:10px">Sold — create customer</button>
     <div class="btnrow">
       <button class="btn btn-ghost" id="lead-nav" aria-label="Directions">🧭</button>
@@ -448,12 +480,22 @@
           style="width:100%;background:var(--s1);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;font-size:15px">
       </div>
     </div>
+    <div id="hood-doors" hidden>
+      <div class="ce-sec" style="margin-top:14px">Doors</div>
+      <div class="bk-status" id="hd-status"></div>
+      <div id="hd-import-row" hidden style="margin-bottom:12px">
+        <button type="button" class="reason imp-chip" id="hd-import-btn"></button>
+      </div>
+      <button class="btn btn-ghost" id="hd-scan" style="margin-bottom:10px" hidden>🔍 Scan for doors</button>
+      <button class="btn btn-ghost" id="hd-redraw" style="margin-bottom:10px" hidden>✏️ Edit the area</button>
+    </div>
     <div id="hood-history"></div>
     <div id="hood-split-wrap" hidden>
       <button class="btn btn-ghost" id="hood-split" style="margin-bottom:10px">✂️ Smart Split — cut into balanced hoods</button>
       <div class="reasons" id="hood-split-n" hidden></div>
     </div>
     <button class="btn btn-gold" id="hood-save">Save hood</button>
+    <button class="btn btn-ghost" id="hood-archive" style="margin-top:10px" hidden>🗄 Archive territory</button>
     <button class="btn btn-danger" id="hood-delete" style="margin-top:10px" hidden>Delete hood</button>
   </div>
 
@@ -541,6 +583,28 @@
     <button class="btn btn-danger" id="lasso-delete" style="margin-top:10px">Delete these pins</button>
   </div>
 
+  <div class="sheet" id="prop-data-sheet">
+    <div class="grab"></div>
+    <h2>Property data</h2>
+    <div class="sub">Where "Create territory" finds the doors inside your polygon. OpenStreetMap building data works with zero setup; a Regrid token adds owner and parcel records.</div>
+    <div class="field"><label>Source</label>
+      <div class="reasons" id="pd-source">
+        <button type="button" class="reason pd-chip" data-s="auto">Auto</button>
+        <button type="button" class="reason pd-chip" data-s="osm">OpenStreetMap</button>
+        <button type="button" class="reason pd-chip" data-s="regrid">Regrid</button>
+        <button type="button" class="reason pd-chip" data-s="demo">Demo data</button>
+      </div>
+    </div>
+    <div class="field"><label for="pd-regrid-key">Regrid API token</label>
+      <input id="pd-regrid-key" placeholder="Paste your Regrid token" autocomplete="off">
+    </div>
+    <div class="dim" style="font-size:12px;margin-bottom:12px">
+      Auto uses Regrid when a token is present, OpenStreetMap otherwise. The token is stored on this device only.
+      Building data © OpenStreetMap contributors (ODbL).
+    </div>
+    <button class="btn btn-gold" id="pd-save">Save</button>
+  </div>
+
   <div class="sheet" id="backup-sheet">
     <div class="grab"></div>
     <h2>Backup &amp; restore</h2>
@@ -599,6 +663,8 @@
 <script src="js/data.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/store.js"></script>
+<script src="js/property.js"></script>
+<script src="js/crm.js"></script>
 <script src="js/contract.js"></script>
 <script src="js/map.js"></script>
 <script src="js/hoods.js"></script>

@@ -18,6 +18,7 @@
       companyAddress: "", companyLicense: "",
       frSubdomain: "", frKey: "", frToken: "",
       googleKey: "", googleSessions: null, googleLastError: "",
+      propertySource: "auto", regridKey: "", // door-import provider (More → Property data)
       lastCenter: null, lastZoom: null,
       currentUserId: null, // whose device this is
     },
@@ -144,11 +145,100 @@
     pin.callbackAt = disposition === "goback" ? (callbackAt || pin.callbackAt || null) : null;
     const me = S.currentUser();
     const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition, reason: reason || null, dm: !!dm,
-      repId: me ? me.id : null };
+      repId: me ? me.id : null,
+      territoryId: pin.territoryId ||
+        (S.territories.find((t) => !t.archived && t.points && t.points.length >= 3 &&
+          S.inHood(t, pin.lng, pin.lat)) || {}).id || null };
     S.events.push(ev);
     await MDB.put("pins", pin);
     await MDB.put("events", ev);
     return pin;
+  };
+
+  // ---------- notes (event-shaped: author + timestamp + text, never overwritten) ----------
+  S.addNote = async function (pin, text) {
+    text = String(text || "").trim();
+    if (!text) return pin;
+    const me = S.currentUser();
+    pin.notes = pin.notes || [];
+    pin.notes.push({ ts: Date.now(), userId: me ? me.id : null, name: me ? me.name : "", text });
+    return S.updatePin(pin);
+  };
+
+  // ---------- imported doors: dedupe + bulk import ----------
+  // Matching order (strongest first): external property id → parcel id →
+  // normalized address → coordinates within ~15 m. Existing pins are NEVER
+  // touched by an import — history is sacred.
+  S.buildDoorIndex = function () {
+    const byExt = new Map(), byParcel = new Map(), byAddr = new Map(), grid = new Map();
+    const cell = (lat, lng) => Math.round(lat * 7000) + ":" + Math.round(lng * 7000); // ~15m cells
+    S.pins.forEach((p) => {
+      if (p.prop && p.prop.externalId) byExt.set(p.prop.externalId, p);
+      if (p.prop && p.prop.parcelId) byParcel.set(p.prop.parcelId, p);
+      const a = MPROP.normAddr(p.address);
+      if (a) byAddr.set(a, p);
+      grid.set(cell(p.lat, p.lng), p);
+    });
+    return {
+      match(prop) {
+        if (prop.externalId && byExt.has(prop.externalId)) return byExt.get(prop.externalId);
+        if (prop.parcelId && byParcel.has(prop.parcelId)) return byParcel.get(prop.parcelId);
+        const a = MPROP.normAddr(prop.address);
+        if (a && byAddr.has(a)) return byAddr.get(a);
+        // check the 9 surrounding ~15m cells
+        const cy = Math.round(prop.lat * 7000), cx = Math.round(prop.lng * 7000);
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const p = grid.get((cy + dy) + ":" + (cx + dx));
+          if (p && Math.abs(p.lat - prop.lat) < 0.00014 && Math.abs(p.lng - prop.lng) < 0.0002) return p;
+        }
+        return null;
+      },
+      add(pin) {
+        if (pin.prop && pin.prop.externalId) byExt.set(pin.prop.externalId, pin);
+        if (pin.prop && pin.prop.parcelId) byParcel.set(pin.prop.parcelId, pin);
+        const a = MPROP.normAddr(pin.address);
+        if (a) byAddr.set(a, pin);
+        grid.set(cell(pin.lat, pin.lng), pin);
+      },
+    };
+  };
+
+  // Import eligible properties as unworked doors. Idempotent: a re-run of
+  // the same import matches everything and adds nothing, so a retry after
+  // a dropped connection can never duplicate a door.
+  S.importDoors = async function (props, { territoryId, onProgress } = {}) {
+    const idx = S.buildDoorIndex();
+    const now = Date.now();
+    let added = 0, skipped = 0, failed = 0;
+    for (let i = 0; i < props.length; i++) {
+      const prop = props[i];
+      if (idx.match(prop)) { skipped++; continue; }
+      const pin = {
+        id: MDB.uid(), lat: prop.lat, lng: prop.lng,
+        address: prop.address || "",
+        geo: { city: prop.city || "", state: prop.state || "", zip: prop.zip || "" },
+        disposition: "unworked", reason: null, dm: false, note: "",
+        history: [], callbackAt: null,
+        territoryId: territoryId || null,
+        prop: {
+          externalId: prop.externalId || null, parcelId: prop.parcelId || null,
+          source: prop.source, propertyType: prop.propertyType || null,
+          owner: prop.owner || null,
+          yearBuilt: prop.yearBuilt || null, sqft: prop.sqft || null,
+          lotSqft: prop.lotSqft || null,
+          lastSaleDate: prop.lastSaleDate || null, lastSalePrice: prop.lastSalePrice || null,
+        },
+        importedAt: now, createdAt: now, updatedAt: now,
+      };
+      try {
+        await MDB.put("pins", pin);
+        S.pins.push(pin);
+        idx.add(pin);
+        added++;
+      } catch (_) { failed++; }
+      if (onProgress && (i % 25 === 24 || i === props.length - 1)) onProgress(i + 1, props.length);
+    }
+    return { added, skipped, failed };
   };
 
   S.updatePin = async function (pin) {
@@ -328,25 +418,35 @@
     return inside;
   };
 
-  // live territory numbers, straight from the pins inside the polygon
+  // Live territory numbers, straight from the pins inside the polygon.
+  // "Knocked" means SOMEONE WENT TO THE DOOR (the pin has history) —
+  // imported unworked inventory counts as doors, never as work done.
   S.hoodStats = function (t) {
-    let knocked = 0, sold = 0, callbacks = 0;
-    let lastWorked = 0;
+    let doors = 0, knocked = 0, sold = 0, callbacks = 0, lastWorked = 0;
+    const by = { unworked: 0, nothome: 0, goback: 0, notint: 0, sold: 0, dnk: 0 };
     S.pins.forEach((p) => {
       if (!S.inHood(t, p.lng, p.lat)) return;
-      knocked++;
+      doors++;
+      if (by[p.disposition] != null) by[p.disposition]++;
+      if (p.history && p.history.length) {
+        knocked++;
+        if (p.updatedAt > lastWorked) lastWorked = p.updatedAt;
+      }
       if (p.disposition === "sold") sold++;
       if (p.callbackAt) callbacks++;
-      if (p.updatedAt > lastWorked) lastWorked = p.updatedAt;
     });
-    const homes = Number(t.homes) || 0;
+    // real imported inventory beats a manual estimate as the denominator
+    const homes = Math.max(Number(t.homes) || 0, by.unworked ? doors : 0);
     const remaining = homes ? Math.max(0, homes - knocked) : null;
     const pct = homes ? Math.min(100, Math.round((knocked / homes) * 100)) : null;
-    return { knocked, sold, callbacks, homes, remaining, pct, lastWorked: lastWorked || null };
+    return { doors, by, knocked, sold, callbacks, homes, remaining, pct, lastWorked: lastWorked || null };
   };
 
+  // territories that should render and count — archived ones sit out
+  S.activeTerritories = () => S.territories.filter((t) => !t.archived);
+
   // hoods belonging to a user (for rep mode and the manager panel)
-  S.hoodsOf = (userId) => S.territories.filter((t) => t.assignedTo === userId);
+  S.hoodsOf = (userId) => S.territories.filter((t) => !t.archived && t.assignedTo === userId);
 
   // every interaction that happened inside a hood, joined through pins
   S.eventsInHood = function (t) {
@@ -444,6 +544,17 @@
     let score = 50;
     const why = [];
     const attempts = (pin.history || []).length;
+    if (pin.disposition === "unworked") {
+      // imported, never knocked: fresh ground is the whole point.
+      // No freshness penalty — updatedAt is the import time, not a knock.
+      score += 12; why.push("Never knocked");
+      const nearSold = S.pins.filter((p) =>
+        p.disposition === "sold" && p.id !== pin.id &&
+        Math.abs(p.lat - pin.lat) < 0.0014 &&
+        Math.abs(p.lng - pin.lng) < 0.0014 / Math.max(0.2, Math.cos(pin.lat * Math.PI / 180))).length;
+      if (nearSold) { score += Math.min(15, nearSold * 5); why.push(nearSold + " customer" + (nearSold === 1 ? "" : "s") + " nearby"); }
+      return { score: Math.max(0, Math.min(99, Math.round(score))), why };
+    }
     if (pin.disposition === "goback") {
       score += 22; why.push("They asked for a comeback");
       if (pin.callbackAt && pin.callbackAt <= Date.now()) { score += 10; why.push("Callback is due"); }
@@ -475,7 +586,7 @@
 
   // ---------- best area today (manager recommendation, explainable) ----------
   S.bestHoods = function () {
-    return S.territories
+    return S.activeTerritories()
       .filter((t) => t.points && t.points.length >= 3)
       .map((t) => {
         const st = S.hoodStats(t);

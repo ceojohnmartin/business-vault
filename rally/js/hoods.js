@@ -206,10 +206,12 @@
     editingId = hood ? hood.id : null;
     assignTo = hood ? (hood.assignedTo || null) : preAssign;
     preAssign = null;
-    $("#hood-sheet-title").textContent = hood ? "Edit hood" : "Name this hood";
+    $("#hood-sheet-title").textContent = hood ? "Edit territory" : "New territory";
     $("#hood-name").value = hood ? hood.name : "";
     $("#hood-homes").value = hood && hood.homes ? hood.homes : "";
     $("#hood-delete").hidden = !hood;
+    $("#hood-archive").hidden = !hood;
+    if (hood) $("#hood-archive").textContent = hood.archived ? "Unarchive territory" : "🗄 Archive territory";
     $("#hood-newrep-wrap").hidden = true;
     $("#hood-newrep").value = "";
     // Smart Split only makes sense on a saved hood, and only for managers
@@ -218,7 +220,105 @@
     splitN = 0;
     renderRepChips();
     renderHoodHistory(hood);
+    setupDoorsBlock(points, hood);
     openSheet("hood-sheet");
+  }
+
+  // ---------- doors: scan the polygon, confirm, import ----------
+  // The signature flow: draw an area → "N eligible doors found" → import
+  // turns every eligible residential property into an unworked pin.
+  // Nothing is written until the manager confirms (toggle+Save on a new
+  // territory, an explicit button on a saved one), and the dedupe means
+  // an overlapping draw can never duplicate a door or touch history.
+  let lastScan = null;   // { fresh: [props], res: search result, forId }
+  let importOn = false;  // pending-mode toggle: import on save
+  let scanGen = 0;       // a scan is only valid for the sheet that started it
+
+  async function scanDoors(points, hood) {
+    const st = $("#hd-status");
+    const gen = ++scanGen;
+    lastScan = null; importOn = false;
+    $("#hd-import-row").hidden = true;
+    st.textContent = "Searching properties…";
+    let res;
+    try {
+      res = await MPROP.searchByPolygon(points, (m) => { if (gen === scanGen) st.textContent = m; });
+    } catch (err) {
+      if (gen !== scanGen) return;
+      st.innerHTML = `⚠️ ${MUI.esc(err.message)}<br><span class="dim">Knocking works without this — doors can be pinned by hand.</span>`;
+      return;
+    }
+    // an Overpass round trip can take 25s — if the manager has since closed
+    // this sheet or opened another territory, these results belong to a
+    // polygon that is no longer on screen. Importing them would pin one
+    // hood's doors under another hood's id. Drop them.
+    if (gen !== scanGen) return;
+    const idx = STORE.buildDoorIndex();
+    const fresh = res.eligible.filter((p) => !idx.match(p));
+    const dupes = res.eligible.length - fresh.length;
+    lastScan = { fresh, res, forId: hood ? hood.id : null };
+    const acres = Math.max(1, Math.round(res.areaKm2 * 247.105));
+    if (!res.eligible.length) {
+      st.innerHTML = `No residential doors found in this area` +
+        `<br><span class="dim">${res.parcels.length} structure${res.parcels.length === 1 ? "" : "s"} checked · ~${acres} acres · ${MUI.esc(res.providerName)}</span>`;
+      return;
+    }
+    st.innerHTML =
+      `<b>${res.eligible.length} eligible door${res.eligible.length === 1 ? "" : "s"} found</b>` +
+      `<br>${dupes ? `${dupes} already in RALLY · ` : ""}<b>${fresh.length} new</b>` +
+      `${res.excluded ? ` · ${res.excluded} non-residential skipped` : ""} · ~${acres} acres` +
+      `<br><span class="dim">via ${MUI.esc(res.providerName)}</span>` +
+      (res.warnings || []).map((w) => `<br><span class="dim">⚠️ ${MUI.esc(w)}</span>`).join("");
+    if (fresh.length) {
+      importOn = !hood; // creating: import is the point, default ON
+      const btn = $("#hd-import-btn");
+      btn.textContent = hood
+        ? `⬇️ Import ${fresh.length} new door${fresh.length === 1 ? "" : "s"}`
+        : `⬇️ Import ${fresh.length} door${fresh.length === 1 ? "" : "s"} when I save`;
+      btn.classList.toggle("sel", importOn);
+      $("#hd-import-row").hidden = false;
+    }
+  }
+
+  async function runImport(territoryId) {
+    if (!lastScan || !lastScan.fresh.length) return { added: 0, skipped: 0, failed: 0 };
+    // an edit-mode scan is bound to its territory; never import it into another
+    if (lastScan.forId && lastScan.forId !== territoryId) return { added: 0, skipped: 0, failed: 0 };
+    const fresh = lastScan.fresh;
+    const st = $("#hd-status");
+    const r = await STORE.importDoors(fresh, {
+      territoryId,
+      onProgress: (i, n) => { if (st) st.textContent = `Importing ${i} of ${n} doors…`; },
+    });
+    lastScan = null;
+    MMAP.refreshPins();
+    if (r.failed) toast(`Imported ${r.added} doors — ${r.failed} failed (storage may be full)`);
+    else toast(`Import complete — ${r.added} door${r.added === 1 ? "" : "s"} pinned` +
+      (r.skipped ? ` · ${r.skipped} already existed` : ""));
+    return r;
+  }
+
+  function setupDoorsBlock(points, hood) {
+    const wrap = $("#hood-doors");
+    const manager = STORE.isManager();
+    scanGen++; // sheet context changed: any scan still in flight is void
+    lastScan = null; importOn = false;
+    $("#hd-import-row").hidden = true;
+    if (!manager || !points || points.length < 3) { wrap.hidden = true; return; }
+    wrap.hidden = false;
+    $("#hd-redraw").hidden = !!hood;
+    if (hood) {
+      const st = STORE.hoodStats(hood);
+      $("#hd-status").innerHTML = st.doors
+        ? `${st.doors} door${st.doors === 1 ? "" : "s"} on the map · ${st.by.unworked} untouched · ${st.sold} sold` +
+          (st.pct != null ? ` · <b>${st.pct}%</b> worked` : "")
+        : "No doors pinned in this territory yet";
+      $("#hd-scan").hidden = false;
+      $("#hd-scan").textContent = st.doors ? "🔍 Scan for new doors" : "🔍 Find the doors in this territory";
+    } else {
+      $("#hd-scan").hidden = true;
+      scanDoors(points, null); // creating: the door count IS the headline
+    }
   }
 
   // ---------- smart split ----------
@@ -312,34 +412,62 @@
     el.innerHTML = html;
   }
 
+  let saving = false; // a double-tap on Save must not mint a second hood
+
   async function saveHood() {
+    if (saving) return;
+    saving = true;
+    const saveBtn = $("#hood-save");
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      await saveHoodInner();
+    } finally {
+      saving = false;
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  }
+
+  async function saveHoodInner() {
+    const creating = !editingId;
     const name = $("#hood-name").value.trim() || "Hood " + (STORE.territories.length + 1);
     const homes = Math.max(0, Math.min(100000, Number($("#hood-homes").value) || 0)) || null;
     // a typed-but-unadded new rep still counts — nobody loses that keystroke
     const newRepName = $("#hood-newrep-wrap").hidden ? "" : $("#hood-newrep").value.trim();
+    let t;
     try {
       if (newRepName) {
         const u = await STORE.addUser({ name: newRepName, role: "rep" });
         assignTo = u.id;
       }
-      let t;
       if (editingId) {
         t = STORE.territories.find((x) => x.id === editingId);
         if (t) { t.name = name; t.homes = homes; await STORE.updateTerritory(t); }
       } else {
-        t = await STORE.addTerritory({ name, homes, points: pending });
+        t = await STORE.addTerritory({
+          name, homes, points: pending,
+          createdBy: (STORE.currentUser() || {}).id || null,
+        });
       }
       if (t) await STORE.assignTerritory(t, assignTo);
     } catch (_) {
       toast("Couldn't save the hood — try again");
       return;
     }
+    // the confirmed door import runs against the freshly saved territory,
+    // with progress in the sheet's status line
+    let imported = null;
+    if (creating && t && importOn && lastScan && lastScan.fresh.length) {
+      try { imported = await runImport(t.id); }
+      catch (_) { toast("Import hit an error — scan the territory again to retry"); }
+    }
     const who = assignTo && STORE.userById(assignTo);
     pending = null; editingId = null;
     MMAP.refreshHoods();
     closeSheet();
     renderHoodList();
-    toast(who ? `${name} — assigned to ${who.name}` : `${name} saved`);
+    toast(imported && imported.added
+      ? `${name} — ${imported.added} doors pinned${who ? ", assigned to " + who.name : ""}`
+      : (who ? `${name} — assigned to ${who.name}` : `${name} saved`));
   }
 
   // ---------- manager rep panel ----------
@@ -390,9 +518,11 @@
     const manager = STORE.isManager();
     const me = STORE.currentUser();
     // reps see their own turf; managers see the whole board
-    const list = manager ? STORE.territories
-      : STORE.territories.filter((t) => me && t.assignedTo === me.id);
-    if (!list.length) {
+    const active = STORE.activeTerritories();
+    const list = manager ? active
+      : active.filter((t) => me && t.assignedTo === me.id);
+    const archived = manager ? STORE.territories.filter((t) => t.archived) : [];
+    if (!list.length && !archived.length) {
       wrap.innerHTML = `<div class="hood-empty">${manager
         ? "No hoods yet — cut your first area"
         : "No turf assigned to you yet — ask your manager"}</div>`;
@@ -402,12 +532,21 @@
       const u = t.assignedTo && STORE.userById(t.assignedTo);
       const st = STORE.hoodStats(t);
       const prog = st.pct != null ? `${st.pct}%` : `${st.knocked} knocked`;
+      const doors = st.doors ? `${st.doors} doors · ` : "";
       return `<div class="hood-row" data-id="${t.id}">
          <span class="dot" style="background:${STORE.hoodColor(t)}"></span>
-         <span class="hn">${MUI.esc(t.name)}<span class="hr">${u ? MUI.esc(u.name) + " · " : ""}${prog}</span></span>
+         <span class="hn">${MUI.esc(t.name)}<span class="hr">${u ? MUI.esc(u.name) + " · " : ""}${doors}${prog}</span></span>
          ${manager ? `<button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>` : ""}
        </div>`;
-    }).join("");
+    }).join("") +
+    (archived.length
+      ? `<div class="hood-sec">Archived</div>` + archived.map((t) =>
+          `<div class="hood-row archived" data-id="${t.id}">
+             <span class="dot" style="background:#B9BEC7"></span>
+             <span class="hn">${MUI.esc(t.name)}<span class="hr">archived</span></span>
+             <button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>
+           </div>`).join("")
+      : "");
     $$("#hood-list .hood-row").forEach((row) =>
       row.addEventListener("click", (e) => {
         if (e.target.closest(".hood-edit")) return;
@@ -468,6 +607,51 @@
       MMAP.refreshHoods();
       closeSheet();
       toast("Hood deleted");
+    });
+    $("#hood-archive").addEventListener("click", async () => {
+      const t = editingId && STORE.territories.find((x) => x.id === editingId);
+      if (!t) return;
+      t.archived = !t.archived;
+      await STORE.updateTerritory(t);
+      editingId = null;
+      MMAP.refreshHoods();
+      closeSheet();
+      renderHoodList();
+      toast(t.archived
+        ? `${t.name} archived — doors and history are untouched`
+        : `${t.name} is back on the map`);
+    });
+    // doors block: scan an existing territory, import, or go back to drawing
+    $("#hd-scan").addEventListener("click", () => {
+      tick();
+      const t = editingId && STORE.territories.find((x) => x.id === editingId);
+      if (pending && pending.length >= 3) scanDoors(pending, t || null);
+    });
+    $("#hd-import-btn").addEventListener("click", async () => {
+      tick();
+      if (!lastScan || !lastScan.fresh.length) return;
+      if (editingId) {
+        // saved territory: the button IS the confirmation
+        const btn = $("#hd-import-btn");
+        btn.disabled = true;
+        try { await runImport(editingId); }
+        catch (_) { toast("Import hit an error — scan the territory again to retry"); }
+        finally { btn.disabled = false; }
+        const t = STORE.territories.find((x) => x.id === editingId);
+        setupDoorsBlock(pending, t || null);
+      } else {
+        // creating: toggle whether Save also imports
+        importOn = !importOn;
+        $("#hd-import-btn").classList.toggle("sel", importOn);
+      }
+    });
+    $("#hd-redraw").addEventListener("click", () => {
+      tick();
+      const pts = (pending || []).slice();
+      closeSheet();
+      startMode("dots");
+      dots = pts; // the drawn ring becomes editable corners — undo works
+      refreshDraft();
     });
 
     const cvEl = $("#draw-canvas");

@@ -117,7 +117,7 @@
         try {
           map.addSource("g-hyb", {
             type: "raster", tiles: [tileUrl(sess)],
-            tileSize: 512, maxzoom: 22, attribution: "© Google",
+            tileSize: 512, maxzoom: 22,
           });
           map.addLayer(
             { id: "g-hyb", type: "raster", source: "g-hyb" },
@@ -233,7 +233,10 @@
       features: STORE.pins.map((p) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [p.lng, p.lat] },
-        properties: { id: p.id, disposition: p.disposition },
+        properties: {
+          id: p.id, disposition: p.disposition,
+          cbdue: p.callbackAt && p.callbackAt <= Date.now() ? 1 : 0,
+        },
       })),
     };
   }
@@ -247,7 +250,7 @@
     const manager = STORE.isManager();
     return {
       type: "FeatureCollection",
-      features: STORE.territories
+      features: STORE.activeTerritories()
         .filter((t) => t.points && t.points.length >= 3)
         .map((t) => {
           const u = t.assignedTo && STORE.userById(t.assignedTo);
@@ -264,7 +267,7 @@
               id: t.id, name: t.name || "Hood",
               rep: u ? u.name : "",
               color: STORE.hoodColor(t),
-              fresh: STORE.freshness(t).color,
+              fresh: heatMode ? STORE.freshness(t).color : "#000",
               dim,
             },
           };
@@ -278,8 +281,8 @@
     const dimmed = (full, faded) => ["case", ["==", ["get", "dim"], 1], faded, full];
     map.setPaintProperty("hoods-fill", "fill-color", colorProp);
     map.setPaintProperty("hoods-line", "line-color", colorProp);
-    map.setPaintProperty("hoods-fill", "fill-opacity", heatMode ? 0.3 : dimmed(0.16, 0.05));
-    map.setPaintProperty("hoods-line", "line-opacity", heatMode ? 0.95 : dimmed(0.9, 0.3));
+    map.setPaintProperty("hoods-fill", "fill-opacity", heatMode ? 0.25 : dimmed(0.16, 0.05));
+    map.setPaintProperty("hoods-line", "line-opacity", heatMode ? 0.75 : dimmed(0.7, 0.3));
     const heatLegend = $("#heat-legend");
     if (heatLegend) heatLegend.hidden = !heatMode;
     updateHint(); // swaps the disposition legend out while heat is on
@@ -312,13 +315,32 @@
     refreshHoods();
   }
 
+  // One Point per hood at the ring centroid: MapLibre anchors the label
+  // there instead of once per tile-clipped polygon slice, so a hood shows
+  // exactly one name at working zooms.
+  function hoodLabelsGeoJSON(data) {
+    return {
+      type: "FeatureCollection",
+      features: data.features.map((f) => {
+        const ring = f.geometry.coordinates[0];
+        let x = 0, y = 0;
+        ring.forEach(([lng, lat]) => { x += lng; y += lat; });
+        return {
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [x / ring.length, y / ring.length] },
+          properties: f.properties,
+        };
+      }),
+    };
+  }
+
   function refreshHoods() {
     if (!map) return;
     const data = hoodsGeoJSON();
     const src = map.getSource("hoods");
     if (src) src.setData(data);
     const lsrc = map.getSource("hoods-labels");
-    if (lsrc) lsrc.setData(data);
+    if (lsrc) lsrc.setData(hoodLabelsGeoJSON(data));
   }
 
   function addHoodLayers() {
@@ -327,8 +349,9 @@
     // glyphs would stall the fill and line of the same source. Split
     // sources = the tint always renders (glyphs are bundled locally now,
     // but the isolation stays cheap insurance).
-    map.addSource("hoods", { type: "geojson", data: hoodsGeoJSON() });
-    map.addSource("hoods-labels", { type: "geojson", data: hoodsGeoJSON() });
+    const data = hoodsGeoJSON();
+    map.addSource("hoods", { type: "geojson", data });
+    map.addSource("hoods-labels", { type: "geojson", data: hoodLabelsGeoJSON(data) });
     const dimmed = (full, faded) =>
       ["case", ["==", ["get", "dim"], 1], faded, full];
     map.addLayer({
@@ -337,15 +360,32 @@
     });
     map.addLayer({
       id: "hoods-line", type: "line", source: "hoods",
-      paint: { "line-color": ["get", "color"], "line-width": 2.25, "line-opacity": dimmed(0.9, 0.3) },
+      minzoom: 10,
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": ["get", "color"],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1.4, 17, 2.5],
+        "line-opacity": dimmed(0.7, 0.3),
+      },
     });
+  }
+
+  // labels ride ABOVE the pins (added after them): the dark halo keeps the
+  // name readable over the densest pin clutter, which is exactly where
+  // the rep needs to know whose turf this is
+  function addHoodLabelLayer() {
     map.addLayer({
       id: "hoods-label", type: "symbol", source: "hoods-labels",
+      minzoom: 11,
       layout: {
         "text-field": ["case", ["!=", ["get", "rep"], ""],
-          ["concat", ["get", "name"], "\n", ["get", "rep"]], ["get", "name"]],
+          ["format",
+            ["get", "name"], {},
+            "\n", {},
+            ["get", "rep"], { "font-scale": 0.8, "text-color": "rgba(255,255,255,.82)" }],
+          ["format", ["get", "name"], {}]],
         "text-font": ["Noto Sans Bold"],
-        "text-size": 13,
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 11.5, 16, 14],
         "text-line-height": 1.25,
       },
       paint: {
@@ -353,10 +393,11 @@
         "text-color": "#FFFFFF",
         "text-halo-color": "rgba(14,17,22,.78)",
         "text-halo-width": 1.8,
-        "text-opacity": dimmed(1, 0.45),
+        "text-opacity": dimmedExpr(1, 0.45),
       },
     });
   }
+  const dimmedExpr = (full, faded) => ["case", ["==", ["get", "dim"], 1], faded, full];
 
   // ---------- re-knock route rendering ----------
   const emptyFC = () => ({ type: "FeatureCollection", features: [] });
@@ -422,10 +463,11 @@
     bindKnockSheet();
     bindLeadSheet();
     $("#fab-locate").addEventListener("click", locate);
-    $("#fab-knock").addEventListener("click", () => {
-      if (!map) return;
-      const c = map.getCenter();
-      startKnock(c.lat, c.lng);
+    // the legend teaches, then retires — tap it once and it stays gone
+    $("#map-legend").addEventListener("click", () => {
+      STORE.settings.mapLegendHidden = true;
+      STORE.saveSettings();
+      updateHint();
     });
     // signal returning is the moment to fetch a session and light imagery up
     addEventListener("online", () => reloadImagery());
@@ -450,12 +492,20 @@
     map.on("style.load", () => {
       registerPinImages();
       addHoodLayers();
-      map.addSource("pins", { type: "geojson", data: pinsGeoJSON() });
+      // Clustered source: a full territory import can drop thousands of
+      // doors at once — street level shows every pin, zoomed out they
+      // collapse into count bubbles so the map never turns to soup.
+      map.addSource("pins", {
+        type: "geojson", data: pinsGeoJSON(),
+        cluster: true, clusterMaxZoom: 14, clusterRadius: 46,
+      });
+      const single = ["!", ["has", "point_count"]];
       // soft contact shadow at the pin's tip so it floats on any ground
       map.addLayer({
         id: "pins-shadow",
         type: "circle",
         source: "pins",
+        filter: single,
         paint: {
           "circle-color": "rgba(0,0,0,.35)",
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 14, 4.5, 17, 7],
@@ -467,7 +517,7 @@
         id: "pins-selected",
         type: "circle",
         source: "pins",
-        filter: ["==", ["get", "id"], ""],
+        filter: ["all", single, ["==", ["get", "id"], ""]],
         paint: {
           "circle-color": "rgba(94,160,255,.18)",
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 7, 14, 11, 17, 15],
@@ -475,10 +525,25 @@
           "circle-stroke-color": "#5EA0FF",
         },
       });
+      // a due callback pulses: purple ring under the pin says "go NOW"
+      map.addLayer({
+        id: "pins-cbdue",
+        type: "circle",
+        source: "pins",
+        filter: ["all", single, ["==", ["get", "cbdue"], 1]],
+        paint: {
+          "circle-color": "rgba(124,92,252,.16)",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 8, 16, 13, 18, 17],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#7C5CFC",
+          "circle-stroke-opacity": 0.85,
+        },
+      });
       map.addLayer({
         id: "pins-icon",
         type: "symbol",
         source: "pins",
+        filter: single,
         layout: {
           "icon-image": ["concat", "pin-", ["get", "disposition"]],
           "icon-size": PIN_ICON_SIZE,
@@ -487,7 +552,29 @@
           "icon-ignore-placement": true,
         },
       });
+      // cluster bubbles: the brand tile with a count
+      map.addLayer({
+        id: "pins-clusters", type: "circle", source: "pins",
+        filter: ["has", "point_count"],
+        paint: {
+          "circle-color": "#1B1C1E",
+          "circle-radius": ["step", ["get", "point_count"], 14, 25, 18, 100, 23, 500, 28],
+          "circle-stroke-width": 2.5, "circle-stroke-color": "#FFFFFF",
+          "circle-opacity": 0.92,
+        },
+      });
+      map.addLayer({
+        id: "pins-cluster-n", type: "symbol", source: "pins",
+        filter: ["has", "point_count"],
+        layout: {
+          "text-field": ["get", "point_count_abbreviated"],
+          "text-font": ["Noto Sans Bold"], "text-size": 12,
+          "text-allow-overlap": true,
+        },
+        paint: { "text-color": "#FFFFFF" },
+      });
       addRouteLayers();
+      addHoodLabelLayer();
       refreshPins();
       refreshHoods();
       reloadImagery();
@@ -502,6 +589,22 @@
       // silently creating a duplicate door
       const T = 16;
       const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
+      // a cluster bubble zooms in — it must never read as an empty spot
+      const clusters = map.getLayer("pins-clusters")
+        ? map.queryRenderedFeatures(bbox, { layers: ["pins-clusters"] })
+        : [];
+      if (clusters.length) {
+        const cid = clusters[0].properties.cluster_id;
+        const center = clusters[0].geometry.coordinates;
+        const go = (z) => map.easeTo({
+          center, zoom: Math.min((z != null ? z : map.getZoom() + 2) + 0.3, 18),
+        });
+        try {
+          const r = map.getSource("pins").getClusterExpansionZoom(cid, (err, z) => { if (!err) go(z); });
+          if (r && typeof r.then === "function") r.then(go).catch(() => go());
+        } catch (_) { go(); }
+        return;
+      }
       const hits = map.getLayer("pins-icon")
         ? map.queryRenderedFeatures(bbox, { layers: ["pins-icon"] })
         : [];
@@ -542,7 +645,7 @@
   function updateHint() {
     const hasPins = STORE.pins.length > 0;
     $("#knock-hint").hidden = hasPins;
-    $("#map-legend").hidden = !hasPins || heatMode; // heat legend takes the slot
+    $("#map-legend").hidden = !hasPins || heatMode || !!STORE.settings.mapLegendHidden;
   }
 
   function updateBrandToday() {
@@ -564,7 +667,7 @@
     let hood = null;
     if (map) {
       const c = map.getCenter();
-      hood = STORE.territories.find((t) =>
+      hood = STORE.activeTerritories().find((t) =>
         t.points && t.points.length >= 3 && STORE.inHood(t, c.lng, c.lat)) || null;
     }
     if (!hood) {
@@ -589,7 +692,8 @@
   function setSelected(id) {
     selectedPinId = id || "";
     if (map && map.getLayer("pins-selected")) {
-      map.setFilter("pins-selected", ["==", ["get", "id"], selectedPinId]);
+      map.setFilter("pins-selected",
+        ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], selectedPinId]]);
     }
   }
 
@@ -602,7 +706,7 @@
       (pos) => {
         btn.classList.remove("armed");
         const { latitude, longitude } = pos.coords;
-        map.flyTo({ center: [longitude, latitude], zoom: Math.max(map.getZoom(), 16.5), essential: true });
+        map.flyTo({ center: [longitude, latitude], zoom: Math.max(map.getZoom(), 16.5) });
         if (!puck) {
           const el = document.createElement("div");
           el.style.cssText =
@@ -734,8 +838,10 @@
     $("#knock-cancel").addEventListener("click", () => { clearTemp(); closeSheet(); });
   }
 
+  let savingKnock = false; // an impatient double-tap must not log two knocks
   async function saveKnock() {
-    if (!knock || !knock.disposition) return;
+    if (!knock || !knock.disposition || savingKnock) return;
+    savingKnock = true;
     const note = $("#knock-note").value.trim();
     let pin;
     try {
@@ -746,9 +852,11 @@
         callbackAt: knock.callbackAt,
       });
     } catch (err) {
+      savingKnock = false;
       toast("Couldn't save — storage may be full. Try again.");
       return; // sheet stays open; nothing is silently lost
     }
+    savingKnock = false;
     clearTemp();
     closeSheet();
     refreshPins();
@@ -794,15 +902,106 @@
     } catch (_) { /* offline or rate-limited — address stays editable by hand */ }
   }
 
-  // ---------- lead sheet ----------
+  // ---------- the property card ----------
+  // One sheet answers three questions in order: what happened here (RALLY
+  // history), what IS this place (property facts, only real fields), and
+  // have we ever done business here (customer history). The knock actions
+  // sit on top because at the door, speed beats reading.
+  const esc = (s) => MUI.esc(s);
+
+  function propFactRows(pin) {
+    const pr = pin.prop || {};
+    const rows = [];
+    const add = (k, v) => { if (v != null && v !== "") rows.push([k, v]); };
+    add("Type", pr.propertyType);
+    if (pr.owner) {
+      add("Owner", pr.owner.name);
+      // derived from comparing situs vs mailing address — an estimate,
+      // and labeled like one, never a licensed fact about the person
+      if (pr.owner.occupied === true) add("Owner occupied", "Likely");
+      else if (pr.owner.occupied === false) add("Owner occupied", "Mailing address differs");
+    }
+    add("Year built", pr.yearBuilt);
+    if (pr.sqft) add("Square feet", Number(pr.sqft).toLocaleString());
+    if (pr.lotSqft) {
+      add("Lot", pr.lotSqft >= 21780
+        ? (pr.lotSqft / 43560).toFixed(2) + " acres"
+        : Number(pr.lotSqft).toLocaleString() + " sq ft");
+    }
+    if (pr.lastSaleDate) {
+      add("Last sale", pr.lastSaleDate +
+        (pr.lastSalePrice ? " · $" + Number(pr.lastSalePrice).toLocaleString() : ""));
+    }
+    add("Parcel #", pr.parcelId);
+    return rows;
+  }
+
+  function renderPropFacts(pin) {
+    const rows = propFactRows(pin);
+    const sec = $("#prop-facts-sec");
+    sec.hidden = !rows.length;
+    if (!rows.length) return;
+    const srcNote = { regrid: "Parcel data: Regrid", osm: "Building data: © OpenStreetMap contributors", demo: "Demo door — sample data" }[(pin.prop || {}).source];
+    $("#prop-facts").innerHTML =
+      rows.map(([k, v]) => `<div class="pf-row"><span>${esc(k)}</span><b>${esc(String(v))}</b></div>`).join("") +
+      (srcNote ? `<div class="pf-src">${esc(srcNote)}</div>` : "");
+  }
+
+  function renderCrm(pin) {
+    const m = window.MCRM ? MCRM.findByPin(pin) : null;
+    const el = $("#prop-crm");
+    if (!m) {
+      el.innerHTML = `<div class="crm-none">No customer history at this address</div>`;
+      return;
+    }
+    el.innerHTML =
+      `<button class="crm-card" data-cid="${m.id}" type="button">
+         <div class="crm-top"><b>${esc(m.name)}</b>
+           <span class="stage-tag" style="color:${m.stageChip};border-color:${m.stageChip}">${esc(m.stage)}</span></div>
+         <div class="dim">${esc(m.plan)} plan${m.signedAt ? " · signed " + MUI.fmtDate(m.signedAt) : ""}${m.soldBy ? " · by " + esc(m.soldBy) : ""}</div>
+         ${m.lastServiced ? `<div class="dim">Last serviced ${MUI.fmtDate(m.lastServiced)}</div>` : ""}
+         ${m.nextService ? `<div class="dim">Next service ${MUI.fmtDate(m.nextService)} ${MUI.fmtTime(m.nextService)}</div>` : ""}
+         <span class="crm-open">Open customer ›</span>
+       </button>`;
+    const btn = el.querySelector(".crm-card");
+    if (btn) btn.addEventListener("click", () => {
+      closeSheet(); setSelected("");
+      if (window.MCUST) MCUST.open(btn.dataset.cid);
+    });
+  }
+
+  function renderRallyHistory(pin) {
+    // who knocked last comes from the event log (events carry repId)
+    const evs = STORE.events.filter((e) => e.pinId === pin.id);
+    const last = evs[evs.length - 1];
+    const lastRep = last && last.repId && STORE.userById(last.repId);
+    const n = (pin.history || []).length;
+    $("#prop-knockmeta").textContent = n
+      ? `${n} knock${n === 1 ? "" : "s"} · last ${MUI.fmtAgo(pin.updatedAt)}${lastRep ? " by " + lastRep.name : ""}`
+      : "never knocked";
+    const hist = $("#lead-history");
+    hist.innerHTML = (pin.history || []).slice().reverse().map((h) =>
+      `<div class="h-item"><span class="sw ${h.disposition}"></span>` +
+      `<span>${(D[h.disposition] || D.unworked).label}${h.reason ? " — " + esc(h.reason) : ""}${h.dm ? " · DM" : ""}` +
+      `${h.note ? `<span style="color:var(--t3)"> · “${esc(h.note)}”</span>` : ""}</span>` +
+      `<time>${MUI.fmtAgo(h.ts)}</time></div>`
+    ).join("") || `<div class="hood-empty">Fresh door — no attempts yet</div>`;
+    // notes: event-shaped, author + time; the legacy single note shows too
+    const notes = [...(pin.notes || [])];
+    if (pin.note) notes.unshift({ ts: pin.createdAt, name: "", text: pin.note });
+    $("#prop-notes").innerHTML = notes.slice().reverse().map((nt) =>
+      `<div class="note-item">“${esc(nt.text)}”<span class="nt-meta">${nt.name ? esc(nt.name) + " · " : ""}${MUI.fmtAgo(nt.ts)}</span></div>`
+    ).join("");
+  }
+
   function openLead(pin) {
     currentLead = pin;
     setSelected(pin.id);
     $("#lead-addr").textContent = pin.address || "Address pending…";
     $("#lead-coords").textContent = pin.lat.toFixed(5) + ", " + pin.lng.toFixed(5);
-    const d = D[pin.disposition];
+    const d = D[pin.disposition] || D.unworked;
     $("#lead-badge").innerHTML =
-      `<span class="sw ${pin.disposition}"></span>${d.label}${pin.reason ? " · " + pin.reason : ""}${pin.dm ? " · DM ✓" : ""}`;
+      `<span class="sw ${pin.disposition}"></span>${d.label}${pin.reason ? " · " + esc(pin.reason) : ""}${pin.dm ? " · DM ✓" : ""}`;
     const cb = $("#lead-cb");
     cb.hidden = !pin.callbackAt;
     if (pin.callbackAt) {
@@ -816,16 +1015,16 @@
     if (opp.score) {
       oppEl.innerHTML =
         `<span class="opp-n num">${opp.score}</span>
-         <span class="opp-why">${opp.why.map((w) => MUI.esc(w)).join(" · ")}</span>`;
+         <span class="opp-why">${opp.why.map((w) => esc(w)).join(" · ")}</span>`;
     }
-    const hist = $("#lead-history");
-    hist.innerHTML = pin.history.slice().reverse().map((h) =>
-      `<div class="h-item"><span class="sw ${h.disposition}"></span>` +
-      `<span>${D[h.disposition].label}${h.reason ? " — " + h.reason : ""}${h.dm ? " · DM" : ""}` +
-      `${h.note ? `<span style="color:var(--t3)"> · “${MUI.esc(h.note)}”</span>` : ""}</span>` +
-      `<time>${MUI.fmtAgo(h.ts)}</time></div>`
-    ).join("");
-    $("#lead-note-in").value = pin.note || "";
+    // reset the quick-action reveals
+    $("#prop-cbchips").hidden = true;
+    $("#prop-nqchips").hidden = true;
+    $$("#prop-quick .pq").forEach((b) => b.classList.remove("sel"));
+    renderPropFacts(pin);
+    renderRallyHistory(pin);
+    renderCrm(pin);
+    $("#lead-note-in").value = "";
     $("#lead-addr-in").value = pin.address || "";
     const sold = pin.disposition === "sold";
     const hasAgreement = STORE.customers.some((c) => c.pinId === pin.id);
@@ -836,7 +1035,92 @@
     openSheet("lead-sheet");
   }
 
+  // ---------- quick knock actions on the property card ----------
+  // NOT HOME and NO save on the tap. CALLBACK reveals time chips.
+  // NOT QUALIFIED reveals an optional reason. SOLD runs the sale flow.
+  let savingQuick = false;
+  async function quickKnock(disposition, { reason, callbackAt } = {}) {
+    const p = currentLead;
+    if (!p || savingQuick) return;
+    savingQuick = true;
+    let pin;
+    try {
+      pin = await STORE.addKnock({
+        pinId: p.id, lat: p.lat, lng: p.lng,
+        disposition, reason: reason || null,
+        dm: disposition === "sold", note: "", callbackAt: callbackAt || null,
+      });
+    } catch (_) {
+      savingQuick = false;
+      toast("Couldn't save — storage may be full. Try again.");
+      return;
+    }
+    savingQuick = false;
+    refreshPins();
+    if (window.MSTAT) MSTAT.render();
+    if (disposition === "sold") {
+      closeSheet(); setSelected("");
+      if (window.MCUST) MCUST.startForPin(pin);
+      return;
+    }
+    if (disposition === "goback" && pin.callbackAt) {
+      toast(`Callback set — ${MUI.fmtDate(pin.callbackAt)} ${MUI.fmtTime(pin.callbackAt)}`);
+    } else {
+      toast(D[disposition].label + " logged");
+    }
+    openLead(pin); // card refreshes in place — status, history, meta
+  }
+
+  function bindQuickActions() {
+    $$("#prop-quick .pq").forEach((b) =>
+      b.addEventListener("click", () => {
+        tick();
+        const q = b.dataset.q;
+        if (q === "nothome" || q === "notint") { quickKnock(q); return; }
+        if (q === "sold") { quickKnock("sold"); return; }
+        if (q === "goback") {
+          const w = $("#prop-cbchips");
+          w.hidden = !w.hidden;
+          $("#prop-nqchips").hidden = true;
+          $$("#prop-quick .pq").forEach((x) => x.classList.toggle("sel", x === b && !w.hidden));
+          return;
+        }
+        if (q === "dnk") {
+          const w = $("#prop-nqchips");
+          if (w.hidden) {
+            w.innerHTML = ["No reason", ...MDATA.DNK_REASONS].map((r) =>
+              `<button type="button" class="reason nq-chip" data-r="${esc(r)}">${esc(r)}</button>`).join("");
+            $$("#prop-nqchips .nq-chip").forEach((c) =>
+              c.addEventListener("click", () => {
+                tick();
+                quickKnock("dnk", { reason: c.dataset.r === "No reason" ? null : c.dataset.r });
+              }));
+          }
+          w.hidden = !w.hidden;
+          $("#prop-cbchips").hidden = true;
+          $$("#prop-quick .pq").forEach((x) => x.classList.toggle("sel", x === b && !w.hidden));
+        }
+      }));
+    $$("#prop-cbchips .pcb").forEach((c) =>
+      c.addEventListener("click", () => {
+        tick();
+        const k = c.dataset.cb;
+        if (k === "custom") {
+          const inp = $("#prop-cb-custom");
+          inp.hidden = false;
+          if (!inp.value) inp.value = MUI.toLocalInput(cbTime("evening"));
+          return;
+        }
+        quickKnock("goback", { callbackAt: cbTime(k) });
+      }));
+    $("#prop-cb-custom").addEventListener("change", (e) => {
+      const ts = new Date(e.target.value).getTime();
+      if (!isNaN(ts)) quickKnock("goback", { callbackAt: ts });
+    });
+  }
+
   function bindLeadSheet() {
+    bindQuickActions();
     $("#lead-nav").addEventListener("click", () => {
       const p = currentLead; if (!p) return;
       window.open(MUI.navUrl(p.lat, p.lng, p.address), "_blank", "noopener");
@@ -850,10 +1134,14 @@
     });
     $("#lead-save").addEventListener("click", async () => {
       const p = currentLead; if (!p) return;
-      p.note = $("#lead-note-in").value.trim();
+      const noteText = $("#lead-note-in").value.trim();
       p.address = $("#lead-addr-in").value.trim();
-      await STORE.updatePin(p);
-      toast("Saved");
+      try {
+        await STORE.updatePin(p);
+        // notes are event-shaped now: author + timestamp, appended, never overwritten
+        if (noteText) await STORE.addNote(p, noteText);
+      } catch (_) { toast("Couldn't save — try again"); return; }
+      toast(noteText ? "Note added" : "Saved");
       closeSheet(); setSelected("");
     });
     $("#lead-delete").addEventListener("click", async () => {
@@ -874,7 +1162,11 @@
     if (!p) return;
     if (map) {
       map.resize();
-      map.flyTo({ center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 17.5), essential: true });
+      map.flyTo({
+        center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 17.5),
+        // the property card covers ~2/3 of the screen — put the pin in the strip above it
+        offset: [0, -Math.round(innerHeight * 0.22)],
+      });
     }
     openLead(p);
   }

@@ -56,7 +56,7 @@
       `<button type="button" class="reason st-chip${x.name === street ? " sel" : ""}" data-s="${esc(x.name)}">
          ${esc(x.name)} <b class="num">${x.doors.length}</b></button>`).join("");
 
-    const F = [["all", "All"], ["nothome", "Not home"], ["cb", "Callbacks"], ["odd", "Odd"], ["even", "Even"]];
+    const F = [["all", "All"], ["unworked", "Untouched"], ["nothome", "Not home"], ["cb", "Callbacks"], ["odd", "Odd"], ["even", "Even"]];
     $("#street-filters").innerHTML = F.map(([id, label]) =>
       `<button type="button" class="reason sf-chip${filter === id ? " sel" : ""}" data-f="${id}">${label}</button>`).join("");
 

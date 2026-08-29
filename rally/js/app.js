@@ -152,6 +152,12 @@
       : (s.googleLastError ||
          (anyKey ? "Checking with Google…"
                  : "No key — imagery is off on this device"));
+    $("#more-prop-sub").textContent = (() => {
+      const n = MPROP.activeName();
+      const src = MPROP.providerName(n);
+      const doors = STORE.pins.filter((p) => p.disposition === "unworked").length;
+      return src + (doors ? ` · ${doors} unworked doors on the map` : " · doors import when you draw a territory");
+    })();
     const bv = $("#more-build");
     if (bv) bv.textContent = "Build " + (window.RALLY_BUILD || "?");
     $("#more-lock-sub").textContent = MAUTH.hasAccount()
@@ -313,7 +319,7 @@
       if (STORE.settings.googleKey || MDATA.DEFAULT_GOOGLE_KEY) toast("Checking with Google…", 9000);
       const upgraded = window.MMAP ? await MMAP.reloadImagery() : false;
       if (upgraded) {
-        toast("Google imagery is on — check Satellite or Hybrid");
+        toast("Google imagery is on");
       } else if (STORE.settings.googleKey) {
         // show Google's own words, and keep them on screen long enough to read
         const why = (window.MMAP && MMAP.googleError()) || "Google didn't accept the key";
@@ -324,6 +330,26 @@
       } else {
         toast(MDATA.DEFAULT_GOOGLE_KEY ? "Back on the office key" : "Key removed — imagery is off");
       }
+    });
+
+    $("#more-prop").addEventListener("click", () => {
+      const sel = STORE.settings.propertySource || "auto";
+      $$("#pd-source .pd-chip").forEach((b) => b.classList.toggle("sel", b.dataset.s === sel));
+      $("#pd-regrid-key").value = STORE.settings.regridKey || "";
+      openSheet("prop-data-sheet");
+    });
+    $$("#pd-source .pd-chip").forEach((b) =>
+      b.addEventListener("click", () => {
+        MUI.tick();
+        $$("#pd-source .pd-chip").forEach((x) => x.classList.toggle("sel", x === b));
+      }));
+    $("#pd-save").addEventListener("click", async () => {
+      const sel = $$("#pd-source .pd-chip").find((b) => b.classList.contains("sel"));
+      STORE.settings.propertySource = sel ? sel.dataset.s : "auto";
+      STORE.settings.regridKey = $("#pd-regrid-key").value.trim();
+      await STORE.saveSettings();
+      renderMore(); closeSheet();
+      toast("Property data: " + MPROP.providerName(MPROP.activeName()));
     });
 
     $("#more-lock").addEventListener("click", () => {

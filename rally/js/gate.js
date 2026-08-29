@@ -86,13 +86,18 @@
   }
 
   function showGate() {
-    setMode(MAUTH.hasAccount() ? "signin" : "signup");
+    // Sign in is ALWAYS the front door — on a claimed device and on a brand
+    // new one alike. A rep opening RALLY sees the same screen every single
+    // time, which is the whole point of a lock screen. Creating an account
+    // is one tap underneath (and disappears once the device is claimed).
+    setMode("signin");
     el["gate-pass"].value = "";
     remember = !!MAUTH.emailOnFile();
     el["gate-remember"].setAttribute("aria-checked", String(remember));
     el.gate.hidden = false;
     requestAnimationFrame(() => {
-      const first = MAUTH.hasAccount() ? el["gate-pass"] : el["gate-name"];
+      // land on the first field that still needs typing
+      const first = el["gate-email"].value ? el["gate-pass"] : el["gate-email"];
       try { first.focus({ preventScroll: true }); } catch (_) {}
     });
   }
@@ -170,9 +175,8 @@
     try {
       if (canHash) {
         await MAUTH.load();
-        // load() always leaves the device locked, so this is simply
-        // "does this device have a lock at all" — a fresh one gets the
-        // create-account screen, a claimed one the sign-in screen.
+        // load() always leaves the device locked, so every launch lands on
+        // the sign-in screen regardless of whether this device is claimed.
         gated = true;
       }
     } catch (_) { gated = false; }

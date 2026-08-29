@@ -131,7 +131,7 @@
   }
 
   async function signIn(email, password, remember) {
-    if (!account) throw new Error("No account on this device yet — create one");
+    if (!account) throw new Error("No account on this device yet — tap Sign up to create one");
     const waitMs = lockRemainingMs();
     if (waitMs > 0) {
       const s = Math.ceil(waitMs / 1000);

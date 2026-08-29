@@ -3,16 +3,16 @@
   const { $, $$, openSheet, closeSheet, toast, fmtMoney, esc } = MUI;
 
   // ---------- tabs ----------
-  // Five in the bar (Home · Customers · Map · Schedule · More);
-  // "guide" lives behind More, "rank" behind Home — each with a back button.
-  const TABS = ["home", "customers", "map", "schedule", "more"];
-  const SCREENS = [...TABS, "guide", "rank"];
+  // Five in the bar (Customers · Map · Route · Leaderboard · More);
+  // "guide" and "home" live behind More, each with a back button.
+  const TABS = ["customers", "map", "schedule", "rank", "more"];
+  const SCREENS = [...TABS, "guide", "home"];
   function show(name) {
-    if (!SCREENS.includes(name)) name = "home";
+    if (!SCREENS.includes(name)) name = "customers";
     SCREENS.forEach((s) => $("#screen-" + s).classList.toggle("active", s === name));
     TABS.forEach((s) =>
       $("#tab-" + s).classList.toggle("active",
-        s === name || (name === "guide" && s === "more") || (name === "rank" && s === "home")));
+        s === name || ((name === "guide" || name === "home") && s === "more")));
     if (name === "home") MHOME.render();
     if (name === "customers") MCUST.renderList();
     if (name === "schedule") MSCHED.render();
@@ -131,6 +131,10 @@
 
   // ---------- more ----------
   function renderMore() {
+    const ofc = $("#mb-office-sub");
+    if (ofc) ofc.textContent = STORE.settings.officeName
+      ? "Knocking in " + STORE.settings.officeName
+      : "Where you're knocking";
     const s = STORE.settings;
     $("#more-company-sub").textContent = s.companyName
       ? s.companyName + (s.companyLicense ? " · lic. " + s.companyLicense : "")
@@ -453,7 +457,22 @@
         rankView = b.dataset.v;
         renderRankScreen();
       }));
-    $("#rank-back").addEventListener("click", () => show("home"));
+    $("#home-back").addEventListener("click", () => show("more"));
+    // More bubbles: Home, the full-filter book, and the office you're in
+    $("#mb-home").addEventListener("click", () => { MUI.tick(); show("home"); });
+    $("#mb-customers").addEventListener("click", () => { MUI.tick(); MCUST.openAdvanced(); });
+    $("#mb-office").addEventListener("click", () => {
+      MUI.tick();
+      $("#of-name").value = STORE.settings.officeName || "";
+      openSheet("office-sheet");
+    });
+    $("#of-save").addEventListener("click", async () => {
+      STORE.settings.officeName = $("#of-name").value.trim();
+      await STORE.saveSettings();
+      closeSheet();
+      renderMore();
+      toast(STORE.settings.officeName ? "Office: " + STORE.settings.officeName : "Office cleared");
+    });
     MCUST.bind();
     MSCHED.bind();
     MHOODS.bind();
@@ -463,10 +482,10 @@
     bindMore();
     MVAULT.guard(); // ask the browser to never evict the vault
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }
-    MHOME.render();
     renderGuide("");
     renderMore();
     window.MAPP = { show };
+    show("customers"); // Customers is the front tab now; Home lives in More
 
     // keep a focused input visible above the on-screen keyboard inside sheets
     document.addEventListener("focusin", (e) => {

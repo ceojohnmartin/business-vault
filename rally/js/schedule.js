@@ -1,7 +1,8 @@
-/* RALLY — schedule: every service appointment across the book, grouped by
-   day, with the not-yet-scheduled customers surfaced on top so nobody
-   falls through the cracks. Marking a visit Serviced is what turns the
-   customer's status line green everywhere. */
+/* RALLY — Route: the day's runs, FieldRoutes-style. Within each day the
+   visits group by TECH — each tech's lane shows who's booked, where, and
+   the time window — with the not-yet-scheduled customers surfaced on top
+   so nobody falls through the cracks. Marking a visit Serviced is what
+   turns the customer's status line green everywhere. */
 (function () {
   const { $, $$, openSheet, closeSheet, toast, tick, esc } = MUI;
 
@@ -66,33 +67,65 @@
       (!["done", "noshow"].includes(x.ap.status) || (x.ap.doneAt || x.ap.ts) >= cutoff));
 
     if (!visible.length && !unscheduled.length && !callbacks.length) {
-      wrap.innerHTML = `<div class="empty"><div class="ic">📅</div>Nothing on the calendar yet.<br>Close a customer and the initial service lands here.</div>`;
+      wrap.innerHTML = `<div class="empty plain">Nothing on the route yet.</div>`;
       return;
     }
-    let lastKey = "";
-    visible.forEach(({ ap, cust }) => {
-      const key = MUI.dayKey(ap.ts);
-      if (key !== lastKey) {
-        html += `<div class="sched-day">${dayLabel(ap.ts)}</div>`;
-        lastKey = key;
-      }
-      const done = ap.status === "done";
-      const who = ap.userId && STORE.userById(ap.userId);
-      const stChip =
-        done ? `<span class="sr-st ok">Serviced ✓</span>` :
-        ap.status === "noshow" ? `<span class="sr-st bad">No-show</span>` :
-        ap.status === "confirmed" ? `<span class="sr-st ok">Confirmed</span>` :
-        `<span class="sr-st">Scheduled</span>`;
-      html += `<button class="sched-row${done ? " done" : ""}" data-cid="${cust.id}" data-ap="${ap.id}" type="button">
-        <span class="sr-time num">${MUI.fmtTime(ap.ts)}</span>
-        <span class="sr-body">
-          <b>${esc(STORE.custName(cust))}</b>
-          <span class="dim">${esc(STORE.custAddress(cust)) || "No address"}</span>
-          <span class="dim">${esc(STORE.custPlanName(cust))} · ${ap.type === "initial" ? "Initial service" : "Regular service"}${who ? ` · <span style="color:${who.color}">●</span> ${esc(who.name)}` : ""}</span>
-        </span>
-        ${stChip}
-      </button>`;
+    // days → tech lanes → stops. A visit books a window, not a minute:
+    // show start–end (default 45 min) the way the office quotes it.
+    const windowOf = (ap) => {
+      const mins = ap.durationMin || 45;
+      return `${MUI.fmtTime(ap.ts)}–${MUI.fmtTime(ap.ts + mins * 60e3)}`;
+    };
+    const byDay = new Map();
+    visible.forEach((x) => {
+      const k = MUI.dayKey(x.ap.ts);
+      if (!byDay.has(k)) byDay.set(k, []);
+      byDay.get(k).push(x);
     });
+    for (const [, items] of byDay) {
+      html += `<div class="sched-day">${dayLabel(items[0].ap.ts)}</div>`;
+      const lanes = new Map(); // techId -> visits
+      items.forEach((x) => {
+        const k = x.ap.userId || "";
+        if (!lanes.has(k)) lanes.set(k, []);
+        lanes.get(k).push(x);
+      });
+      // named techs first (by name), the unassigned bucket last
+      const order = [...lanes.keys()].sort((a, b) => {
+        if (!a) return 1;
+        if (!b) return -1;
+        const ua = STORE.userById(a), ub = STORE.userById(b);
+        return String(ua && ua.name).localeCompare(String(ub && ub.name));
+      });
+      for (const techId of order) {
+        const stops = lanes.get(techId).sort((a, b) => a.ap.ts - b.ap.ts);
+        const tech = techId && STORE.userById(techId);
+        const doneN = stops.filter((x) => x.ap.status === "done").length;
+        const span = `${MUI.fmtTime(stops[0].ap.ts)} – ${MUI.fmtTime(stops[stops.length - 1].ap.ts)}`;
+        html += `<div class="tech-lane">
+          <span class="tl-dot" style="background:${tech ? tech.color : "var(--t3)"}"></span>
+          <b>${tech ? esc(tech.name) : "Unassigned"}</b>
+          <span class="dim">${stops.length} stop${stops.length === 1 ? "" : "s"} · ${span}${doneN ? ` · ${doneN} done` : ""}</span>
+        </div>`;
+        stops.forEach(({ ap, cust }) => {
+          const done = ap.status === "done";
+          const stChip =
+            done ? `<span class="sr-st ok">Serviced ✓</span>` :
+            ap.status === "noshow" ? `<span class="sr-st bad">No-show</span>` :
+            ap.status === "confirmed" ? `<span class="sr-st ok">Confirmed</span>` :
+            `<span class="sr-st">Scheduled</span>`;
+          html += `<button class="sched-row lane${done ? " done" : ""}" data-cid="${cust.id}" data-ap="${ap.id}" type="button">
+            <span class="sr-time num">${windowOf(ap)}</span>
+            <span class="sr-body">
+              <b>${esc(STORE.custName(cust))}</b>
+              <span class="dim">${esc(STORE.custAddress(cust)) || "No address"}</span>
+              <span class="dim">${esc(STORE.custPlanName(cust))} · ${ap.type === "initial" ? "Initial service" : "Regular service"}</span>
+            </span>
+            ${stChip}
+          </button>`;
+        });
+      }
+    }
 
     wrap.innerHTML = html;
 

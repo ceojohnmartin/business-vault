@@ -48,14 +48,21 @@
 
   function pricing(c) {
     const p = planFor(c);
-    const initial = (c.plan && c.plan.initial != null) ? c.plan.initial : p.initial;
-    const monthly = (c.plan && c.plan.monthly != null) ? c.plan.monthly : p.monthly;
+    const specI = (c.specialty || []).reduce((t, sv) => t + (Number(sv.initial) || 0), 0);
+    const specM = (c.specialty || []).reduce((t, sv) => t + (Number(sv.monthly) || 0), 0);
+    const initial = ((c.plan && c.plan.initial != null) ? c.plan.initial : p.initial) + specI;
+    const monthly = ((c.plan && c.plan.monthly != null) ? c.plan.monthly : p.monthly) + specM;
     // a rep may quote above list; the printed arithmetic must always add
     // up (list − discount = amount due), so list floats up to the quote
-    const list = Math.max(p.listInitial, initial);
+    const list = Math.max((p.listInitial || p.initial) + specI, initial);
     const discount = Math.max(0, list - initial);
     const etf = Math.min(discount, A.etfCap);
-    return { p, initial, monthly, list, discount, etf };
+    // the term is the customer's, 24 by default; a signed agreement's term
+    // is frozen at signing and never drifts with today's defaults
+    const term = (c.agreement && c.agreement.termMonths) || c.termMonths || MDATA.DEFAULT_TERM;
+    const bill = MDATA.BILLING.find((b) => b.id === c.billing) || MDATA.BILLING[0];
+    const perCharge = monthly * bill.mult;
+    return { p, initial, monthly, list, discount, etf, term, bill, perCharge, specI, specM };
   }
 
   function addrLine(c) {
@@ -65,7 +72,7 @@
   // ---------- the agreement body ----------
   function bodyHTML(c, sigDataUrl) {
     const C = co();
-    const { p, initial, monthly, list, discount, etf } = pricing(c);
+    const { p, initial, monthly, list, discount, etf, term, bill, perCharge } = pricing(c);
     const name = STORE.custName(c);
     const signedTs = (c.agreement && c.agreement.signedAt) ? new Date(c.agreement.signedAt).getTime() : Date.now();
     const today = new Date(signedTs);
@@ -115,10 +122,10 @@
           <tr><td>Initial service (standard price)</td><td class="r">${fmtMoney(list)}</td></tr>
           <tr class="disc"><td>Initial service discount</td><td class="r">−${fmtMoney(discount)}</td></tr>
           <tr class="tot"><td>Initial service — due at first treatment</td><td class="r">${fmtMoney(initial)}</td></tr>
-          <tr class="tot"><td>Recurring charge (billed monthly)</td><td class="r">${fmtMoney(monthly)}/mo</td></tr>
+          <tr class="tot"><td>Recurring charge (billed ${bill.id === "monthly" ? "monthly" : fmtMoney(perCharge) + " every " + bill.every})</td><td class="r">${fmtMoney(monthly)}/mo</td></tr>
         </table>
         <div class="doc-box-key">
-          <b>Initial term: ${A.termMonths} months.</b> After that this Agreement continues
+          <b>Initial term: ${term} months.</b> After that this Agreement continues
           <b>month-to-month</b> — either party may end it with ${A.renewNoticeDays} days' written notice.
           <b>If you cancel during the initial term</b>, you repay the initial-service discount you
           received, up to a maximum of ${fmtMoney(A.etfCap)} (${fmtMoney(etf)} at the pricing above).
@@ -127,11 +134,11 @@
       </div>
 
       <ol class="doc-sections">
-        <li><b>Term; automatic renewal.</b> The initial term of this Agreement is ${A.termMonths} months from the date above. Upon expiration of the initial term, this Agreement automatically renews on a <b>month-to-month</b> basis. Either party may cancel the renewal at any time with at least ${A.renewNoticeDays} days' written notice (mail, email, or any written form). This Agreement never renews for another fixed term without your new, affirmative consent.</li>
+        <li><b>Term; automatic renewal.</b> The initial term of this Agreement is ${term} months from the date above. Upon expiration of the initial term, this Agreement automatically renews on a <b>month-to-month</b> basis. Either party may cancel the renewal at any time with at least ${A.renewNoticeDays} days' written notice (mail, email, or any written form). This Agreement never renews for another fixed term without your new, affirmative consent.</li>
 
         <li><b>Services; frequency; re-service guarantee.</b> Company will perform the treatments described for the ${esc(p.name)} plan: ${esc(p.services)} Covered pests: ${esc(p.covered)}. If covered pests persist or return <b>between</b> scheduled treatments, Company will return and re-treat at <b>no additional charge</b>, as many times as reasonably necessary — just call, text or email. Interior service is provided on request at any scheduled visit.</li>
 
-        <li><b>Billing; recurring payment authorization.</b> The recurring charge above is billed monthly and covers the full plan of service across the year, including re-services. By signing, Customer authorizes Company to charge the payment method on file for the initial service and each recurring charge when due${(c.payment && c.payment.autopay === false) ? " only after Customer enrolls in autopay; otherwise Company will invoice each charge" : ""}. This authorization remains in effect until Customer revokes it in writing and Company has had a reasonable opportunity (not exceeding 15 days) to act. A returned or failed payment may be re-presented and may incur a returned-payment fee of $25 where permitted by law. Company will give at least 10 days' notice before any charge that differs in amount or timing from this schedule. Customer may always pay by an alternative method on request.</li>
+        <li><b>Billing; recurring payment authorization.</b> The recurring charge above is billed ${bill.id === "monthly" ? "monthly" : "as " + fmtMoney(perCharge) + " every " + bill.every} and covers the full plan of service across the year, including re-services. By signing, Customer authorizes Company to charge the payment method on file for the initial service and each recurring charge when due${(c.payment && c.payment.autopay === false) ? " only after Customer enrolls in autopay; otherwise Company will invoice each charge" : ""}. This authorization remains in effect until Customer revokes it in writing and Company has had a reasonable opportunity (not exceeding 15 days) to act. A returned or failed payment may be re-presented and may incur a returned-payment fee of $25 where permitted by law. Company will give at least 10 days' notice before any charge that differs in amount or timing from this schedule. Customer may always pay by an alternative method on request.</li>
 
         <li><b>Early termination — discount recapture only.</b> If Customer cancels this Agreement during the initial term other than as permitted below, Customer repays the initial-service discount actually received, capped at ${fmtMoney(A.etfCap)} (${fmtMoney(etf)} under the pricing above). Payment of that amount is Company's <b>sole and exclusive remedy</b> for early termination — no other fee, penalty, or acceleration of remaining payments applies. The fee is <b>waived automatically</b> if: (a) Customer cancels within 3 business days of signing (see "Your right to cancel" below); (b) Company materially breaches this Agreement and does not cure within 10 days of written notice; (c) Customer moves outside Company's service area (proof of new address suffices); or (d) Customer cancels within ${A.priceExitDays} days after notice of a price increase under Section 5.</li>
 
@@ -190,7 +197,7 @@
           <div class="sig-cap">Company representative</div>
         </div>
       </div>
-      <div class="doc-term-restate"><b>This Agreement is for an initial period of ${A.termMonths} months.</b></div>
+      <div class="doc-term-restate"><b>This Agreement is for an initial period of ${term} months.</b></div>
 
       ${noc(1)}
       ${noc(2)}

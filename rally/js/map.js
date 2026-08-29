@@ -497,15 +497,36 @@
       // collapse into count bubbles so the map never turns to soup.
       map.addSource("pins", {
         type: "geojson", data: pinsGeoJSON(),
-        cluster: true, clusterMaxZoom: 14, clusterRadius: 46,
+        cluster: true, clusterMaxZoom: 15, clusterRadius: 54,
       });
       const single = ["!", ["has", "point_count"]];
+      // Imported inventory ("unworked") draws as a small flat dot until the
+      // rep is basically on the street — hundreds of full teardrops at
+      // neighborhood zoom is what made the map feel crowded. Worked doors
+      // keep their teardrops at every zoom: they're the story of the day.
+      const DOT_MAX_ZOOM = 16.5;
+      const isUnworked = ["==", ["get", "disposition"], "unworked"];
+      const notUnworked = ["!=", ["get", "disposition"], "unworked"];
+      map.addLayer({
+        id: "pins-dots",
+        type: "circle",
+        source: "pins",
+        maxzoom: DOT_MAX_ZOOM,
+        filter: ["all", single, isUnworked],
+        paint: {
+          "circle-color": "#2E86FF",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 2.5, 15, 4, 16.4, 5],
+          "circle-stroke-width": 1.25,
+          "circle-stroke-color": "#FFFFFF",
+          "circle-opacity": 0.85,
+        },
+      });
       // soft contact shadow at the pin's tip so it floats on any ground
       map.addLayer({
         id: "pins-shadow",
         type: "circle",
         source: "pins",
-        filter: single,
+        filter: ["all", single, notUnworked],
         paint: {
           "circle-color": "rgba(0,0,0,.35)",
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 14, 4.5, 17, 7],
@@ -543,7 +564,34 @@
         id: "pins-icon",
         type: "symbol",
         source: "pins",
-        filter: single,
+        filter: ["all", single, notUnworked],
+        layout: {
+          "icon-image": ["concat", "pin-", ["get", "disposition"]],
+          "icon-size": PIN_ICON_SIZE,
+          "icon-anchor": "bottom",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      });
+      map.addLayer({
+        id: "pins-shadow-unworked",
+        type: "circle",
+        source: "pins",
+        minzoom: DOT_MAX_ZOOM,
+        filter: ["all", single, isUnworked],
+        paint: {
+          "circle-color": "rgba(0,0,0,.35)",
+          "circle-radius": 7,
+          "circle-blur": 1.1,
+          "circle-translate": [1, 1],
+        },
+      });
+      map.addLayer({
+        id: "pins-icon-unworked",
+        type: "symbol",
+        source: "pins",
+        minzoom: DOT_MAX_ZOOM,
+        filter: ["all", single, isUnworked],
         layout: {
           "icon-image": ["concat", "pin-", ["get", "disposition"]],
           "icon-size": PIN_ICON_SIZE,
@@ -605,8 +653,10 @@
         } catch (_) { go(); }
         return;
       }
-      const hits = map.getLayer("pins-icon")
-        ? map.queryRenderedFeatures(bbox, { layers: ["pins-icon"] })
+      const hitLayers = ["pins-icon", "pins-icon-unworked", "pins-dots"]
+        .filter((l) => map.getLayer(l));
+      const hits = hitLayers.length
+        ? map.queryRenderedFeatures(bbox, { layers: hitLayers })
         : [];
       if (hits.length) {
         const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);

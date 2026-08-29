@@ -95,33 +95,99 @@
   const DM_HINT = "Homeowner or spouse with authority to sign. “Ask my spouse” = a convo, not a DM.";
 
   // ---------- service plans ----------
-  // Prices are FLOORS: the rep can quote up at the door, never below.
-  // listInitial is the undiscounted initial-service price printed on the
-  // agreement; the gap between it and what the rep charges is the "initial
-  // discount" — the early-cancellation fee recaptures that discount (capped),
-  // which is the defensible version of an exit fee.
+  // Every plan wears the same sticker: $450 initial, $99/mo — the rep
+  // discounts DOWN from there at the door, and the discount is the pitch.
+  // What differs per plan is the FLOOR (floorInitial/floorMonthly): the
+  // number an account can never actually go below. Floors are never shown
+  // to the customer; typing under one shows UNPROFITABLE instead.
+  // listInitial is the sticker printed on the agreement; the gap between
+  // it and the sold price is the "initial discount" the early-cancel fee
+  // recaptures (capped).
   const PLANS = [
-    { id: "basic",   name: "Basic",    monthly: 59, initial: 49, listInitial: 249,
+    { id: "basic",   name: "Basic",    monthly: 99, initial: 450, floorMonthly: 59, floorInitial: 49, listInitial: 450,
       visits: "4 visits / year",
       blurb: "Quarterly general pest defense",
       services: "Quarterly exterior treatment of the home's perimeter, eaves, and entry points; interior on request; full de-webbing each visit.",
       covered: "Ants, roaches (non-German), spiders, wasps, crickets, earwigs, silverfish, millipedes, centipedes, pantry pests, stink bugs" },
-    { id: "pro",     name: "Pro",      monthly: 69, initial: 49, listInitial: 249,
+    { id: "pro",     name: "Pro",      monthly: 99, initial: 450, floorMonthly: 69, floorInitial: 49, listInitial: 450,
       visits: "6 visits / year",
       blurb: "Bi-monthly general pest defense",
       services: "Every-other-month exterior treatment with barrier refresh, eave and entry-point service, and de-webbing; interior on request.",
       covered: "Ants, roaches (non-German), spiders, wasps, crickets, earwigs, silverfish, millipedes, centipedes, pantry pests, stink bugs" },
-    { id: "proplus", name: "Pro Plus", monthly: 79, initial: 49, listInitial: 299,
+    { id: "proplus", name: "Pro Plus", monthly: 99, initial: 450, floorMonthly: 79, floorInitial: 49, listInitial: 450,
       visits: "6 visits / year + rodent",
       blurb: "Bi-monthly general pest + rodent coverage",
       services: "Everything in Pro, plus exterior rodent bait stations installed and maintained every visit, rodent monitoring, and entry-point exclusion flagging.",
       covered: "All Pro pests, plus mice and rats (commensal rodents)" },
-    { id: "premium", name: "Premium",  monthly: 99, initial: 49, listInitial: 349,
+    { id: "premium", name: "Premium",  monthly: 99, initial: 450, floorMonthly: 99, floorInitial: 49, listInitial: 450,
       visits: "~10 visits / year",
       blurb: "Bi-monthly general + monthly mosquito in season",
       services: "Bi-monthly general pest treatment year-round, PLUS monthly mosquito treatments during mosquito season — barrier treatment of resting areas and larvicide at breeding sites. In season that's a visit every month.",
       covered: "All Pro pests, plus mosquitoes (in-season program)" },
   ];
+
+  // ---------- contract terms & billing ----------
+  const TERMS = [12, 18, 24, 36];          // months; custom allowed
+  const DEFAULT_TERM = 24;                 // every agreement starts here
+  const BILLING = [
+    { id: "monthly",   label: "Monthly",     every: "month",    mult: 1 },
+    { id: "bimonthly", label: "Bi-monthly",  every: "2 months", mult: 2 },
+    { id: "quarterly", label: "Quarterly",   every: "quarter",  mult: 3 },
+  ];
+
+  // ---------- specialty pest add-ons ----------
+  // base = what the card shows; floor = the quiet profitability line.
+  // Add-ons ride the same billing cycle as the plan. custom:true means
+  // the quote is written from scratch (bed bugs).
+  const SPECIALTY = [
+    { id: "german",     name: "German Roach Standard", blurb: "Eliminate German roaches with proven treatments",
+      initial: 249, monthly: 40,  floorInitial: 249, floorMonthly: 40 },
+    { id: "germanprem", name: "German Roach Premium",  blurb: "Our most advanced German roach elimination program",
+      initial: 249, monthly: 109, floorInitial: 249, floorMonthly: 109 },
+    { id: "mosquito",   name: "Mosquitoes",            blurb: "Seasonal mosquito control for your yard",
+      initial: 49,  monthly: 49,  floorInitial: 15,  floorMonthly: 49 },
+    { id: "rodent",     name: "Interior Rodents",      blurb: "Trapping, removal, and ongoing rodent protection",
+      initial: 49,  monthly: 49,  floorInitial: 19,  floorMonthly: 19 },
+    { id: "snake",      name: "Snake Protection",      blurb: "Yard snake prevention and maintenance",
+      initial: 49,  monthly: 49,  floorInitial: 19,  floorMonthly: 19 },
+    { id: "fly",        name: "Special Fly Control",   blurb: "Eliminate flies and breeding sources",
+      initial: 49,  monthly: 49,  floorInitial: 19,  floorMonthly: 19 },
+    { id: "bedbug",     name: "Bed Bug Service",       blurb: "Professional inspection to determine treatment plan and pricing",
+      initial: 0,   monthly: 0,   floorInitial: 0,   floorMonthly: 0, custom: true },
+  ];
+
+  // ---------- problem pests → forever-notes autotext ----------
+  // Tapping a pest chip lights it and drops its note into Forever Notes;
+  // untapping removes that exact text if it hasn't been edited.
+  const PEST_CHIPS = [
+    { id: "fireants",  label: "Fire Ants",
+      note: "Fire ants: fire ants in the front and back yard. Customer sees fire ant mounds occasionally." },
+    { id: "blackants", label: "Little Black Ants",
+      note: "Little black ants: customer primarily sees them in kitchen, bathroom, bedrooms. They're by the weep holes / cracks and crevices of the house." },
+    { id: "spiders",   label: "Spiders",
+      note: "Spiders: gets both big and small spiders. Gets them everywhere. Garage is heavy with spiders. Sees them in the rooms, inside, and heavy on the back patio area." },
+    { id: "roaches",   label: "Roaches",
+      note: "Roaches: sees the tree roaches / water roaches occasionally. Bathroom, by the back door, living room, sometimes kitchen and random spots." },
+    { id: "fleas",     label: "Fleas / Ticks",
+      note: "Fleas / ticks: customer has beautiful pets. They get fleas and ticks. Make sure to treat the full yard and double down on flea and tick products." },
+    { id: "wasps",     label: "Wasps",
+      note: "Wasps: they get wasps pretty heavy in the back and front of eaves. Tons of mud daubers and paper wasps. Make sure to remove all the wasps every time and treat with the pheromone blocker." },
+    { id: "earwigs",   label: "Earwigs",
+      note: "Earwigs: earwigs are a problem in the bathroom, kitchen. Sees them very often. Make sure to treat super thoroughly for earwigs." },
+    { id: "silverfish", label: "Silverfish",
+      note: "Silverfish: silverfish everywhere in bathroom, garage, kitchen. Leave silverfish traps, hit super hard on the silverfish and treat every time for them." },
+    { id: "flies",     label: "Flies",
+      note: "Flies: flies getting inside and out, leave fly traps, do a thorough fly service every time." },
+    { id: "rodents",   label: "Rodents",
+      note: "Rodents: mice and rats. Customer gets bait boxes around the house, glue boards, sticky traps and snap traps every time. Make sure to refill bait on each service and really focus on getting rid of and preventing mice / rats." },
+    { id: "other",     label: "Other", note: "" },
+  ];
+
+  // property-condition chips (no autotext — they're facts for the tech)
+  const PROP_NOTES = ["Dog on Property", "Cat on Property", "Gate", "Locked Gate"];
+
+  // additional covered structures — select all that apply
+  const ADD_SERVICES = ["Garage", "Patio", "Back Fence", "Deck", "Front Porch", "Shed"];
 
   // The office identity every device ships with — printed in the header
   // of each agreement. More -> Company & agreement can override per device.
@@ -292,6 +358,7 @@
   window.MDATA = {
     DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DNK_REASONS, DM_HINT,
     PLANS, AGREEMENT, PIPELINE, SOURCES, HOOD_COLORS, FRESH_SCALE, FRESH_NEVER, COMPANY_DEFAULTS,
+    TERMS, DEFAULT_TERM, BILLING, SPECIALTY, PEST_CHIPS, PROP_NOTES, ADD_SERVICES,
     PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY, DEFAULT_REGRID_KEY, ELIGIBILITY,
   };
 })();

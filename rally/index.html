@@ -87,18 +87,23 @@
 <div id="app">
 
   <!-- ================= HOME ================= -->
-  <div class="screen active" id="screen-home">
-    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Today</span></div>
+  <div class="screen" id="screen-home">
+    <div class="brandbar"><button class="backbtn" id="home-back" aria-label="Back">‹ More</button><span class="sub">Today</span></div>
     <div id="home-body"></div>
   </div>
 
   <!-- ================= CUSTOMERS ================= -->
   <div class="screen" id="screen-customers">
     <div class="cust-top">
-      <span class="applogo" aria-hidden="true"></span>
+      <span class="rmark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 20V4h6.2c2.9 0 4.8 1.6 4.8 4.2 0 2-1.1 3.4-2.9 4L18.6 20h-3.4l-3.1-7H10v7H7Zm3-9.6h3c1.4 0 2.1-.8 2.1-2.1 0-1.3-.7-2-2.1-2h-3v4.1Z"/></svg></span>
       <div class="guide-search" style="flex:1;margin:0"><input id="cust-q" type="search" placeholder="Search Customers" autocomplete="off"></div>
     </div>
-    <div class="stage-chips" id="cust-chips"></div>
+    <div class="cust-pills">
+      <button class="pill" id="cf-filter" type="button">All <span class="pill-arrow">▾</span></button>
+      <button class="pill" id="cf-sort" type="button">Newest sold <span class="pill-arrow">▾</span></button>
+      <span class="pill-note" id="cf-scope-note" hidden></span>
+    </div>
+    <div class="cust-panel" id="cust-panel" hidden></div>
     <div id="cust-list"></div>
     <button class="fab-new" id="cust-fab" aria-label="New customer">
       <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6"/><path d="M4 20c.7-3.7 3-5.7 6-5.7 1.2 0 2.3.3 3.2.9"/><path d="M18 14v6M15 17h6"/></svg>
@@ -107,7 +112,7 @@
 
   <!-- ================= SCHEDULE ================= -->
   <div class="screen" id="screen-schedule">
-    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Schedule</span></div>
+    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Route</span></div>
     <div id="sched-list"></div>
   </div>
 
@@ -174,7 +179,7 @@
 
   <!-- ================= LEADERBOARD ================= -->
   <div class="screen" id="screen-rank">
-    <div class="brandbar"><button class="backbtn" id="rank-back" aria-label="Back">‹ Home</button><span class="sub">Leaderboard · this week</span></div>
+    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Leaderboard · this week</span></div>
     <div class="seg" id="rank-seg">
       <button class="seg-opt sel" data-v="team">Team</button>
       <button class="seg-opt" data-v="me">My numbers</button>
@@ -254,7 +259,12 @@
 
   <!-- ================= MORE ================= -->
   <div class="screen" id="screen-more">
-    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Setup</span></div>
+    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">More</span></div>
+    <div class="more-bubbles">
+      <button class="mb" id="mb-home"><span class="mb-ic">🏠</span><span class="mb-t">Home</span><span class="mb-d">Today's numbers &amp; start knocking</span></button>
+      <button class="mb" id="mb-customers"><span class="mb-ic">👥</span><span class="mb-t">Customers</span><span class="mb-d">Full book — every filter</span></button>
+      <button class="mb" id="mb-office"><span class="mb-ic">🏢</span><span class="mb-t">Office</span><span class="mb-d" id="mb-office-sub">Where you're knocking</span></button>
+    </div>
     <div class="more-list">
       <button class="more-item" id="more-guide"><span class="ic">📖</span><span><span class="tt">Field guide</span><br><span class="dd">Every pest: signs, facts, the pitch</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-company"><span class="ic">🏢</span><span><span class="tt">Company &amp; agreement</span><br><span class="dd" id="more-company-sub"></span></span><span class="chev">›</span></button>
@@ -285,7 +295,6 @@
     <div class="ce-tabs">
       <button class="ce-tab active" data-t="info">INFO</button>
       <button class="ce-tab" data-t="service">SERVICE</button>
-      <button class="ce-tab" data-t="referrals">REFERRALS</button>
       <button class="ce-tab" data-t="payment">PAYMENT</button>
       <button class="ce-tab" data-t="agree">AGREE</button>
       <button class="ce-tab" data-t="files">FILES</button>
@@ -301,7 +310,6 @@
         </div>
         <div class="field"><label>Phone numbers</label>
           <div id="ci-phones"></div>
-          <button class="linkbtn" id="ci-add-phone" type="button">+ Add phone</button>
         </div>
         <div class="field"><label for="ci-email">Email</label><input id="ci-email" type="email" inputmode="email"></div>
 
@@ -311,72 +319,117 @@
           <div class="field"><label for="ci-city">City</label><input id="ci-city"></div>
           <div class="field"><label for="ci-state">State</label><input id="ci-state" maxlength="20"></div>
         </div>
-        <div class="field" style="max-width:160px"><label for="ci-zip">ZIP</label><input id="ci-zip" inputmode="numeric"></div>
+        <div class="frow">
+          <div class="field" style="max-width:160px"><label for="ci-zip">ZIP</label><input id="ci-zip" inputmode="numeric"></div>
+          <button class="btn btn-ghost gps-btn" id="ci-gps" type="button">📍 Use my location</button>
+        </div>
 
         <div class="ce-sec">Reminders preferences</div>
         <div class="dm-row"><div class="ttl">Text message</div><button class="switch on" id="ci-rem-text" aria-label="Text reminders"></button></div>
         <div class="dm-row"><div class="ttl">Email</div><button class="switch on" id="ci-rem-email" aria-label="Email reminders"></button></div>
         <div class="dm-row"><div class="ttl">Voice</div><button class="switch" id="ci-rem-voice" aria-label="Voice reminders"></button></div>
+        <div class="dm-row"><div><div class="ttl">Switch over</div><div class="hint">Coming to us from another pest company</div></div><button class="switch" id="ci-switch" aria-label="Switch over"></button></div>
 
-        <div class="ce-sec">Additional contacts</div>
         <div id="ci-contacts"></div>
-        <div class="frow">
-          <div class="field"><label for="cc-name">Name</label><input id="cc-name" autocomplete="off"></div>
-          <div class="field"><label for="cc-phone">Phone</label><input id="cc-phone" type="tel" inputmode="tel"></div>
-        </div>
-        <button class="linkbtn" id="ci-add-contact" type="button">+ Add contact</button>
+        <button class="pill" id="ci-add-contact" type="button">+ Additional contact</button>
 
-        <div class="ce-sec">Other info</div>
-        <div class="field"><label for="ci-source">Source</label>
-          <select id="ci-source">
-            <option>Door to Door</option><option>Referral</option><option>Online</option>
-            <option>Phone-in</option><option>Alumni / winback</option><option>Other</option>
-          </select>
-        </div>
-        <div class="field"><label for="ci-mapcode">Map code</label><input id="ci-mapcode" autocomplete="off"></div>
-        <div class="field"><label for="ci-notes">Notes — pests seen, gate codes, pets</label><textarea id="ci-notes"></textarea></div>
+        <div class="ce-sec">Problem pests — select all that apply</div>
+        <div class="chip-grid" id="ci-pests"></div>
+
+        <div class="ce-sec">Property notes</div>
+        <div class="chip-grid" id="ci-props"></div>
+
+        <div class="ce-sec">Forever Notes:</div>
+        <div class="field"><textarea id="ci-notes-forever" rows="5" placeholder="What every tech should know about this house, forever"></textarea></div>
+        <div class="ce-sec">Initial service notes:</div>
+        <div class="field"><textarea id="ci-notes-initial" rows="3" placeholder="Just for the first visit"></textarea></div>
       </div>
 
       <!-- SERVICE -->
       <div class="ce-panel" id="ce-service">
-        <div class="ce-sec">Pick the plan</div>
-        <div id="cs-plans"></div>
-        <div class="ce-sec">Pricing — quoted at the door</div>
-        <div class="frow">
-          <div class="field"><label for="cs-initial">Initial service $</label><input id="cs-initial" type="number" inputmode="decimal" min="0"></div>
+        <div class="ce-sec">Plan</div>
+        <button class="plan-current" id="cs-plan-cur" type="button"></button>
+        <div id="cs-plans" hidden></div>
+
+        <div class="ce-sec">Pricing</div>
+        <div class="price-row">
+          <button class="price-big" id="cs-initial-btn" type="button"><span class="pb-label">Initial</span><b class="num" id="cs-initial-val">$450</b></button>
+          <button class="price-big" id="cs-monthly-btn" type="button"><span class="pb-label">Monthly</span><b class="num" id="cs-monthly-val">$99</b></button>
+        </div>
+        <div class="frow price-edit" id="cs-price-edit" hidden>
+          <div class="field"><label for="cs-initial">Initial $</label><input id="cs-initial" type="number" inputmode="decimal" min="0"></div>
           <div class="field"><label for="cs-monthly">Monthly $</label><input id="cs-monthly" type="number" inputmode="decimal" min="0"></div>
         </div>
-        <p class="dim" id="cs-price-hint" style="font-size:12px;margin-bottom:14px"></p>
-        <div class="ce-sec">Initial service appointment</div>
-        <div class="field"><label for="cs-appt">Date &amp; time</label><input id="cs-appt" type="datetime-local"></div>
-      </div>
+        <p class="price-note" id="cs-discount"></p>
+        <p class="price-warn" id="cs-unprofitable" hidden>UNPROFITABLE</p>
 
-      <!-- REFERRALS -->
-      <div class="ce-panel" id="ce-referrals">
-        <div class="ce-sec">Referrals from this door</div>
-        <div id="cr-list"></div>
-        <div class="field"><label for="cr-name">Name</label><input id="cr-name" autocomplete="off"></div>
-        <div class="frow">
-          <div class="field"><label for="cr-phone">Phone</label><input id="cr-phone" type="tel" inputmode="tel"></div>
-          <div class="field"><label for="cr-addr">Address / hint</label><input id="cr-addr" placeholder="Two doors down, red brick"></div>
+        <div class="ce-sec">Additional services — select all that apply</div>
+        <div class="chip-grid" id="cs-addsvc"></div>
+
+        <div class="ce-sec">Specialty pest services</div>
+        <p class="dim" style="font-size:12.5px;margin:-4px 0 10px">These services are in addition to the pest control plan.</p>
+        <div id="cs-specialty"></div>
+
+        <div class="ce-sec">Follow-ups</div>
+        <div class="field"><label>Contract length</label>
+          <div class="seg" id="cs-term">
+            <button class="seg-opt" data-m="12">12</button>
+            <button class="seg-opt" data-m="18">18</button>
+            <button class="seg-opt sel" data-m="24">24</button>
+            <button class="seg-opt" data-m="36">36</button>
+            <button class="seg-opt" data-m="custom">Custom</button>
+          </div>
+          <input id="cs-term-custom" type="number" inputmode="numeric" min="1" max="120" placeholder="Months" hidden style="margin-top:8px;max-width:140px">
         </div>
-        <button class="linkbtn" id="cr-add" type="button">+ Add referral</button>
+        <div class="field"><label>Billing</label>
+          <div class="seg" id="cs-billing">
+            <button class="seg-opt sel" data-b="monthly">Monthly</button>
+            <button class="seg-opt" data-b="bimonthly">Bi-monthly</button>
+            <button class="seg-opt" data-b="quarterly">Quarterly</button>
+          </div>
+        </div>
+        <div class="agree-summary" id="cs-billing-math"></div>
       </div>
 
       <!-- PAYMENT -->
       <div class="ce-panel" id="ce-payment">
         <div class="ce-sec">Payment method</div>
-        <div class="seg" style="margin-bottom:14px">
-          <button class="seg-opt pay-m" data-m="card">Credit Card</button>
-          <button class="seg-opt pay-m" data-m="ach">ACH</button>
-          <button class="seg-opt pay-m" data-m="collect">Collect at service</button>
+        <button class="pay-bubble pay-m" data-m="card" type="button"><b>💳 Credit Card</b><span class="dim" id="pb-card-sub">Charged on service days</span></button>
+        <button class="pay-bubble pay-m" data-m="ach" type="button"><b>🏦 ACH — bank draft</b><span class="dim" id="pb-ach-sub">Drafted on service days</span></button>
+
+        <div id="cp-card" hidden>
+          <div class="field"><label for="cp-cc-name">Name on card</label><input id="cp-cc-name" autocomplete="off" autocapitalize="words"></div>
+          <div class="field"><label for="cp-cc-num">Card number</label><input id="cp-cc-num" inputmode="numeric" autocomplete="off" placeholder="1234 5678 9012 3456" maxlength="23"></div>
+          <div class="frow">
+            <div class="field" style="max-width:140px"><label for="cp-cc-exp">Expiry</label><input id="cp-cc-exp" inputmode="numeric" autocomplete="off" placeholder="MM/YY" maxlength="5"></div>
+          </div>
+          <p class="dim" id="cp-cc-check" style="font-size:12px"></p>
         </div>
-        <div class="field" id="cp-last4-wrap"><label for="cp-last4">Last 4 digits (reference only)</label><input id="cp-last4" inputmode="numeric" maxlength="4" placeholder="••••"></div>
-        <p class="dim" style="font-size:12px;margin-bottom:14px">RALLY never stores full card or account numbers — enter them in FieldRoutes / your processor. The signed agreement carries the autopay authorization.</p>
+        <div id="cp-ach" hidden>
+          <div class="field"><label for="cp-ach-name">Name on account</label><input id="cp-ach-name" autocomplete="off" autocapitalize="words"></div>
+          <div class="frow">
+            <div class="field"><label for="cp-ach-routing">Routing #</label><input id="cp-ach-routing" inputmode="numeric" autocomplete="off" maxlength="9"></div>
+            <div class="field"><label for="cp-ach-account">Account #</label><input id="cp-ach-account" inputmode="numeric" autocomplete="off" maxlength="17"></div>
+          </div>
+          <div class="seg" id="cp-ach-type" style="max-width:280px">
+            <button class="seg-opt sel" data-a="checking">Checking</button>
+            <button class="seg-opt" data-a="savings">Savings</button>
+          </div>
+        </div>
+
+        <div class="ce-sec">Billing address <button class="pill pill-sm" id="cp-copy-addr" type="button">Copy service address</button></div>
+        <div class="field"><label for="cp-b-street">Street</label><input id="cp-b-street"></div>
+        <div class="frow">
+          <div class="field"><label for="cp-b-city">City</label><input id="cp-b-city"></div>
+          <div class="field"><label for="cp-b-state">State</label><input id="cp-b-state" maxlength="20"></div>
+        </div>
+        <div class="field" style="max-width:160px"><label for="cp-b-zip">ZIP</label><input id="cp-b-zip" inputmode="numeric"></div>
+
         <div class="ce-sec">Initial payment</div>
         <div class="dm-row"><div><div class="ttl">Initial due at first service</div><div class="hint">From the Service tab pricing</div></div><b class="num" id="cp-due" style="font-size:18px">$0</b></div>
         <div class="ce-sec">Autopay</div>
         <div class="dm-row"><div><div class="ttl">AutoPay</div><div class="hint">Recurring charge to the method above — authorized in the agreement</div></div><button class="switch on" id="cp-autopay" aria-label="Autopay"></button></div>
+        <p class="dim" style="font-size:12px;margin-top:10px">Payment details live only on this passcode-locked device until they're entered into your billing system.</p>
       </div>
 
       <!-- AGREE -->
@@ -384,10 +437,9 @@
         <div id="ca-unsigned">
           <div class="ce-sec">Agreement summary</div>
           <div class="agree-summary" id="ca-summary"></div>
-          <div class="ce-sec">The full agreement — scroll it with the customer</div>
           <div class="doc-preview" id="ca-doc"></div>
           <label class="consent"><input type="checkbox" id="ca-consent1">
-            <span>The customer agrees to do business electronically and to the 12-month service agreement shown above.</span></label>
+            <span id="ca-consent1-label">The customer agrees to do business electronically and to the service agreement shown above.</span></label>
           <label class="consent"><input type="checkbox" id="ca-consent2">
             <span>I verbally explained the 3-business-day right to cancel, and the customer received a copy of the agreement with both Notice of Cancellation forms.</span></label>
           <div class="sig-wrap"><canvas id="ca-sig"></canvas><span class="sig-x">✕</span><div class="sig-line"></div></div>
@@ -418,10 +470,10 @@
 
   <!-- ================= TAB BAR ================= -->
   <nav id="tabbar">
-    <button class="tab active" id="tab-home"><svg viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h13V9"/><path d="M10 20v-5.5h4V20"/></svg>Home</button>
-    <button class="tab" id="tab-customers"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16 14.6c2.4.1 4 1.7 4.5 4.4"/></svg>Customers</button>
+    <button class="tab active" id="tab-customers"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16 14.6c2.4.1 4 1.7 4.5 4.4"/></svg>Customers</button>
     <button class="tab" id="tab-map"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-10.2a6.5 6.5 0 1 1 13 0C18.5 15.4 12 21 12 21Z"/><circle cx="12" cy="10.5" r="2.4"/></svg>Map</button>
-    <button class="tab" id="tab-schedule"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Schedule</button>
+    <button class="tab" id="tab-schedule"><svg viewBox="0 0 24 24"><path d="M4 12h4l2.5-6 3 12 2.5-6h4"/></svg>Route</button>
+    <button class="tab" id="tab-rank"><svg viewBox="0 0 24 24"><path d="M5 20v-7M12 20V5M19 20v-11"/></svg>Leaderboard</button>
     <button class="tab" id="tab-more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
   </nav>
 
@@ -651,6 +703,33 @@
     <button class="btn btn-danger" id="lasso-delete" style="margin-top:10px">Delete these pins</button>
   </div>
 
+  <div class="sheet" id="contact-sheet">
+    <div class="grab"></div>
+    <h3>Additional contact</h3>
+    <div class="field"><label for="cc-name">Name</label><input id="cc-name" autocomplete="off"></div>
+    <div class="field"><label for="cc-phone">Phone</label><input id="cc-phone" type="tel" inputmode="tel"></div>
+    <div class="btnrow"><button class="btn btn-gold" id="cc-save" type="button">Add contact</button></div>
+  </div>
+
+  <div class="sheet" id="spec-price-sheet">
+    <div class="grab"></div>
+    <h3 id="sp-title">Adjust price</h3>
+    <div class="field"><label for="sp-initial">Initial service $</label><input id="sp-initial" type="number" inputmode="decimal" min="0"></div>
+    <div class="field"><label for="sp-monthly">Monthly service $</label><input id="sp-monthly" type="number" inputmode="decimal" min="0"></div>
+    <p class="price-warn" id="sp-unprofitable" hidden>UNPROFITABLE</p>
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="sp-cancel" type="button">Cancel</button>
+      <button class="btn btn-gold" id="sp-save" type="button">Save price</button>
+    </div>
+  </div>
+
+  <div class="sheet" id="office-sheet">
+    <div class="grab"></div>
+    <h3>Office</h3>
+    <div class="field"><label for="of-name">Office you're knocking in</label><input id="of-name" autocomplete="off" placeholder="e.g. Baton Rouge"></div>
+    <div class="btnrow"><button class="btn btn-gold" id="of-save" type="button">Save</button></div>
+  </div>
+
   <div class="sheet" id="prop-data-sheet">
     <div class="grab"></div>
     <h2>Property data</h2>
@@ -726,7 +805,7 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
-<script>window.RALLY_BUILD = "v15";</script>
+<script>window.RALLY_BUILD = "v16";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>

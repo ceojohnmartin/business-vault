@@ -53,17 +53,22 @@
 
   async function load() {
     account = await MDB.kvGet(KEY_ACCOUNT, null);
-    const session = await MDB.kvGet(KEY_SESSION, null);
-    // a remembered session on a device that still has that account stands
-    unlocked = !!(account && session && session.userId === account.userId && session.remember);
+    // A claimed device ALWAYS opens on the sign-in screen — no remembered
+    // session carries across a launch. The passcode is the front door.
+    unlocked = false;
     return account;
   }
+
+  // Drop back to locked without touching anything stored (used when the app
+  // comes back from the background).
+  function lockSession() { unlocked = false; }
 
   const hasAccount = () => !!account;
   // strictly "this session is authenticated". A device with no account is
   // NOT unlocked — it needs to create one, which is the sign-up screen.
   const isUnlocked = () => unlocked;
-  const emailOnFile = () => (account ? account.email : "");
+  // only offered back if the rep asked us to remember it
+  const emailOnFile = () => (account && account.rememberEmail ? account.email : "");
 
   function lockRemainingMs() {
     if (!account || !account.lockedUntil) return 0;
@@ -116,10 +121,10 @@
       salt: b64(salt), hash, iterations: ITERATIONS,
       userId: user.id, createdAt: Date.now(),
       fails: 0, lockedUntil: 0,
+      rememberEmail: true, // they just typed it; offer it back next time
     };
     await persistAccount();
     unlocked = true;
-    await MDB.kvSet(KEY_SESSION, { userId: user.id, at: Date.now(), remember: true });
     return account;
   }
 
@@ -148,11 +153,9 @@
     }
     account.fails = 0;
     account.lockedUntil = 0;
+    account.rememberEmail = !!remember;
     await persistAccount();
     unlocked = true;
-    await MDB.kvSet(KEY_SESSION, {
-      userId: account.userId, at: Date.now(), remember: !!remember,
-    });
     return account;
   }
 
@@ -176,7 +179,7 @@
   }
 
   window.MAUTH = {
-    load, signUp, signIn, signOut, eraseAndReset,
+    load, signUp, signIn, signOut, eraseAndReset, lockSession,
     hasAccount, isUnlocked, emailOnFile, lockRemainingMs,
     MIN_PASS,
   };

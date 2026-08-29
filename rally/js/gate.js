@@ -85,6 +85,18 @@
     }
   }
 
+  function showGate() {
+    setMode(MAUTH.hasAccount() ? "signin" : "signup");
+    el["gate-pass"].value = "";
+    remember = !!MAUTH.emailOnFile();
+    el["gate-remember"].setAttribute("aria-checked", String(remember));
+    el.gate.hidden = false;
+    requestAnimationFrame(() => {
+      const first = MAUTH.hasAccount() ? el["gate-pass"] : el["gate-name"];
+      try { first.focus({ preventScroll: true }); } catch (_) {}
+    });
+  }
+
   function unlock() {
     const g = el.gate;
     g.classList.add("fade");
@@ -149,6 +161,7 @@
   async function run() {
     cache();
     bind();
+    armRelock();
     const shown = Date.now();
     // WebCrypto is required to hash a passcode; without it (an insecure
     // context) we do NOT pretend to lock anything.
@@ -157,7 +170,10 @@
     try {
       if (canHash) {
         await MAUTH.load();
-        gated = !MAUTH.isUnlocked();
+        // load() always leaves the device locked, so this is simply
+        // "does this device have a lock at all" — a fresh one gets the
+        // create-account screen, a claimed one the sign-in screen.
+        gated = true;
       }
     } catch (_) { gated = false; }
 
@@ -176,12 +192,7 @@
 
     if (!gated) return;
 
-    setMode(MAUTH.hasAccount() ? "signin" : "signup");
-    el.gate.hidden = false;
-    requestAnimationFrame(() => {
-      const first = MAUTH.hasAccount() ? el["gate-pass"] : el["gate-name"];
-      try { first.focus({ preventScroll: true }); } catch (_) {}
-    });
+    showGate();
     return new Promise((r) => { resolveUnlock = r; });
   }
 
@@ -189,6 +200,35 @@
   async function lock() {
     await MAUTH.signOut();
     location.reload();
+  }
+
+  /* Coming back to the app puts the lock screen up again. On iOS a PWA
+     resumed from the app icon does NOT reload, so without this the rep
+     would walk straight back into an unlocked app. The short grace window
+     is deliberate: tapping "Go" for directions bounces out to Maps and
+     back, and that round trip should not cost a passcode. */
+  // How long the app may sit in the background before the lock comes back.
+  // 60s by default so a bounce out to Maps for directions and straight back
+  // doesn't cost a passcode; set STORE.settings.relockGraceMs to 0 to lock
+  // the instant the app loses focus.
+  const DEFAULT_RELOCK_MS = 60000;
+  const relockGrace = () => {
+    const v = STORE.settings.relockGraceMs;
+    return typeof v === "number" && v >= 0 ? v : DEFAULT_RELOCK_MS;
+  };
+  let hiddenAt = 0;
+
+  function armRelock() {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) { hiddenAt = Date.now(); return; }
+      const away = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      if (!MAUTH.hasAccount() || !MAUTH.isUnlocked()) return;
+      if (away < relockGrace()) return;
+      MAUTH.lockSession();
+      MUI.closeSheet();
+      showGate();
+    });
   }
 
   // Failsafe: if boot dies before the gate ever runs, the splash must not

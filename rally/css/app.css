@@ -756,3 +756,87 @@ body.editing #tabbar,body.editing .fab-new{display:none}
   border-radius:999px;padding:6px 12px;font-size:12.5px;color:var(--t2)}
 .lb-chip b{color:var(--t1)}
 .street-row .sw,.lb-chip .sw{width:9px;height:9px;border-radius:50%;flex:none}
+
+/* ============================================================
+   ENTRY SCREENS — splash + device gate
+   Deliberately dark: the brand moment is a black slab with the
+   wordmark, then the workspace opens light. These rules are scoped
+   under .entry so nothing here touches the app's light system.
+   ============================================================ */
+.entry{position:fixed;inset:0;z-index:200;background:#000;color:#fff;
+  display:flex;flex-direction:column;align-items:center;
+  padding:calc(env(safe-area-inset-top,0px) + 28px) 24px calc(env(safe-area-inset-bottom,0px) + 28px);
+  overflow-y:auto;-webkit-overflow-scrolling:touch;
+  opacity:1;transition:opacity .45s ease}
+.entry.fade{opacity:0;pointer-events:none}
+.entry-topo{position:absolute;inset:0;background:url("../img/topo.svg") center/cover no-repeat;
+  pointer-events:none}
+.entry .wm{display:block;width:min(62vw,270px);height:auto;color:#fff}
+.entry input,.entry button{font-family:var(--ui)}
+/* the global focus ring is near-black ink — invisible here */
+.entry :focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px}
+
+/* ---- splash ---- */
+#splash{justify-content:center;z-index:210}
+.splash-mid{position:relative;display:flex;flex-direction:column;align-items:center;gap:20px;
+  margin:auto 0}
+.splash-tag{font-size:12.5px;letter-spacing:.34em;text-transform:uppercase;
+  color:rgba(255,255,255,.62);font-weight:500}
+.splash-foot{position:relative;width:min(58vw,240px);display:flex;flex-direction:column;
+  align-items:center;gap:11px;padding-bottom:6vh}
+.splash-load{font-size:10.5px;letter-spacing:.42em;text-transform:uppercase;
+  color:rgba(255,255,255,.45);font-weight:600}
+.splash-bar{width:100%;height:3px;border-radius:2px;background:rgba(255,255,255,.16);overflow:hidden}
+.splash-bar i{display:block;height:100%;width:0;border-radius:2px;background:#fff;
+  transition:width .35s cubic-bezier(.3,.7,.3,1)}
+
+/* ---- gate (sign in / sign up) ---- */
+.gate-form{position:relative;width:100%;max-width:400px;margin:auto 0;
+  display:flex;flex-direction:column;align-items:stretch}
+.gate-form .wm{margin:0 auto 40px}
+.gate-title{font-size:15px;font-weight:700;letter-spacing:.3em;text-transform:uppercase;
+  text-align:center;margin-bottom:8px}
+.gate-sub{font-size:14.5px;color:rgba(255,255,255,.6);text-align:center;margin-bottom:28px}
+.gf{position:relative;display:flex;align-items:center;gap:12px;margin-bottom:14px;
+  background:#0E0E0F;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:0 14px;
+  transition:border-color .18s}
+.gf:focus-within{border-color:rgba(255,255,255,.45)}
+.gf-ic{width:22px;height:22px;flex:none;stroke:rgba(255,255,255,.62);fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.gf input{flex:1;min-width:0;background:none;border:none;outline:none;color:#fff;
+  font-size:16px;padding:17px 0;color-scheme:dark}
+.gf input::placeholder{color:rgba(255,255,255,.42)}
+.gf-eye{flex:none;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
+  border-radius:10px}
+.gf-eye svg{width:21px;height:21px;stroke:rgba(255,255,255,.62);fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.gf-eye[aria-pressed="true"] svg{stroke:#fff}
+.gate-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:4px 0 22px;min-height:44px}
+.gate-check{display:flex;align-items:center;gap:11px;font-size:14.5px;color:rgba(255,255,255,.82);
+  padding:6px 2px}
+.gc-box{width:22px;height:22px;flex:none;border-radius:6px;border:1.5px solid rgba(255,255,255,.4);
+  display:flex;align-items:center;justify-content:center;transition:.16s}
+.gc-box svg{width:15px;height:15px;stroke:#000;fill:none;stroke-width:2.6;
+  stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .14s}
+.gate-check[aria-checked="true"] .gc-box{background:#fff;border-color:#fff}
+.gate-check[aria-checked="true"] .gc-box svg{opacity:1}
+.gate-link{font-size:14.5px;color:rgba(255,255,255,.72);padding:6px 2px;text-align:right}
+.gate-link.strong{color:#fff;font-weight:700}
+.gate-link:active{opacity:.6}
+.gate-btn{width:100%;border-radius:14px;padding:18px;font-size:16px;font-weight:800;
+  letter-spacing:.08em;text-transform:uppercase;background:#fff;color:#000;
+  transition:transform .12s,opacity .18s}
+.gate-btn:active{transform:scale(.985)}
+.gate-btn[disabled]{opacity:.45;pointer-events:none}
+.gate-btn.ghost{background:none;color:#fff;border:1px solid rgba(255,255,255,.42)}
+.gate-or{display:flex;align-items:center;gap:16px;margin:22px 0;
+  color:rgba(255,255,255,.42);font-size:12px;letter-spacing:.16em;text-transform:uppercase}
+.gate-or::before,.gate-or::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.16)}
+.gate-foot{text-align:center;font-size:14px;color:rgba(255,255,255,.55);margin-top:22px}
+.gate-msg{background:rgba(229,72,77,.14);border:1px solid rgba(229,72,77,.5);color:#FF9AA0;
+  border-radius:11px;padding:11px 14px;font-size:13.5px;margin-bottom:16px;line-height:1.45}
+.gate-msg.ok{background:rgba(34,181,88,.13);border-color:rgba(34,181,88,.5);color:#6BE39A}
+@media (prefers-reduced-motion: reduce){
+  .entry,.splash-bar i,.gate-btn{transition:none}
+}

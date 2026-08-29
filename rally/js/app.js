@@ -152,6 +152,9 @@
       : (s.googleLastError ||
          (anyKey ? "Checking with Google…"
                  : "No key — imagery is off on this device"));
+    $("#more-lock-sub").textContent = MAUTH.hasAccount()
+      ? "Signed in as " + MAUTH.emailOnFile()
+      : "No device lock set up yet";
     $("#more-export-sub").textContent = STORE.customers.length
       ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${STORE.queuedCount()} queued for sync`
       : "Signed customers land here";
@@ -321,6 +324,15 @@
       }
     });
 
+    $("#more-lock").addEventListener("click", () => {
+      if (!MAUTH.hasAccount()) {
+        toast("No account on this device yet");
+        return;
+      }
+      if (!confirm("Sign out? Your work stays on this device — you'll need your passcode to get back in.")) return;
+      MGATE.lock();
+    });
+
     $("#more-export").addEventListener("click", () => MCUST.exportAll());
     $("#more-csv").addEventListener("click", () => MVAULT.exportCSV());
 
@@ -373,6 +385,15 @@
       // storage refused (rare private modes) — run in-memory rather than die blank
       console.error("storage unavailable", e);
       MUI.toast("Storage unavailable — running without saving");
+    }
+    // splash, then the device gate — resolves once this device is unlocked
+    try {
+      await MGATE.run();
+    } catch (e) {
+      console.error("gate failed", e); // never strand the rep behind a broken lock
+      const sp = $("#splash"), g = $("#gate");
+      if (sp) sp.hidden = true;
+      if (g) g.hidden = true;
     }
     TABS.forEach((s) =>
       $("#tab-" + s).addEventListener("click", () => { MUI.tick(); show(s); }));

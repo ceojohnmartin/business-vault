@@ -167,7 +167,7 @@
       b.addEventListener("click", () => {
         const kind = b.dataset.k;
         if (kind === "cb" && b.dataset.pid) { MAPP.show("map"); MMAP.focusPin(b.dataset.pid); }
-        else if (kind === "leads") { MAPP.show("customers"); MCUST.setFilter("lead"); }
+        else if (kind === "leads") { MAPP.show("customers"); MCUST.setFilter("all"); }
         else if (kind === "route") { MAPP.show("map"); MROUTE.build(); }
         else MAPP.show("schedule");
       }));

@@ -34,7 +34,7 @@
         signed ? new Date(signed).toLocaleDateString() : "",
         c.soldBy, c.source,
         next ? new Date(next.ts).toLocaleString() : "",
-        c.notes,
+        [c.notesForever || c.notes, c.notesInitial].filter(Boolean).join(" | "),
       ].map(cell).join(",");
     });
     const csv = head.join(",") + "\r\n" + rows.join("\r\n");
@@ -65,7 +65,7 @@
       "SUMMARY:" + icsEsc(`${ap.type === "initial" ? "Initial service" : "Service"} — ${name}`),
       "LOCATION:" + icsEsc(STORE.custAddress(cust)),
       "DESCRIPTION:" + icsEsc(
-        `${STORE.custPlanName(cust)} plan${phone ? " · " + phone : ""}${cust.notes ? "\n" + cust.notes : ""}`),
+        `${STORE.custPlanName(cust)} plan${phone ? " · " + phone : ""}${(cust.notesInitial || cust.notesForever || cust.notes) ? "\n" + (cust.notesInitial || cust.notesForever || cust.notes) : ""}`),
       "END:VEVENT", "END:VCALENDAR",
     ];
     await MUI.shareOrDownload(lines.join("\r\n"), `service-${name.replace(/\W+/g, "-")}.ics`,

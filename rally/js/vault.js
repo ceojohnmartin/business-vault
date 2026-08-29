@@ -74,6 +74,11 @@
 
   // ---------- full backup ----------
   const STORES = ["users", "territories", "pins", "events", "customers"];
+  // The device lock is a property of THIS device, not of the data. Letting
+  // it ride along would make a backup file a skeleton key (restore it and
+  // walk in with its session), and would hand a forgotten passcode straight
+  // back to the rep who just erased the device to escape it.
+  const PRIVATE_KV = ["account", "session"];
   const FILE_CAP = 4 * 1024 * 1024; // one runaway photo must not sink the backup
 
   const blobToB64 = (blob) => new Promise((resolve, reject) => {
@@ -93,7 +98,7 @@
   async function backup() {
     const data = {};
     for (const s of STORES) data[s] = await MDB.getAll(s);
-    data.kv = await MDB.getAll("kv");
+    data.kv = (await MDB.getAll("kv")).filter((r) => r && !PRIVATE_KV.includes(r.k));
     const files = await MDB.getAll("files");
     let skipped = 0;
     data.files = [];
@@ -124,7 +129,11 @@
     if (!confirm(`Restore the backup from ${when}?\n${what}\n\nRecords merge in by id — matching ones are replaced by the backup's version, nothing else is touched.`)) return;
     try {
       for (const s of STORES) for (const r of d[s] || []) await MDB.put(s, r);
-      for (const r of d.kv || []) if (r && r.k) await MDB.put("kv", r);
+      // filtered on the way in too, so older backup files that still
+      // carry a credential can never re-key or unlock this device
+      for (const r of d.kv || []) {
+        if (r && r.k && !PRIVATE_KV.includes(r.k)) await MDB.put("kv", r);
+      }
       for (const f of d.files || []) {
         if (!f || !f.id || typeof f.b64 !== "string") continue;
         await MDB.put("files", { id: f.id, name: f.name, type: f.type, addedAt: f.addedAt, blob: b64ToBlob(f.b64, f.type) });

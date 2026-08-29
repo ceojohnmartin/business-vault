@@ -158,6 +158,11 @@
       const doors = STORE.pins.filter((p) => p.disposition === "unworked").length;
       return src + (doors ? ` · ${doors} unworked doors on the map` : " · doors import when you draw a territory");
     })();
+    const bv = $("#more-build");
+    if (bv) bv.textContent = "Build " + (window.RALLY_BUILD || "?");
+    $("#more-lock-sub").textContent = MAUTH.hasAccount()
+      ? "Signed in as " + MAUTH.accountEmail()
+      : "No device lock set up yet";
     $("#more-export-sub").textContent = STORE.customers.length
       ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${STORE.queuedCount()} queued for sync`
       : "Signed customers land here";
@@ -347,6 +352,15 @@
       toast("Property data: " + MPROP.providerName(MPROP.activeName()));
     });
 
+    $("#more-lock").addEventListener("click", () => {
+      if (!MAUTH.hasAccount()) {
+        toast("No account on this device yet");
+        return;
+      }
+      if (!confirm("Sign out? Your work stays on this device — you'll need your passcode to get back in.")) return;
+      MGATE.lock();
+    });
+
     $("#more-export").addEventListener("click", () => MCUST.exportAll());
     $("#more-csv").addEventListener("click", () => MVAULT.exportCSV());
 
@@ -389,7 +403,18 @@
   async function boot() {
     // register the SW first — and robustly, since 'load' may already have fired
     if ("serviceWorker" in navigator) {
-      const reg = () => navigator.serviceWorker.register("sw.js").catch(() => {});
+      // A new build used to need TWO opens to land: the fresh worker installs
+      // on the first, activates on the second. Reloading the moment it takes
+      // control means an update reaches the phone on the very next open.
+      let reloading = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (reloading) return;           // controllerchange fires once per takeover
+        reloading = true;
+        location.reload();
+      });
+      const reg = () => navigator.serviceWorker.register("sw.js")
+        .then((r) => { try { r.update(); } catch (_) {} })
+        .catch(() => {});
       if (document.readyState === "complete") reg();
       else addEventListener("load", reg);
     }
@@ -399,6 +424,15 @@
       // storage refused (rare private modes) — run in-memory rather than die blank
       console.error("storage unavailable", e);
       MUI.toast("Storage unavailable — running without saving");
+    }
+    // splash, then the device gate — resolves once this device is unlocked
+    try {
+      await MGATE.run();
+    } catch (e) {
+      console.error("gate failed", e); // never strand the rep behind a broken lock
+      const sp = $("#splash"), g = $("#gate");
+      if (sp) sp.hidden = true;
+      if (g) g.hidden = true;
     }
     TABS.forEach((s) =>
       $("#tab-" + s).addEventListener("click", () => { MUI.tick(); show(s); }));

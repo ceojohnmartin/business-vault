@@ -18,6 +18,72 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
+
+<!-- reusable brand mark: traced from the RALLY wordmark artwork -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="rally-wordmark" fill="currentColor" viewBox="0 0 610 120" fill-rule="evenodd"><path d="M1.2,4.6 -0.1,5.2 -0.1,29.8 1,30.4 75.2,30.6 79.8,32.6 82.9,36 84.4,43.5 81.6,50.5 76,53.6 0.2,54.1 -0.1,119.8 26.4,119.8 27,79.6 55.5,79.6 83,119.9 115,119.9 86.1,78.5 86.8,77.1 97,72.6 102.1,67.8 107.6,59.8 110.6,51.5 111.9,43.8 110.9,33 107.9,24.8 101.9,16.2 94.2,9.9 79.8,4.9Z M200,-0.1 129.1,119.8 158.5,119.9 201.2,47.9 241.9,119.5 272,119.9 201.6,0.2Z M484.2,4.6 483.9,6 533.9,76.5 533.9,119.8 560,119.9 559.9,76.5 609.9,6.5 609.9,4.8 578.5,4.9 547.2,50.6 515.5,4.9Z M289.2,4.6 288.1,5.5 288.1,119.8 373.5,119.9 384.6,95.2 384,94.4 315.6,94 315.4,5.2Z M410.8,4.6 407.1,5.5 407.4,119.8 491.2,119.9 501.2,94.6 434.6,93.5 434.6,5.5Z M200.5,81.1 197,82.9 190.9,90 182.2,104.1 218.9,104 205.6,84Z"/></symbol>
+</svg>
+
+<!-- ================= SPLASH ================= -->
+<div class="entry" id="splash">
+  <div class="entry-topo" aria-hidden="true"></div>
+  <div class="splash-mid">
+    <svg class="wm" viewBox="0 0 610 120" role="img" aria-label="RALLY"><use href="#rally-wordmark"/></svg>
+    <div class="splash-tag">Built for the field.</div>
+  </div>
+  <div class="splash-foot">
+    <div class="splash-load">Loading</div>
+    <div class="splash-bar"><i id="splash-fill"></i></div>
+  </div>
+</div>
+
+<!-- ================= SIGN IN / SIGN UP ================= -->
+<div class="entry" id="gate" hidden>
+  <div class="entry-topo" aria-hidden="true"></div>
+  <form class="gate-form" id="gate-form" autocomplete="on" novalidate>
+    <svg class="wm" viewBox="0 0 610 120" role="img" aria-label="RALLY"><use href="#rally-wordmark"/></svg>
+
+    <h1 class="gate-title" id="gate-title">Sign in</h1>
+    <p class="gate-sub" id="gate-sub">Welcome back. Let’s get to work.</p>
+
+    <div class="gf" id="gf-name" hidden>
+      <svg class="gf-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.9-4.2 3.6-6.3 7-6.3s6.1 2.1 7 6.3"/></svg>
+      <input id="gate-name" type="text" placeholder="Your name" autocomplete="name" autocapitalize="words">
+    </div>
+
+    <div class="gf">
+      <svg class="gf-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="m3.8 7 8.2 6 8.2-6"/></svg>
+      <input id="gate-email" type="email" placeholder="Email" autocomplete="email" inputmode="email" autocapitalize="off" spellcheck="false">
+    </div>
+
+    <div class="gf">
+      <svg class="gf-ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="9.5" rx="2.2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>
+      <input id="gate-pass" type="password" placeholder="Passcode" autocomplete="current-password">
+      <button type="button" class="gf-eye" id="gate-eye" aria-label="Show passcode" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.8-6.2 10-6.2S22 12 22 12s-3.8 6.2-10 6.2S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/></svg>
+      </button>
+    </div>
+
+    <div class="gate-row" id="gate-row-signin">
+      <button type="button" class="gate-check" id="gate-remember" role="checkbox" aria-checked="false">
+        <span class="gc-box"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7"/></svg></span>
+        <span>Remember me</span>
+      </button>
+      <button type="button" class="gate-link" id="gate-forgot">Forgot passcode?</button>
+    </div>
+
+    <div class="gate-msg" id="gate-msg" role="alert" hidden></div>
+
+    <button type="submit" class="gate-btn" id="gate-submit">Log in</button>
+
+    <div class="gate-or"><span>or</span></div>
+
+    <button type="button" class="gate-btn ghost" id="gate-swap-btn">Sign up</button>
+
+    <p class="gate-foot" id="gate-foot">New to RALLY? <button type="button" class="gate-link strong" id="gate-swap">Create an account</button></p>
+  </form>
+</div>
+
 <div id="app">
 
   <!-- ================= HOME ================= -->
@@ -201,6 +267,8 @@
       <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers (JSON)</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-csv"><span class="ic">📊</span><span><span class="tt">Export spreadsheet (CSV)</span><br><span class="dd">Opens in Excel, Sheets, or any CRM import</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-backup"><span class="ic">🛟</span><span><span class="tt">Backup &amp; restore</span><br><span class="dd" id="more-backup-sub">Everything on this device, in one file</span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-lock"><span class="ic">🔐</span><span><span class="tt">Sign out</span><br><span class="dd" id="more-lock-sub"></span></span><span class="chev">›</span></button>
+      <div class="demo-note" id="more-build" style="margin:2px 0 8px"></div>
       <button class="more-item" id="more-reset"><span class="ic">🗑️</span><span><span class="tt">Erase all data</span><br><span class="dd">Pins, knocks, customers, hoods and files on this device</span></span><span class="chev">›</span></button>
     </div>
     <p style="font-size:12px;color:var(--t3);text-align:center;margin-top:22px">RALLY · Everything stays on your device and works offline.</p>
@@ -658,11 +726,14 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
+<script>window.RALLY_BUILD = "v15";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/store.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/gate.js"></script>
 <script src="js/property.js"></script>
 <script src="js/crm.js"></script>
 <script src="js/contract.js"></script>

@@ -773,8 +773,12 @@ body.editing #tabbar,body.editing .fab-new{display:none}
   pointer-events:none}
 .entry .wm{display:block;width:min(62vw,270px);height:auto;color:#fff}
 .entry input,.entry button{font-family:var(--ui)}
-/* the global focus ring is near-black ink — invisible here */
+/* The global focus ring is near-black ink — invisible on black — so the
+   entry screens define their own. Text fields are the exception: an outline
+   on the bare <input> draws a hard-cornered white box stamped across its
+   rounded shell. Those light up the shell itself instead (see .gf below). */
 .entry :focus-visible{outline:2px solid rgba(255,255,255,.85);outline-offset:2px}
+.entry .gf input:focus,.entry .gf input:focus-visible{outline:none}
 
 /* ---- splash ---- */
 #splash{justify-content:center;z-index:210}
@@ -800,12 +804,25 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .gf{position:relative;display:flex;align-items:center;gap:12px;margin-bottom:14px;
   background:#0E0E0F;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:0 14px;
   transition:border-color .18s}
-.gf:focus-within{border-color:rgba(255,255,255,.45)}
+/* The whole field lights up — a 2px-equivalent bright perimeter plus a soft
+   halo, both following the 14px radius exactly, which a square outline never
+   could. This is the focus indicator for the inputs. */
+.gf:focus-within{border-color:rgba(255,255,255,.55);
+  box-shadow:0 0 0 1px rgba(255,255,255,.55),0 0 0 4px rgba(255,255,255,.09)}
 .gf-ic{width:22px;height:22px;flex:none;stroke:rgba(255,255,255,.62);fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
 .gf input{flex:1;min-width:0;background:none;border:none;outline:none;color:#fff;
   font-size:16px;padding:17px 0;color-scheme:dark}
 .gf input::placeholder{color:rgba(255,255,255,.42)}
+/* iOS and Chrome repaint an autofilled field with their own light background
+   and dark ink. Nothing here sits on a light surface, so force ours back —
+   the inset fill matches .gf exactly, so there is no seam. */
+.gf input:-webkit-autofill,
+.gf input:-webkit-autofill:hover,
+.gf input:-webkit-autofill:focus{
+  -webkit-text-fill-color:#fff;caret-color:#fff;
+  -webkit-box-shadow:0 0 0 1000px #0E0E0F inset;
+  transition:background-color 9999s ease-out 0s}
 .gf-eye{flex:none;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
   border-radius:10px}
 .gf-eye svg{width:21px;height:21px;stroke:rgba(255,255,255,.62);fill:none;stroke-width:1.7;
@@ -814,14 +831,15 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .gate-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
   margin:4px 0 22px;min-height:44px}
 .gate-check{display:flex;align-items:center;gap:11px;font-size:14.5px;color:rgba(255,255,255,.82);
-  padding:6px 2px}
+  padding:6px 6px;border-radius:9px}
 .gc-box{width:22px;height:22px;flex:none;border-radius:6px;border:1.5px solid rgba(255,255,255,.4);
   display:flex;align-items:center;justify-content:center;transition:.16s}
 .gc-box svg{width:15px;height:15px;stroke:#000;fill:none;stroke-width:2.6;
   stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .14s}
 .gate-check[aria-checked="true"] .gc-box{background:#fff;border-color:#fff}
 .gate-check[aria-checked="true"] .gc-box svg{opacity:1}
-.gate-link{font-size:14.5px;color:rgba(255,255,255,.72);padding:6px 2px;text-align:right}
+.gate-link{font-size:14.5px;color:rgba(255,255,255,.72);padding:6px 6px;text-align:right;
+  border-radius:9px}
 .gate-link.strong{color:#fff;font-weight:700}
 .gate-link:active{opacity:.6}
 .gate-btn{width:100%;border-radius:14px;padding:18px;font-size:16px;font-weight:800;

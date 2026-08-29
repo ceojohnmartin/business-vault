@@ -152,8 +152,10 @@
       : (s.googleLastError ||
          (anyKey ? "Checking with Google…"
                  : "No key — imagery is off on this device"));
+    const bv = $("#more-build");
+    if (bv) bv.textContent = "Build " + (window.RALLY_BUILD || "?");
     $("#more-lock-sub").textContent = MAUTH.hasAccount()
-      ? "Signed in as " + MAUTH.emailOnFile()
+      ? "Signed in as " + MAUTH.accountEmail()
       : "No device lock set up yet";
     $("#more-export-sub").textContent = STORE.customers.length
       ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${STORE.queuedCount()} queued for sync`
@@ -375,7 +377,18 @@
   async function boot() {
     // register the SW first — and robustly, since 'load' may already have fired
     if ("serviceWorker" in navigator) {
-      const reg = () => navigator.serviceWorker.register("sw.js").catch(() => {});
+      // A new build used to need TWO opens to land: the fresh worker installs
+      // on the first, activates on the second. Reloading the moment it takes
+      // control means an update reaches the phone on the very next open.
+      let reloading = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (reloading) return;           // controllerchange fires once per takeover
+        reloading = true;
+        location.reload();
+      });
+      const reg = () => navigator.serviceWorker.register("sw.js")
+        .then((r) => { try { r.update(); } catch (_) {} })
+        .catch(() => {});
       if (document.readyState === "complete") reg();
       else addEventListener("load", reg);
     }

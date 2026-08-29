@@ -67,7 +67,9 @@
   // strictly "this session is authenticated". A device with no account is
   // NOT unlocked — it needs to create one, which is the sign-up screen.
   const isUnlocked = () => unlocked;
-  // only offered back if the rep asked us to remember it
+  // the address this device is signed in as — always known once claimed
+  const accountEmail = () => (account ? account.email : "");
+  // …but only offered back into the form if the rep asked us to remember it
   const emailOnFile = () => (account && account.rememberEmail ? account.email : "");
 
   function lockRemainingMs() {
@@ -180,7 +182,7 @@
 
   window.MAUTH = {
     load, signUp, signIn, signOut, eraseAndReset, lockSession,
-    hasAccount, isUnlocked, emailOnFile, lockRemainingMs,
+    hasAccount, isUnlocked, emailOnFile, accountEmail, lockRemainingMs,
     MIN_PASS,
   };
 })();

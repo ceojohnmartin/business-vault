@@ -207,28 +207,47 @@
      would walk straight back into an unlocked app. The short grace window
      is deliberate: tapping "Go" for directions bounces out to Maps and
      back, and that round trip should not cost a passcode. */
-  // How long the app may sit in the background before the lock comes back.
-  // 60s by default so a bounce out to Maps for directions and straight back
-  // doesn't cost a passcode; set STORE.settings.relockGraceMs to 0 to lock
-  // the instant the app loses focus.
-  const DEFAULT_RELOCK_MS = 60000;
+  // Leaving the app locks it. No grace by default — "always" means always.
+  // STORE.settings.relockGraceMs can buy back a few seconds (e.g. so a
+  // bounce out to Maps for directions doesn't cost a passcode), but it is
+  // opt-in; shipping a grace window silently defeats the whole point.
+  const DEFAULT_RELOCK_MS = 0;
   const relockGrace = () => {
     const v = STORE.settings.relockGraceMs;
     return typeof v === "number" && v >= 0 ? v : DEFAULT_RELOCK_MS;
   };
   let hiddenAt = 0;
 
+  function relockNow() {
+    if (!MAUTH.hasAccount() || !MAUTH.isUnlocked()) return;
+    MAUTH.lockSession();
+    try { MUI.closeSheet(); } catch (_) {}
+    showGate();
+  }
+
+  function onResume() {
+    // only a real trip away counts — a visibility event with no preceding
+    // hide (some browsers fire one on first paint) must not lock the app
+    // the instant it opens
+    if (!hiddenAt) return;
+    const away = Date.now() - hiddenAt;
+    hiddenAt = 0;
+    if (away < relockGrace()) return;
+    relockNow();
+  }
+
   function armRelock() {
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) { hiddenAt = Date.now(); return; }
-      const away = hiddenAt ? Date.now() - hiddenAt : 0;
-      hiddenAt = 0;
-      if (!MAUTH.hasAccount() || !MAUTH.isUnlocked()) return;
-      if (away < relockGrace()) return;
-      MAUTH.lockSession();
-      MUI.closeSheet();
-      showGate();
+      onResume();
     });
+    // Also cover the back/forward cache: an iOS PWA can be frozen and
+    // restored without a visibilitychange pair.
+    addEventListener("pagehide", () => { if (!hiddenAt) hiddenAt = Date.now(); });
+    addEventListener("pageshow", (e) => { if (e.persisted) onResume(); });
+    // Deliberately NOT window focus/blur: those fire for the on-screen
+    // keyboard, native confirm() dialogs and picker sheets, which would
+    // lock a rep out in the middle of typing a customer in.
   }
 
   // Failsafe: if boot dies before the gate ever runs, the splash must not

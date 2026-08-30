@@ -194,7 +194,6 @@
     ["text", "email", "voice"].forEach((k) =>
       $("#ci-rem-" + k).classList.toggle("on", !!cur.reminders[k]));
     $("#ci-switch").classList.toggle("on", !!cur.switchOver);
-    $$("#ci-acct .seg-opt").forEach((b) => b.classList.toggle("sel", b.dataset.a === (cur.acct || "active")));
     renderPhones();
     renderContacts();
     renderPestChips();
@@ -1189,12 +1188,6 @@
       cur.switchOver = !cur.switchOver;
       $("#ci-switch").classList.toggle("on", cur.switchOver);
     });
-    $$("#ci-acct .seg-opt").forEach((b) =>
-      b.addEventListener("click", () => {
-        tick();
-        cur.acct = b.dataset.a;
-        $$("#ci-acct .seg-opt").forEach((x) => x.classList.toggle("sel", x === b));
-      }));
     $("#ci-notes-forever").addEventListener("input", () => { cur.notesForever = $("#ci-notes-forever").value; });
     $("#ci-notes-initial").addEventListener("input", () => { cur.notesInitial = $("#ci-notes-initial").value; });
 

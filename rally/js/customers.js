@@ -130,8 +130,6 @@
     // per-customer UI state never leaks into the next record
     planOpen = false;
     specEditing = null;
-    const pe = $("#cs-price-edit");
-    if (pe) pe.hidden = true;
     $("#ce-title").textContent = title;
     document.body.classList.add("editing");
     $("#screen-custedit").classList.add("active");
@@ -439,10 +437,16 @@
     const list = planDef();
     const init = Number($("#cs-initial").value) || 0;
     const mo = Number($("#cs-monthly").value) || 0;
-    $("#cs-initial-val").textContent = fmtMoney(init);
-    $("#cs-monthly-val").textContent = fmtMoney(mo);
     const f = planFloor();
     const under = init < f.initial || mo < f.monthly;
+    // the input hugs its digits so "$450" centers as one piece
+    ["cs-initial", "cs-monthly"].forEach((id) => {
+      const el = $("#" + id);
+      el.style.width = Math.max(1.2, String(el.value || "").length * 1.05) + "ch";
+    });
+    // a legal discount shows its price in green — the number sells itself
+    $("#cs-initial").closest(".pb-money").classList.toggle("disc", !under && init >= f.initial && init < (list.listInitial || list.initial));
+    $("#cs-monthly").closest(".pb-money").classList.toggle("disc", !under && mo >= f.monthly && mo < list.monthly);
     $("#cs-unprofitable").hidden = !under;
     // the discount line IS the pitch: show what they're saving off sticker
     const dInit = Math.max(0, (list.listInitial || list.initial) - init);
@@ -1191,13 +1195,8 @@
 
     // ---- service: plan dropdown, tappable prices, term & billing ----
     $("#cs-plan-cur").addEventListener("click", () => { tick(); planOpen = !planOpen; renderService(); });
-    const openPriceEdit = (focusId) => {
-      $("#cs-price-edit").hidden = false;
-      requestAnimationFrame(() => { try { $(focusId).focus(); $(focusId).select(); } catch (_) {} });
-    };
-    $("#cs-initial-btn").addEventListener("click", () => { tick(); openPriceEdit("#cs-initial"); });
-    $("#cs-monthly-btn").addEventListener("click", () => { tick(); openPriceEdit("#cs-monthly"); });
     ["cs-initial", "cs-monthly"].forEach((id) => {
+      $("#" + id).addEventListener("focus", () => { try { $("#" + id).select(); } catch (_) {} });
       $("#" + id).addEventListener("input", refreshPriceUI);
       $("#" + id).addEventListener("blur", () => {
         // finished typing: a below-floor price gets the UNPROFITABLE box —
@@ -1206,7 +1205,7 @@
         const f = planFloor();
         const under = (Number($("#cs-initial").value) || 0) < f.initial ||
                       (Number($("#cs-monthly").value) || 0) < f.monthly;
-        if (under && $("#cs-price-edit") && !$("#cs-price-edit").hidden) {
+        if (under) {
           $("#unprof-veil").hidden = false;
         } else {
           collectService();

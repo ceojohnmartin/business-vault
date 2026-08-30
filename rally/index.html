@@ -351,12 +351,10 @@
 
         <div class="ce-sec">Pricing</div>
         <div class="price-row">
-          <button class="price-big" id="cs-initial-btn" type="button"><span class="pb-label">Initial</span><b class="num" id="cs-initial-val">$450</b></button>
-          <button class="price-big" id="cs-monthly-btn" type="button"><span class="pb-label">Recurring</span><b class="num" id="cs-monthly-val">$99</b></button>
-        </div>
-        <div class="frow price-edit" id="cs-price-edit" hidden>
-          <div class="field"><label for="cs-initial">Initial $</label><input id="cs-initial" type="number" inputmode="decimal" min="0"></div>
-          <div class="field"><label for="cs-monthly">Recurring $</label><input id="cs-monthly" type="number" inputmode="decimal" min="0"></div>
+          <label class="price-big" for="cs-initial"><span class="pb-label">Initial</span>
+            <span class="pb-money num"><i>$</i><input id="cs-initial" type="number" inputmode="decimal" min="0" value="450"></span></label>
+          <label class="price-big" for="cs-monthly"><span class="pb-label">Recurring</span>
+            <span class="pb-money num"><i>$</i><input id="cs-monthly" type="number" inputmode="decimal" min="0" value="99"></span></label>
         </div>
         <p class="price-note" id="cs-discount"></p>
         <p class="price-warn" id="cs-unprofitable" hidden>UNPROFITABLE</p>
@@ -814,7 +812,7 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
-<script>window.RALLY_BUILD = "v24";</script>
+<script>window.RALLY_BUILD = "v25";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>

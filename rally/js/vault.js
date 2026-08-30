@@ -78,7 +78,10 @@
   // it ride along would make a backup file a skeleton key (restore it and
   // walk in with its session), and would hand a forgotten passcode straight
   // back to the rep who just erased the device to escape it.
-  const PRIVATE_KV = ["account", "session", "cloudSession", "cloudProfile"];
+  const PRIVATE_KV = ["account", "session", "cloudSession", "cloudProfile",
+    // sync bookkeeping is meaningless on another device — cursors would
+    // skip data, the user map points at this device's own user rows
+    "syncCursors", "syncUserMap", "syncBackfilled", "syncLastAt", "syncPendingEvents"];
   const FILE_CAP = 4 * 1024 * 1024; // one runaway photo must not sink the backup
 
   const blobToB64 = (blob) => new Promise((resolve, reject) => {
@@ -142,6 +145,9 @@
       toast("Restore hit a storage error — the device may be full");
       return;
     }
+    // a restore rewrote records underneath the sync engine — re-arm the
+    // one-time backfill so the restored book gets pushed to the team
+    try { await MDB.kvSet("syncBackfilled", null); } catch (_) {}
     toast("Restored — reloading");
     setTimeout(() => location.reload(), 900);
   }

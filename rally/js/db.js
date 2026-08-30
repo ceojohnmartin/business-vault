@@ -5,7 +5,7 @@
    knock and customer across the rebrand. */
 (function () {
   const DB_NAME = "meridian-db";
-  const DB_VER = 3;
+  const DB_VER = 4;
   let dbp = null;
 
   function open() {
@@ -38,6 +38,12 @@
         // v3: people — reps and managers with roles and territory colors
         if (!db.objectStoreNames.contains("users")) {
           db.createObjectStore("users", { keyPath: "id" });
+        }
+        // v4: the sync outbox — one row per locally-changed record awaiting
+        // a push to the team cloud. k = "table:id"; the record's payload is
+        // built fresh at push time, so entries here are tiny and coalesce.
+        if (!db.objectStoreNames.contains("outbox")) {
+          db.createObjectStore("outbox", { keyPath: "k" });
         }
       };
       req.onsuccess = () => {
@@ -105,6 +111,11 @@
   window.MDB = {
     uid,
     put: (store, val) => tx(store, "readwrite", (s) => s.put(val)).then(() => val),
+    // one transaction for a whole batch — the sync engine applies remote
+    // pages and enqueues backfills in bulk, and per-row transactions there
+    // would grind a large first sync to a halt
+    bulkPut: (store, vals) => tx(store, "readwrite", (s) => { vals.forEach((v) => s.put(v)); }).then(() => vals),
+    bulkDel: (store, keys) => tx(store, "readwrite", (s) => { keys.forEach((k) => s.delete(k)); }),
     del: (store, key) => tx(store, "readwrite", (s) => s.delete(key)),
     get,
     getAll,

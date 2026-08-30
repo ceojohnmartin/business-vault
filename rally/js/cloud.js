@@ -143,8 +143,46 @@
     }
   }
 
+  /* Authenticated data-plane call (PostgREST). Returns {status, data,
+     headers}; refreshes the access token once on a 401 and retries. Throws
+     the same net/auth-flavored errors as call() so callers can tell a dead
+     zone from a real denial. Used by the sync engine — auth flows above
+     stay on call() directly. */
+  async function api(path, opts) {
+    const o = opts || {};
+    let t = await getTokens();
+    if (!t || !t.access) throw fail("auth", "No cloud session");
+    if (Date.now() > t.expiresAt - 60e3) t = await refresh();
+    const run = async (access) => {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), o.timeout || 20000);
+      let res;
+      try {
+        const headers = Object.assign(
+          { apikey: cfg().anonKey, "Content-Type": "application/json",
+            Authorization: "Bearer " + access },
+          o.headers || {});
+        res = await fetch(base() + path, {
+          method: o.method || "GET", headers, signal: ctl.signal,
+          body: o.body === undefined ? undefined : JSON.stringify(o.body),
+        });
+      } catch (_) {
+        throw fail("net", "Can't reach RALLY cloud");
+      } finally { clearTimeout(timer); }
+      let data = null;
+      try { data = await res.json(); } catch (_) {}
+      return { status: res.status, data, ok: res.ok };
+    };
+    let r = await run(t.access);
+    if (r.status === 401) {
+      t = await refresh(); // throws auth if the session is truly dead
+      r = await run(t.access);
+    }
+    return r;
+  }
+
   window.MCLOUD = {
     enabled, signIn, signUp, signOut, refresh, fetchProfile, revalidate,
-    getTokens, getProfile,
+    getTokens, getProfile, api,
   };
 })();

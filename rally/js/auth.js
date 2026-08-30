@@ -319,6 +319,9 @@
     if (window.MCLOUD) {
       try { await MCLOUD.signOut(); } catch (_) {}
     }
+    if (window.MSYNC) {
+      try { await MSYNC.reset(); } catch (_) {}
+    }
     await Promise.all([
       MDB.clear("pins"), MDB.clear("events"), MDB.clear("customers"),
       MDB.clear("territories"), MDB.clear("files"), MDB.clear("users"),

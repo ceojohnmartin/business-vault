@@ -167,8 +167,12 @@
     $("#more-lock-sub").textContent = MAUTH.hasAccount()
       ? "Signed in as " + MAUTH.accountEmail()
       : "No device lock set up yet";
+    const syncSt = window.MSYNC && MSYNC.status();
+    const syncBit = syncSt && syncSt.on
+      ? (syncSt.pending ? `${syncSt.pending} to sync` : "synced")
+      : `${STORE.queuedCount()} queued for sync`;
     $("#more-export-sub").textContent = STORE.customers.length
-      ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${STORE.queuedCount()} queued for sync`
+      ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${syncBit}`
       : "Signed customers land here";
   }
 
@@ -381,6 +385,16 @@
           : "⚠️ Storage is not yet protected — install RALLY to your home screen and keep backups");
       }
       if (info.usage !== null) parts.push(`Using ${mb(info.usage)} of ${mb(info.quota)}`);
+      const st = window.MSYNC && MSYNC.status();
+      if (st && st.on) {
+        parts.push(!st.team
+          ? "Cloud sync: waiting for a team (ask your manager to add you)"
+          : st.pending
+            ? `Cloud sync: ${st.pending} change${st.pending === 1 ? "" : "s"} waiting`
+            : st.lastSyncAt
+              ? "Cloud sync: up to date · " + MUI.fmtAgo(st.lastSyncAt)
+              : "Cloud sync: on");
+      }
       el.textContent = parts.join(" · ") || "This browser doesn't report storage details";
     });
     $("#bk-backup").addEventListener("click", () => MVAULT.backup());
@@ -397,6 +411,7 @@
         MDB.clear("pins"), MDB.clear("events"), MDB.clear("customers"),
         MDB.clear("territories"), MDB.clear("files"),
       ]);
+      if (window.MSYNC) await MSYNC.reset().catch(() => {});
       STORE.pins = []; STORE.events = []; STORE.customers = []; STORE.territories = [];
       MMAP.refreshPins(); MMAP.refreshHoods(); MSTAT.render(); MCUST.renderList(); renderMore();
       toast("All data erased");
@@ -438,6 +453,9 @@
       if (sp) sp.hidden = true;
       if (g) g.hidden = true;
     }
+    // team sync wakes up once the device is unlocked; with cloud
+    // unconfigured this is a no-op and RALLY stays purely local
+    try { if (window.MSYNC) MSYNC.start(); } catch (e) { console.error("sync start", e); }
     TABS.forEach((s) =>
       $("#tab-" + s).addEventListener("click", () => { MUI.tick(); show(s); }));
     $("#veil").addEventListener("click", () => { closeSheet(); MMAP.clearSelection(); });

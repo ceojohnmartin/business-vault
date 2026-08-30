@@ -750,10 +750,16 @@
     const t = STORE.todayStats();
     $("#brand-today").innerHTML =
       `${t.doors} doors · ${t.dms} DMs · <b>${t.sales} sold</b> today`;
-    const q = STORE.queuedCount();
+    const st = window.MSYNC && MSYNC.status();
     const chip = $("#sync-chip");
-    chip.hidden = q === 0;
-    $("#sync-chip-n").textContent = q + " queued for FieldRoutes";
+    if (st && st.on) { // cloud era: the chip shows work waiting to upload
+      chip.hidden = st.pending === 0;
+      $("#sync-chip-n").textContent = st.pending + " to sync";
+    } else {
+      const q = STORE.queuedCount();
+      chip.hidden = q === 0;
+      $("#sync-chip-n").textContent = q + " queued for FieldRoutes";
+    }
     updateHoodStrip();
   }
 

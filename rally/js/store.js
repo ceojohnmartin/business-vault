@@ -113,6 +113,7 @@
       if (t.assignedTo !== id) return null;
       t.assignedTo = null;
       (t.assignments || []).forEach((a) => { if (a.userId === id && !a.unassignedAt) a.unassignedAt = Date.now(); });
+      if (window.MSYNC) MSYNC.queue("territories", t.id);
       return MDB.put("territories", t);
     }));
     if (S.settings.currentUserId === id) {
@@ -162,6 +163,7 @@
     S.events.push(ev);
     await MDB.put("pins", pin);
     await MDB.put("events", ev);
+    if (window.MSYNC) { MSYNC.queue("pins", pin.id); MSYNC.queue("events", ev.id); }
     return pin;
   };
 
@@ -274,6 +276,7 @@
         await MDB.put("pins", pin);
         S.pins.push(pin);
         idx.add(pin);
+        if (window.MSYNC) MSYNC.queue("pins", pin.id);
         added++;
       } catch (_) { failed++; }
       if (onProgress && (i % 25 === 24 || i === props.length - 1)) onProgress(i + 1, props.length);
@@ -284,6 +287,7 @@
   S.updatePin = async function (pin) {
     pin.updatedAt = Date.now();
     await MDB.put("pins", pin);
+    if (window.MSYNC) MSYNC.queue("pins", pin.id);
     return pin;
   };
 
@@ -291,6 +295,7 @@
     S.pins = S.pins.filter((p) => p.id !== id);
     S.events = S.events.filter((e) => e.pinId !== id);
     await MDB.del("pins", id);
+    if (window.MSYNC) MSYNC.queueDelete("pins", id);
     // events for the pin are removed from memory; purge from disk too
     const stale = await MDB.getAll("events");
     await Promise.all(stale.filter((e) => e.pinId === id).map((e) => MDB.del("events", e.id)));
@@ -303,12 +308,14 @@
     cust.status = cust.status || "queued";
     S.customers.push(cust);
     await MDB.put("customers", cust);
+    if (window.MSYNC) MSYNC.queue("customers", cust.id);
     return cust;
   };
 
   S.updateCustomer = async function (cust) {
     cust.updatedAt = Date.now();
     await MDB.put("customers", cust);
+    if (window.MSYNC) MSYNC.queue("customers", cust.id);
     return cust;
   };
 
@@ -316,6 +323,7 @@
     const c = S.customers.find((x) => x.id === id);
     S.customers = S.customers.filter((x) => x.id !== id);
     await MDB.del("customers", id);
+    if (window.MSYNC) MSYNC.queueDelete("customers", id);
     // sweep the customer's stored files (agreement snapshots, photos)
     if (c && Array.isArray(c.files)) {
       await Promise.all(c.files.map((f) => MDB.del("files", f.id).catch(() => {})));
@@ -410,19 +418,26 @@
     t.assignments = t.assignments || [];
     S.territories.push(t);
     await MDB.put("territories", t);
+    if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;
   };
   S.updateTerritory = async function (t) {
     await MDB.put("territories", t);
+    if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;
   };
   S.deleteTerritory = async function (id) {
     S.territories = S.territories.filter((t) => t.id !== id);
     await MDB.del("territories", id);
+    if (window.MSYNC) MSYNC.queueDelete("territories", id);
     // release the pins that pointed here — future knocks re-attribute by
     // whichever live polygon actually contains them
     const orphans = S.pins.filter((p) => p.territoryId === id);
-    for (const p of orphans) { p.territoryId = null; await MDB.put("pins", p); }
+    for (const p of orphans) {
+      p.territoryId = null;
+      await MDB.put("pins", p);
+      if (window.MSYNC) MSYNC.queue("pins", p.id);
+    }
   };
 
   // Assignment is history, never an overwrite: the old rep's run is closed
@@ -442,6 +457,7 @@
       });
     }
     await MDB.put("territories", t);
+    if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;
   };
 

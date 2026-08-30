@@ -65,8 +65,7 @@
   function build() {
     const cands = candidates();
     if (!cands.length) { toast("Nothing to re-knock right now — go get fresh doors"); return false; }
-    const m = MMAP.getMap();
-    const c = m ? m.getCenter() : { lat: cands[0].pin.lat, lng: cands[0].pin.lng };
+    const c = MMAP.getCenter() || { lat: cands[0].pin.lat, lng: cands[0].pin.lng };
     stops = order(cands, { lat: c.lat, lng: c.lng }).slice(0, 20);
     stops.forEach((s) => { s.opp = STORE.oppScore(s.pin); });
     if (cands.length > 20) toast(`Routing the best 20 of ${cands.length} stops`);
@@ -79,8 +78,7 @@
   // route exactly these pins (bulk lasso) — nearest-neighbor from map center
   function buildFrom(pins) {
     if (!pins || !pins.length) { toast("Nothing to route"); return false; }
-    const m = MMAP.getMap();
-    const c = m ? m.getCenter() : { lat: pins[0].lat, lng: pins[0].lng };
+    const c = MMAP.getCenter() || { lat: pins[0].lat, lng: pins[0].lng };
     const cands = pins.map((p) => {
       const d = MDATA.DISPOSITIONS[p.disposition];
       return { pin: p, tier: 1, whyLabel: (d ? d.label : p.disposition) +

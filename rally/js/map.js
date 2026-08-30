@@ -13,6 +13,7 @@
   const D = MDATA.DISPOSITIONS;
 
   let map = null;
+  const clickHandlers = []; // MMAP.onMapClick registrations, first-consume-wins
   let tempMarker = null;
   let puck = null;
   let selectedPinId = "";
@@ -402,6 +403,50 @@
   // ---------- re-knock route rendering ----------
   const emptyFC = () => ({ type: "FeatureCollection", features: [] });
 
+  // ---------- territory draft ring (owned here so hoods.js never touches
+  // the engine; the shapes and paint are exactly what hoods.js drew) ----------
+  let draftDots = [];
+  function draftData() {
+    const pts = draftDots.map((p) => ({
+      type: "Feature", geometry: { type: "Point", coordinates: p }, properties: {},
+    }));
+    const shapes = [];
+    if (draftDots.length >= 2) {
+      shapes.push({ type: "Feature", properties: {},
+        geometry: { type: "LineString", coordinates: draftDots } });
+    }
+    if (draftDots.length >= 3) {
+      shapes.push({ type: "Feature", properties: {},
+        geometry: { type: "Polygon", coordinates: [[...draftDots, draftDots[0]]] } });
+    }
+    return { type: "FeatureCollection", features: [...shapes, ...pts] };
+  }
+
+  function ensureDraftLayers() {
+    if (map.getSource("hood-draft")) return;
+    map.addSource("hood-draft", { type: "geojson", data: draftData() });
+    map.addLayer({ id: "hood-draft-fill", type: "fill", source: "hood-draft",
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: { "fill-color": "#0A6CF0", "fill-opacity": 0.12 } });
+    map.addLayer({ id: "hood-draft-line", type: "line", source: "hood-draft",
+      filter: ["!=", ["geometry-type"], "Point"],
+      paint: { "line-color": "#0A6CF0", "line-width": 2.5, "line-dasharray": [1.6, 1.2] } });
+    map.addLayer({ id: "hood-draft-pts", type: "circle", source: "hood-draft",
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: { "circle-color": "#FFFFFF", "circle-radius": 6,
+        "circle-stroke-color": "#0A6CF0", "circle-stroke-width": 3 } });
+  }
+
+  function setDraftRing(dots) {
+    draftDots = Array.isArray(dots) ? dots : [];
+    if (!map) return;
+    if (!draftDots.length && !map.getSource("hood-draft")) return; // nothing to clear
+    try {
+      ensureDraftLayers();
+      map.getSource("hood-draft").setData(draftData());
+    } catch (_) { /* style mid-reload — the next set repaints it */ }
+  }
+
   function addRouteLayers() {
     map.addSource("route", { type: "geojson", data: emptyFC() });
     map.addLayer({
@@ -626,12 +671,15 @@
       refreshPins();
       refreshHoods();
       reloadImagery();
-      if (window.MHOODS) MHOODS.onMapReady(map);
     });
 
     map.on("click", (e) => {
-      // hood drawing (dot mode) consumes clicks first
-      if (window.MHOODS && MHOODS.handleMapClick(e)) return;
+      // registered handlers (hood dot-drawing) consume clicks first —
+      // they see a plain {lng, lat}, never an engine event
+      const norm = { lng: e.lngLat.lng, lat: e.lngLat.lat };
+      for (const h of clickHandlers) {
+        try { if (h(norm)) return; } catch (_) {}
+      }
       clearEmphasis();
       // 16px tolerance box: fat-fingering near a pin opens it instead of
       // silently creating a duplicate door
@@ -1240,6 +1288,14 @@
     usingOwnKey: () => !!STORE.settings.googleKey,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
     resize: () => { if (map) map.resize(); },
-    getMap: () => map,
+    // engine-neutral surface — everything an adapter must provide, and
+    // nothing that leaks the engine. (getMap is gone on purpose.)
+    isReady: () => !!map,
+    getCenter: () => { if (!map) return null; const c = map.getCenter(); return { lng: c.lng, lat: c.lat }; },
+    project: (lng, lat) => { if (!map) return null; const p = map.project([lng, lat]); return { x: p.x, y: p.y }; },
+    unproject: (x, y) => { if (!map) return null; const ll = map.unproject([x, y]); return { lng: ll.lng, lat: ll.lat }; },
+    jumpTo: (lng, lat, zoom) => { if (map) map.jumpTo({ center: [lng, lat], zoom: zoom != null ? zoom : map.getZoom() }); },
+    onMapClick: (fn) => { if (typeof fn === "function") clickHandlers.push(fn); },
+    setDraftRing,
   };
 })();

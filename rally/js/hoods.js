@@ -7,7 +7,6 @@
 (function () {
   const { $, $$, openSheet, closeSheet, toast, tick } = MUI;
 
-  let map = null;
   let mode = null;          // null | "pencil" | "dots" | "lasso"
   let dots = [];            // [[lng,lat],...] while tap-drawing
   let pending = null;       // points awaiting the save sheet
@@ -16,52 +15,22 @@
   let preAssign = null;     // "Give area" flow: the rep the new hood is for
 
   // ---------- draft rendering (dot mode) ----------
-  function draftData() {
-    const pts = dots.map((p) => ({
-      type: "Feature", geometry: { type: "Point", coordinates: p }, properties: {},
-    }));
-    const shapes = [];
-    if (dots.length >= 2) {
-      shapes.push({ type: "Feature", properties: {},
-        geometry: { type: "LineString", coordinates: dots } });
-    }
-    if (dots.length >= 3) {
-      shapes.push({ type: "Feature", properties: {},
-        geometry: { type: "Polygon", coordinates: [[...dots, dots[0]]] } });
-    }
-    return { type: "FeatureCollection", features: [...shapes, ...pts] };
-  }
-
-  function ensureDraftLayers() {
-    if (map.getSource("hood-draft")) return;
-    map.addSource("hood-draft", { type: "geojson", data: draftData() });
-    map.addLayer({ id: "hood-draft-fill", type: "fill", source: "hood-draft",
-      filter: ["==", ["geometry-type"], "Polygon"],
-      paint: { "fill-color": "#0A6CF0", "fill-opacity": 0.12 } });
-    map.addLayer({ id: "hood-draft-line", type: "line", source: "hood-draft",
-      filter: ["!=", ["geometry-type"], "Point"],
-      paint: { "line-color": "#0A6CF0", "line-width": 2.5, "line-dasharray": [1.6, 1.2] } });
-    map.addLayer({ id: "hood-draft-pts", type: "circle", source: "hood-draft",
-      filter: ["==", ["geometry-type"], "Point"],
-      paint: { "circle-color": "#FFFFFF", "circle-radius": 6,
-        "circle-stroke-color": "#0A6CF0", "circle-stroke-width": 3 } });
-  }
-
+  // The shapes live behind the MMAP facade — this module only owns the
+  // corner list and the toolbar state.
   function refreshDraft() {
-    ensureDraftLayers();
-    map.getSource("hood-draft").setData(draftData());
+    MMAP.setDraftRing(dots);
     $("#draw-done").disabled = dots.length < 3;
     $("#draw-undo").disabled = dots.length === 0;
   }
 
   function clearDraft() {
     dots = [];
-    if (map && map.getSource("hood-draft")) map.getSource("hood-draft").setData(draftData());
+    MMAP.setDraftRing(dots);
   }
 
   // ---------- mode lifecycle ----------
   function startMode(m) {
-    if (!map) { toast("Map is still loading"); return; }
+    if (!MMAP.isReady()) { toast("Map is still loading"); return; }
     stopMode();
     mode = m;
     $("#hood-menu").hidden = true;
@@ -152,7 +121,7 @@
     // close the shape visually, simplify in screen space, convert to lng/lat
     const pts = simplify(trace, 6);
     const coords = pts.map((p) => {
-      const ll = map.unproject([p.x, p.y]);
+      const ll = MMAP.unproject(p.x, p.y);
       return [ll.lng, ll.lat];
     });
     const finished = mode; // stopMode clears it
@@ -195,7 +164,7 @@
   function handleMapClick(e) {
     if (mode !== "dots") return false;
     tick();
-    dots.push([e.lngLat.lng, e.lngLat.lat]);
+    dots.push([e.lng, e.lat]);
     refreshDraft();
     return true; // consumed — no knock behind a draw tap
   }
@@ -598,6 +567,7 @@
       openHoodSheet(pts, null);
     });
     bindSplit();
+    MMAP.onMapClick(handleMapClick); // dot-drawing consumes taps before knocks
     $("#hood-save").addEventListener("click", saveHood);
     $("#hood-delete").addEventListener("click", async () => {
       if (!editingId) return;
@@ -665,8 +635,6 @@
 
   window.MHOODS = {
     bind,
-    handleMapClick,
-    onMapReady: (m) => { map = m; },
     isDrawing: () => mode !== null,
     createFromPoints: (pts) => openHoodSheet(pts, null), // lasso → hood
   };

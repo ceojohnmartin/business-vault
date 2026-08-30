@@ -550,8 +550,6 @@
     // the band always tells you what's set, open or closed
     $("#cs-fup-body").hidden = !fupOpen;
     $("#cs-fup-toggle").classList.toggle("open", fupOpen);
-    const bill0 = MDATA.BILLING.find((b) => b.id === cur.billing) || MDATA.BILLING[0];
-    $("#cs-fup-meta").textContent = `${cur.termMonths} mo · ${bill0.label}`;
     const std = MDATA.TERMS.includes(cur.termMonths);
     $$("#cs-term .seg-opt").forEach((b) =>
       b.classList.toggle("sel", std ? +b.dataset.m === cur.termMonths : b.dataset.m === "custom"));

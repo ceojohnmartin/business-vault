@@ -191,7 +191,7 @@
     $("#ci-zip").value = cur.address.zip || "";
     $("#ci-notes-forever").value = cur.notesForever || "";
     $("#ci-notes-initial").value = cur.notesInitial || "";
-    ["text", "email", "voice"].forEach((k) =>
+    ["text", "email"].forEach((k) =>
       $("#ci-rem-" + k).classList.toggle("on", !!cur.reminders[k]));
     $("#ci-switch").classList.toggle("on", !!cur.switchOver);
     renderPhones();
@@ -338,8 +338,8 @@
   async function useMyLocation() {
     const btn = $("#ci-gps");
     if (!navigator.geolocation) { toast("Location isn't available on this device"); return; }
-    btn.disabled = true; btn.textContent = "📍 Finding you…";
-    const done = () => { btn.disabled = false; btn.textContent = "📍 Use my location"; };
+    btn.disabled = true; btn.textContent = "Finding you…";
+    const done = () => { btn.disabled = false; btn.textContent = "Use my location"; };
     const snap = cur; // the fix must land on the record that asked for it
     navigator.geolocation.getCurrentPosition(async (pos) => {
       if (cur !== snap) { done(); return; } // editor closed or switched customers
@@ -1177,7 +1177,7 @@
 
     $("#ci-gps").addEventListener("click", () => { tick(); useMyLocation(); });
 
-    ["text", "email", "voice"].forEach((k) =>
+    ["text", "email"].forEach((k) =>
       $("#ci-rem-" + k).addEventListener("click", () => {
         tick();
         cur.reminders[k] = !cur.reminders[k];

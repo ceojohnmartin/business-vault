@@ -19,6 +19,10 @@ const check = (name, cond, extra="") => (cond?ok:bad).push(name + (extra?" — "
   await new Promise(r=>server.listen(8815,r));
   const b = await chromium.launch({ executablePath:"/opt/pw-browsers/chromium" });
   const ctx = await b.newContext({ viewport:{width:390,height:844}, deviceScaleFactor:2 });
+  // Cloud OFF: this suite exercises the device gate itself and must never
+  // create users in the live Supabase project. Set before cloud-config.js
+  // runs, whose `||` leaves an existing value alone.
+  await ctx.addInitScript(() => { window.RALLY_CLOUD = { url: "", anonKey: "" }; });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("PAGEERROR: " + e.message));

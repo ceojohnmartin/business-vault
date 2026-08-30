@@ -44,6 +44,10 @@ const server = http.createServer((req, res) => {
     if (navigator.serviceWorker) {
       navigator.serviceWorker.register = () => Promise.reject(new Error("sw off in test"));
     }
+    // Cloud OFF for this suite: it tests the app, not the account system, and
+    // must never create users in the live Supabase project. Set before
+    // cloud-config.js runs, whose `||` leaves an existing value alone.
+    window.RALLY_CLOUD = { url: "", anonKey: "" };
     // Test-only engine seam: the app's MMAP facade no longer exposes the raw
     // map (getMap is gone on purpose), but a few smoke assertions inspect
     // engine internals (source data, isMoving, rendered clusters). Capture

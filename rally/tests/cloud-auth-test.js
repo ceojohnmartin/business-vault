@@ -57,6 +57,8 @@ const server = http.createServer((req, res) => {
           const usr = mock.users[String(body.email || "").toLowerCase()];
           if (!usr || usr.password !== body.password)
             return j(res, 400, { error_description: "Invalid login credentials" });
+          if (usr.unconfirmed)
+            return j(res, 400, { error_description: "Email not confirmed" });
           const s = mint(usr.id); s.user.email = body.email;
           return j(res, 200, s);
         }
@@ -110,8 +112,12 @@ const server = http.createServer((req, res) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await ctx.addInitScript(() => {
       if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));
+      // Default OFF, explicitly. cloud-config.js ships REAL project keys, so
+      // relying on it being empty would point the cloud-off scenarios at the
+      // live Supabase project and create junk users there.
+      window.RALLY_CLOUD = { url: "", anonKey: "" };
     });
-    if (cloudOn) await ctx.addInitScript(CLOUD_ON);
+    if (cloudOn) await ctx.addInitScript(CLOUD_ON); // assigns over the default
     const page = await ctx.newPage();
     page.on("pageerror", (e) => errors.push(e.message));
     return { ctx, page };
@@ -222,6 +228,14 @@ const server = http.createServer((req, res) => {
     check("C4 …and the form swapped back to sign-in",
       (await page.$eval("#gate-title", (e) => e.textContent)) === "Sign in");
     mock.confirmRequired = false;
+
+    // signing in before confirming says so plainly, instead of the generic
+    // wrong-passcode message that would send a rep in circles
+    mock.users["newrep@x.com"].unconfirmed = true;
+    await trySignIn(page, "newrep@x.com", "knock1234");
+    const umsg = await gateMsg(page);
+    check("C5 an unconfirmed account is told to confirm, not 'wrong passcode'",
+      (await gateOpen(page)) && /confirmation link/i.test(umsg), umsg);
     await ctx.close();
   }
 

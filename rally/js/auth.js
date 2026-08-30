@@ -282,6 +282,13 @@
       } else {
         await bumpFails();
       }
+      // "Your account exists but isn't confirmed yet" is worth saying out
+      // loud — the fix is tapping a link in an inbox, not retyping a
+      // passcode, and the generic message would send the rep in circles.
+      // (The server already discloses this, so we reveal nothing new.)
+      if (/not confirmed/i.test(e.message || "")) {
+        throw new Error("Tap the confirmation link in your email, then sign in");
+      }
       throw new Error("That email and passcode don't match");
     }
 

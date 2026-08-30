@@ -5,4 +5,7 @@
    Leave both empty and RALLY runs exactly as the local-first app it has
    always been: no requests, no accounts, no cloud.
    (A service_role key must NEVER appear here, or anywhere in this repo.) */
-window.RALLY_CLOUD = window.RALLY_CLOUD || { url: "", anonKey: "" };
+window.RALLY_CLOUD = window.RALLY_CLOUD || {
+  url: "https://xwjreykfjzvlmgjzfnzt.supabase.co",
+  anonKey: "sb_publishable_aL8g7dTqV1K5HmFPl828zA_ZdXor-qA",
+};

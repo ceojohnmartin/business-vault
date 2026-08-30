@@ -18,6 +18,7 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
   const page = await (await b.newContext({viewport:{width:390,height:844}})).newPage();
   await page.addInitScript(() => {
     if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));
+    window.RALLY_CLOUD = { url: "", anonKey: "" }; // never touch the live project
   });
   const errors=[]; page.on("pageerror",e=>errors.push(e.message));
   await page.goto("http://localhost:8821/");

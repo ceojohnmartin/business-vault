@@ -385,6 +385,10 @@
 
   async function saveHood() {
     if (saving) return;
+    // …and a tap that lands AFTER the first save finished must not mint a
+    // phantom either: by then pending is cleared and the sheet is closed, so
+    // a second create would file a territory with no boundary at all.
+    if (!editingId && (!pending || pending.length < 3)) return;
     saving = true;
     const saveBtn = $("#hood-save");
     if (saveBtn) saveBtn.disabled = true;

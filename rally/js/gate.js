@@ -72,8 +72,20 @@
     const pass = el["gate-pass"].value;
     const name = el["gate-name"].value;
     try {
-      if (mode === "signup") await MAUTH.signUp({ email, name, password: pass });
-      else await MAUTH.signIn(email, pass, remember);
+      if (mode === "signup") {
+        const r = await MAUTH.signUp({ email, name, password: pass });
+        // cloud accounts with email confirmation on: the account exists,
+        // the rep confirms from their inbox, then signs in right here
+        if (r && r.pendingConfirm) {
+          setMode("signin");
+          el["gate-email"].value = email;
+          el["gate-pass"].value = "";
+          msg("Almost there — tap the link in the email we just sent, then sign in", true);
+          return;
+        }
+      } else {
+        await MAUTH.signIn(email, pass, remember);
+      }
       el["gate-pass"].value = "";
       unlock();
     } catch (err) {

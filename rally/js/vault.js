@@ -78,7 +78,7 @@
   // it ride along would make a backup file a skeleton key (restore it and
   // walk in with its session), and would hand a forgotten passcode straight
   // back to the rep who just erased the device to escape it.
-  const PRIVATE_KV = ["account", "session"];
+  const PRIVATE_KV = ["account", "session", "cloudSession", "cloudProfile"];
   const FILE_CAP = 4 * 1024 * 1024; // one runaway photo must not sink the backup
 
   const blobToB64 = (blob) => new Promise((resolve, reject) => {

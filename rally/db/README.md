@@ -15,21 +15,33 @@ security-proven ground to land on.
 
 ## Setting up the real project (once)
 
+Order matters: the app can only create real accounts *after* it has the
+project keys, so the owner account is made in the dashboard first.
+
 1. Create a project at supabase.com (any name; pick a strong database
    password and keep it in a password manager — it is never used by RALLY).
-2. SQL editor → paste `migrations/0001_phase1_foundation.sql` → Run.
-3. In RALLY, create the owner account through the normal sign-up screen.
-4. SQL editor → paste `seed.example.sql` with the owner email filled in → Run.
+2. SQL editor → paste `migrations/0001_phase1_foundation.sql` → Run once.
+3. Authentication → Users → **Add user** → the owner's email and the
+   password they'll type into RALLY, with **Auto Confirm User** on. The
+   signup trigger creates their profile automatically.
+4. SQL editor → paste `seed.example.sql` with that email filled in → Run.
+   This creates the team and makes them its owner.
 5. Project Settings → API: copy the **Project URL** and the **anon public**
    key into `rally/js/cloud-config.js`. Those two values are browser-safe
    by design — every real permission is enforced by RLS.
    **Never** copy the `service_role` key into the app, the repo, or a chat.
 6. Auth → Providers → Email: leave "Confirm email" ON (recommended) — the
-   gate handles the confirm-then-sign-in flow.
+   gate handles the confirm-then-sign-in flow for everyone after the owner.
 
-Reps: each rep signs up in RALLY, then leadership places them on the team
-(one `update` — see the bottom of `seed.example.sql`). Until placed, an
-account can sign in but reads zero team data.
+Reps: each rep signs up in RALLY (or gets added in the dashboard the same
+way), then leadership places them on the team — one `update`, see the
+bottom of `seed.example.sql`. Until placed, an account can sign in but
+reads zero team data.
+
+A device that already has a local-only RALLY account keeps its data when
+it first signs in against the cloud: signing in with the same email
+re-keys that device to the server password and binds it to the cloud
+user. Nothing on the phone is erased.
 
 ## The security model in one paragraph
 

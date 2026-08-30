@@ -1,6 +1,8 @@
 -- RALLY — one-time team bootstrap (the "small controlled bootstrap record").
--- Run AFTER the owner has created their account through the RALLY sign-up
--- screen (that's what makes their profile row exist).
+-- Run AFTER the owner's account exists in Supabase Auth — either created
+-- in the dashboard (Authentication → Users → Add user, "Auto Confirm" on)
+-- or through the RALLY sign-up screen once the app has its keys. Either
+-- way the signup trigger has already made their profile row.
 --
 -- 1. Replace the email below with the owner's sign-in email.
 -- 2. Run this once in the Supabase SQL editor.
@@ -18,7 +20,7 @@ begin
      set role = 'owner', team_id = tid
    where email = 'OWNER_EMAIL_HERE';
   if not found then
-    raise exception 'No profile with that email — sign up inside RALLY first, then run this.';
+    raise exception 'No profile with that email — create the account in Authentication → Users (or sign up in RALLY) first, then run this.';
   end if;
 end $$;
 

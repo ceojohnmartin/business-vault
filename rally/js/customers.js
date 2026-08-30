@@ -435,8 +435,10 @@
 
   function refreshPriceUI() {
     const list = planDef();
-    const init = Number($("#cs-initial").value) || 0;
-    const mo = Number($("#cs-monthly").value) || 0;
+    const rawI = $("#cs-initial").value, rawM = $("#cs-monthly").value;
+    // a field cleared for typing counts as sticker until a number lands
+    const init = rawI === "" ? list.initial : Number(rawI) || 0;
+    const mo = rawM === "" ? list.monthly : Number(rawM) || 0;
     const f = planFloor();
     const under = init < f.initial || mo < f.monthly;
     // the input hugs its digits so "$450" centers as one piece
@@ -444,9 +446,6 @@
       const el = $("#" + id);
       el.style.width = Math.max(1.2, String(el.value || "").length * 1.05) + "ch";
     });
-    // a legal discount shows its price in green — the number sells itself
-    $("#cs-initial").closest(".pb-money").classList.toggle("disc", !under && init >= f.initial && init < (list.listInitial || list.initial));
-    $("#cs-monthly").closest(".pb-money").classList.toggle("disc", !under && mo >= f.monthly && mo < list.monthly);
     $("#cs-unprofitable").hidden = !under;
     // the discount line IS the pitch: show what they're saving off sticker
     const dInit = Math.max(0, (list.listInitial || list.initial) - init);
@@ -1196,9 +1195,18 @@
     // ---- service: plan dropdown, tappable prices, term & billing ----
     $("#cs-plan-cur").addEventListener("click", () => { tick(); planOpen = !planOpen; renderService(); });
     ["cs-initial", "cs-monthly"].forEach((id) => {
-      $("#" + id).addEventListener("focus", () => { try { $("#" + id).select(); } catch (_) {} });
+      // tap = the field empties and you just type the new price; leaving it
+      // blank puts the old number back. No text selection, no blue handles.
+      $("#" + id).addEventListener("focus", () => {
+        const el = $("#" + id);
+        el.dataset.prev = el.value;
+        el.value = "";
+        refreshPriceUI();
+      });
       $("#" + id).addEventListener("input", refreshPriceUI);
       $("#" + id).addEventListener("blur", () => {
+        const el = $("#" + id);
+        if (el.value === "" && el.dataset.prev) { el.value = el.dataset.prev; refreshPriceUI(); }
         // finished typing: a below-floor price gets the UNPROFITABLE box —
         // OK leaves it to fix by hand, Clear snaps back to the sticker.
         // (Saving or switching tabs still clamps to the floor regardless.)

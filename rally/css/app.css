@@ -958,12 +958,13 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .pb-money{display:flex;align-items:baseline;justify-content:center;font-weight:800}
 .pb-money i{font-style:normal;font-size:20px;margin-right:1px}
 .pb-money input{background:none;border:none;outline:none;text-align:left;
-  font:inherit;font-size:28px;font-weight:800;color:var(--t1);padding:0;
+  font:inherit;font-size:28px;font-weight:800;padding:0;caret-color:#15803D;
   -moz-appearance:textfield;width:2.1ch;min-width:1.2ch;max-width:5.5ch}
 .pb-money input::-webkit-outer-spin-button,.pb-money input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.price-big:focus-within{border-color:var(--accent)}
-/* a discounted price wears green — the number itself is the pitch */
-.pb-money.disc,.pb-money.disc input{color:#15803D}
+.pb-money input::selection{background:transparent}
+.price-big:focus-within{border-color:#15803D}
+/* the money is ALWAYS green — both cards, at sticker and discounted alike */
+.pb-money,.pb-money input{color:#15803D}
 .price-note{font-size:13px;color:var(--sold-ink,#15803D);font-weight:600;margin:2px 0 12px;min-height:18px}
 .price-warn{font-size:15px;font-weight:900;letter-spacing:.12em;color:#C42B30;margin:2px 0 12px}
 

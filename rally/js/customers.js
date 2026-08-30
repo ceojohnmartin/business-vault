@@ -129,6 +129,7 @@
     curTab = "info";
     // per-customer UI state never leaks into the next record
     planOpen = false;
+    specOpen = false;
     specEditing = null;
     $("#ce-title").textContent = title;
     document.body.classList.add("editing");
@@ -379,6 +380,7 @@
 
   // ---------- SERVICE ----------
   let planOpen = false;      // the plan dropdown
+  let specOpen = false;      // the specialty accordion
   let specEditing = null;    // specialty id open in the price sheet
 
   const planDef = () => MDATA.PLANS.find((p) => p.id === cur.plan.id) || MDATA.PLANS[3];
@@ -473,6 +475,13 @@
 
   // ---- specialty pest add-ons: card list, tap price to adjust ----
   function renderSpecialty() {
+    // the band: open/closed, and a green summary of what's already picked
+    $("#cs-spec-body").hidden = !specOpen;
+    $("#cs-spec-toggle").classList.toggle("open", specOpen);
+    const picked = cur.specialty || [];
+    $("#cs-spec-meta").textContent = picked.length
+      ? `${picked.length} added · +${fmtMoney(picked.reduce((t, sv) => t + (Number(sv.monthly) || 0), 0))}/mo`
+      : "";
     $("#cs-specialty").innerHTML = MDATA.SPECIALTY.map((d) => {
       const on = (cur.specialty || []).find((x) => x.id === d.id);
       const init = on ? on.initial : d.initial;
@@ -1194,6 +1203,7 @@
 
     // ---- service: plan dropdown, tappable prices, term & billing ----
     $("#cs-plan-cur").addEventListener("click", () => { tick(); planOpen = !planOpen; renderService(); });
+    $("#cs-spec-toggle").addEventListener("click", () => { tick(); specOpen = !specOpen; renderSpecialty(); });
     ["cs-initial", "cs-monthly"].forEach((id) => {
       // tap = the field empties and you just type the new price; leaving it
       // blank puts the old number back. No text selection, no blue handles.

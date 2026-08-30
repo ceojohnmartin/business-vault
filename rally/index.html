@@ -362,9 +362,15 @@
         <div class="ce-sec">Additional services — select all that apply</div>
         <div class="chip-grid" id="cs-addsvc"></div>
 
-        <div class="ce-sec">Specialty pest services</div>
-        <p class="dim" style="font-size:12.5px;margin:-4px 0 10px">These services are in addition to the pest control plan.</p>
-        <div id="cs-specialty"></div>
+        <button class="acc-band" id="cs-spec-toggle" type="button">
+          <span class="acc-t">Specialty Pest Services</span>
+          <span class="acc-meta" id="cs-spec-meta"></span>
+          <span class="acc-chev" id="cs-spec-chev">▾</span>
+        </button>
+        <div id="cs-spec-body" hidden>
+          <p class="dim" style="font-size:12.5px;margin:2px 0 10px">These services are in addition to the pest control plan.</p>
+          <div id="cs-specialty"></div>
+        </div>
 
         <div class="ce-sec">Follow-ups</div>
         <div class="field"><label>Contract length</label>
@@ -812,7 +818,7 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
-<script>window.RALLY_BUILD = "v26";</script>
+<script>window.RALLY_BUILD = "v27";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>

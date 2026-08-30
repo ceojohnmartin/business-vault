@@ -372,7 +372,12 @@
           <div id="cs-specialty"></div>
         </div>
 
-        <div class="ce-sec">Follow-ups</div>
+        <button class="acc-band" id="cs-fup-toggle" type="button">
+          <span class="acc-t">Follow-Ups</span>
+          <span class="acc-meta" id="cs-fup-meta"></span>
+          <span class="acc-chev">▾</span>
+        </button>
+        <div id="cs-fup-body" hidden>
         <div class="field"><label>Contract length</label>
           <div class="seg" id="cs-term">
             <button class="seg-opt" data-m="12">12</button>
@@ -389,6 +394,7 @@
             <button class="seg-opt" data-b="bimonthly">Bi-monthly</button>
             <button class="seg-opt" data-b="quarterly">Quarterly</button>
           </div>
+        </div>
         </div>
       </div>
 
@@ -817,7 +823,7 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
-<script>window.RALLY_BUILD = "v28";</script>
+<script>window.RALLY_BUILD = "v29";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>

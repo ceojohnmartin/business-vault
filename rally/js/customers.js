@@ -130,6 +130,7 @@
     // per-customer UI state never leaks into the next record
     planOpen = false;
     specOpen = false;
+    fupOpen = false;
     specEditing = null;
     $("#ce-title").textContent = title;
     document.body.classList.add("editing");
@@ -381,6 +382,7 @@
   // ---------- SERVICE ----------
   let planOpen = false;      // the plan dropdown
   let specOpen = false;      // the specialty accordion
+  let fupOpen = false;       // the follow-ups accordion
   let specEditing = null;    // specialty id open in the price sheet
 
   const planDef = () => MDATA.PLANS.find((p) => p.id === cur.plan.id) || MDATA.PLANS[3];
@@ -545,6 +547,11 @@
 
   // ---- follow-ups: contract length + billing cycle, with the math shown ----
   function renderTermBilling() {
+    // the band always tells you what's set, open or closed
+    $("#cs-fup-body").hidden = !fupOpen;
+    $("#cs-fup-toggle").classList.toggle("open", fupOpen);
+    const bill0 = MDATA.BILLING.find((b) => b.id === cur.billing) || MDATA.BILLING[0];
+    $("#cs-fup-meta").textContent = `${cur.termMonths} mo · ${bill0.label}`;
     const std = MDATA.TERMS.includes(cur.termMonths);
     $$("#cs-term .seg-opt").forEach((b) =>
       b.classList.toggle("sel", std ? +b.dataset.m === cur.termMonths : b.dataset.m === "custom"));
@@ -1194,6 +1201,7 @@
     // ---- service: plan dropdown, tappable prices, term & billing ----
     $("#cs-plan-cur").addEventListener("click", () => { tick(); planOpen = !planOpen; renderService(); });
     $("#cs-spec-toggle").addEventListener("click", () => { tick(); specOpen = !specOpen; renderSpecialty(); });
+    $("#cs-fup-toggle").addEventListener("click", () => { tick(); fupOpen = !fupOpen; renderTermBilling(); });
     ["cs-initial", "cs-monthly"].forEach((id) => {
       // tap = the field empties and you just type the new price; leaving it
       // blank puts the old number back. No text selection, no blue handles.

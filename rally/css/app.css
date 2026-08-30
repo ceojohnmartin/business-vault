@@ -920,13 +920,18 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .cust-panel .fp b{font-weight:800}
 .empty.plain{padding:56px 20px;font-size:15px;color:var(--t3)}
 
-/* selectable chip grids (pests, property notes, additional services) */
+/* selectable chip grids (pests, property notes, additional services) —
+   icon + label left-aligned, the mockup's compact card look */
 .chip-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:6px}
-.pchip{border:1.5px solid var(--line);background:var(--s1);border-radius:14px;
-  padding:13px 12px;font-size:13.5px;font-weight:700;color:var(--t1);text-align:center;
+.pchip{display:flex;align-items:center;gap:9px;border:1.5px solid var(--line);
+  background:var(--s1);border-radius:14px;padding:12px 12px;font-size:13.5px;
+  font-weight:700;color:var(--t1);text-align:left;min-height:48px;
   transition:transform .1s}
 .pchip:active{transform:scale(.96)}
 .pchip.sel{background:#17181A;border-color:#17181A;color:#fff}
+.pchip-ic{width:21px;height:21px;flex:none}
+.pchip-t{flex:1;min-width:0;line-height:1.2}
+.pchip-ck{flex:none;font-size:13px;font-weight:900}
 
 /* + button on the last phone row */
 .mini-add{flex:none;width:32px;height:32px;border-radius:50%;background:#17181A;color:#fff;

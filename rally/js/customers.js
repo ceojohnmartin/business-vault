@@ -231,10 +231,70 @@
       b.addEventListener("click", () => { cur.contacts.splice(+b.dataset.i, 1); renderContacts(); }));
   }
 
+  // Small inline icons so the chips read at a glance — filled silhouettes
+  // for the pests, light outlines for the property/structure notes.
+  // Everything draws in currentColor, so selected chips flip to white free.
+  const F = 'fill="currentColor" stroke="none"';
+  const L = 'fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+  const ANT =
+    `<g ${F}><ellipse cx="12" cy="6.2" rx="2.4" ry="2"/><ellipse cx="12" cy="11" rx="1.9" ry="2.2"/><ellipse cx="12" cy="16.9" rx="2.9" ry="3.6"/></g>` +
+    `<g ${L} stroke-width="1.3"><path d="M10.6 4.6 8.6 2.6M13.4 4.6l2-2M10.3 10l-3.4-1.6M13.7 10l3.4-1.6M10.3 12l-3.2 2.2M13.7 12l3.2 2.2M10 15.4l-2.8 3M14 15.4l2.8 3"/></g>`;
+  const CHIP_ICONS = {
+    fireants: ANT,
+    blackants: ANT,
+    spiders:
+      `<g ${F}><circle cx="12" cy="14" r="3.6"/><circle cx="12" cy="8.9" r="1.9"/></g>` +
+      `<g ${L} stroke-width="1.3"><path d="M10 11.4 6.4 7.2M14 11.4l3.6-4.2M9 13 4.4 11M15 13l4.6-2M9.2 15.6 5 17.4M14.8 15.6 19 17.4M10.4 17 8 20.6M13.6 17l2.4 3.6"/></g>`,
+    roaches:
+      `<g ${F}><ellipse cx="12" cy="13.6" rx="3.4" ry="5.6"/><circle cx="12" cy="6.6" r="1.8"/></g>` +
+      `<g ${L} stroke-width="1.3"><path d="M10.8 5.2 8 2.4M13.2 5.2 16 2.4M9 11l-3.6-1.4M15 11l3.6-1.4M9 14.6l-3.4 1.6M15 14.6l3.4 1.6M10 17.8l-2.4 2.8M14 17.8l2.4 2.8"/></g>`,
+    fleas:
+      `<g ${F}><ellipse cx="12" cy="12.6" rx="4.4" ry="5.4"/><circle cx="12" cy="6" r="1.6"/></g>` +
+      `<g ${L} stroke-width="1.3"><path d="M8 9.6 4.6 8M16 9.6 19.4 8M7.6 12.8H4M16.4 12.8H20M8 16l-3 1.8M16 16l3 1.8"/></g>`,
+    wasps:
+      `<g ${F}><circle cx="12" cy="5.6" r="1.7"/><ellipse cx="12" cy="10" rx="2.1" ry="1.9"/><path d="M12 12.2c2 0 3 1.8 3 3.9 0 2.6-1.4 4.9-3 4.9s-3-2.3-3-4.9c0-2.1 1-3.9 3-3.9Z"/></g>` +
+      `<g ${L} stroke-width="1.3"><path d="M9.9 9.2C7.4 7.6 5.2 7.4 3.6 8.4c1.2 1.8 3.4 2.6 6 2.4M14.1 9.2c2.5-1.6 4.7-1.8 6.3-.8-1.2 1.8-3.4 2.6-6 2.4M10.9 4.2 9.7 2.4M13.1 4.2l1.2-1.8"/></g>`,
+    earwigs:
+      `<g ${F}><circle cx="12" cy="5.8" r="1.7"/><ellipse cx="12" cy="9.6" rx="1.9" ry="1.7"/><ellipse cx="12" cy="13.6" rx="1.7" ry="2.4"/></g>` +
+      `<g ${L} stroke-width="1.4"><path d="M12 16v1.6M10.9 17.8c-1.5 1.4-1.9 2.8-1.4 4M13.1 17.8c1.5 1.4 1.9 2.8 1.4 4M10.6 4.4 9 2.2M13.4 4.4 15 2.2M10.2 9.2 7 8M13.8 9.2 17 8M10.4 12.4l-2.8 1M13.6 12.4l2.8 1"/></g>`,
+    silverfish:
+      `<g ${F}><path d="M12 3.4c2 0 3.4 1.6 3.2 3.6l-1 8.4c-.2 1.9-1 3.4-2.2 3.4s-2-1.5-2.2-3.4l-1-8.4C8.6 5 10 3.4 12 3.4Z"/></g>` +
+      `<g ${L} stroke-width="1.3"><path d="M11.2 18.6 9.4 21.6M12 18.8v2.8M12.8 18.6l1.8 3M10.2 4.2 8.4 2M13.8 4.2 15.6 2M9.4 8.6 6.6 7.6M14.6 8.6l2.8-1M9.8 12.4l-2.6 1M14.2 12.4l2.6 1"/></g>`,
+    flies:
+      `<g ${F}><circle cx="12" cy="7.4" r="2.1"/><ellipse cx="12" cy="14.2" rx="2.6" ry="4.6"/></g>` +
+      `<g ${L} stroke-width="1.4"><path d="M9.8 10.4C6.6 9 4.2 9.4 3 11.4c1.6 1.6 4.2 1.7 6.8.4M14.2 10.4c3.2-1.4 5.6-1 6.8 1-1.6 1.6-4.2 1.7-6.8.4M10.8 5.6 9.6 3.8M13.2 5.6l1.2-1.8"/></g>`,
+    rodents:
+      `<g ${L} stroke-width="1.7"><path d="M14.8 7.2a3.1 3.1 0 1 0-4.9-2.5 8 8 0 0 0-6 7.7c0 4.5 3.6 7 8.1 7 3.9 0 6.3-1.5 6.3-4.2 0-2.2-1.8-3.3-3.6-3.3"/><path d="M18.3 15.2c1.8 0 3.3 1 3.7 2.6"/></g>` +
+      `<g ${F}><circle cx="7.6" cy="12.6" r="1.15"/></g>`,
+    other: `<g ${F}><circle cx="6" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18" cy="12" r="1.7"/></g>`,
+    "Dog on Property":
+      `<g ${L}><path d="M4.4 19v-5.6C4.4 11 6 9.6 8.2 9.6h5.2l2.2-3.4c.4-.6 1-.9 1.7-.7l2.3.7-1.4 3 .8 2.2c.3.8-.3 1.6-1.1 1.6h-2v6"/><path d="M7.6 19v-2.8M12.4 19v-3.2M4.4 14.6l-2-1.2"/></g>`,
+    "Cat on Property":
+      `<g ${L}><path d="M7 10.6V5.2l2.6 2h4.8l2.6-2v5.4c0 3-2.2 5-5 5s-5-2-5-5Z"/><path d="M12 15.6v3.8M12 19.4c0 .8 2.6 1.4 4 .4M7 12.4l-3.6-.6M7 14.2l-3.4.8M17 12.4l3.6-.6M17 14.2l3.4.8"/><g ${F}><circle cx="10" cy="10.6" r=".9"/><circle cx="14" cy="10.6" r=".9"/></g></g>`,
+    "Gate":
+      `<g ${L}><path d="M4.6 20V8.2L6.8 5l2.2 3.2V20M14.9 20V8.2L17.1 5l2.2 3.2V20M9 10.4h6M9 14.2h6M9 18h6M4.6 20h14.7"/></g>`,
+    "Locked Gate":
+      `<g ${L}><rect x="5.6" y="10.6" width="12.8" height="9" rx="1.8"/><path d="M8.6 10.6V8a3.4 3.4 0 0 1 6.8 0v2.6"/><path d="M12 14v2.4"/><g ${F}><circle cx="12" cy="13.9" r="1.2"/></g></g>`,
+    "Garage":
+      `<g ${L}><path d="M3.4 20V9.6L12 4.2l8.6 5.4V20"/><path d="M6.8 20v-7.8h10.4V20M6.8 14.8h10.4M6.8 17.4h10.4"/></g>`,
+    "Patio":
+      `<g ${L}><path d="M12 3.2c4.4 0 7.6 2.6 8.2 6H3.8c.6-3.4 3.8-6 8.2-6ZM12 3.2V20M12 20H8.4M12 20h3.6M5.6 12.6 4.2 20M18.4 12.6 19.8 20"/></g>`,
+    "Back Fence":
+      `<g ${L}><path d="M4.4 20V8.2L6.6 5l2.2 3.2V20M15.2 20V8.2L17.4 5l2.2 3.2V20M8.8 11h6.4M8.8 16.4h6.4M4.4 20h15.2"/></g>`,
+    "Deck":
+      `<g ${L}><path d="M3.4 12.2h17.2M4.6 12.2V20M19.4 12.2V20M8.2 12.2V17M12 12.2V17M15.8 12.2V17M3.4 9.2h17.2M6 9.2V6.4M12 9.2V6M18 9.2V6.4"/></g>`,
+    "Front Porch":
+      `<g ${L}><path d="M2.8 9.8 12 4.2l9.2 5.6M5 9.8V20M19 9.8V20M5 13h14M8.4 13v7M15.6 13v7M3.4 20h17.2"/></g>`,
+    "Shed":
+      `<g ${L}><path d="M4 20V10L12 4.6 20 10v10M4 20h16M9.6 20v-6h4.8v6M12 14v6"/></g>`,
+  };
+  const chipIcon = (key) => CHIP_ICONS[key]
+    ? `<svg class="pchip-ic" viewBox="0 0 24 24" aria-hidden="true">${CHIP_ICONS[key]}</svg>` : "";
+
   // ---- problem pests: chip lights up AND drops its note into Forever Notes ----
   function renderPestChips() {
     $("#ci-pests").innerHTML = MDATA.PEST_CHIPS.map((p) =>
-      `<button type="button" class="pchip${cur.pests.includes(p.id) ? " sel" : ""}" data-p="${p.id}">${esc(p.label)}${cur.pests.includes(p.id) ? " ✓" : ""}</button>`
+      `<button type="button" class="pchip${cur.pests.includes(p.id) ? " sel" : ""}" data-p="${p.id}">${chipIcon(p.id)}<span class="pchip-t">${esc(p.label)}</span>${cur.pests.includes(p.id) ? `<span class="pchip-ck">✓</span>` : ""}</button>`
     ).join("");
     $$("#ci-pests .pchip").forEach((b) =>
       b.addEventListener("click", () => {
@@ -262,7 +322,7 @@
 
   function renderPropChips() {
     $("#ci-props").innerHTML = MDATA.PROP_NOTES.map((label) =>
-      `<button type="button" class="pchip${cur.propNotes.includes(label) ? " sel" : ""}" data-p="${esc(label)}">${esc(label)}${cur.propNotes.includes(label) ? " ✓" : ""}</button>`
+      `<button type="button" class="pchip${cur.propNotes.includes(label) ? " sel" : ""}" data-p="${esc(label)}">${chipIcon(label)}<span class="pchip-t">${esc(label)}</span>${cur.propNotes.includes(label) ? `<span class="pchip-ck">✓</span>` : ""}</button>`
     ).join("");
     $$("#ci-props .pchip").forEach((b) =>
       b.addEventListener("click", () => {
@@ -398,7 +458,7 @@
 
   function renderAddSvc() {
     $("#cs-addsvc").innerHTML = MDATA.ADD_SERVICES.map((label) =>
-      `<button type="button" class="pchip${cur.addServices.includes(label) ? " sel" : ""}" data-p="${esc(label)}">${esc(label)}${cur.addServices.includes(label) ? " ✓" : ""}</button>`
+      `<button type="button" class="pchip${cur.addServices.includes(label) ? " sel" : ""}" data-p="${esc(label)}">${chipIcon(label)}<span class="pchip-t">${esc(label)}</span>${cur.addServices.includes(label) ? `<span class="pchip-ck">✓</span>` : ""}</button>`
     ).join("");
     $$("#cs-addsvc .pchip").forEach((b) =>
       b.addEventListener("click", () => {

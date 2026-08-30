@@ -81,7 +81,8 @@
   const PRIVATE_KV = ["account", "session", "cloudSession", "cloudProfile",
     // sync bookkeeping is meaningless on another device — cursors would
     // skip data, the user map points at this device's own user rows
-    "syncCursors", "syncUserMap", "syncBackfilled", "syncLastAt", "syncPendingEvents"];
+    "syncCursors", "syncUserMap", "syncBackfilled", "syncLastAt", "syncPendingEvents",
+    "syncTeam", "syncDead"];
   const FILE_CAP = 4 * 1024 * 1024; // one runaway photo must not sink the backup
 
   const blobToB64 = (blob) => new Promise((resolve, reject) => {
@@ -145,9 +146,15 @@
       toast("Restore hit a storage error — the device may be full");
       return;
     }
-    // a restore rewrote records underneath the sync engine — re-arm the
-    // one-time backfill so the restored book gets pushed to the team
-    try { await MDB.kvSet("syncBackfilled", null); } catch (_) {}
+    // A restore rewrote records underneath the sync engine. Re-arm the
+    // one-time backfill AND clear the pull cursors: the next cycle pulls
+    // the team's newer versions first (retiring stale restored copies),
+    // then pushes only what is genuinely newest.
+    try {
+      await MDB.kvSet("syncBackfilled", null);
+      await MDB.kvSet("syncCursors", null);
+      await MDB.kvSet("syncPendingEvents", null);
+    } catch (_) {}
     toast("Restored — reloading");
     setTimeout(() => location.reload(), 900);
   }

@@ -102,16 +102,26 @@
     return p;
   }
 
-  async function refresh() {
-    const t = await getTokens();
-    if (!t || !t.refresh) throw fail("auth", "No cloud session");
-    const d = await call("/auth/v1/token?grant_type=refresh_token", {
-      method: "POST", body: { refresh_token: t.refresh },
-    });
-    const nt = pack(d);
-    if (!nt.userId) nt.userId = t.userId;
-    await saveTokens(nt);
-    return nt;
+  // Single-flight: the background revalidate and a sync cycle can want a
+  // refresh at the same moment. GoTrue rotates refresh tokens, so two
+  // racing refreshes would invalidate each other and bounce the rep to
+  // the gate for no reason — everyone shares one in-flight refresh.
+  let refreshing = null;
+  function refresh() {
+    if (!refreshing) {
+      refreshing = (async () => {
+        const t = await getTokens();
+        if (!t || !t.refresh) throw fail("auth", "No cloud session");
+        const d = await call("/auth/v1/token?grant_type=refresh_token", {
+          method: "POST", body: { refresh_token: t.refresh },
+        });
+        const nt = pack(d);
+        if (!nt.userId) nt.userId = t.userId;
+        await saveTokens(nt);
+        return nt;
+      })().finally(() => { refreshing = null; });
+    }
+    return refreshing;
   }
 
   // clears this device's cloud session; tells the server when it can

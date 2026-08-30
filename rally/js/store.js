@@ -314,6 +314,9 @@
 
   S.updateCustomer = async function (cust) {
     cust.updatedAt = Date.now();
+    // deleted out from under an open editor (a teammate's tombstone
+    // synced in mid-edit): the save wins — an active edit beats a delete
+    if (!S.customers.find((c) => c.id === cust.id)) S.customers.push(cust);
     await MDB.put("customers", cust);
     if (window.MSYNC) MSYNC.queue("customers", cust.id);
     return cust;
@@ -415,6 +418,7 @@
   S.addTerritory = async function (t) {
     t.id = MDB.uid();
     t.createdAt = Date.now();
+    t.updatedAt = Date.now(); // territories need a clock for sync LWW
     t.assignments = t.assignments || [];
     S.territories.push(t);
     await MDB.put("territories", t);
@@ -422,6 +426,7 @@
     return t;
   };
   S.updateTerritory = async function (t) {
+    t.updatedAt = Date.now();
     await MDB.put("territories", t);
     if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;
@@ -456,6 +461,7 @@
         assignedAt: now, unassignedAt: null,
       });
     }
+    t.updatedAt = now;
     await MDB.put("territories", t);
     if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;

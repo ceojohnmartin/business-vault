@@ -86,6 +86,23 @@
     enqueue({ k: table + ":" + id, table, id, op: "delete", at: Date.now() });
   }
   const isDirty = (table, id) => queued.has(table + ":" + id);
+  function dropEntry(table, id) {
+    const k = table + ":" + id;
+    if (!queued.has(k)) return;
+    queued.delete(k);
+    MDB.del("outbox", k).catch(() => {});
+  }
+
+  // Record-level last-write-wins on the RECORD's own clock (client-stamped
+  // updatedAt). Strict: an echo of our own push compares equal and is
+  // skipped, records without clocks (legacy territories etc.) fall back to
+  // apply-if-not-dirty.
+  const clockOf = (r) => (r && (r.updatedAt || r.createdAt)) || 0;
+  function cmpClock(data, local) {
+    const r = clockOf(data), l = clockOf(local);
+    if (!r || !l) return "unknown"; // legacy record without a clock
+    return r > l ? "newer" : r < l ? "older" : "same";
+  }
 
   // ---------- identity ----------
   function toProfile(localId) {
@@ -110,6 +127,13 @@
     if (!r.ok || !Array.isArray(r.data)) return false;
     const mine = window.MCLOUD && (await MCLOUD.getProfile());
     let changed = false;
+    // my own binding comes FIRST — otherwise a teammate who shares my name
+    // could name-match onto this device's own user before my row is seen
+    const meFirst = mine && S().currentUser && S().currentUser();
+    if (mine && meFirst && userMap[mine.id] !== meFirst.id) {
+      userMap[mine.id] = meFirst.id;
+      changed = true;
+    }
     for (const p of r.data) {
       if (mine && p.id === mine.id) {
         profileCache = { id: p.id, teamId: p.team_id, role: p.role, disabled: !!p.disabled };
@@ -189,6 +213,10 @@
     }
     if (table === "customers") {
       const data = scrubPayment(JSON.parse(JSON.stringify(rec)));
+      // file blobs never sync (Storage is a later phase) — shipping the
+      // descriptor list without the bytes would make other devices
+      // regenerate agreements instead of admitting they don't have them
+      delete data.files;
       (data.appointments || []).forEach((a) => {
         if (a.userId) a.userId = toProfile(a.userId) || a.userId;
         if (a.setterId) a.setterId = toProfile(a.setterId) || a.setterId;
@@ -223,7 +251,46 @@
       const ups = mine.filter((e) => e.op === "upsert");
       const dels = mine.filter((e) => e.op === "delete");
 
-      for (let i = 0; i < ups.length; i += PUSH_BATCH) {
+      // One malformed or RLS-rejected row must not wedge the whole queue
+      // forever: a failed batch splits in half and retries, and a single
+      // row that still fails with a 4xx is set aside (dead-letter) so the
+      // work behind it keeps flowing. Network errors keep everything
+      // queued for the next cycle, as before.
+      const postRows = async (rows) => {
+        const prefer = table === "events"
+          ? "resolution=ignore-duplicates,return=minimal"
+          : "resolution=merge-duplicates,return=minimal";
+        return MCLOUD.api("/rest/v1/" + table + "?on_conflict=team_id,id", {
+          method: "POST", body: rows, headers: { Prefer: prefer },
+        });
+      };
+      let netDown = false;
+      const pushSlice = async (rows, ents) => {
+        if (!rows.length || netDown) return;
+        let r;
+        try { r = await postRows(rows); }
+        catch (e) { netDown = true; lastError = "push " + table + " offline"; return; }
+        if (r.ok) {
+          await MDB.bulkDel("outbox", ents.map((e) => e.k));
+          ents.forEach((e) => queued.delete(e.k));
+          pushed += rows.length;
+          return;
+        }
+        if (r.status >= 500) { netDown = true; lastError = "push " + table + " " + r.status; return; }
+        if (rows.length === 1) { // the poison row: park it, keep the line moving
+          lastError = "push " + table + " rejected " + ents[0].id + " (" + r.status + ")";
+          const dead = (await MDB.kvGet("syncDead", null)) || [];
+          dead.push({ k: ents[0].k, status: r.status, at: Date.now() });
+          await MDB.kvSet("syncDead", dead.slice(-200));
+          await MDB.del("outbox", ents[0].k).catch(() => {});
+          queued.delete(ents[0].k);
+          return;
+        }
+        const mid = Math.ceil(rows.length / 2);
+        await pushSlice(rows.slice(0, mid), ents.slice(0, mid));
+        await pushSlice(rows.slice(mid), ents.slice(mid));
+      };
+      for (let i = 0; i < ups.length && !netDown; i += PUSH_BATCH) {
         const slice = ups.slice(i, i + PUSH_BATCH);
         const rows = [], live = [];
         for (const e of slice) {
@@ -233,27 +300,13 @@
           live.push(e);
         }
         const gone = slice.filter((e) => !live.includes(e));
-        if (rows.length) {
-          const prefer = table === "events"
-            ? "resolution=ignore-duplicates,return=minimal"
-            : "resolution=merge-duplicates,return=minimal";
-          const r = await MCLOUD.api("/rest/v1/" + table + "?on_conflict=team_id,id", {
-            method: "POST", body: rows, headers: { Prefer: prefer },
-          });
-          if (!r.ok) {
-            if (table === "pins") pinsFailed.v = true;
-            lastError = "push " + table + " " + r.status;
-            break; // leave the batch queued; next cycle retries
-          }
-          await MDB.bulkDel("outbox", live.map((e) => e.k));
-          live.forEach((e) => queued.delete(e.k));
-          pushed += rows.length;
-        }
+        await pushSlice(rows, live);
         if (gone.length) {
           await MDB.bulkDel("outbox", gone.map((e) => e.k));
           gone.forEach((e) => queued.delete(e.k));
         }
       }
+      if (netDown && table === "pins") pinsFailed.v = true;
 
       for (const e of dels) {
         if (table === "events") { // server log is append-only; pin tombstones cascade
@@ -261,11 +314,15 @@
           queued.delete(e.k);
           continue;
         }
+        // a deleted customer's tombstone keeps the id, not the person —
+        // no reason for names/phones to sit on the server forever
+        const body = table === "customers"
+          ? { deleted_at: iso(), data: {}, first: "", last: "", email: "", phones: [] }
+          : { deleted_at: iso() };
         const r = await MCLOUD.api(
           "/rest/v1/" + table + "?team_id=eq." + encodeURIComponent(team) +
           "&id=eq." + encodeURIComponent(e.id),
-          { method: "PATCH", body: { deleted_at: iso() },
-            headers: { Prefer: "return=minimal" } });
+          { method: "PATCH", body, headers: { Prefer: "return=minimal" } });
         // 2xx = tombstoned (or matched nothing: never uploaded — done either way)
         if (!r.ok) { lastError = "delete " + table + " " + r.status; break; }
         await MDB.del("outbox", e.k).catch(() => {});
@@ -308,16 +365,24 @@
     for (const row of rows) {
       let pin = s.pins.find((p) => p.id === row.id) || byAka.get(row.id);
       if (row.deleted_at) {
-        if (pin) {
-          // replay deletePin's cascade, without re-queueing
-          s.pins = s.pins.filter((p) => p !== pin);
-          s.events = s.events.filter((e) => e.pinId !== pin.id && e.pinId !== row.id);
-          await MDB.del("pins", pin.id).catch(() => {});
-          const stale = await MDB.getAll("events");
-          stale.filter((e) => e.pinId === pin.id || e.pinId === row.id)
-            .forEach((e) => delEvents.push(e.id));
-          changed++;
+        if (!pin) continue;
+        if (pin.id !== row.id) {
+          // a teammate deleted THEIR duplicate row of a door we merged —
+          // drop the alias, never the door or its knock history
+          pin.aka = (pin.aka || []).filter((a) => a !== row.id);
+          puts.push(pin);
+          continue;
         }
+        // a pending upsert for a deleted door must not resurrect it
+        dropEntry("pins", pin.id);
+        // replay deletePin's cascade, without re-queueing
+        s.pins = s.pins.filter((p) => p !== pin);
+        s.events = s.events.filter((e) => e.pinId !== pin.id && e.pinId !== row.id);
+        await MDB.del("pins", pin.id).catch(() => {});
+        const stale = await MDB.getAll("events");
+        stale.filter((e) => e.pinId === pin.id || e.pinId === row.id)
+          .forEach((e) => delEvents.push(e.id));
+        changed++;
         continue;
       }
       const data = row.data && row.data.id ? row.data : null;
@@ -333,6 +398,9 @@
         });
         if (!match) {
           s.pins.push(data);
+          // a fresh device pulls BOTH copies of a team-duplicated door in
+          // one page — the first must be in the index before the second
+          if (doorIdx) doorIdx.add(data);
           puts.push(data);
           changed++;
           continue;
@@ -347,17 +415,30 @@
       pin.aka = pin.aka || [];
       if (data.id !== pin.id && !pin.aka.includes(data.id)) pin.aka.push(data.id);
       const seen = new Set((pin.history || []).map((h) => h.ts + "|" + h.disposition));
-      const merged = (pin.history || []).concat(
-        (data.history || []).filter((h) => !seen.has(h.ts + "|" + h.disposition)));
+      const freshKnocks = (data.history || []).filter((h) => !seen.has(h.ts + "|" + h.disposition));
+      const merged = (pin.history || []).concat(freshKnocks);
       merged.sort((a, b) => a.ts - b.ts);
-      if (!isDirty("pins", pin.id) && (data.updatedAt || 0) >= (pin.updatedAt || 0)) {
+      const cmp = cmpClock(data, pin);
+      const dirty = isDirty("pins", pin.id);
+      // a restored stale copy loses to the team's newer version outright
+      if (cmp === "newer" && dirty) dropEntry("pins", pin.id);
+      // the server holds an OLDER version than ours (a late offline push
+      // from another device): re-queue ours so the server heals too
+      if (cmp === "older" && !dirty) queue("pins", pin.id);
+      if (cmp === "newer" || (cmp === "unknown" && !dirty)) {
         const keep = { id: pin.id, aka: pin.aka };
         patchInPlace(pin, data);
         Object.assign(pin, keep);
-      }
-      pin.history = merged;
-      puts.push(pin);
-      changed++;
+        pin.history = merged;
+        puts.push(pin);
+        changed++;
+      } else if (freshKnocks.length || data.id !== pin.id) {
+        // scalars stay ours, but knock history always unions — two reps
+        // hitting the same door in one afternoon both keep their work
+        pin.history = merged;
+        puts.push(pin);
+        changed++;
+      } // else: pure echo — touch nothing, repaint nothing
     }
     if (puts.length) await MDB.bulkPut("pins", puts);
     if (delEvents.length) await MDB.bulkDel("events", delEvents);
@@ -415,6 +496,7 @@
     for (const row of rows) {
       const t = s.territories.find((x) => x.id === row.id);
       if (row.deleted_at) {
+        dropEntry("territories", row.id);
         if (t) {
           s.territories = s.territories.filter((x) => x !== t);
           await MDB.del("territories", row.id).catch(() => {});
@@ -429,14 +511,19 @@
       const data = row.data && row.data.id ? localizeTerritory(row.data) : null;
       if (!data) continue;
       if (t) {
-        if (isDirty("territories", t.id)) continue;
+        const cmp = cmpClock(data, t);
+        const dirty = isDirty("territories", t.id);
+        if (cmp === "newer" && dirty) dropEntry("territories", t.id);
+        if (cmp === "older" && !dirty) { queue("territories", t.id); continue; }
+        if (cmp === "same" || (cmp !== "newer" && dirty)) continue;
         patchInPlace(t, data);
         puts.push(t);
+        changed++;
       } else {
         s.territories.push(data);
         puts.push(data);
+        changed++;
       }
-      changed++;
     }
     if (puts.length) await MDB.bulkPut("territories", puts);
     if (pinPuts.length) await MDB.bulkPut("pins", pinPuts);
@@ -450,6 +537,7 @@
     for (const row of rows) {
       const c = s.customers.find((x) => x.id === row.id);
       if (row.deleted_at) {
+        dropEntry("customers", row.id);
         if (c) {
           s.customers = s.customers.filter((x) => x !== c);
           await MDB.del("customers", row.id).catch(() => {});
@@ -463,14 +551,26 @@
       const data = row.data && row.data.id ? localizeCustomer(row.data) : null;
       if (!data) continue;
       if (c) {
-        if (isDirty("customers", c.id)) continue;
+        const cmp = cmpClock(data, c);
+        const dirty = isDirty("customers", c.id);
+        if (cmp === "newer" && dirty) dropEntry("customers", c.id);
+        if (cmp === "older" && !dirty) { queue("customers", c.id); continue; }
+        if (cmp === "same" || (cmp !== "newer" && dirty)) continue;
+        // apply — but this phone may be the ONLY holder of the real card
+        // (the wire is always scrubbed) and of the file blobs; keep both
+        const localPay = c.payment && (c.payment.card || c.payment.ach) ? c.payment : null;
+        const localFiles = c.files;
         patchInPlace(c, data);
+        if (localPay) c.payment = Object.assign({}, c.payment || {},
+          { card: localPay.card, ach: localPay.ach });
+        if (localFiles) c.files = localFiles;
         puts.push(c);
+        changed++;
       } else {
         s.customers.push(data);
         puts.push(data);
+        changed++;
       }
-      changed++;
     }
     if (puts.length) await MDB.bulkPut("customers", puts);
     return changed;
@@ -479,22 +579,39 @@
   const APPLY = { pins: applyPins, events: applyEvents,
     territories: applyTerritories, customers: applyCustomers };
 
-  async function pull(team) {
+  async function pull(team, live) {
     let applied = 0;
     for (const table of TABLES) {
       const clock = table === "events" ? "created_at" : "updated_at";
-      let cursor = cursors[table] || EPOCH;
+      // COMPOUND cursor {t, id}: Postgres stamps every row of one batched
+      // insert with the same transaction now(), so timestamp ties are the
+      // NORM, not the exception — a bare gt.timestamp cursor would skip
+      // every tied row past a page boundary, silently losing knocks. The
+      // id tiebreak makes pagination total. (Old string cursors migrate.)
+      let cur = cursors[table] || { t: EPOCH, id: "" };
+      if (typeof cur === "string") cur = { t: cur, id: "" };
       for (;;) {
+        const filt = "or=" + encodeURIComponent(
+          "(" + clock + ".gt." + cur.t +
+          ",and(" + clock + ".eq." + cur.t + ",id.gt." + cur.id + "))");
         const r = await MCLOUD.api(
           "/rest/v1/" + table + "?team_id=eq." + encodeURIComponent(team) +
-          "&" + clock + "=gt." + encodeURIComponent(cursor) +
-          "&order=" + clock + ".asc&limit=" + PULL_PAGE);
-        if (!r.ok || !Array.isArray(r.data)) { lastError = "pull " + table + " " + r.status; break; }
+          "&" + filt + "&order=" + clock + ".asc,id.asc&limit=" + PULL_PAGE);
+        if (!r.ok || !Array.isArray(r.data)) {
+          // abort the WHOLE pull: applying later tables against a table
+          // that didn't finish (events without their pins) mis-stashes
+          // rows; cursors already persist per page, so nothing is lost
+          lastError = "pull " + table + " " + r.status;
+          return applied;
+        }
         if (!r.data.length) break;
+        if (live && !live()) return applied; // reset/erase raced us — stop
         applied += await APPLY[table](r.data);
-        cursor = r.data[r.data.length - 1][clock];
-        cursors[table] = cursor;
+        const last = r.data[r.data.length - 1];
+        cur = { t: last[clock], id: last.id };
+        cursors[table] = cur;
         await MDB.kvSet(K_CURSORS, cursors);
+        await MDB.kvSet("syncPendingEvents", pendingEvents.length ? pendingEvents : null);
         if (r.data.length < PULL_PAGE) break;
       }
     }
@@ -535,9 +652,12 @@
   }
 
   // ---------- the cycle ----------
+  let gen = 0; // bumped by reset(): a dying cycle must not write stale state
   async function cycle() {
     if (running || !eligible()) return;
     running = true;
+    const g = gen;
+    const live = () => g === gen;
     try {
       // team-less accounts idle quietly, re-checking every few minutes so a
       // rep placed on the team by the office starts syncing without a
@@ -549,12 +669,28 @@
         if (!teamId()) return;
       }
       const team = teamId();
+      // moved to another team? the old cursors, backfill flag and pending
+      // stash describe the old world — start clean against the new one
+      const t0 = await MDB.kvGet("syncTeam", null);
+      if (t0 !== team) {
+        cursors = {}; pendingEvents = [];
+        await MDB.kvSet(K_CURSORS, null);
+        await MDB.kvSet("syncPendingEvents", null);
+        if (t0 !== null) await MDB.kvSet(K_BACKFILL, null);
+        await MDB.kvSet("syncTeam", team);
+      }
       await backfill();
+      if (!live()) return;
       let usersChanged = false;
       try { usersChanged = await syncProfiles(); } catch (_) {}
-      const { pushed } = await push(team);
+      // PULL FIRST: the team's newer records land and retire stale outbox
+      // entries BEFORE this device pushes — so a week-old restored backup
+      // (or any stale phone) can never roll the whole server back
       let applied = await retryPendingEvents();
-      applied += await pull(team);
+      applied += await pull(team, live);
+      if (!live()) return;
+      const { pushed } = await push(team);
+      if (!live()) return;
       await MDB.kvSet("syncPendingEvents", pendingEvents.length ? pendingEvents : null);
       lastSyncAt = Date.now();
       lastError = queued.size ? lastError : "";
@@ -607,6 +743,7 @@
   // wipe every trace of sync state — reset/erase flows call this so the
   // next account on this device starts from a clean slate
   async function reset() {
+    gen++; // any in-flight cycle stops writing at its next checkpoint
     clearTimeout(kickT); if (timer) clearInterval(timer);
     started = false; running = false;
     queued = new Set(); requeued = []; userMap = {}; cursors = {};
@@ -618,6 +755,8 @@
     await MDB.kvSet(K_BACKFILL, null);
     await MDB.kvSet(K_LAST, null);
     await MDB.kvSet("syncPendingEvents", null);
+    await MDB.kvSet("syncTeam", null);
+    await MDB.kvSet("syncDead", null);
   }
 
   const status = () => ({

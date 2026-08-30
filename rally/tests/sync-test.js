@@ -59,12 +59,15 @@ function handleRest(req, res, u, body) {
   if (req.method === "POST") {
     const prefer = String(req.headers.prefer || "");
     const rows = Array.isArray(body) ? body : [body];
+    const reqClock = tick(); // one transaction, one now() — ties are the norm
     for (const row of rows) {
       // RLS with-check: your own team, and events written as yourself only
       if (row.team_id !== me.team_id)
         return j(res, 401, { code: "42501", message: "row-level security" });
       if (table === "events" && row.by_user && row.by_user !== uid)
         return j(res, 401, { code: "42501", message: "row-level security (by_user)" });
+      if (row.data && row.data.__poison)
+        return j(res, 400, { code: "23502", message: "null value violates not-null constraint" });
       const key = row.team_id + "|" + row.id;
       const existing = t.get(key);
       if (existing) {
@@ -74,12 +77,12 @@ function handleRest(req, res, u, body) {
           return j(res, 401, { code: "42501", message: "permission denied for events" });
         }
         const merged = Object.assign({}, existing, row,
-          { created_at: existing.created_at, updated_at: tick() });
+          { created_at: existing.created_at, updated_at: reqClock });
         if (table === "customers") scrubTrigger(merged);
         t.set(key, merged);
         mock.upsertWrites++;
       } else {
-        const fresh = Object.assign({}, row, { created_at: tick() });
+        const fresh = Object.assign({}, row, { created_at: reqClock });
         if (table !== "events") fresh.updated_at = fresh.created_at;
         if (table === "customers") scrubTrigger(fresh);
         t.set(key, fresh);
@@ -109,7 +112,15 @@ function handleRest(req, res, u, body) {
   const clockCol = table === "events" ? "created_at" : "updated_at";
   const gt = u.searchParams.get(clockCol);
   if (gt && gt.startsWith("gt.")) rows = rows.filter((r) => r[clockCol] > gt.slice(3));
-  rows.sort((a, b) => (a[clockCol] < b[clockCol] ? -1 : 1));
+  const or = u.searchParams.get("or"); // (clock.gt.T,and(clock.eq.T,id.gt.I))
+  if (or) {
+    const m = or.match(/\(\w+\.gt\.(.*?),and\(\w+\.eq\.(.*?),id\.gt\.(.*)\)\)/);
+    if (!m) return j(res, 400, { message: "bad or= filter: " + or });
+    rows = rows.filter((r) => r[clockCol] > m[1] ||
+      (r[clockCol] === m[2] && r.id > m[3]));
+  }
+  rows.sort((a, b) => a[clockCol] < b[clockCol] ? -1 : a[clockCol] > b[clockCol] ? 1
+    : a.id < b.id ? -1 : 1);
   const limit = Number(u.searchParams.get("limit") || 0);
   if (limit) rows = rows.slice(0, limit);
   return j(res, 200, rows);
@@ -324,6 +335,107 @@ const server = http.createServer((req, res) => {
   await sync(A);
   check("I1 a re-armed backfill re-pushes without duplicating server rows",
     mock.tables.pins.size >= 5 && (await S(A, () => MSYNC.status().pending)) === 0);
+
+  // ---- J: timestamp-tie pagination — a 520-door import crosses the
+  //      500-row pull page inside a shared-timestamp batch group
+  await S(A, async () => {
+    const props = [];
+    for (let i = 0; i < 520; i++) props.push({
+      externalId: "tie-" + i, parcelId: "tp-" + i, source: "demo",
+      lat: 39.0 + i * 0.0005, lng: -99.0, address: (1 + i) + " Tie St",
+      city: "Hays", state: "KS", zip: "67601", propertyType: "sfr" });
+    await STORE.importDoors(props);
+  });
+  await sync(A);
+  await sync(B);
+  const tieCounts = await Promise.all([S(A, () => STORE.pins.length), S(B, () => STORE.pins.length)]);
+  check("J1 520 tied-timestamp doors survive pagination on a synced device",
+    tieCounts[0] === tieCounts[1] && tieCounts[0] === 525, "A=" + tieCounts[0] + " B=" + tieCounts[1]);
+  const C = await device("john@x.com"); // John's second device — full pull from zero
+  await sync(C);
+  check("J2 a brand-new device pulls the complete book across tie boundaries",
+    (await S(C, () => STORE.pins.length)) === 525,
+    "C=" + (await S(C, () => STORE.pins.length)));
+
+  // ---- K: a week-old restored backup must NOT roll the team back
+  await S(A, async () => {
+    await STORE.addCustomer({ first: "Pat", last: "Woo", phones: [], appointments: [] });
+  });
+  await sync(A); await sync(B);
+  await S(B, async () => {
+    const c = STORE.customers.find((x) => x.first === "Pat");
+    c.first = "Pat-Newer";
+    await STORE.updateCustomer(c);
+  });
+  await sync(B);
+  // emulate A restoring an old backup: stale record straight into IDB +
+  // the exact kv re-arm restoreFile does
+  await S(A, async () => {
+    const c = STORE.customers.find((x) => x.first === "Pat" || x.first === "Pat-Newer");
+    c.first = "Pat-Old";
+    c.updatedAt = Date.now() - 7 * 86400e3;
+    await MDB.put("customers", c);
+    await MDB.kvSet("syncBackfilled", null);
+    await MDB.kvSet("syncCursors", null);
+    await MDB.kvSet("syncPendingEvents", null);
+  });
+  await sync(A);
+  const patA = await S(A, () => STORE.customers.find((x) => x.last === "Woo").first);
+  const patServer = [...mock.tables.customers.values()]
+    .find((r) => r.data && r.data.last === "Woo").data.first;
+  check("K1 a restored stale record loses to the team's newer version",
+    patA === "Pat-Newer" && patServer === "Pat-Newer", patA + "/" + patServer);
+
+  // ---- L: a teammate deleting their duplicate import row must not kill
+  //      the merged door (or its history) on other devices
+  const aBefore = await S(A, () => STORE.pins.length);
+  await S(B, async () => {
+    const dupe = STORE.pins.find((x) => x.aka && x.aka.length);
+    if (dupe) await STORE.deletePin(dupe.id);
+  });
+  await sync(B); await sync(A);
+  check("L1 an alias tombstone drops the alias, never the door",
+    (await S(A, () => STORE.pins.length)) === aBefore,
+    "before=" + aBefore + " after=" + (await S(A, () => STORE.pins.length)));
+
+  // ---- M: the selling phone keeps the card it captured, even after a
+  //      teammate's edit (the wire is always scrubbed)
+  await S(A, async () => {
+    await STORE.addCustomer({ first: "Card", last: "Holder", phones: [], appointments: [],
+      payment: { method: "card", last4: "1111", autopay: true,
+        card: { name: "Card Holder", number: "4111111111111111", exp: "01/28" },
+        ach: { name: "", routing: "", account: "", type: "checking" },
+        billingAddress: null } });
+  });
+  await sync(A); await sync(B);
+  await S(B, async () => {
+    const c = STORE.customers.find((x) => x.last === "Holder");
+    c.email = "holder@x.com";
+    await STORE.updateCustomer(c);
+  });
+  await sync(B); await sync(A);
+  const holder = await S(A, () => {
+    const c = STORE.customers.find((x) => x.last === "Holder");
+    return { email: c.email, pan: c.payment && c.payment.card && c.payment.card.number };
+  });
+  check("M1 teammate's edit applies AND the local card survives",
+    holder.email === "holder@x.com" && holder.pan === "4111111111111111", JSON.stringify(holder));
+  check("M2 the other phone never held the card",
+    (await S(B, () => { const c = STORE.customers.find((x) => x.last === "Holder");
+      return !c.payment.card || !c.payment.card.number; })));
+
+  // ---- N: one poison row must not wedge the queue
+  await S(A, async () => {
+    await STORE.addCustomer({ first: "Poison", last: "Pill", __poison: true, phones: [], appointments: [] });
+    await STORE.addCustomer({ first: "Good", last: "Egg", phones: [], appointments: [] });
+  });
+  await sync(A);
+  const nStat = await S(A, () => MSYNC.status());
+  const dead = await S(A, () => MDB.kvGet("syncDead", []));
+  const eggOnServer = [...mock.tables.customers.values()].some((r) => r.data && r.data.last === "Egg");
+  check("N1 the good record pushes; the poison one is parked, not blocking",
+    nStat.pending === 0 && dead.length === 1 && eggOnServer,
+    "pending=" + nStat.pending + " dead=" + dead.length + " egg=" + eggOnServer);
 
   check("no page errors on either device", errors.length === 0, errors.slice(0, 3).join("|"));
 

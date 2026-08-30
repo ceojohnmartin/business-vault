@@ -166,7 +166,6 @@
   async function run() {
     cache();
     bind();
-    armRelock();
     const shown = Date.now();
     // WebCrypto is required to hash a passcode; without it (an insecure
     // context) we do NOT pretend to lock anything.
@@ -175,9 +174,10 @@
     try {
       if (canHash) {
         await MAUTH.load();
-        // load() always leaves the device locked, so every launch lands on
-        // the sign-in screen regardless of whether this device is claimed.
-        gated = true;
+        // The gate only stands when there's nothing to let the rep through:
+        // a fresh device (create an account) or a signed-out one. A device
+        // with a live session sails straight into the app.
+        gated = !MAUTH.isUnlocked();
       }
     } catch (_) { gated = false; }
 
@@ -206,53 +206,10 @@
     location.reload();
   }
 
-  /* Coming back to the app puts the lock screen up again. On iOS a PWA
-     resumed from the app icon does NOT reload, so without this the rep
-     would walk straight back into an unlocked app. The short grace window
-     is deliberate: tapping "Go" for directions bounces out to Maps and
-     back, and that round trip should not cost a passcode. */
-  // Leaving the app locks it. No grace by default — "always" means always.
-  // STORE.settings.relockGraceMs can buy back a few seconds (e.g. so a
-  // bounce out to Maps for directions doesn't cost a passcode), but it is
-  // opt-in; shipping a grace window silently defeats the whole point.
-  const DEFAULT_RELOCK_MS = 0;
-  const relockGrace = () => {
-    const v = STORE.settings.relockGraceMs;
-    return typeof v === "number" && v >= 0 ? v : DEFAULT_RELOCK_MS;
-  };
-  let hiddenAt = 0;
-
-  function relockNow() {
-    if (!MAUTH.hasAccount() || !MAUTH.isUnlocked()) return;
-    MAUTH.lockSession();
-    try { MUI.closeSheet(); } catch (_) {}
-    showGate();
-  }
-
-  function onResume() {
-    // only a real trip away counts — a visibility event with no preceding
-    // hide (some browsers fire one on first paint) must not lock the app
-    // the instant it opens
-    if (!hiddenAt) return;
-    const away = Date.now() - hiddenAt;
-    hiddenAt = 0;
-    if (away < relockGrace()) return;
-    relockNow();
-  }
-
-  function armRelock() {
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) { hiddenAt = Date.now(); return; }
-      onResume();
-    });
-    // Also cover the back/forward cache: an iOS PWA can be frozen and
-    // restored without a visibilitychange pair.
-    addEventListener("pagehide", () => { if (!hiddenAt) hiddenAt = Date.now(); });
-    addEventListener("pageshow", (e) => { if (e.persisted) onResume(); });
-    // Deliberately NOT window focus/blur: those fire for the on-screen
-    // keyboard, native confirm() dialogs and picker sheets, which would
-    // lock a rep out in the middle of typing a customer in.
-  }
+  /* No auto-relock: once signed in, this device stays signed in — across
+     app switches, phone locks, and launches — until the rep taps Sign out
+     in More. The passcode's job is a lost or borrowed phone AFTER a
+     sign-out (or a wipe), not a toll booth between doors. */
 
   // Failsafe: if boot dies before the gate ever runs, the splash must not
   // become a permanent wall. After 12s, reveal whatever is underneath.

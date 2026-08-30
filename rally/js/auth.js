@@ -53,9 +53,12 @@
 
   async function load() {
     account = await MDB.kvGet(KEY_ACCOUNT, null);
-    // A claimed device ALWAYS opens on the sign-in screen — no remembered
-    // session carries across a launch. The passcode is the front door.
-    unlocked = false;
+    // Sign in ONCE and the device stays signed in: a stored session rides
+    // across launches until the rep explicitly signs out (More → Sign out).
+    // A rep at doors all day can't be typing a passcode every time the
+    // phone comes out of a pocket.
+    const session = account ? await MDB.kvGet(KEY_SESSION, null) : null;
+    unlocked = !!(session && session.userId === account.userId);
     return account;
   }
 
@@ -126,6 +129,7 @@
       rememberEmail: true, // they just typed it; offer it back next time
     };
     await persistAccount();
+    await MDB.kvSet(KEY_SESSION, { userId: user.id, at: Date.now() });
     unlocked = true;
     return account;
   }
@@ -157,6 +161,7 @@
     account.lockedUntil = 0;
     account.rememberEmail = !!remember;
     await persistAccount();
+    await MDB.kvSet(KEY_SESSION, { userId: account.userId, at: Date.now() });
     unlocked = true;
     return account;
   }

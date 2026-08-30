@@ -402,16 +402,17 @@
     const p = planDef();
     // collapsed current-plan row — tap to drop the full lineup down
     $("#cs-plan-cur").innerHTML =
-      `<span class="pcur-name"><b>${p.name}</b><span class="dim"> · ${p.visits}</span></span>
+      `<span class="pcur-name"><b>${p.name}</b></span>
        <span class="pcur-arrow">${planOpen ? "▴" : "▾"}</span>`;
     const wrap = $("#cs-plans");
     wrap.hidden = !planOpen;
     if (planOpen) {
+      // just the plan names — the sticker is the same everywhere, and the
+      // visit cadence stays out of the picker (it still prints on the
+      // agreement as spray frequency)
       wrap.innerHTML = MDATA.PLANS.map((x) =>
         `<button class="plan-card${x.id === cur.plan.id ? " sel" : ""}" data-plan="${x.id}" type="button">
-           <span class="pc-top"><b>${x.name}</b><span class="pc-price num">${fmtMoney(x.monthly)}<i>/mo</i></span></span>
-           <span class="pc-blurb">${x.blurb}</span>
-           <span class="pc-visits">${x.visits} · ${fmtMoney(x.initial)} initial</span>
+           <span class="pc-top"><b>${x.name}</b>${x.id === cur.plan.id ? `<span class="pc-price">✓</span>` : ""}</span>
          </button>`
       ).join("");
       $$("#cs-plans .plan-card").forEach((b) =>

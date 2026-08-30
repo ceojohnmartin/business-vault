@@ -556,18 +556,8 @@
   }
 
   function updateBillingMath() {
-    const bill = MDATA.BILLING.find((b) => b.id === cur.billing) || MDATA.BILLING[0];
-    const mo = (Number($("#cs-monthly").value) || cur.plan.monthly) + specSum("monthly");
-    const init = (Number($("#cs-initial").value) || cur.plan.initial) + specSum("initial");
-    const perCharge = mo * bill.mult;
-    const total = init + mo * cur.termMonths;
-    const specLines = (cur.specialty || []).map((sv) =>
-      `<div class="rowline"><span>+ ${esc(sv.name)}</span><b>${fmtMoney(sv.initial)} initial · ${fmtMoney(sv.monthly)}/mo</b></div>`).join("");
-    $("#cs-billing-math").innerHTML =
-      specLines +
-      `<div class="rowline"><span>Billed</span><b>${fmtMoney(perCharge)} every ${bill.every}</b></div>` +
-      `<div class="rowline"><span>Contract</span><b>${cur.termMonths} months</b></div>` +
-      `<div class="rowline total"><span>Total contract value</span><b>${fmtMoney(total)}</b></div>`;
+    // the Billed/Contract/Total box is gone by request — the numbers still
+    // compute where they matter: the Agree summary and the agreement itself
   }
 
   function collectService() {

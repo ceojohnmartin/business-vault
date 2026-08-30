@@ -937,10 +937,12 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .mini-add{flex:none;width:32px;height:32px;border-radius:50%;background:#17181A;color:#fff;
   font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .mini-add:active{transform:scale(.92)}
-.gps-btn{align-self:flex-end;white-space:nowrap;margin-bottom:2px;flex:none;
-  background:var(--s1);border:1.5px solid var(--line);border-radius:14px;
-  padding:13px 16px;font-size:13.5px;font-weight:700;color:var(--t1)}
-.gps-btn:active{transform:scale(.97)}
+/* sits in the ZIP row's second grid cell: same box as the inputs — same
+   corners, same height, bottom edge flush with the ZIP field */
+.gps-btn{align-self:end;width:100%;margin-bottom:12px;white-space:nowrap;
+  background:var(--s1);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:12.5px 14px;font-size:14px;font-weight:700;color:var(--t1);text-align:center}
+.gps-btn:active{transform:scale(.98)}
 .gps-btn[disabled]{opacity:.55}
 
 /* sticker pricing — tap the number to edit */

@@ -447,12 +447,10 @@
     // the discount line IS the pitch: show what they're saving off sticker
     const dInit = Math.max(0, (list.listInitial || list.initial) - init);
     const dMo = Math.max(0, list.monthly - mo);
-    $("#cs-discount").textContent = under ? "" :
-      dInit || dMo
-        ? "Discount given: " +
-          [dInit ? fmtMoney(dInit) + " off the initial" : "",
-           dMo ? fmtMoney(dMo) + "/mo off the plan" : ""].filter(Boolean).join(" · ")
-        : "Full sticker — no discount applied";
+    $("#cs-discount").textContent = under || (!dInit && !dMo) ? "" :
+      "Discount given: " +
+      [dInit ? fmtMoney(dInit) + " off the initial" : "",
+       dMo ? fmtMoney(dMo) + "/mo off the plan" : ""].filter(Boolean).join(" · ");
     renderTermBilling();
   }
 
@@ -1202,7 +1200,29 @@
     $("#cs-monthly-btn").addEventListener("click", () => { tick(); openPriceEdit("#cs-monthly"); });
     ["cs-initial", "cs-monthly"].forEach((id) => {
       $("#" + id).addEventListener("input", refreshPriceUI);
-      $("#" + id).addEventListener("blur", () => { collectService(); refreshPriceUI(); });
+      $("#" + id).addEventListener("blur", () => {
+        // finished typing: a below-floor price gets the UNPROFITABLE box —
+        // OK leaves it to fix by hand, Clear snaps back to the sticker.
+        // (Saving or switching tabs still clamps to the floor regardless.)
+        const f = planFloor();
+        const under = (Number($("#cs-initial").value) || 0) < f.initial ||
+                      (Number($("#cs-monthly").value) || 0) < f.monthly;
+        if (under && $("#cs-price-edit") && !$("#cs-price-edit").hidden) {
+          $("#unprof-veil").hidden = false;
+        } else {
+          collectService();
+        }
+        refreshPriceUI();
+      });
+    });
+    $("#unprof-ok").addEventListener("click", () => { $("#unprof-veil").hidden = true; });
+    $("#unprof-clear").addEventListener("click", () => {
+      const list = planDef();
+      $("#cs-initial").value = list.initial;
+      $("#cs-monthly").value = list.monthly;
+      collectService();
+      refreshPriceUI();
+      $("#unprof-veil").hidden = true;
     });
     $$("#cs-term .seg-opt").forEach((b) =>
       b.addEventListener("click", () => {

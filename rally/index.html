@@ -352,11 +352,11 @@
         <div class="ce-sec">Pricing</div>
         <div class="price-row">
           <button class="price-big" id="cs-initial-btn" type="button"><span class="pb-label">Initial</span><b class="num" id="cs-initial-val">$450</b></button>
-          <button class="price-big" id="cs-monthly-btn" type="button"><span class="pb-label">Monthly</span><b class="num" id="cs-monthly-val">$99</b></button>
+          <button class="price-big" id="cs-monthly-btn" type="button"><span class="pb-label">Recurring</span><b class="num" id="cs-monthly-val">$99</b></button>
         </div>
         <div class="frow price-edit" id="cs-price-edit" hidden>
           <div class="field"><label for="cs-initial">Initial $</label><input id="cs-initial" type="number" inputmode="decimal" min="0"></div>
-          <div class="field"><label for="cs-monthly">Monthly $</label><input id="cs-monthly" type="number" inputmode="decimal" min="0"></div>
+          <div class="field"><label for="cs-monthly">Recurring $</label><input id="cs-monthly" type="number" inputmode="decimal" min="0"></div>
         </div>
         <p class="price-note" id="cs-discount"></p>
         <p class="price-warn" id="cs-unprofitable" hidden>UNPROFITABLE</p>
@@ -701,6 +701,17 @@
     <button class="btn btn-danger" id="lasso-delete" style="margin-top:10px">Delete these pins</button>
   </div>
 
+  <div class="modal-veil" id="unprof-veil" hidden>
+    <div class="modal-card" role="alertdialog" aria-labelledby="unprof-title">
+      <h3 id="unprof-title">UNPROFITABLE</h3>
+      <p>That price is below what this account can be sold at.</p>
+      <div class="modal-btns">
+        <button type="button" id="unprof-ok">OK</button>
+        <button type="button" id="unprof-clear" class="danger">Clear</button>
+      </div>
+    </div>
+  </div>
+
   <div class="sheet" id="contact-sheet">
     <div class="grab"></div>
     <h3>Additional contact</h3>
@@ -803,7 +814,7 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
-<script>window.RALLY_BUILD = "v22";</script>
+<script>window.RALLY_BUILD = "v23";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>

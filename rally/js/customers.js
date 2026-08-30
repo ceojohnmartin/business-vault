@@ -447,10 +447,9 @@
     // the discount line IS the pitch: show what they're saving off sticker
     const dInit = Math.max(0, (list.listInitial || list.initial) - init);
     const dMo = Math.max(0, list.monthly - mo);
-    $("#cs-discount").textContent = under || (!dInit && !dMo) ? "" :
-      "Discount given: " +
-      [dInit ? fmtMoney(dInit) + " off the initial" : "",
-       dMo ? fmtMoney(dMo) + "/mo off the plan" : ""].filter(Boolean).join(" · ");
+    // one number, no commentary: the gap between the $450 standard price
+    // and whatever the initial actually is
+    $("#cs-discount").textContent = under || !dInit ? "" : "Discount given: " + fmtMoney(dInit);
     renderTermBilling();
   }
 

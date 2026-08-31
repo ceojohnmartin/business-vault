@@ -8,10 +8,22 @@ security-proven ground to land on.
 ## Layout
 
     migrations/0001_phase1_foundation.sql   the whole schema + RLS
+    migrations/0002_realtime_doorbell.sql   Phase 3: realtime wake-up triggers + listen policy
     seed.example.sql                        one-time team/owner bootstrap
     test/supabase-shim.sql                  local stand-in for Supabase bits (TEST ONLY)
-    test/rls-test.sql                       42 security checks
+    test/rls-test.sql                       47 security checks
     test/run-rls-tests.sh                   runs them on a throwaway local Postgres
+
+## The realtime doorbell (0002)
+
+Realtime carries no data — a statement-level trigger broadcasts an EMPTY
+payload to the private topic `team:<team_id>` whenever team rows change,
+and clients that hear it run their normal pull. Who may LISTEN is decided
+by an RLS policy on realtime.messages comparing the topic to the
+caller's own team (my_team_id() from the JWT); a join for another team's
+topic is refused at the socket, and a disabled rep can't listen at all.
+Until 0002 is applied, the app's realtime join is refused and it quietly
+falls back to its 45-second polling — nothing breaks.
 
 ## Setting up the real project (once)
 
@@ -62,6 +74,6 @@ you or same-team leadership.
 
     PGHOST=<host> PGPORT=<port> sh test/run-rls-tests.sh
 
-spins `rally_rls_test`, applies the shim + migration, and runs all 42
+spins `rally_rls_test`, applies the shim + migration, and runs all 47
 checks (team isolation, escalation attempts, append-only events, disabled
 and anon lockouts, payment scrubbing). Any failure exits non-zero.

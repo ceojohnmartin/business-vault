@@ -16,6 +16,7 @@ psql -q -v ON_ERROR_STOP=1 -d postgres -c "drop database if exists $DB" \
      -c "create database $DB"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/supabase-shim.sql"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0001_phase1_foundation.sql"
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0002_realtime_doorbell.sql"
 OUT="$(psql -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/rls-test.sql" 2>&1)" || {
   echo "$OUT" | tail -20; echo "RLS: FAILED"; exit 1;
 }

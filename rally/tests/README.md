@@ -10,6 +10,11 @@ Run from anywhere (paths are relative to this directory):
     node tests/doors-fix-test.js  # door-import dedupe regression suite
     node tests/facade-test.js     # MMAP facade contract: engine stays private,
                                   # draw/knock clicks flow through onMapClick
+    node tests/sync-test.js       # two-device team sync: convergence, LWW,
+                                  # tombstones, dedupe, offline queue, scrub
+    node tests/realtime-test.js   # Phase 3 doorbell: sub-2s propagation over
+                                  # a mock Phoenix websocket, burst collapse,
+                                  # reconnect catch-up, cross-team refusal
     node tests/cloud-auth-test.js # Supabase auth bridge vs a mock server:
                                   # online/offline sign-in, disabled accounts,
                                   # confirm-email signup, legacy fallback

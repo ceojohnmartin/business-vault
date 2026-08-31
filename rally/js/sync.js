@@ -681,6 +681,8 @@
       }
       await backfill();
       if (!live()) return;
+      // the doorbell follows the SERVER-resolved team (never a client claim)
+      try { if (window.MREALTIME) MREALTIME.ensure(team); } catch (_) {}
       let usersChanged = false;
       try { usersChanged = await syncProfiles(); } catch (_) {}
       // PULL FIRST: the team's newer records land and retire stale outbox
@@ -710,13 +712,37 @@
         kick();
       }
       running = false;
+      if (wakeAgain) { // doorbell rang mid-cycle: one follow-up, not a storm
+        wakeAgain = false;
+        setTimeout(cycle, 300);
+      }
     }
   }
 
   function kick() { // debounced "something changed, push soon"
     if (!active()) return;
     clearTimeout(kickT);
-    kickT = setTimeout(cycle, 2500);
+    // 800ms: rapid edits still coalesce (an import's whole loop lands as
+    // one push), but a knock reaches teammates inside the 2-second promise
+    kickT = setTimeout(cycle, 800);
+  }
+
+  // ---------- the doorbell (Phase 3) ----------
+  // Realtime pings land here and NOWHERE else: a wake is only ever a
+  // request to run the normal Phase 2 cycle soon. Bursts collapse — the
+  // first ping pulls almost immediately (that's the sub-2s promise), pings
+  // hot on its heels fold into one trailing pull, and pings that arrive
+  // while a cycle is running earn exactly one follow-up cycle.
+  let wakeT = null, wakeAgain = false, lastWakeRun = 0;
+  function wake() {
+    if (!eligible()) return;
+    if (running) { wakeAgain = true; return; }
+    clearTimeout(wakeT);
+    const since = Date.now() - lastWakeRun;
+    wakeT = setTimeout(() => {
+      lastWakeRun = Date.now();
+      cycle();
+    }, since > 1500 ? 150 : 1200);
   }
 
   // ---------- lifecycle ----------
@@ -736,7 +762,7 @@
     });
     timer = setInterval(() => {
       if (document.visibilityState === "visible") cycle();
-    }, 45000);
+    }, (window.RALLY_CLOUD && RALLY_CLOUD.pollMs) || 45000);
     setTimeout(cycle, 1500); // let boot settle first
   }
 
@@ -744,7 +770,9 @@
   // next account on this device starts from a clean slate
   async function reset() {
     gen++; // any in-flight cycle stops writing at its next checkpoint
-    clearTimeout(kickT); if (timer) clearInterval(timer);
+    try { if (window.MREALTIME) MREALTIME.stop(); } catch (_) {}
+    clearTimeout(kickT); clearTimeout(wakeT); wakeAgain = false;
+    if (timer) clearInterval(timer);
     started = false; running = false;
     queued = new Set(); requeued = []; userMap = {}; cursors = {};
     pendingEvents = []; profileCache = null;
@@ -764,5 +792,5 @@
     lastSyncAt, lastError, running,
   });
 
-  window.MSYNC = { start, queue, queueDelete, syncNow: cycle, status, reset, isDirty };
+  window.MSYNC = { start, queue, queueDelete, syncNow: cycle, wake, status, reset, isDirty };
 })();

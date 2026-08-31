@@ -335,3 +335,41 @@ select t_assert(
   'no full card number exists anywhere in the stored row');
 reset role;
 select set_config('request.jwt.claims', '', false);
+
+-- =============================== 12. the realtime doorbell (Phase 3)
+-- the write triggers ring once per statement per team, with EMPTY payloads
+reset role;
+select set_config('request.jwt.claims', '', false);
+delete from realtime.messages;
+call t_as('00000000-0000-4000-a000-000000000003');
+insert into public.pins (team_id, id, lat, lng) values
+  ('11111111-1111-4111-a111-111111111111', 'bell-1', 1, 1),
+  ('11111111-1111-4111-a111-111111111111', 'bell-2', 2, 2);
+reset role;
+select set_config('request.jwt.claims', '', false);
+select t_assert(
+  (select count(*) from realtime.messages where topic = 'team:11111111-1111-4111-a111-111111111111') = 1,
+  'a multi-row write rings the doorbell ONCE for the team');
+select t_assert(
+  (select payload = '{}'::jsonb and event = 'pins' from realtime.messages limit 1),
+  'the doorbell carries an empty payload — never row data');
+
+-- listening is my_team_id()-gated: exactly what Supabase's private-channel
+-- authorizer evaluates (a SELECT on realtime.messages under the topic GUC)
+call t_as('00000000-0000-4000-a000-000000000003'); -- rep A, team A
+select set_config('realtime.topic', 'team:11111111-1111-4111-a111-111111111111', false);
+select t_assert((select count(*) from realtime.messages) >= 1,
+  'a team member may listen to their own team topic');
+select set_config('realtime.topic', 'team:22222222-2222-4222-a222-222222222222', false);
+select t_assert((select count(*) from realtime.messages) = 0,
+  'joining ANOTHER team''s topic is refused by RLS');
+reset role;
+select set_config('request.jwt.claims', '', false);
+call t_as('00000000-0000-4000-a000-000000000004'); -- benched (disabled) rep
+select set_config('realtime.topic', 'team:11111111-1111-4111-a111-111111111111', false);
+select t_assert((select count(*) from realtime.messages) = 0,
+  'a disabled rep cannot listen to the team doorbell');
+reset role;
+select set_config('request.jwt.claims', '', false);
+select set_config('realtime.topic', '', false);
+

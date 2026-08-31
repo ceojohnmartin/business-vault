@@ -229,6 +229,10 @@ function attachWs(server) {
   const errors = [];
   async function device(email, port, pollMs) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
+    // fast. That <link> is render-blocking, so a hung font request stalls
+    // every script and freezes the app on the splash. Fail it instantly.
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await ctx.addInitScript(() => {
       if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));
     });

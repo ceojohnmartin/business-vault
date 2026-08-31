@@ -40,6 +40,10 @@ const server = http.createServer((req, res) => {
   // reloads on controllerchange (that's how updates reach phones). Mid-test
   // that re-locks the gate under our clicks — so stub SW out; this suite
   // tests the app, not the worker.
+  // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
+  // fast. That <link> is render-blocking, so a hung font request stalls
+  // every script and freezes the app on the splash. Fail it instantly.
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.addInitScript(() => {
     if (navigator.serviceWorker) {
       navigator.serviceWorker.register = () => Promise.reject(new Error("sw off in test"));

@@ -83,6 +83,22 @@
     // skip data, the user map points at this device's own user rows
     "syncCursors", "syncUserMap", "syncBackfilled", "syncLastAt", "syncPendingEvents",
     "syncTeam", "syncDead"];
+  // Credentials that live INSIDE the settings record. A backup is a data
+  // archive, not a key ring: these are stripped from every export and are
+  // never imported from one. Everything else in settings — company name,
+  // license, goals, preferences — backs up and restores normally.
+  // googleSessions is here because it holds live Map Tiles session tokens,
+  // not a preference.
+  const SETTINGS_SECRETS = ["frKey", "frToken", "regridKey", "googleKey", "googleSessions"];
+
+  // Returns a copy with the credential fields removed; never mutates the
+  // record it is handed.
+  function scrubSettings(v) {
+    const out = Object.assign({}, v || {});
+    SETTINGS_SECRETS.forEach((k) => { delete out[k]; });
+    return out;
+  }
+
   const FILE_CAP = 4 * 1024 * 1024; // one runaway photo must not sink the backup
 
   const blobToB64 = (blob) => new Promise((resolve, reject) => {
@@ -102,7 +118,11 @@
   async function backup() {
     const data = {};
     for (const s of STORES) data[s] = await MDB.getAll(s);
-    data.kv = (await MDB.getAll("kv")).filter((r) => r && !PRIVATE_KV.includes(r.k));
+    data.kv = (await MDB.getAll("kv"))
+      .filter((r) => r && !PRIVATE_KV.includes(r.k))
+      .map((r) => (r.k === "settings" && r.v && typeof r.v === "object"
+        ? { k: r.k, v: scrubSettings(r.v) }
+        : r));
     const files = await MDB.getAll("files");
     let skipped = 0;
     data.files = [];
@@ -136,7 +156,20 @@
       // filtered on the way in too, so older backup files that still
       // carry a credential can never re-key or unlock this device
       for (const r of d.kv || []) {
-        if (r && r.k && !PRIVATE_KV.includes(r.k)) await MDB.put("kv", r);
+        if (!r || !r.k || PRIVATE_KV.includes(r.k)) continue;
+        if (r.k === "settings" && r.v && typeof r.v === "object") {
+          // An older backup may still carry credentials; they are dropped
+          // on the way in. Whatever this device already holds is kept, so
+          // a restore can never overwrite or erase working keys.
+          const local = (await MDB.kvGet("settings", null)) || {};
+          const merged = scrubSettings(r.v);
+          SETTINGS_SECRETS.forEach((k) => {
+            if (local[k] !== undefined) merged[k] = local[k];
+          });
+          await MDB.put("kv", { k: "settings", v: merged });
+          continue;
+        }
+        await MDB.put("kv", r);
       }
       for (const f of d.files || []) {
         if (!f || !f.id || typeof f.b64 !== "string") continue;

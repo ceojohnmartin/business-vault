@@ -110,6 +110,10 @@ const server = http.createServer((req, res) => {
   const CLOUD_ON = `window.RALLY_CLOUD = { url: "http://localhost:${PORT}", anonKey: "test-anon" };`;
   async function fresh(cloudOn) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
+    // fast. That <link> is render-blocking, so a hung font request stalls
+    // every script and freezes the app on the splash. Fail it instantly.
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await ctx.addInitScript(() => {
       if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));
       // Default OFF, explicitly. cloud-config.js ships REAL project keys, so

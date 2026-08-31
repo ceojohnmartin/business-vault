@@ -16,6 +16,10 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
   await new Promise(r=>server.listen(8821,r));
   const b = await chromium.launch({ executablePath:"/opt/pw-browsers/chromium" });
   const page = await (await b.newContext({viewport:{width:390,height:844}})).newPage();
+  // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
+  // fast. That <link> is render-blocking, so a hung font request stalls
+  // every script and freezes the app on the splash. Fail it instantly.
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.addInitScript(() => {
     if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));
     window.RALLY_CLOUD = { url: "", anonKey: "" }; // never touch the live project

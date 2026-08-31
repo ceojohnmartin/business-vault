@@ -182,6 +182,10 @@ const server = http.createServer((req, res) => {
   const errors = [];
   async function device(email) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
+    // fast. That <link> is render-blocking, so a hung font request stalls
+    // every script and freezes the app on the splash. Fail it instantly.
+    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await ctx.addInitScript(() => {
       if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));
     });
@@ -197,6 +201,17 @@ const server = http.createServer((req, res) => {
     return { ctx, page };
   }
   const sync = (d) => d.page.evaluate(() => MSYNC.syncNow());
+  // cycle() returns immediately if one is already running, so a single
+  // syncNow() can be a no-op. For assertions about a fully-drained pull,
+  // sync until the expected state arrives (or give up and let the check fail).
+  async function syncUntil(d, fn, tries = 12) {
+    for (let i = 0; i < tries; i++) {
+      await sync(d);
+      if (await d.page.evaluate(fn)) return true;
+      await d.page.waitForTimeout(300);
+    }
+    return false;
+  }
   const S = (d, fn) => d.page.evaluate(fn);
   const offline = (d) => d.ctx.route(/\/(auth|rest)\/v1\//, (r) => r.abort());
   const online = (d) => d.ctx.unroute(/\/(auth|rest)\/v1\//);
@@ -346,13 +361,13 @@ const server = http.createServer((req, res) => {
       city: "Hays", state: "KS", zip: "67601", propertyType: "sfr" });
     await STORE.importDoors(props);
   });
-  await sync(A);
-  await sync(B);
+  await syncUntil(A, () => STORE.pins.length === 525);
+  await syncUntil(B, () => STORE.pins.length === 525);
   const tieCounts = await Promise.all([S(A, () => STORE.pins.length), S(B, () => STORE.pins.length)]);
   check("J1 520 tied-timestamp doors survive pagination on a synced device",
     tieCounts[0] === tieCounts[1] && tieCounts[0] === 525, "A=" + tieCounts[0] + " B=" + tieCounts[1]);
   const C = await device("john@x.com"); // John's second device — full pull from zero
-  await sync(C);
+  await syncUntil(C, () => STORE.pins.length === 525);
   check("J2 a brand-new device pulls the complete book across tie boundaries",
     (await S(C, () => STORE.pins.length)) === 525,
     "C=" + (await S(C, () => STORE.pins.length)));

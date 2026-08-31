@@ -13,7 +13,13 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap">
+<!-- Non-blocking on purpose: a stylesheet in <head> blocks every script
+     after it, so a slow or unreachable Google Fonts CDN would hold the
+     whole app on the splash. media="print" makes it a non-blocking fetch;
+     onload promotes it to the real stylesheet. Outfit swaps in when it
+     arrives, and until then the CSS fallback stack renders immediately. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap"
+      media="print" onload="this.media='all'">
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 <link rel="stylesheet" href="css/app.css">
 </head>
@@ -823,7 +829,7 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
-<script>window.RALLY_BUILD = "v37";</script>
+<script>window.RALLY_BUILD = "v38";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>

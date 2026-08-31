@@ -182,9 +182,10 @@ const server = http.createServer((req, res) => {
   const errors = [];
   async function device(email) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
-    // fast. That <link> is render-blocking, so a hung font request stalls
-    // every script and freezes the app on the splash. Fail it instantly.
+    // This sandbox has no egress to fonts.googleapis.com: the connection is
+    // blackholed and resets after ~12.6s. Aborting instantly saves the suite
+    // that wait. Boot no longer DEPENDS on it — index.html loads the font
+    // non-blocking now, proved by tests/font-boot-test.js.
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await ctx.addInitScript(() => {
       if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));
@@ -200,10 +201,25 @@ const server = http.createServer((req, res) => {
     await page.waitForTimeout(800);
     return { ctx, page };
   }
-  const sync = (d) => d.page.evaluate(() => MSYNC.syncNow());
-  // cycle() returns immediately if one is already running, so a single
-  // syncNow() can be a no-op. For assertions about a fully-drained pull,
-  // sync until the expected state arrives (or give up and let the check fail).
+  // MSYNC.syncNow() IS cycle(), and cycle() returns instantly when another
+  // cycle is already in flight. The engine starts its own: queue() arms one
+  // 800ms out, wake() one 150-1200ms out, the poll timer one every 45s. So a
+  // bare syncNow() can silently do nothing — which is exactly how an offline
+  // cycle still winding down ate the drain in D2 (status showed
+  // running:true, pending:2, lastError:"Can't reach RALLY cloud"). Wait out
+  // whatever is running, THEN run a real cycle. This changes no assertion —
+  // only the trigger, so the thing being asserted actually gets a chance to
+  // happen.
+  const sync = (d) => d.page.evaluate(async () => {
+    for (let i = 0; i < 200 && MSYNC.status().running; i++) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    await MSYNC.syncNow();
+  });
+  // Even a real cycle may need company: a pull that spans pages, or a push
+  // that must land before the other device can see it, takes more than one.
+  // Sync until the expected state arrives (or give up and let the check
+  // fail — the assertion below is never relaxed).
   async function syncUntil(d, fn, tries = 12) {
     for (let i = 0; i < tries; i++) {
       await sync(d);

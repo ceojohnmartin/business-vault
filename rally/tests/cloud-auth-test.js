@@ -110,9 +110,10 @@ const server = http.createServer((req, res) => {
   const CLOUD_ON = `window.RALLY_CLOUD = { url: "http://localhost:${PORT}", anonKey: "test-anon" };`;
   async function fresh(cloudOn) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-    // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
-    // fast. That <link> is render-blocking, so a hung font request stalls
-    // every script and freezes the app on the splash. Fail it instantly.
+    // This sandbox has no egress to fonts.googleapis.com: the connection is
+    // blackholed and resets after ~12.6s. Aborting instantly saves the suite
+    // that wait. Boot no longer DEPENDS on it — index.html loads the font
+    // non-blocking now, proved by tests/font-boot-test.js.
     await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await ctx.addInitScript(() => {
       if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));

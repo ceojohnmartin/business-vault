@@ -40,9 +40,10 @@ const server = http.createServer((req, res) => {
   // reloads on controllerchange (that's how updates reach phones). Mid-test
   // that re-locks the gate under our clicks — so stub SW out; this suite
   // tests the app, not the worker.
-  // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
-  // fast. That <link> is render-blocking, so a hung font request stalls
-  // every script and freezes the app on the splash. Fail it instantly.
+  // This sandbox has no egress to fonts.googleapis.com: the connection is
+  // blackholed and resets after ~12.6s. Aborting instantly saves the suite
+  // that wait. Boot no longer DEPENDS on it — index.html loads the font
+  // non-blocking now, proved by tests/font-boot-test.js.
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.addInitScript(() => {
     if (navigator.serviceWorker) {

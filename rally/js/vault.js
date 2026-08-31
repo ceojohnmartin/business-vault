@@ -99,6 +99,23 @@
     return out;
   }
 
+  // A customer's RAW payment credentials — card.number/exp and the ACH
+  // routing/account — never belong in an exported file. This is the same
+  // safe shape the FieldRoutes export, the sync engine and the server-side
+  // trigger all reduce payment to: method, last4, autopay, billingAddress.
+  // (RALLY never captures a CVV/security code at all, so there is none to
+  // strip.) Returns a copy; never mutates the record it is handed.
+  function scrubCustomerPayment(c) {
+    if (!c || !c.payment) return c;
+    const p = c.payment;
+    const out = Object.assign({}, c);
+    out.payment = {
+      method: p.method || "", last4: p.last4 || "",
+      autopay: !!p.autopay, billingAddress: p.billingAddress || null,
+    };
+    return out;
+  }
+
   const FILE_CAP = 4 * 1024 * 1024; // one runaway photo must not sink the backup
 
   const blobToB64 = (blob) => new Promise((resolve, reject) => {
@@ -117,7 +134,10 @@
 
   async function backup() {
     const data = {};
-    for (const s of STORES) data[s] = await MDB.getAll(s);
+    for (const s of STORES) {
+      const rows = await MDB.getAll(s);
+      data[s] = s === "customers" ? rows.map(scrubCustomerPayment) : rows;
+    }
     data.kv = (await MDB.getAll("kv"))
       .filter((r) => r && !PRIVATE_KV.includes(r.k))
       .map((r) => (r.k === "settings" && r.v && typeof r.v === "object"
@@ -152,7 +172,22 @@
     const what = `${(d.customers || []).length} customers · ${(d.pins || []).length} pins · ${(d.territories || []).length} hoods`;
     if (!confirm(`Restore the backup from ${when}?\n${what}\n\nRecords merge in by id — matching ones are replaced by the backup's version, nothing else is touched.`)) return;
     try {
-      for (const s of STORES) for (const r of d[s] || []) await MDB.put(s, r);
+      for (const s of STORES) {
+        for (const r of d[s] || []) {
+          if (s === "customers" && r && r.id) {
+            // An older backup may still carry raw card/ACH numbers. They are
+            // dropped on the way in, and this device's own payment record is
+            // kept — so a restore can neither install payment credentials nor
+            // overwrite the ones already here.
+            const local = await MDB.get("customers", r.id).catch(() => null);
+            const incoming = scrubCustomerPayment(r);
+            if (local && local.payment) incoming.payment = local.payment;
+            await MDB.put(s, incoming);
+            continue;
+          }
+          await MDB.put(s, r);
+        }
+      }
       // filtered on the way in too, so older backup files that still
       // carry a credential can never re-key or unlock this device
       for (const r of d.kv || []) {

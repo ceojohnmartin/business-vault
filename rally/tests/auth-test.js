@@ -22,9 +22,10 @@ const check = (name, cond, extra="") => (cond?ok:bad).push(name + (extra?" — "
   // Cloud OFF: this suite exercises the device gate itself and must never
   // create users in the live Supabase project. Set before cloud-config.js
   // runs, whose `||` leaves an existing value alone.
-  // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
-  // fast. That <link> is render-blocking, so a hung font request stalls
-  // every script and freezes the app on the splash. Fail it instantly.
+  // This sandbox has no egress to fonts.googleapis.com: the connection is
+  // blackholed and resets after ~12.6s. Aborting instantly saves the suite
+  // that wait. Boot no longer DEPENDS on it — index.html loads the font
+  // non-blocking now, proved by tests/font-boot-test.js.
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await ctx.addInitScript(() => { window.RALLY_CLOUD = { url: "", anonKey: "" }; });
   const page = await ctx.newPage();

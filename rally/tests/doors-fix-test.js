@@ -16,9 +16,10 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
   await new Promise(r=>server.listen(8821,r));
   const b = await chromium.launch({ executablePath:"/opt/pw-browsers/chromium" });
   const page = await (await b.newContext({viewport:{width:390,height:844}})).newPage();
-  // This sandbox's proxy makes fonts.googleapis.com HANG rather than fail
-  // fast. That <link> is render-blocking, so a hung font request stalls
-  // every script and freezes the app on the splash. Fail it instantly.
+  // This sandbox has no egress to fonts.googleapis.com: the connection is
+  // blackholed and resets after ~12.6s. Aborting instantly saves the suite
+  // that wait. Boot no longer DEPENDS on it — index.html loads the font
+  // non-blocking now, proved by tests/font-boot-test.js.
   await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
   await page.addInitScript(() => {
     if (navigator.serviceWorker) navigator.serviceWorker.register = () => Promise.reject(new Error("off"));

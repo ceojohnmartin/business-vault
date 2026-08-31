@@ -61,25 +61,72 @@ status — come from backend-authored financial state and read models.
 
 ## 4. FieldRoutes boundary
 
-**LOCKED — FieldRoutes is transitional external infrastructure. It is not the foundation of
-the RALLY domain model, and long term it must be optional.**
+**LOCKED — FieldRoutes is a benchmark and a legacy-migration reference. It is NOT part of
+RALLY or RALLY OS's future architecture.**
 
-- FieldRoutes integration belongs **server-side, as an adapter**.
-- RALLY clients must not each independently implement FieldRoutes business rules.
-- RALLY OS is canonical and pushes or receives projections through the adapter.
-- FieldRoutes IDs remain `externalRefs`, never entity identity.
-- **Do not duplicate financial truth between RALLY OS and FieldRoutes.**
+RALLY OS should ultimately replace the need for FieldRoutes entirely.
+
+### FieldRoutes may be studied for
+
+- product inspiration
+- pest-control workflow ideas
+- UI/UX patterns
+- reporting concepts
+- routing and scheduling concepts
+- billing workflow concepts
+- technician workflows
+- customer and service structure
+- migration and reference purposes
+
+### FieldRoutes is NOT
+
+- a permanent billing system
+- a permanent CRM
+- a required integration dependency
+- the canonical customer system
+- the canonical payment system
+- a source of truth for RALLY OS
+- something we must preserve compatibility with forever
+
+**LOCKED — Do not design RALLY or RALLY OS around FieldRoutes.**
+
+### Research rule
+
+Study FieldRoutes only to answer:
+
+- *What workflow or feature should RALLY / RALLY OS have?*
+- *How do we improve on what established pest-control software does?*
+- *What will we need to migrate away from later?*
+
+**Do NOT ask:** how RALLY fits into FieldRoutes, how to make FieldRoutes consume our
+payment tokens, how to reuse their system as a bridge, or how to structure RALLY around
+them. **That loop is closed.**
+
+### If an integration is ever built anyway
+
+Should a migration or transition ever require touching FieldRoutes, it belongs
+**server-side as an adapter** — never in a client, never in the domain model. Its IDs stay
+`externalRefs`, never entity identity, and financial truth is never duplicated across the
+boundary.
 
 **LOCKED — Exactly ONE system may own recurring billing for a given billing account or
-subscription at a time.** Never allow RALLY OS and FieldRoutes autopay to independently
-charge the same billing obligation.
+subscription at a time.** This applies to any external biller, FieldRoutes included: never
+allow two systems to independently charge the same billing obligation.
 
 ---
 
 ## 5. Payment and billing architecture
 
-RALLY OS owns the complete billing lifecycle from the beginning of the production RALLY
-billing architecture.
+**LOCKED — RALLY OS owns the complete billing lifecycle from day one.** Not eventually,
+not after a transition — from the first production billing customer.
+
+**The payment question for new RALLY OS customers is: "What DIRECT payment provider should
+RALLY OS use from day one?"** It is not "how do we fit into someone else's payment stack."
+
+FieldRoutes must never own billing schedules, invoices, autopay logic, balances, retries,
+credits, refunds, collections, or the financial ledger. FieldRoutes payment and gateway
+research is relevant **only** if and when existing customers or payment methods need
+migrating out of it — and that must not block or shape the architecture for new customers.
 
 **RALLY / RALLY OS owns:** customers, agreements, service plans, billing schedules,
 invoices, line items, discounts, credits, refunds, charge instructions, payment status,
@@ -108,6 +155,9 @@ RALLY client
 permanent architecture.**
 
 **LOCKED — Do not design long-term billing around FieldRoutes.**
+
+**LOCKED PRINCIPLE — FieldRoutes = inspiration and legacy-migration reference.
+RALLY + RALLY OS = our product. Do not confuse those roles.**
 
 **LOCKED — Do not add extra payment vendors unless they solve a material problem a simpler
 architecture cannot.** Preferred long-term vendor shape:
@@ -250,8 +300,16 @@ When RALLY billing implementation begins, revisit:
 - No financial tables have been built.
 - No production payment provider has been selected.
 - No production payment integration has been implemented.
-- No FieldRoutes production integration has been implemented.
+- No FieldRoutes production integration has been implemented, and none is planned.
 - No schema or RLS tenancy redesign has been approved.
+
+**Next payment work:** a focused comparison of DIRECT payment providers for RALLY OS.
+Not another FieldRoutes sweep — that research loop is closed. Criteria: secure hosted card
+capture, ACH, tokenization/vault, saved payment methods, server-initiated card-on-file
+charges, refunds, webhooks, idempotency, card/account updater, migration and export rights,
+pricing, recurring pest-control suitability, vanilla-JS/PWA compatibility, minimal vendor
+layers, ability to scale with RALLY OS. **No provider may be selected or implemented
+without explicit approval.**
 
 ---
 

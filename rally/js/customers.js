@@ -656,15 +656,21 @@
      through and the server silently dropped would revert on the next pull
      with no explanation, which is a lie by omission. */
   const bounded = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
-  const digits = (v) => (typeof v === "string" ? v.replace(/[^0-9]/g, "").length : 0);
+  // every Unicode decimal digit, the same generated class the server uses
+  // (db/migrations/0004_payment_allowlist.sql): a card number written in
+  // fullwidth or Khmer digits is still a card number
+  const DIGIT = /[^\u0030-\u0039\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19\u{104A0}-\u{104A9}\u{10D30}-\u{10D39}\u{11066}-\u{1106F}\u{110F0}-\u{110F9}\u{11136}-\u{1113F}\u{111D0}-\u{111D9}\u{112F0}-\u{112F9}\u{11450}-\u{11459}\u{114D0}-\u{114D9}\u{11650}-\u{11659}\u{116C0}-\u{116C9}\u{11730}-\u{11739}\u{118E0}-\u{118E9}\u{11950}-\u{11959}\u{11C50}-\u{11C59}\u{11D50}-\u{11D59}\u{11DA0}-\u{11DA9}\u{16A60}-\u{16A69}\u{16AC0}-\u{16AC9}\u{16B50}-\u{16B59}\u{1D7CE}-\u{1D7FF}\u{1E140}-\u{1E149}\u{1E2F0}-\u{1E2F9}\u{1E950}-\u{1E959}\u{1FBF0}-\u{1FBF9}\u{11F50}-\u{11F59}\u{1E4F0}-\u{1E4F9}]/gu;
+  // code points, not UTF-16 units: an astral digit is ONE digit, as in PG's length()
+const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length : 0);
   /* A NAME field carrying four or more digits is not a name. Four is below
      a routing number (9), a bank account (4-17) and a card number (13-19),
      and a person's name has no digits at all. This is shape enforcement on
      a PAYMENT-SHAPED field — not a scanner over the app's free text. */
   const safeName = (v) => (digits(v) >= 4 ? "" : bounded(v, 80));
   // an address line legitimately carries digits; a card number does not fit
-  const safeAddr = (v, max) => (digits(v) >= 13 ? "" : bounded(v, max));
-  const US_ZIP = /^([0-9]{5}(-?[0-9]{4})?)?$/;
+  const safeAddr = (v, max, cut) => (digits(v) >= (cut || 13) ? "" : bounded(v, max));
+  // ZIP+4 requires its hyphen: nine bare digits is the shape of a routing number
+  const US_ZIP = /^([0-9]{5}(-[0-9]{4})?)?$/;
 
   function honestPayment(pay) {
     const p = pay || {};
@@ -685,9 +691,16 @@
        by the billing backend against a real provider result. */
     const status = (method || autopayRequested) ? "pending_setup" : "not_configured";
     const b = p.billingAddress || {};
+    /* The three text leaves are judged together as well as one by one: an
+       address never carries thirteen digits across street, city and state,
+       so when they do — a card number split in halves, a routing number
+       beside an account number — none of them is an address. A state
+       carries no digits at all; five is the allowance for a stray zip. */
+    const spread = digits(b.street) + digits(b.city) + digits(b.state) >= 13;
     const billingAddress = {
-      street: safeAddr(b.street, 120), city: safeAddr(b.city, 80),
-      state: safeAddr(b.state, 40),
+      street: spread ? "" : safeAddr(b.street, 120),
+      city: spread ? "" : safeAddr(b.city, 80),
+      state: spread ? "" : safeAddr(b.state, 40, 5),
       zip: US_ZIP.test(bounded(b.zip, 10)) ? bounded(b.zip, 10) : "",
     };
     const out = { method, autopayRequested, status, card, ach, billingAddress };
@@ -784,7 +797,7 @@
     const refused = [];
     if (typed.card && !cur.payment.card.name) refused.push("name on card");
     if (typed.ach && !cur.payment.ach.name) refused.push("name on account");
-    if (typed.street && !cur.payment.billingAddress.street) refused.push("billing street");
+    if (typed.street && !cur.payment.billingAddress.street) refused.push("billing address");
     if (typed.zip && !cur.payment.billingAddress.zip) refused.push("billing ZIP");
     if (refused.length) {
       const numeric = (typed.card + typed.ach).replace(/[^0-9]/g, "").length >= 4;

@@ -74,6 +74,16 @@
 --   * an empty payment object was stored and then carried forward forever.
 --     Nothing valid to store now means NO payment key.
 --   * a data column that is not a JSON object is refused (22023).
+-- A SECOND ROUND against that body found three more (rls-test.sql §20):
+--   * the digit class had twelve Unicode digit blocks typed by hand; there
+--     are sixty-six. It is generated from the Unicode database now.
+--   * a card number split across street and city, or a routing number in
+--     one address leaf and an account number in the next, passed each
+--     leaf's own cut. The three text leaves are also judged together.
+--   * ZIP+4 accepted nine bare digits, which is a routing number's shape.
+--     The hyphen is required.
+--   * and a status a client could never have written is no longer
+--     overwritable by a client sending a value it could.
 --
 -- Idempotent: safe to run more than once.
 
@@ -93,17 +103,18 @@ $$;
 --     routing number (9), a bank account (4-17) and a PAN (13-19).
 -- A value at or over the cut is dropped, not truncated: half a card number
 -- is still card-number-shaped data in a field that should not hold it.
--- A "digit" is any decimal digit a card number could be written in, not just
--- ASCII. A PAN in fullwidth (４１１１…), Arabic-Indic (٤١١١…), Devanagari,
--- Bengali, Thai, superscript/subscript or the mathematical digit blocks is
--- still a card number, and the count is taken on the RAW value before the
--- length cut so that truncation cannot hide the tail of one.
--- (tests/lib/scrub-trigger.js carries the identical class; mirror-fidelity
--- keeps them the same.)
+-- A "digit" is ANY Unicode decimal digit (general category Nd), not just
+-- ASCII: a PAN written in Khmer, Myanmar, Adlam or mathematical digits is
+-- still a card number. The class below is every Nd range in Unicode 15,
+-- generated from the Unicode database rather than typed from memory — the
+-- first version listed twelve blocks by hand and an adversarial pass found
+-- fifty-four it had missed. The count is taken on the RAW value before the
+-- length cut, so truncation cannot hide the tail of one.
+-- (tests/lib/scrub-trigger.js carries the identical generated class.)
 create or replace function public.pay_digit_count(v text) returns int
 language sql immutable as $$
   select length(regexp_replace(coalesce(v, ''),
-    '[^0-9０-９٠-٩۰-۹०-९০-৯๐-๙⁰¹²³⁴⁵⁶⁷⁸⁹₀-₉𝟎-𝟿]', '', 'g'))
+    '[^\u0030-\u0039\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19\U000104A0-\U000104A9\U00010D30-\U00010D39\U00011066-\U0001106F\U000110F0-\U000110F9\U00011136-\U0001113F\U000111D0-\U000111D9\U000112F0-\U000112F9\U00011450-\U00011459\U000114D0-\U000114D9\U00011650-\U00011659\U000116C0-\U000116C9\U00011730-\U00011739\U000118E0-\U000118E9\U00011950-\U00011959\U00011C50-\U00011C59\U00011D50-\U00011D59\U00011DA0-\U00011DA9\U00016A60-\U00016A69\U00016AC0-\U00016AC9\U00016B50-\U00016B59\U0001D7CE-\U0001D7FF\U0001E140-\U0001E149\U0001E2F0-\U0001E2F9\U0001E950-\U0001E959\U0001FBF0-\U0001FBF9\U00011F50-\U00011F59\U0001E4F0-\U0001E4F9]', '', 'g'))
 $$;
 
 create or replace function public.pay_text_field(v jsonb, maxlen int, maxdigits int)
@@ -205,7 +216,7 @@ $$;
 create or replace function public.scrub_customer_payment() returns trigger
 language plpgsql as $$
 declare pay jsonb; prev jsonb; safe jsonb; addr jsonb; card jsonb; ach jsonb;
-        keyed boolean; sent boolean; held boolean;
+        keyed boolean; sent boolean; held boolean; declare_addr_budget int;
 begin
   /* A null data column is an empty record — and NOT an early exit. Returning
      here used to skip the whole-object rule, so a PATCH of {"data": null}
@@ -306,7 +317,12 @@ begin
        already present was authored by something with more authority than a
        client (a future billing backend). Clamping it would let a stale
        phone quietly downgrade a real backend fact. */
-    if jsonb_typeof(pay->'status') = 'string'
+    if jsonb_typeof(prev->'status') = 'string'
+       and prev->>'status' not in ('not_configured', 'pending_setup') then
+      -- authored by something with more authority than a client: a client
+      -- cannot downgrade it, not even by sending a valid client value
+      safe := safe || jsonb_build_object('status', prev->'status');
+    elsif jsonb_typeof(pay->'status') = 'string'
        and pay->>'status' in ('not_configured', 'pending_setup') then
       safe := safe || jsonb_build_object('status', pay->'status');
     elsif jsonb_typeof(prev->'status') = 'string' then
@@ -316,21 +332,42 @@ begin
     /* billingAddress: four named leaves, each following the rule on its
        own, so one bad field cannot wipe the other three. Arbitrary nested
        JSON, extra keys and non-string values cannot pass through. */
+    /* The three text leaves are also judged TOGETHER. A per-leaf cut cannot
+       see a card number split "4111 1111" / "1111 1111" across street and
+       city, or a routing number in one leaf and an account number in the
+       next — each half is under its own cut. An address never carries
+       thirteen digits across street, city and state combined, so when the
+       incoming leaves do, none of them is an address and all three are
+       treated as NOT SENT. A state carries no digits at all; five is the
+       allowance, in case a zip lands in the wrong box. */
+    declare_addr_budget := public.pay_digit_count(pay->'billingAddress'->>'street')
+                         + public.pay_digit_count(pay->'billingAddress'->>'city')
+                         + public.pay_digit_count(pay->'billingAddress'->>'state');
     addr := '{}'::jsonb;
-    addr := public.pay_put(addr, 'street',
-      public.pay_pick_text(pay->'billingAddress'->'street',
-                           prev->'billingAddress'->'street', 120, 13));
-    addr := public.pay_put(addr, 'city',
-      public.pay_pick_text(pay->'billingAddress'->'city',
-                           prev->'billingAddress'->'city', 80, 13));
-    addr := public.pay_put(addr, 'state',
-      public.pay_pick_text(pay->'billingAddress'->'state',
-                           prev->'billingAddress'->'state', 40, 13));
-    -- a zip is a US zip or nothing; never a place to hide an account number
+    if declare_addr_budget >= 13 then
+      addr := public.pay_put(addr, 'street',
+        public.pay_pick_text('null'::jsonb, prev->'billingAddress'->'street', 120, 13));
+      addr := public.pay_put(addr, 'city',
+        public.pay_pick_text('null'::jsonb, prev->'billingAddress'->'city', 80, 13));
+      addr := public.pay_put(addr, 'state',
+        public.pay_pick_text('null'::jsonb, prev->'billingAddress'->'state', 40, 5));
+    else
+      addr := public.pay_put(addr, 'street',
+        public.pay_pick_text(pay->'billingAddress'->'street',
+                             prev->'billingAddress'->'street', 120, 13));
+      addr := public.pay_put(addr, 'city',
+        public.pay_pick_text(pay->'billingAddress'->'city',
+                             prev->'billingAddress'->'city', 80, 13));
+      addr := public.pay_put(addr, 'state',
+        public.pay_pick_text(pay->'billingAddress'->'state',
+                             prev->'billingAddress'->'state', 40, 5));
+    end if;
+    -- a zip is a US zip or nothing. ZIP+4 REQUIRES its hyphen: nine bare
+    -- digits is the shape of a routing number, not of a zip.
     addr := public.pay_put(addr, 'zip',
       public.pay_pick_re(pay->'billingAddress'->'zip',
                          prev->'billingAddress'->'zip', 10,
-                         '^([0-9]{5}(-?[0-9]{4})?)?$'));
+                         '^([0-9]{5}(-[0-9]{4})?)?$'));
     if addr <> '{}'::jsonb then
       safe := safe || jsonb_build_object('billingAddress', addr);
     end if;

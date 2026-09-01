@@ -1417,3 +1417,95 @@ end $$;
 select t_assert(
   (select count(*) = 0 from public.customers where id = 'cust-adv-g'),
   'G3 and neither refused write left a row behind');
+
+-- ===== 20. round two of the adversarial pass (0004)
+/* A second, independent round against the §19 body. Three more real ones,
+   all leaf-level shape gaps inside payment-shaped fields. */
+
+-- H. the digit class is EVERY Unicode decimal digit, not twelve blocks
+select pg_temp.upsert_prod('cust-adv-h', '{"payment":{"method":"card","card":{"name":"Dana Rivers"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-adv-h', jsonb_build_object('payment', jsonb_build_object(
+  'card', jsonb_build_object('name', U&'\17E4\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1\17E1'),     -- Khmer
+  'ach',  jsonb_build_object('name', U&'\1044\1041\1041\1041\1041\1041\1041\1041\1041\1041\1041\1041\1041\1041\1041\1041'),     -- Myanmar
+  'billingAddress', jsonb_build_object('street', U&'\+01E954\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951\+01E951'))));  -- Adlam
+select t_assert(
+  (select data->'payment'->'card'->>'name' = 'Dana Rivers'
+      and not (data->'payment' ? 'ach') and not (data->'payment' ? 'billingAddress')
+     from public.customers where id = 'cust-adv-h'),
+  'H1 a PAN in Khmer, Myanmar or Adlam digits is refused like an ASCII one');
+select t_assert(
+  public.pay_digit_count(U&'\17E4\17E1\17E1\17E1') = 4
+    and public.pay_digit_count(U&'\+011F54\+011F51') = 2                 -- Kawi (Unicode 15)
+    and public.pay_digit_count(U&'\+01E4F4\+01E4F1') = 2                 -- Nag Mundari (Unicode 15)
+    and public.pay_digit_count('④①①①') = 0,                              -- circled: not Nd, not digits
+  'H2 the digit count covers Unicode 15 Nd end to end, and only Nd');
+
+-- I. a credential SPREAD across the address leaves
+select pg_temp.upsert_prod('cust-adv-i',
+  '{"payment":{"method":"card","billingAddress":{"street":"1 Elm","city":"Provo","state":"UT","zip":"84604"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-adv-i',
+  '{"payment":{"method":"card","billingAddress":{"street":"4111 1111","city":"1111 1111","state":"12/30 cvv 123","zip":"84001"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'street' = '1 Elm'
+      and data->'payment'->'billingAddress'->>'city' = 'Provo'
+      and data->'payment'->'billingAddress'->>'state' = 'UT'
+      and data->'payment'->'billingAddress'->>'zip' = '84001'
+      and position('4111' in data::text) = 0
+     from public.customers where id = 'cust-adv-i'),
+  'I1 a PAN split across street and city is refused as a whole; the stored address survives');
+select pg_temp.upsert_prod('cust-adv-i',
+  '{"payment":{"method":"ach","billingAddress":{"street":"rt 021000021","city":"acct 123456789012","state":"chk","zip":"84001"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'street' = '1 Elm'
+      and position('021000021' in data::text) = 0 and position('123456789012' in data::text) = 0
+     from public.customers where id = 'cust-adv-i'),
+  'I2 routing in one leaf and account in the next are refused together');
+select pg_temp.upsert_prod('cust-adv-i',
+  '{"payment":{"method":"card","billingAddress":{"street":"12345 W 5600 S Apt 12","city":"Salt Lake City","state":"UT","zip":"84604-1234"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'street' = '12345 W 5600 S Apt 12'
+      and data->'payment'->'billingAddress'->>'zip' = '84604-1234'
+     from public.customers where id = 'cust-adv-i'),
+  'I3 …while a long real address (11 digits) with a hyphenated ZIP+4 is stored');
+-- THE BOUNDARY, stated: thirteen digits is the shortest card number, so a
+-- street line carrying thirteen — even a plausible one — is refused. That
+-- is the documented cost of the cut, and this pins it so it is not moved by
+-- accident in either direction.
+select pg_temp.upsert_prod('cust-adv-i',
+  '{"payment":{"billingAddress":{"street":"12345 W 5600 S Apt 1201"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'street' = '12345 W 5600 S Apt 12'
+     from public.customers where id = 'cust-adv-i'),
+  'I5 a thirteen-digit street line is refused: the cut is the shortest PAN, by design');
+select pg_temp.upsert_prod('cust-adv-i', '{"payment":{"billingAddress":{"state":"12/30 cvv 123"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'state' = 'UT'
+     from public.customers where id = 'cust-adv-i'),
+  'I4 a state line carrying an expiry and a CVV is refused on its own');
+
+-- J. nine bare digits is a routing number, not a zip
+select pg_temp.upsert_prod('cust-adv-j', '{"payment":{"method":"ach","billingAddress":{"zip":"021000021"}}}'::jsonb);
+select t_assert(
+  (select position('021000021' in data::text) = 0 from public.customers where id = 'cust-adv-j'),
+  'J1 a nine-digit "zip" is refused');
+select pg_temp.upsert_prod('cust-adv-j', '{"payment":{"method":"ach","billingAddress":{"zip":"02100-0021"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'zip' = '02100-0021' from public.customers where id = 'cust-adv-j'),
+  'J2 the same digits with the ZIP+4 hyphen are a zip');
+
+-- K. a status a client could never have written is never overwritten by one
+select pg_temp.upsert_prod('cust-adv-k', '{"payment":{"method":"card","status":"pending_setup"}}'::jsonb);
+update public.customers set data = jsonb_set(data, '{payment,status}', '"active"'::jsonb)
+ where id = 'cust-adv-k';                       -- what a future backend would do
+select t_assert(
+  (select data->'payment'->>'status' = 'pending_setup' from public.customers where id = 'cust-adv-k'),
+  '(setup) a client-shaped write cannot author active — the trigger rebuilt it');
+-- so plant it the way a backend with its own privileges would: bypassing this trigger
+alter table public.customers disable trigger customers_scrub_payment;
+update public.customers set data = jsonb_set(data, '{payment,status}', '"active"'::jsonb)
+ where id = 'cust-adv-k';
+alter table public.customers enable trigger customers_scrub_payment;
+select pg_temp.upsert_prod('cust-adv-k', '{"payment":{"method":"card","status":"not_configured"}}'::jsonb);
+select t_assert(
+  (select data->'payment'->>'status' = 'active' from public.customers where id = 'cust-adv-k'),
+  'K1 a stale phone sending a valid client status cannot downgrade a backend-authored one');

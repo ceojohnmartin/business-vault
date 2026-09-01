@@ -444,6 +444,11 @@ or an array of credential objects was stored verbatim on a row with no held
 payment — plus a `data: null` erasure, tombstones that carried payment forward,
 and a digit cut that only counted ASCII digits. All are closed and pinned in
 `rls-test.sql` §19; the 0a185f8 body is a second negative-control fixture.
+A second round against that body found three more leaf-level gaps — a
+hand-typed digit class missing 54 of 66 Unicode digit blocks, a credential
+split across address leaves passing each leaf's cut, and ZIP+4 accepting nine
+bare digits — closed and pinned in §20. The client's `honestPayment()` carries
+the identical rules and the identical generated digit table.
 
 ## Smart Split is one server fact (0005)
 

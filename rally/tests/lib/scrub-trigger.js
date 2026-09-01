@@ -19,10 +19,11 @@
    honours it as client intent — losing a concurrently committed value. */
 
 const has = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
-// every Unicode decimal digit a card number could be written in — the SAME
-// literal class as public.pay_digit_count() in 0004, counted on the RAW value
-const DIGIT = /[^0-9０-９٠-٩۰-۹०-९০-৯๐-๙⁰¹²³⁴⁵⁶⁷⁸⁹₀-₉𝟎-𝟿]/gu;
-const digits = (v) => (typeof v === "string" ? v.replace(DIGIT, "").length : 0);
+// every Unicode decimal digit (category Nd, Unicode 15) — the SAME generated
+// class as public.pay_digit_count() in 0004, counted on the RAW value
+const DIGIT = /[^\u0030-\u0039\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19\u{104A0}-\u{104A9}\u{10D30}-\u{10D39}\u{11066}-\u{1106F}\u{110F0}-\u{110F9}\u{11136}-\u{1113F}\u{111D0}-\u{111D9}\u{112F0}-\u{112F9}\u{11450}-\u{11459}\u{114D0}-\u{114D9}\u{11650}-\u{11659}\u{116C0}-\u{116C9}\u{11730}-\u{11739}\u{118E0}-\u{118E9}\u{11950}-\u{11959}\u{11C50}-\u{11C59}\u{11D50}-\u{11D59}\u{11DA0}-\u{11DA9}\u{16A60}-\u{16A69}\u{16AC0}-\u{16AC9}\u{16B50}-\u{16B59}\u{1D7CE}-\u{1D7FF}\u{1E140}-\u{1E149}\u{1E2F0}-\u{1E2F9}\u{1E950}-\u{1E959}\u{1FBF0}-\u{1FBF9}\u{11F50}-\u{11F59}\u{1E4F0}-\u{1E4F9}]/gu;
+// code points, not UTF-16 units: an astral digit is ONE digit, as in PG's length()
+const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length : 0);
 
 // bounded text with a digit cut: >= maxdigits digits means it is not what
 // the field claims to be (a name has none; an address line has a few)
@@ -91,15 +92,23 @@ function scrubTrigger(row, prevRow) {
      door a client write passes through, so anything else already there was
      authored by something with more authority than a client. */
   const claimable = (v) => v === "not_configured" || v === "pending_setup";
-  if (typeof p.status === "string" && claimable(p.status)) safe.status = p.status;
+  // a stored status a client could never have written is never overwritten by one
+  if (typeof o.status === "string" && !claimable(o.status)) safe.status = o.status;
+  else if (typeof p.status === "string" && claimable(p.status)) safe.status = p.status;
   else if (typeof o.status === "string") safe.status = o.status;
 
-  const pb = p.billingAddress || {}, ob = o.billingAddress || {};
+  const pb = isObj(p.billingAddress) ? p.billingAddress : {};
+  const ob = isObj(o.billingAddress) ? o.billingAddress : {};
   const addr = {};
-  put(addr, "street", pickText(pb.street, ob.street, 120, 13));
-  put(addr, "city", pickText(pb.city, ob.city, 80, 13));
-  put(addr, "state", pickText(pb.state, ob.state, 40, 13));
-  put(addr, "zip", pickRe(pb.zip, ob.zip, 10, /^([0-9]{5}(-?[0-9]{4})?)?$/));
+  // the three text leaves are judged TOGETHER too: 13+ digits across them is
+  // a split credential, not an address, and all three count as not sent
+  const budget = digits(pb.street) + digits(pb.city) + digits(pb.state);
+  const sb = budget >= 13 ? {} : pb;
+  put(addr, "street", pickText(sb.street, ob.street, 120, 13));
+  put(addr, "city", pickText(sb.city, ob.city, 80, 13));
+  put(addr, "state", pickText(sb.state, ob.state, 40, 5));
+  // ZIP+4 requires its hyphen: nine bare digits is a routing number's shape
+  put(addr, "zip", pickRe(pb.zip, ob.zip, 10, /^([0-9]{5}(-[0-9]{4})?)?$/));
   if (Object.keys(addr).length) safe.billingAddress = addr;
 
   // card: the NAME ON THE CARD and nothing else. number/exp/cvv are not

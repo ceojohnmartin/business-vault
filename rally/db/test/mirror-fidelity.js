@@ -85,6 +85,23 @@ CASES.push(
   [SAFE, { card: { name: "４１１１１１１１１１１１１１１１" } }],
   [null, { billingAddress: { street: "x".repeat(110) + " 4111111111111111" } }],
   [SAFE, { card: { name: "Sam" }, __proto__x: 1, constructor: { name: "y" } }],
+  // round two
+  [null, { card: { name: "\u17E4\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1\u17E1" } }],   // Khmer PAN
+  [SAFE, { ach: { name: "\u1044\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041\u1041" } }],    // Myanmar PAN
+  [null, { card: { name: "\u{1E954}\u{1E951}\u{1E951}\u{1E951}" } }],                       // Adlam, 4 digits: cut
+  [null, { card: { name: "\u{11F54}\u{11F51}\u{11F51}\u{11F51}" } }],                       // Kawi (Unicode 15)
+  [null, { card: { name: "\u2463\u2460\u2460\u2460 Rivers" } }],                            // circled: not digits, kept
+  [null, { card: { name: "Unit \u{1D7D0}\u{1D7D1}" } }],                                   // 2 astral digits: kept (code points, not UTF-16 units)
+  [null, { billingAddress: { street: "12345 W 5600 S Apt 12", city: "Salt Lake City", state: "UT", zip: "84604-1234" } }],
+  [null, { billingAddress: { street: "12345 W 5600 S Apt 1201" } }],                      // 13 digits: the cut
+  [SAFE, { billingAddress: { street: "4111 1111", city: "1111 1111", state: "12/30 cvv 123", zip: "84001" } }],
+  [null, { billingAddress: { street: "rt 021000021", city: "acct 123456789012", state: "chk", zip: "84001" } }],
+  [null, { billingAddress: { street: "12345 W 5600 S Apt 1201", city: "Salt Lake City", state: "UT", zip: "84604-1234" } }],
+  [SAFE, { billingAddress: { state: "12/30 cvv 123" } }],
+  [null, { billingAddress: { zip: "021000021" } }],
+  [null, { billingAddress: { zip: "02100-0021" } }],
+  [{ method: "card", status: "active" }, { method: "card", status: "not_configured" }],
+  [{ method: "card", status: "active" }, {}],
   [null, REFUSE],                        // data that is not a document
   [SAFE, REFUSE],
   [null, ABSENT],                        // nothing stored, nothing sent
@@ -112,12 +129,19 @@ for (const [prev, sent] of CASES) {
     const id = "mir-" + n;
     psql(`delete from public.customers where id = '${id}'`);
     if (prev) {
-      // seed through the trigger, then force the exact stored shape so both
-      // sides start from the same OLD (the seed itself is trigger-filtered)
-      psql(`insert into public.customers (team_id,id,data) values
-              ('${TEAM}','${id}', jsonb_build_object('payment', ${jq(prev)}))`);
-      psql(`update public.customers set data = jsonb_build_object('payment', ${jq(prev)})
-             where id = '${id}'`);
+      /* Plant OLD VERBATIM, with the trigger off for the seed only. Seeding
+         through the trigger would normalise `prev` first — and refuse, for
+         instance, a backend-authored status:"active" — so the server's OLD
+         would silently differ from the one the mirror is handed, and the
+         comparison would be measuring the seed, not the rule. Planting it
+         raw is also the more adversarial start: it is exactly how a value
+         that predates a rule, or one written by something with more
+         authority than a client, gets into the row. */
+      psql(`insert into public.customers (team_id,id,data) values ('${TEAM}','${id}','{}'::jsonb)`);
+      psql(`alter table public.customers disable trigger customers_scrub_payment;
+            update public.customers set data = jsonb_build_object('payment', ${jq(prev)})
+             where id = '${id}';
+            alter table public.customers enable trigger customers_scrub_payment`);
     }
     let serverRefused = false;
     // psql prints the message, not the SQLSTATE, so match the trigger's own words

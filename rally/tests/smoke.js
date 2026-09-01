@@ -106,8 +106,12 @@ const server = http.createServer((req, res) => {
   await page.click('.ce-tab[data-t="payment"]');
   await page.click('.pay-m[data-m="card"]');
   await page.fill("#cp-cc-name", "Dana Whitfield");
-  await page.fill("#cp-cc-num", "4242424242424242");
-  await page.fill("#cp-cc-exp", "1227");
+  // v39: there is no card-number, expiry, routing or account field to fill.
+  // RALLY records the INTENT to pay by card; the office collects the method.
+  const credFields = await page.evaluate(() =>
+    ["#cp-cc-num", "#cp-cc-exp", "#cp-ach-routing", "#cp-ach-account"]
+      .filter((sel) => !!document.querySelector(sel)));
+  if (credFields.length) throw new Error("credential inputs still present: " + credFields.join(", "));
   await page.click("#cp-copy-addr");
   await shot("05-editor-payment");
 

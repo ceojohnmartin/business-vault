@@ -39,7 +39,7 @@
   // which doors deserve another swing right now
   function candidates() {
     const me = STORE.currentUser();
-    const manager = STORE.isManager();
+    const manager = STORE.seesWholeTeam();
     const myHoods = me ? STORE.hoodsOf(me.id) : [];
     const inScope = (p) =>
       manager || !myHoods.length || myHoods.some((t) => STORE.inHood(t, p.lng, p.lat));

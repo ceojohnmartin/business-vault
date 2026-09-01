@@ -49,6 +49,10 @@
   let started = false;
   let running = false;
   let queued = new Set();      // in-memory mirror of outbox keys
+  let loaded = false;          // has start() finished reading stored state?
+  let deadCount = 0;           // rows the server refused outright
+  let deadTables = {};         // which tables they were in
+  let lastRefusal = null;      // { table, id, status, at }
   let requeued = [];           // entries queued while a push was in flight
   let userMap = {};            // profileId -> local user id
   let cursors = null;
@@ -136,10 +140,22 @@
     }
     for (const p of r.data) {
       if (mine && p.id === mine.id) {
-        profileCache = { id: p.id, teamId: p.team_id, role: p.role, disabled: !!p.disabled };
+        // The server's answer about ME goes through MCLOUD's single writer:
+        // it stamps roleVerifiedAt and mirrors the role onto users[] in the
+        // same step, so the cached profile and the local user can't disagree.
+        const applied = await MCLOUD.applyProfileRow(p).catch(() => null);
+        profileCache = applied
+          ? { id: applied.id, teamId: applied.teamId, role: applied.role, disabled: applied.disabled }
+          : { id: p.id, teamId: p.team_id, role: p.role, disabled: !!p.disabled };
         // my own mapping: this device's current user IS me
         const me = S().currentUser && S().currentUser();
         if (me && userMap[p.id] !== me.id) { userMap[p.id] = me.id; changed = true; }
+        // the binding also lives ON the user record: attribution has to be
+        // decidable at boot, before the sync engine has loaded anything
+        if (me && me.profileId !== p.id) {
+          me.profileId = p.id;
+          await S().updateUser(me).catch(() => {});
+        }
         continue;
       }
       if (p.disabled) continue;
@@ -152,11 +168,23 @@
           !Object.values(userMap).includes(u.id) &&
           u.name.trim().toLowerCase() === name.toLowerCase());
         if (!local) {
-          local = await S().addUser({
-            name, role: (p.role === "manager" || p.role === "owner") ? "manager" : "rep",
-          });
+          // the server's role verbatim: flattening leader/owner into
+          // "manager" would hide leadership tools from leaders and owners
+          local = await S().addUser({ name, role: p.role });
         }
         userMap[p.id] = local.id;
+        changed = true;
+      }
+      if (local && local.profileId !== p.id) {
+        local.profileId = p.id;
+        await S().updateUser(local).catch(() => {});
+        changed = true;
+      }
+      // a bound teammate's role is whatever the server says it is, now
+      if (local && local.role !== p.role &&
+          ["rep", "leader", "manager", "owner"].indexOf(p.role) >= 0) {
+        local.role = p.role;
+        await S().updateUser(local).catch(() => {});
         changed = true;
       }
     }
@@ -166,12 +194,18 @@
 
   // ---------- payloads (push) ----------
   const iso = (ms) => new Date(ms || Date.now()).toISOString();
+  /* The safe payment shape, matching the server trigger's allowlist
+     (db/migrations/0004_payment_allowlist.sql). Rebuilt from named fields,
+     so a key that isn't listed cannot ride along — and there are no
+     credential keys to list, because v39 never captures any. */
   const scrubPayment = (c) => {
     if (!c || !c.payment) return c;
     const p = c.payment;
     c.payment = {
       method: p.method || "", last4: p.last4 || "",
-      autopay: !!p.autopay, billingAddress: p.billingAddress || null,
+      autopayRequested: p.autopayRequested === true,
+      status: p.status === "pending_setup" ? "pending_setup" : "not_configured",
+      billingAddress: p.billingAddress || null,
     };
     return c;
   };
@@ -179,11 +213,17 @@
   function rowFor(table, rec, team) {
     const me = profileCache ? profileCache.id : null;
     if (table === "pins") {
+      // a copy, because note authorship is rewritten into server identity
+      // on the way out and the live record must not be touched
+      const data = JSON.parse(JSON.stringify(rec));
+      (data.notes || []).forEach((n) => {
+        if (n.userId) n.userId = toProfile(n.userId) || n.userId;
+      });
       return {
         team_id: team, id: rec.id, lat: rec.lat, lng: rec.lng,
         address: rec.address || "", disposition: rec.disposition || "",
         territory_id: rec.territoryId || null,
-        created_by: me, deleted_at: null, data: rec,
+        created_by: me, deleted_at: null, data,
       };
     }
     if (table === "events") {
@@ -217,6 +257,11 @@
       // descriptor list without the bytes would make other devices
       // regenerate agreements instead of admitting they don't have them
       delete data.files;
+      // who sold it travels as the SERVER's id — the one identity every
+      // device agrees on. The soldBy name rides along as display text only.
+      if (data.soldByUserId) {
+        data.soldByUserId = toProfile(data.soldByUserId) || data.soldByUserId;
+      }
       (data.appointments || []).forEach((a) => {
         if (a.userId) a.userId = toProfile(a.userId) || a.userId;
         if (a.setterId) a.setterId = toProfile(a.setterId) || a.setterId;
@@ -279,11 +324,18 @@
         if (r.status >= 500) { netDown = true; lastError = "push " + table + " " + r.status; return; }
         if (rows.length === 1) { // the poison row: park it, keep the line moving
           lastError = "push " + table + " rejected " + ents[0].id + " (" + r.status + ")";
+          const entry = {
+            k: ents[0].k, table, id: ents[0].id, status: r.status, at: Date.now(),
+          };
           const dead = (await MDB.kvGet("syncDead", null)) || [];
-          dead.push({ k: ents[0].k, status: r.status, at: Date.now() });
+          dead.push(entry);
           await MDB.kvSet("syncDead", dead.slice(-200));
           await MDB.del("outbox", ents[0].k).catch(() => {});
           queued.delete(ents[0].k);
+          // the refusal becomes VISIBLE — a parked row is not a synced row
+          deadCount++;
+          deadTables[table] = (deadTables[table] || 0) + 1;
+          lastRefusal = entry;
           return;
         }
         const mid = Math.ceil(rows.length / 2);
@@ -341,10 +393,15 @@
   }
 
   function localizeCustomer(data) {
+    data.soldByUserId = localizeRef(data.soldByUserId);
     (data.appointments || []).forEach((a) => {
       a.userId = localizeRef(a.userId);
       a.setterId = localizeRef(a.setterId);
     });
+    return data;
+  }
+  function localizePin(data) {
+    (data.notes || []).forEach((n) => { n.userId = localizeRef(n.userId); });
     return data;
   }
   function localizeTerritory(data) {
@@ -385,7 +442,7 @@
         changed++;
         continue;
       }
-      const data = row.data && row.data.id ? row.data : null;
+      const data = row.data && row.data.id ? localizePin(row.data) : null;
       if (!data) continue;
       if (!pin) {
         // brand-new to this device — but is it the same DOOR imported twice?
@@ -556,13 +613,13 @@
         if (cmp === "newer" && dirty) dropEntry("customers", c.id);
         if (cmp === "older" && !dirty) { queue("customers", c.id); continue; }
         if (cmp === "same" || (cmp !== "newer" && dirty)) continue;
-        // apply — but this phone may be the ONLY holder of the real card
-        // (the wire is always scrubbed) and of the file blobs; keep both
-        const localPay = c.payment && (c.payment.card || c.payment.ach) ? c.payment : null;
+        // apply — file blobs stay local (Storage is a later phase), so the
+        // descriptor list must survive the patch. Payment does NOT get a
+        // carve-out any more: there is no credential on this phone worth
+        // preserving, and preserving one would be the hidden local
+        // fallback v39 exists to remove.
         const localFiles = c.files;
         patchInPlace(c, data);
-        if (localPay) c.payment = Object.assign({}, c.payment || {},
-          { card: localPay.card, ach: localPay.ach });
         if (localFiles) c.files = localFiles;
         puts.push(c);
         changed++;
@@ -755,6 +812,18 @@
     lastSyncAt = await MDB.kvGet(K_LAST, 0);
     const box = await MDB.getAll("outbox").catch(() => []);
     queued = new Set(box.map((e) => e.k));
+    // a refusal from a previous session is still a refusal
+    const dead = (await MDB.kvGet("syncDead", null)) || [];
+    deadCount = dead.length;
+    deadTables = {};
+    dead.forEach((d) => {
+      const t = d.table || "record";
+      deadTables[t] = (deadTables[t] || 0) + 1;
+    });
+    lastRefusal = dead[dead.length - 1] || null;
+    // only now is a "0 refused" answer trustworthy — before this the counts
+    // are simply unknown, and a screen must not read them as "all clear"
+    loaded = true;
     profileCache = await MCLOUD.getProfile();
     window.addEventListener("online", () => cycle());
     document.addEventListener("visibilitychange", () => {
@@ -785,12 +854,32 @@
     await MDB.kvSet("syncPendingEvents", null);
     await MDB.kvSet("syncTeam", null);
     await MDB.kvSet("syncDead", null);
+    deadCount = 0; deadTables = {}; lastRefusal = null;
   }
 
+  /* A record the server REFUSED is not synced, and RALLY must never let a
+     screen imply otherwise. Refusals are dead-lettered so the rest of the
+     queue keeps flowing (that behaviour is unchanged); status() now reports
+     them so the UI can say "3 records the server refused" instead of a
+     clean checkmark. `refused` counts rows that will never upload without
+     someone doing something — most often an RLS denial, which is exactly
+     what a rep hitting the new territory gate produces. */
   const status = () => ({
     on: active(), team: !!teamId(), pending: queued.size,
     lastSyncAt, lastError, running,
+    loaded,
+    refused: deadCount,
+    refusedTables: Object.keys(deadTables).sort(),
+    lastRefusal: lastRefusal,
   });
 
-  window.MSYNC = { start, queue, queueDelete, syncNow: cycle, wake, status, reset, isDirty };
+  // everything the server has refused on this device, for the More screen
+  const refusals = async () => (await MDB.kvGet("syncDead", null)) || [];
+
+  window.MSYNC = {
+    start, queue, queueDelete, syncNow: cycle, wake, status, reset, isDirty,
+    refusals,
+    // read-only view of the identity bridge, for diagnostics and tests
+    profileOf: (localId) => toProfile(localId),
+  };
 })();

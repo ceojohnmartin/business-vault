@@ -152,7 +152,12 @@
         await STORE.saveSettings();
       }
     } else {
-      user = await STORE.addUser({ name: displayName || "Me", role: "manager" });
+      // never "manager": on a cloud install the server hands out the role,
+      // and a device that hasn't been told yet is a rep
+      user = await STORE.addUser({
+        name: displayName || "Me",
+        role: (window.MCLOUD && MCLOUD.enabled()) ? "rep" : "manager",
+      });
       STORE.settings.currentUserId = user.id;
       STORE.settings.repName = user.name;
       await STORE.saveSettings();
@@ -167,6 +172,12 @@
     };
     if (cloud && cloud.userId) {
       account.cloudUserId = cloud.userId;
+      // bind the stable server identity to this device's person RIGHT HERE:
+      // attribution must not wait for the first sync cycle to be decidable
+      if (user && user.profileId !== cloud.userId) {
+        user.profileId = cloud.userId;
+        await STORE.updateUser(user).catch(() => {});
+      }
       // profile is enrichment, not a gate — a blip here never blocks signup
       try { await MCLOUD.fetchProfile(cloud.access, cloud.userId); } catch (_) {}
     }
@@ -216,7 +227,12 @@
     if (!account) {
       let user = STORE.currentUser();
       if (!user) {
-        user = await STORE.addUser({ name: (prof && prof.name) || "Me", role: "manager" });
+        // the profile the cloud just handed us is the authority on role;
+        // with no profile row yet this device is a rep until told otherwise
+        user = await STORE.addUser({
+          name: (prof && prof.name) || "Me",
+          role: (prof && prof.role) || "rep",
+        });
         STORE.settings.currentUserId = user.id;
         STORE.settings.repName = user.name;
         await STORE.saveSettings();
@@ -236,6 +252,15 @@
       account.rememberEmail = !!remember;
     }
     account.cloudUserId = (cloud && cloud.userId) || account.cloudUserId || null;
+    // bind the server identity to this device's person now, so today's
+    // knocks are attributable before the first sync cycle runs
+    if (account.cloudUserId) {
+      const who = STORE.userById(account.userId) || STORE.currentUser();
+      if (who && who.profileId !== account.cloudUserId) {
+        who.profileId = account.cloudUserId;
+        await STORE.updateUser(who).catch(() => {});
+      }
+    }
     await persistAccount();
     await MDB.kvSet(KEY_SESSION, { userId: account.userId, at: Date.now() });
     unlocked = true;

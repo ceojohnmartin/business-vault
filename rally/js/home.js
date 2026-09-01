@@ -28,7 +28,7 @@
 
   function turfSummary() {
     const me = STORE.currentUser();
-    const manager = STORE.isManager();
+    const manager = STORE.seesWholeTeam();
     const hoods = manager ? STORE.activeTerritories() : (me ? STORE.hoodsOf(me.id) : []);
     let homes = 0, knocked = 0, sold = 0, callbacks = 0;
     hoods.forEach((t) => {
@@ -39,15 +39,28 @@
     return { hoods, homes, knocked, sold, callbacks, pct, manager };
   }
 
+  /* A real position among real, attributed teammates — or no position at
+     all. Ranking someone #3 of 8 against invented reps is a lie the rep
+     acts on. */
   function weekRank() {
-    const w = STORE.weekStats();
-    const rows = [...MDATA.DEMO_TEAM.map((r) => r.sales), w.sales].sort((a, b) => b - a);
-    return { pos: rows.indexOf(w.sales) + 1, of: rows.length, sales: w.sales };
+    const weekStart = STORE.weekStart();
+    const myId = STORE.myId();
+    const field = STORE.users
+      .filter((u) => STORE.isAttributed(u.id))
+      .map((u) => ({ id: u.id, sales: STORE.repStats(u.id, weekStart).sales }));
+    const mine = field.find((r) => r.id === myId);
+    if (!mine || field.length < 2) return { pos: null, of: field.length, sales: mine ? mine.sales : 0 };
+    const sorted = field.slice().sort((a, b) => b.sales - a.sales);
+    return {
+      pos: sorted.findIndex((r) => r.id === myId) + 1,
+      of: sorted.length,
+      sales: mine.sales,
+    };
   }
 
   function render() {
-    const t = STORE.todayStats();
     const me = STORE.currentUser();
+    const t = STORE.todayStats(me && me.id); // MY doors, not the team's
     const first = me ? me.name.split(" ")[0] : "there";
     const per = STORE.settings.commissionPerSale || 0;
     const signed = signedToday();
@@ -94,7 +107,7 @@
 
     // manager intelligence: where should the team knock today?
     let bestCard = "";
-    if (STORE.isManager()) {
+    if (STORE.seesWholeTeam()) {
       const ranked = STORE.bestHoods();
       const best = ranked.length ? ranked[0] : null;
       if (best && best.score > 0) {
@@ -150,8 +163,11 @@
 
       <div class="hm-foot">
         <button class="hm-chip wide" id="hm-rank" type="button">
-          <div class="n">🏆 #${rank.pos}<span style="font-size:13px;color:var(--t3)"> / ${rank.of}</span></div>
-          <div class="d">Sales this week ›</div>
+          ${rank.pos
+            ? `<div class="n">🏆 #${rank.pos}<span style="font-size:13px;color:var(--t3)"> / ${rank.of}</span></div>
+               <div class="d">Sales this week ›</div>`
+            : `<div class="n">🏆 ${rank.sales}</div>
+               <div class="d">Sales this week ›</div>`}
         </button>
         <div class="hm-chip wide">
           <div class="n">🔥 ${streak}</div>

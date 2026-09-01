@@ -7,12 +7,35 @@ security-proven ground to land on.
 
 ## Layout
 
-    migrations/0001_phase1_foundation.sql   the whole schema + RLS
-    migrations/0002_realtime_doorbell.sql   Phase 3: realtime wake-up triggers + listen policy
-    seed.example.sql                        one-time team/owner bootstrap
-    test/supabase-shim.sql                  local stand-in for Supabase bits (TEST ONLY)
-    test/rls-test.sql                       47 security checks
-    test/run-rls-tests.sh                   runs them on a throwaway local Postgres
+    migrations/0001_phase1_foundation.sql        the whole schema + RLS
+    migrations/0002_realtime_doorbell.sql        Phase 3: realtime wake-up triggers + listen policy
+    migrations/0003_territory_authorization.sql  v39: territory writes are leadership-only
+    migrations/0004_payment_allowlist.sql        v39: honest payment allowlist
+    capability-matrix.json                       WHO may manage territories — one definition,
+                                                 asserted by the RLS suite AND the client suite
+    APPLIED.md                                   read-only checks for what's live, and deploy order
+    seed.example.sql                             one-time team/owner bootstrap
+    test/supabase-shim.sql                       local stand-in for Supabase bits (TEST ONLY)
+    test/rls-test.sql                            75 security checks
+    test/run-rls-tests.sh                        runs them on a throwaway local Postgres
+
+## Territory authorization (0003)
+
+Creating, renaming, re-polygoning, assigning, splitting and tombstoning a
+territory require a role of `leader`, `manager` or `owner` — enforced by RLS,
+not by the client hiding buttons. Reps keep full write access to pins,
+customers and the knock log, which is the whole job. `capability-matrix.json`
+is the single definition both sides are tested against.
+
+## Payment allowlist (0004)
+
+The stored payment object is still rebuilt from an allowlist at the database
+door, so no card or bank number can land here whatever a client sends. v39
+changes which honest fields survive: the old `autopay` (which defaulted to
+true in the client, so a stored `true` proved nothing about what the customer
+wanted) becomes an explicit `autopayRequested`, plus a `status` the client may
+only ever set to `not_configured` or `pending_setup` — never to anything
+claiming a payment method is on file.
 
 ## The realtime doorbell (0002)
 
@@ -23,7 +46,9 @@ by an RLS policy on realtime.messages comparing the topic to the
 caller's own team (my_team_id() from the JWT); a join for another team's
 topic is refused at the socket, and a disabled rep can't listen at all.
 Until 0002 is applied, the app's realtime join is refused and it quietly
-falls back to its 45-second polling — nothing breaks.
+falls back to its 45-second polling — nothing breaks. **0002 is not
+re-runnable as written** (bare `create trigger` / `create policy`); see
+`APPLIED.md` for the read-only query that tells you whether it is live.
 
 ## Setting up the real project (once)
 
@@ -74,6 +99,9 @@ you or same-team leadership.
 
     PGHOST=<host> PGPORT=<port> sh test/run-rls-tests.sh
 
-spins `rally_rls_test`, applies the shim + migration, and runs all 47
-checks (team isolation, escalation attempts, append-only events, disabled
-and anon lockouts, payment scrubbing). Any failure exits non-zero.
+spins `rally_rls_test`, applies the shim + every migration in order, and runs
+all 75 checks (team isolation, escalation attempts, append-only events,
+disabled and anon lockouts, payment scrubbing, and the adversarial territory
+matrix: a rep's create / rename / re-polygon / assign / archive / tombstone /
+Smart-Split attempts all refused straight at PostgREST, with no second
+reachable mutation path). Any failure exits non-zero.

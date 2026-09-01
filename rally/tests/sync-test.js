@@ -126,12 +126,17 @@ function handleRest(req, res, u, body) {
   return j(res, 200, rows);
 }
 
-// mirror of the real DB trigger: payment survives only as the allowlist
+// mirror of the real DB trigger (db/migrations/0004_payment_allowlist.sql):
+// payment survives only as the allowlist, the legacy `autopay` default is
+// dropped rather than carried forward as intent, and a client-claimed
+// status other than the two it is allowed to write is refused.
 function scrubTrigger(row) {
   if (row.data && row.data.payment) {
     const p = row.data.payment;
+    const st = p.status === "pending_setup" ? "pending_setup" : "not_configured";
     row.data.payment = { method: p.method || "", last4: p.last4 || "",
-      autopay: !!p.autopay, billingAddress: p.billingAddress || null };
+      autopayRequested: p.autopayRequested === true, status: st,
+      billingAddress: p.billingAddress || null };
   }
 }
 
@@ -260,6 +265,11 @@ const server = http.createServer((req, res) => {
     !mock.rawBodies.some((b) => b.includes("4242424242424242") || b.includes("000123456789")));
   check("A4 server payment is the allowlist only",
     custRow.data.payment.last4 === "4242" && !custRow.data.payment.card && !custRow.data.payment.ach);
+  check("A4b the server stores no legacy autopay and claims no configured method",
+    custRow.data.payment.autopay === undefined &&
+    custRow.data.payment.autopayRequested === false &&
+    custRow.data.payment.status === "not_configured",
+    JSON.stringify(custRow.data.payment));
   check("A5 events carry John's identity", [...mock.tables.events.values()][0].by_user === johnId);
 
   // ---- B pulls the world
@@ -429,8 +439,11 @@ const server = http.createServer((req, res) => {
     (await S(A, () => STORE.pins.length)) === aBefore,
     "before=" + aBefore + " after=" + (await S(A, () => STORE.pins.length)));
 
-  // ---- M: the selling phone keeps the card it captured, even after a
-  //      teammate's edit (the wire is always scrubbed)
+  /* ---- M: a pre-v39 record that still carries a card is planted straight
+       into IndexedDB (the editor cannot create one any more). Syncing it,
+       and taking a teammate's edit back, must never move a credential in
+       either direction — and v39 removes the old carve-out that used to
+       preserve the seller's local copy through a merge. */
   await S(A, async () => {
     await STORE.addCustomer({ first: "Card", last: "Holder", phones: [], appointments: [],
       payment: { method: "card", last4: "1111", autopay: true,
@@ -447,10 +460,15 @@ const server = http.createServer((req, res) => {
   await sync(B); await sync(A);
   const holder = await S(A, () => {
     const c = STORE.customers.find((x) => x.last === "Holder");
-    return { email: c.email, pan: c.payment && c.payment.card && c.payment.card.number };
+    return { email: c.email, raw: JSON.stringify(c.payment),
+      autopay: c.payment.autopayRequested, status: c.payment.status };
   });
-  check("M1 teammate's edit applies AND the local card survives",
-    holder.email === "holder@x.com" && holder.pan === "4111111111111111", JSON.stringify(holder));
+  check("M1 teammate's edit applies and no credential survives the merge",
+    holder.email === "holder@x.com" && !holder.raw.includes("4111111111111111"),
+    JSON.stringify(holder).slice(0, 200));
+  check("M1b the merged record does not claim autopay or a configured method",
+    holder.autopay === false && holder.status === "not_configured",
+    JSON.stringify({ a: holder.autopay, s: holder.status }));
   check("M2 the other phone never held the card",
     (await S(B, () => { const c = STORE.customers.find((x) => x.last === "Holder");
       return !c.payment.card || !c.payment.card.number; })));
@@ -467,6 +485,44 @@ const server = http.createServer((req, res) => {
   check("N1 the good record pushes; the poison one is parked, not blocking",
     nStat.pending === 0 && dead.length === 1 && eggOnServer,
     "pending=" + nStat.pending + " dead=" + dead.length + " egg=" + eggOnServer);
+
+  /* ---- O: a refused record is VISIBLE. v38 parked it silently — the
+       queue read "0 pending" and every screen said synced, while a record
+       the server had rejected sat in a dead-letter nobody could see. */
+  check("O1 status() reports the refusal, not just an empty queue",
+    nStat.refused === 1 && nStat.pending === 0, JSON.stringify({
+      refused: nStat.refused, pending: nStat.pending, tables: nStat.refusedTables }));
+  check("O2 the refusal names the table and the row",
+    !!nStat.lastRefusal && nStat.lastRefusal.table === "customers" &&
+    !!nStat.lastRefusal.id && nStat.lastRefusal.status >= 400,
+    JSON.stringify(nStat.lastRefusal));
+  check("O3 refusals() lists every parked row for the UI",
+    (await S(A, () => MSYNC.refusals())).length === 1);
+  // the More screen must not be able to say "synced" while one is outstanding
+  const moreLine = await S(A, async () => {
+    MAPP.show("more");
+    await new Promise((r) => setTimeout(r, 250));
+    return document.querySelector("#more-export-sub").textContent;
+  });
+  check("O4 the UI never claims 'synced' while a record stands refused",
+    /refused/i.test(moreLine) && !/\bsynced\b/.test(moreLine), moreLine);
+  // and the map chip shows it rather than hiding at zero pending
+  const chip = await S(A, async () => {
+    MAPP.show("map");
+    MMAP.updateBrandToday();
+    await new Promise((r) => setTimeout(r, 200));
+    const el = document.querySelector("#sync-chip");
+    return { hidden: el.hidden, text: document.querySelector("#sync-chip-n").textContent };
+  });
+  check("O5 the sync chip surfaces the refusal instead of going quiet",
+    chip.hidden === false && /refused/i.test(chip.text), JSON.stringify(chip));
+  // a refusal survives a relaunch — it does not "clear itself" overnight
+  await A.page.reload();
+  await A.page.waitForFunction(() => !!(window.MSYNC && window.STORE), null, { timeout: 20000 });
+  await A.page.waitForFunction(() => MSYNC.status().loaded === true, null, { timeout: 20000 });
+  const relaunched = await S(A, () => MSYNC.status());
+  check("O6 a refusal survives a relaunch",
+    relaunched.refused === 1 && relaunched.loaded === true, JSON.stringify(relaunched));
 
   check("no page errors on either device", errors.length === 0, errors.slice(0, 3).join("|"));
 

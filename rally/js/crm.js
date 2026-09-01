@@ -39,7 +39,7 @@
       stage: stage.label,
       stageChip: stage.chip,
       signedAt: signed ? new Date(signed).getTime() : null,
-      soldBy: cust.soldBy || null,
+      soldBy: STORE.custSoldByLabel(cust) || null,
       lastServiced: serviced || null,
       nextService: next ? next.ts : null,
     };

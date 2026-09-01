@@ -274,7 +274,7 @@
     <div class="more-list">
       <button class="more-item" id="more-guide"><span class="ic">📖</span><span><span class="tt">Field guide</span><br><span class="dd">Every pest: signs, facts, the pitch</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-company"><span class="ic">🏢</span><span><span class="tt">Company &amp; agreement</span><br><span class="dd" id="more-company-sub"></span></span><span class="chev">›</span></button>
-      <button class="more-item" id="more-team"><span class="ic">🧢</span><span><span class="tt">Team &amp; roles</span><br><span class="dd" id="more-team-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-team"><span class="ic">🧢</span><span><span class="tt">Team &amp; roles</span><br><span class="dd" id="more-team-sub"></span><br><span class="dd role-note" id="more-role-line"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-profile"><span class="ic">👤</span><span><span class="tt">Profile</span><br><span class="dd" id="more-profile-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
@@ -407,28 +407,21 @@
       <!-- PAYMENT -->
       <div class="ce-panel" id="ce-payment">
         <div class="ce-sec">Payment method</div>
-        <button class="pay-bubble pay-m" data-m="card" type="button"><b>💳 Credit Card</b><span class="dim" id="pb-card-sub">Charged on service days</span></button>
-        <button class="pay-bubble pay-m" data-m="ach" type="button"><b>🏦 ACH — bank draft</b><span class="dim" id="pb-ach-sub">Drafted on service days</span></button>
+        <button class="pay-bubble pay-m" data-m="card" type="button"><b>💳 Credit Card</b><span class="dim" id="pb-card-sub">Office collects the card before service</span></button>
+        <button class="pay-bubble pay-m" data-m="ach" type="button"><b>🏦 ACH — bank draft</b><span class="dim" id="pb-ach-sub">Office collects the account before service</span></button>
 
         <div id="cp-card" hidden>
           <div class="field"><label for="cp-cc-name">Name on card</label><input id="cp-cc-name" autocomplete="off" autocapitalize="words"></div>
-          <div class="field"><label for="cp-cc-num">Card number</label><input id="cp-cc-num" inputmode="numeric" autocomplete="off" placeholder="1234 5678 9012 3456" maxlength="23"></div>
-          <div class="frow">
-            <div class="field" style="max-width:140px"><label for="cp-cc-exp">Expiry</label><input id="cp-cc-exp" inputmode="numeric" autocomplete="off" placeholder="MM/YY" maxlength="5"></div>
-          </div>
-          <p class="dim" id="cp-cc-check" style="font-size:12px"></p>
         </div>
         <div id="cp-ach" hidden>
           <div class="field"><label for="cp-ach-name">Name on account</label><input id="cp-ach-name" autocomplete="off" autocapitalize="words"></div>
-          <div class="frow">
-            <div class="field"><label for="cp-ach-routing">Routing #</label><input id="cp-ach-routing" inputmode="numeric" autocomplete="off" maxlength="9"></div>
-            <div class="field"><label for="cp-ach-account">Account #</label><input id="cp-ach-account" inputmode="numeric" autocomplete="off" maxlength="17"></div>
-          </div>
           <div class="seg" id="cp-ach-type" style="max-width:280px">
             <button class="seg-opt sel" data-a="checking">Checking</button>
             <button class="seg-opt" data-a="savings">Savings</button>
           </div>
         </div>
+        <p class="pay-pending" id="cp-status-line"></p>
+        <p class="pay-legacy" id="cp-legacy-line" hidden></p>
 
         <div class="ce-sec">Billing address <button class="pill pill-sm" id="cp-copy-addr" type="button">Copy service address</button></div>
         <div class="field"><label for="cp-b-street">Street</label><input id="cp-b-street"></div>
@@ -441,8 +434,8 @@
         <div class="ce-sec">Initial payment</div>
         <div class="dm-row"><div><div class="ttl">Initial due at first service</div><div class="hint">From the Service tab pricing</div></div><b class="num" id="cp-due" style="font-size:18px">$0</b></div>
         <div class="ce-sec">Autopay</div>
-        <div class="dm-row"><div><div class="ttl">AutoPay</div><div class="hint">Recurring charge to the method above — authorized in the agreement</div></div><button class="switch on" id="cp-autopay" aria-label="Autopay"></button></div>
-        <p class="dim" style="font-size:12px;margin-top:10px">Payment details live only on this passcode-locked device until they're entered into your billing system.</p>
+        <div class="dm-row"><div><div class="ttl">Customer wants autopay</div><div class="hint">Records what the customer asked for. Autopay is not active until the office sets up the payment method.</div></div><button class="switch" id="cp-autopay" aria-label="Customer wants autopay"></button></div>
+        <p class="dim" style="font-size:12px;margin-top:10px">RALLY does not collect card or bank numbers. The office collects the payment method separately, before the initial service.</p>
       </div>
 
       <!-- AGREE -->
@@ -635,14 +628,17 @@
   <div class="sheet" id="team-sheet">
     <div class="grab"></div>
     <h2>Team &amp; roles</h2>
-    <div class="sub">Reps get a territory color; managers see and cut every hood. “This device” controls whose map this phone shows.</div>
+    <div class="sub">Reps get a territory color; leaders, managers and owners see and cut every hood. “This device” controls whose map this phone shows.</div>
+    <div class="sub role-note" id="team-role-note" hidden></div>
     <div id="team-list"></div>
-    <div class="frow" style="margin-top:12px">
-      <div class="field"><label for="team-new-name">Name</label><input id="team-new-name" autocomplete="off"></div>
-      <div class="field"><label for="team-new-role">Role</label>
-        <select id="team-new-role"><option value="rep">Rep</option><option value="manager">Manager</option></select></div>
+    <div id="team-add-wrap">
+      <div class="frow" style="margin-top:12px">
+        <div class="field"><label for="team-new-name">Name</label><input id="team-new-name" autocomplete="off"></div>
+        <div class="field"><label for="team-new-role">Role</label>
+          <select id="team-new-role"><option value="rep">Rep</option><option value="manager">Manager</option></select></div>
+      </div>
+      <button class="btn btn-gold" id="team-add">Add teammate</button>
     </div>
-    <button class="btn btn-gold" id="team-add">Add teammate</button>
   </div>
 
   <div class="sheet" id="appt-sheet">
@@ -829,7 +825,7 @@
 </div>
 
 <script src="vendor/maplibre-gl.js"></script>
-<script>window.RALLY_BUILD = "v38";</script>
+<script>window.RALLY_BUILD = "v39";</script>
 <script src="js/db.js"></script>
 <script src="js/geo.js"></script>
 <script src="js/data.js"></script>

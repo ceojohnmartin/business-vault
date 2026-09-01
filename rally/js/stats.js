@@ -9,8 +9,11 @@
   }
 
   function render() {
-    const t = STORE.todayStats();
-    const w = STORE.weekStats();
+    // "My numbers" means MINE: every figure on this screen is scoped to the
+    // stable id of the person this device is, not to the whole team's log
+    const meId = STORE.myId();
+    const t = STORE.todayStats(meId);
+    const w = STORE.weekStats(meId);
     const per = STORE.settings.commissionPerSale || 0;
 
     $("#st-sales-today").textContent = t.sales;
@@ -37,7 +40,7 @@
     $("#fc-sales").textContent = t.dms ? `${fmtPct(t.sales, t.dms)} of DMs closed` : "";
 
     // 14-day chart
-    const series = STORE.dayseries(14);
+    const series = STORE.dayseries(14, meId);
     const maxDoors = Math.max(1, ...series.map((d) => d.doors));
     $("#chart").innerHTML = series.map((d) => {
       const hd = Math.round((d.doors / maxDoors) * 100);
@@ -57,7 +60,7 @@
     $("#st-streak-sub").textContent = st === 1 ? "day at goal" : "days at goal";
 
     // commission
-    const all = STORE.statsFor(0);
+    const all = STORE.statsFor(0, null, meId);
     $("#st-money-week").textContent = fmtMoney(w.sales * per);
     $("#st-money-all").textContent =
       `${fmtMoney(all.sales * per)} all-time · at ${fmtMoney(per)} per sale`;

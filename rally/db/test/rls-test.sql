@@ -373,3 +373,267 @@ reset role;
 select set_config('request.jwt.claims', '', false);
 select set_config('realtime.topic', '', false);
 
+
+-- ================= 13. territory writes are leadership-only (0003)
+-- The capability set is NOT hardcoded here: run-rls-tests.sh reads
+-- db/capability-matrix.json and passes each role's expected answer in as
+-- :rep_manage / :leader_manage / :manager_manage / :owner_manage, so the
+-- server matrix and the client matrix (tests/role-test.js) cannot drift.
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- helpers: an RLS refusal on UPDATE is SILENT (the USING clause simply
+-- hides the row, 0 rows change) while an INSERT refusal RAISES. A real
+-- denial check has to accept both shapes.
+create or replace function t_write_denied(stmt text) returns boolean
+language plpgsql as $$
+declare n integer;
+begin
+  execute stmt;
+  get diagnostics n = row_count;
+  return n = 0;
+exception when insufficient_privilege then
+  return true;
+end $$;
+grant execute on function t_write_denied(text) to public;
+
+create or replace function t_write_allowed(stmt text) returns boolean
+language plpgsql as $$
+declare n integer;
+begin
+  execute stmt;
+  get diagnostics n = row_count;
+  return n > 0;
+exception when insufficient_privilege then
+  return false;
+end $$;
+grant execute on function t_write_allowed(text) to public;
+
+-- team A needs a manager: 0001's fixtures only cover owner / leader / rep
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-4000-a000-000000000007', 'mgr-a@x.com', '{"name":"Manager A"}');
+update public.profiles set team_id = '11111111-1111-4111-a111-111111111111', role = 'manager'
+  where email = 'mgr-a@x.com';
+-- and a disabled manager, to prove the role gate does not outrank is_active()
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-4000-a000-000000000008', 'mgr-benched@x.com', '{"name":"Benched Mgr"}');
+update public.profiles set team_id = '11111111-1111-4111-a111-111111111111',
+                           role = 'manager', disabled = true
+  where email = 'mgr-benched@x.com';
+-- a manager on the OTHER team, to prove the role gate does not outrank team
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('00000000-0000-4000-a000-000000000009', 'mgr-b@x.com', '{"name":"Manager B"}');
+update public.profiles set team_id = '22222222-2222-4222-a222-222222222222', role = 'manager'
+  where email = 'mgr-b@x.com';
+
+-- the territory under attack, already assigned to rep A
+insert into public.territories (team_id, id, name, data) values
+  ('11111111-1111-4111-a111-111111111111', 'hood-a2', 'Original Name',
+   '{"assignedTo":"00000000-0000-4000-a000-000000000003","assignments":[]}'::jsonb);
+
+-- ---- rep A: every territory-management operation, straight at PostgREST,
+-- ---- with the UI nowhere in the picture
+call t_as('00000000-0000-4000-a000-000000000003');
+
+select t_assert(
+  t_write_denied($q$insert into public.territories (team_id, id, name)
+    values ('11111111-1111-4111-a111-111111111111','hood-rep-new','Rep Made This')$q$)
+  = (:'rep_manage' = 'false'),
+  'rep creating a territory matches the capability matrix (denied)');
+
+select t_assert(
+  t_write_denied($q$update public.territories set name = 'Renamed By Rep'
+    where id = 'hood-a2'$q$) = (:'rep_manage' = 'false'),
+  'rep renaming a territory matches the capability matrix (denied)');
+
+select t_assert(
+  t_write_denied($q$update public.territories set polygon = '[[1,1],[2,2],[3,3]]'::jsonb
+    where id = 'hood-a2'$q$) = (:'rep_manage' = 'false'),
+  'rep re-polygoning a territory matches the capability matrix (denied)');
+
+-- assignment lives in data (assignedTo + the assignments[] history)
+select t_assert(
+  t_write_denied($q$update public.territories
+    set data = jsonb_set(data,'{assignedTo}','"00000000-0000-4000-a000-000000000003"')
+    where id = 'hood-a2'$q$) = (:'rep_manage' = 'false'),
+  'rep reassigning a territory to themselves matches the matrix (denied)');
+
+select t_assert(
+  t_write_denied($q$update public.territories set archived = true
+    where id = 'hood-a2'$q$) = (:'rep_manage' = 'false'),
+  'rep archiving a territory matches the capability matrix (denied)');
+
+select t_assert(
+  t_write_denied($q$update public.territories set deleted_at = now()
+    where id = 'hood-a2'$q$) = (:'rep_manage' = 'false'),
+  'rep tombstoning a territory matches the capability matrix (denied)');
+
+-- Smart Split's exact shape: N child inserts, then the parent tombstoned
+select t_assert(
+  t_write_denied($q$insert into public.territories (team_id, id, name) values
+    ('11111111-1111-4111-a111-111111111111','split-1','Cypress Bend 1'),
+    ('11111111-1111-4111-a111-111111111111','split-2','Cypress Bend 2')$q$)
+  = (:'rep_manage' = 'false'),
+  'rep running the Smart Split shape matches the capability matrix (denied)');
+
+-- and nothing actually moved
+select t_assert(
+  (select name = 'Original Name' and archived = false and deleted_at is null
+      and data->>'assignedTo' = '00000000-0000-4000-a000-000000000003'
+     from public.territories where id = 'hood-a2'),
+  'after every rep attempt the territory is byte-for-byte unchanged');
+select t_assert(
+  (select count(*) from public.territories
+     where id in ('hood-rep-new','split-1','split-2')) = 0,
+  'no rep-authored territory row exists');
+
+-- ---- the rep's OWN job is untouched: pins, knocks and customers still write
+select t_assert(
+  t_write_allowed($q$insert into public.pins (team_id, id, lat, lng)
+    values ('11111111-1111-4111-a111-111111111111','pin-still-ok', 38.9, -98.9)$q$),
+  'a rep can still create a pin (no regression from 0003)');
+select t_assert(
+  t_write_allowed($q$insert into public.events (team_id, id, pin_id, disposition, at_ms, by_user)
+    values ('11111111-1111-4111-a111-111111111111','ev-still-ok','pin-still-ok','sold',
+            1700000000100,'00000000-0000-4000-a000-000000000003')$q$),
+  'a rep can still log a knock (no regression from 0003)');
+select t_assert(
+  t_write_allowed($q$insert into public.customers (team_id, id, first, last)
+    values ('11111111-1111-4111-a111-111111111111','cust-still-ok','Ray','Nunez')$q$),
+  'a rep can still create a customer (no regression from 0003)');
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- ---- leader / manager / owner: the same operations, allowed
+call t_as('00000000-0000-4000-a000-000000000002'); -- leader A
+select t_assert(
+  t_write_allowed($q$insert into public.territories (team_id, id, name)
+    values ('11111111-1111-4111-a111-111111111111','hood-lead','Leader Made This')$q$)
+  = (:'leader_manage' = 'true'),
+  'leader creating a territory matches the capability matrix (allowed)');
+select t_assert(
+  t_write_allowed($q$update public.territories set name = 'Renamed By Leader'
+    where id = 'hood-a2'$q$) = (:'leader_manage' = 'true'),
+  'leader renaming a territory matches the capability matrix (allowed)');
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+call t_as('00000000-0000-4000-a000-000000000007'); -- manager A
+select t_assert(
+  t_write_allowed($q$insert into public.territories (team_id, id, name)
+    values ('11111111-1111-4111-a111-111111111111','hood-mgr','Manager Made This')$q$)
+  = (:'manager_manage' = 'true'),
+  'manager creating a territory matches the capability matrix (allowed)');
+select t_assert(
+  t_write_allowed($q$update public.territories
+    set data = jsonb_set(data,'{assignedTo}','"00000000-0000-4000-a000-000000000003"')
+    where id = 'hood-a2'$q$) = (:'manager_manage' = 'true'),
+  'manager assigning a territory matches the capability matrix (allowed)');
+select t_assert(
+  t_write_allowed($q$update public.territories set deleted_at = now()
+    where id = 'hood-mgr'$q$) = (:'manager_manage' = 'true'),
+  'manager tombstoning a territory matches the capability matrix (allowed)');
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+call t_as('00000000-0000-4000-a000-000000000001'); -- owner A
+select t_assert(
+  t_write_allowed($q$insert into public.territories (team_id, id, name)
+    values ('11111111-1111-4111-a111-111111111111','hood-own','Owner Made This')$q$)
+  = (:'owner_manage' = 'true'),
+  'owner creating a territory matches the capability matrix (allowed)');
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- ---- the role gate never outranks the other two gates
+call t_as('00000000-0000-4000-a000-000000000008'); -- DISABLED manager, team A
+select t_assert(
+  t_write_denied($q$insert into public.territories (team_id, id, name)
+    values ('11111111-1111-4111-a111-111111111111','hood-benched','Benched Mgr')$q$),
+  'a DISABLED manager still cannot write a territory');
+select t_assert(
+  t_write_denied($q$update public.territories set name = 'Benched Rename'
+    where id = 'hood-a2'$q$),
+  'a DISABLED manager still cannot edit a territory');
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+call t_as('00000000-0000-4000-a000-000000000009'); -- manager on team B
+select t_assert(
+  t_write_denied($q$insert into public.territories (team_id, id, name)
+    values ('11111111-1111-4111-a111-111111111111','hood-crossteam','Team B Reach')$q$),
+  'a manager of ANOTHER team cannot write into this team''s territories');
+select t_assert(
+  t_write_denied($q$update public.territories set name = 'Cross-team Rename'
+    where id = 'hood-a2'$q$),
+  'a manager of ANOTHER team cannot edit this team''s territory');
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- ---- self-promotion is still the shortest path around a role gate
+call t_as('00000000-0000-4000-a000-000000000003'); -- rep A
+do $$
+begin
+  begin
+    update public.profiles set role = 'manager' where id = auth.uid();
+    raise exception 'FAIL: rep promoted itself to manager';
+  exception when insufficient_privilege then
+    raise notice 'PASS: a rep cannot promote itself to clear the territory gate';
+  end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+-- ============ 14. no SECOND reachable path to a territory mutation
+-- Territory ownership lives ONLY in public.territories (assignedTo and the
+-- assignments[] history are inside its data column) — there is no separate
+-- assignment table and no assignment column anywhere else.
+select t_assert(
+  (select count(*) from information_schema.columns
+     where table_schema = 'public'
+       and (column_name ilike '%assign%' or column_name ilike '%territory_owner%')) = 0,
+  'no table outside territories carries a territory-assignment column');
+
+-- authenticated may UPDATE exactly four tables, and nothing new slipped in
+select t_assert(
+  (select coalesce(string_agg(distinct table_name, ',' order by table_name), '')
+     from information_schema.role_table_grants
+    where grantee = 'authenticated' and table_schema = 'public'
+      and privilege_type = 'UPDATE')
+  = 'customers,files,pins,territories',
+  'authenticated holds table-wide UPDATE on exactly the four expected tables');
+
+-- profiles is reachable only through a single-column grant, so role, team_id
+-- and disabled cannot be written from a client at all — the reason a rep
+-- cannot promote itself past the new territory gate
+select t_assert(
+  (select coalesce(string_agg(column_name, ',' order by column_name), '')
+     from information_schema.column_privileges
+    where grantee = 'authenticated' and table_schema = 'public'
+      and table_name = 'profiles' and privilege_type = 'UPDATE') = 'name',
+  'profiles exposes UPDATE on the name column and nothing else');
+
+-- and no SECURITY DEFINER function is a callable back door: every one is
+-- either a trigger function (uncallable as an RPC) or read-only.
+select t_assert(
+  (select count(*) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef
+      and p.prorettype <> 'trigger'::regtype
+      and p.provolatile = 'v') = 0,
+  'every SECURITY DEFINER function in public is a trigger or read-only');
+
+-- the trigger functions are not reachable as RPCs even though PostgREST
+-- exposes the schema: Postgres refuses to call them outside a trigger
+call t_as('00000000-0000-4000-a000-000000000003');
+do $$
+begin
+  begin
+    perform public.ping_team();
+    raise exception 'FAIL: a trigger function was callable as an RPC';
+  exception when others then
+    raise notice 'PASS: trigger functions cannot be invoked as RPCs';
+  end;
+end $$;
+reset role;
+select set_config('request.jwt.claims', '', false);

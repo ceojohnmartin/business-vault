@@ -184,7 +184,7 @@
     $("#hood-newrep-wrap").hidden = true;
     $("#hood-newrep").value = "";
     // Smart Split only makes sense on a saved hood, and only for managers
-    $("#hood-split-wrap").hidden = !hood || !STORE.isManager();
+    $("#hood-split-wrap").hidden = !hood || !STORE.canManageTerritories();
     $("#hood-split-n").hidden = true;
     splitN = 0;
     renderRepChips();
@@ -269,7 +269,7 @@
 
   function setupDoorsBlock(points, hood) {
     const wrap = $("#hood-doors");
-    const manager = STORE.isManager();
+    const manager = STORE.canManageTerritories();
     scanGen++; // sheet context changed: any scan still in flight is void
     lastScan = null; importOn = false;
     $("#hd-import-row").hidden = true;
@@ -488,7 +488,7 @@
   // ---------- hoods panel ----------
   function renderHoodList() {
     const wrap = $("#hood-list");
-    const manager = STORE.isManager();
+    const manager = STORE.seesWholeTeam();
     const me = STORE.currentUser();
     // reps see their own turf; managers see the whole board
     const active = STORE.activeTerritories();
@@ -539,8 +539,9 @@
       const menu = $("#hood-menu");
       menu.hidden = !menu.hidden;
       if (!menu.hidden) {
-        // drawing and the heat view are manager tools; reps get their turf list only
-        const manager = STORE.isManager();
+        // drawing and the heat view are leadership tools (RLS agrees —
+        // see 0003); reps get their turf list only
+        const manager = STORE.canManageTerritories();
         $("#hood-pencil").hidden = !manager;
         $("#hood-dots").hidden = !manager;
         $("#hood-heat").hidden = !manager;

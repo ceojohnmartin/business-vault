@@ -43,8 +43,11 @@ const PAY = {
 const PAY_FIELDS = ["card", "ach", "number", "exp", "routing", "account"];
 // what a backup IS allowed to carry — the same safe shape the FieldRoutes
 // export, the sync engine and the server-side trigger all reduce to
-const PAY_SAFE = { method: "card", last4: "4242", autopay: true,
+const PAY_SAFE = { method: "card", last4: "4242",
   billingAddress: { street: "18 Vine St", city: "Provo", state: "UT", zip: "84604" } };
+// v39 payment keys a backup MAY carry. No credential key is on this list,
+// and none can be: the block is rebuilt from the allowlist, not filtered.
+const PAY_SAFE_KEYS = "autopayRequested,billingAddress,last4,method,status";
 
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".png": "image/png", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
@@ -150,8 +153,8 @@ const server = http.createServer((req, res) => {
   const expCust = (parsed.data.customers || []).find((c) => c.id === custId);
   check("P1. the customer is present in the export", !!expCust);
   const payKeys = expCust && expCust.payment ? Object.keys(expCust.payment).sort() : [];
-  check("P1b. exported payment carries ONLY method/last4/autopay/billingAddress",
-    payKeys.join(",") === "autopay,billingAddress,last4,method", payKeys.join(","));
+  check("P1b. exported payment carries ONLY the v39 safe keys",
+    payKeys.join(",") === PAY_SAFE_KEYS, payKeys.join(","));
 
   // 1. no raw payment field name appears anywhere in the serialized backup
   const payFieldHits = PAY_FIELDS.filter((f) => payload.includes('"' + f + '":'));
@@ -168,23 +171,41 @@ const server = http.createServer((req, res) => {
   // 3. the safe metadata DID survive — this is a scrub, not a deletion
   check("P4. safe payment metadata still exports",
     expCust && expCust.payment && expCust.payment.method === PAY_SAFE.method &&
-    expCust.payment.last4 === PAY_SAFE.last4 && expCust.payment.autopay === true &&
+    expCust.payment.last4 === PAY_SAFE.last4 &&
     expCust.payment.billingAddress &&
     expCust.payment.billingAddress.zip === PAY_SAFE.billingAddress.zip,
     JSON.stringify(expCust && expCust.payment));
+  // the legacy record carried autopay:true — the OLD DEFAULT. It must not
+  // come out the other side as a customer request, and status must not be
+  // inferred from the surviving last4.
+  check("P4b. legacy autopay:true is NOT exported as a customer request",
+    expCust && expCust.payment.autopayRequested === false,
+    String(expCust && expCust.payment.autopayRequested));
+  check("P4c. a legacy last4 does not make the payment look configured",
+    expCust && expCust.payment.status === "not_configured",
+    String(expCust && expCust.payment.status));
   check("P5. ordinary customer data still exports",
     expCust && expCust.first === "Dana" && expCust.last === "Miles" &&
     expCust.address && expCust.address.street === "18 Vine St" &&
     expCust.plan && expCust.plan.monthly === 69);
 
-  // 4. exporting must not have stripped the LIVE record on this device —
-  // the rep still needs the card to run the sale
-  check("P6. the live customer record still holds its raw payment",
-    await page.evaluate(async (a) => {
-      const c = await MDB.get("customers", a.id);
-      return !!c && c.payment.card.number === a.P.number &&
-        c.payment.ach.routing === a.P.routing && c.payment.ach.account === a.P.account;
-    }, { id: custId, P: PAY }));
+  // 4. v39 INVERTS v38 here. v38 kept the raw card on the device so the rep
+  // could run the sale; v39 keeps no credential anywhere, so a reload must
+  // leave the pre-v39 record stripped in IndexedDB itself.
+  await page.reload();
+  await page.waitForFunction(() => !!(window.MDB && window.STORE && STORE.customers), null, { timeout: 20000 });
+  const purged = await page.evaluate(async (id) => {
+    const c = await MDB.get("customers", id);
+    return { raw: JSON.stringify(c && c.payment), keys: Object.keys((c && c.payment) || {}).sort().join(",") };
+  }, custId);
+  check("P6. the boot purge strips a pre-v39 record's raw payment from IndexedDB",
+    !/SENTINEL-(PAN|ROUTING|ACCOUNT|EXP)/.test(purged.raw), purged.raw.slice(0, 160));
+  check("P6b. and drops the legacy autopay default rather than migrating it",
+    !/"autopay":/.test(purged.raw), purged.keys);
+  // idempotent: a second run changes nothing and reports nothing to do
+  const second = await page.evaluate(() => STORE.purgePaymentCredentials());
+  check("P6c. the purge is idempotent — a second pass finds nothing",
+    second === 0, String(second));
 
   // ---- 4. a LEGACY backup (still carrying credentials) must not overwrite
   const legacy = JSON.parse(payload);
@@ -246,22 +267,21 @@ const server = http.createServer((req, res) => {
 
   // ---- payment, restore side
   const dana = await page.evaluate((id) => MDB.get("customers", id), custId);
-  check("P7. a legacy backup cannot OVERWRITE this device's payment record",
-    !!dana && dana.payment && dana.payment.card.number === PAY.number &&
-    dana.payment.ach.routing === PAY.routing && dana.payment.ach.account === PAY.account &&
-    dana.payment.card.exp === PAY.exp,
-    JSON.stringify(dana && dana.payment && { n: !!dana.payment.card, m: dana.payment.method }));
+  check("P7. a legacy backup cannot restore payment credentials onto an EXISTING record",
+    !!dana && dana.payment && !dana.payment.card && !dana.payment.ach &&
+    !JSON.stringify(dana).includes("ATTACKER"),
+    JSON.stringify(dana && dana.payment));
   check("P8. a legacy backup cannot INSTALL payment credentials for a new customer",
     !!restoredCust && restoredCust.payment &&
     !restoredCust.payment.card && !restoredCust.payment.ach &&
-    Object.keys(restoredCust.payment).sort().join(",") === "autopay,billingAddress,last4,method",
+    Object.keys(restoredCust.payment).sort().join(",") === PAY_SAFE_KEYS,
     JSON.stringify(restoredCust && restoredCust.payment));
   check("P9. no ATTACKER payment value landed in ANY customer record",
     !(await page.evaluate(() => MDB.getAll("customers")))
       .some((c) => JSON.stringify(c).includes("ATTACKER")));
   check("P10. safe payment metadata DOES restore for the new customer",
     !!restoredCust && restoredCust.payment.method === "ach" &&
-    restoredCust.payment.last4 === "2222" && restoredCust.payment.autopay === false &&
+    restoredCust.payment.last4 === "2222" && restoredCust.payment.autopayRequested === false &&
     restoredCust.payment.billingAddress && restoredCust.payment.billingAddress.zip === "84057",
     JSON.stringify(restoredCust && restoredCust.payment));
   check("P11. ordinary customer fields still restore alongside",

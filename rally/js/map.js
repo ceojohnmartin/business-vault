@@ -248,7 +248,7 @@
 
   function hoodsGeoJSON() {
     const me = STORE.currentUser();
-    const manager = STORE.isManager();
+    const manager = STORE.seesWholeTeam();
     return {
       type: "FeatureCollection",
       features: STORE.activeTerritories()
@@ -747,14 +747,19 @@
   }
 
   function updateBrandToday() {
-    const t = STORE.todayStats();
+    const t = STORE.todayStats(STORE.myId()); // my doors today, not the team's
     $("#brand-today").innerHTML =
       `${t.doors} doors · ${t.dms} DMs · <b>${t.sales} sold</b> today`;
     const st = window.MSYNC && MSYNC.status();
     const chip = $("#sync-chip");
     if (st && st.on) { // cloud era: the chip shows work waiting to upload
-      chip.hidden = st.pending === 0;
-      $("#sync-chip-n").textContent = st.pending + " to sync";
+      // a refused record never uploads on its own — it gets its own, louder
+      // line rather than sitting silently behind a clean chip
+      chip.hidden = st.pending === 0 && !st.refused;
+      chip.classList.toggle("refused", !!st.refused);
+      $("#sync-chip-n").textContent = st.refused
+        ? st.refused + " refused" + (st.pending ? " · " + st.pending + " to sync" : "")
+        : st.pending + " to sync";
     } else {
       const q = STORE.queuedCount();
       chip.hidden = q === 0;
@@ -777,7 +782,7 @@
     if (!hood) {
       // off-turf: fall back to the rep's own first hood so the goal stays visible
       const me = STORE.currentUser();
-      if (me && !STORE.isManager()) hood = STORE.hoodsOf(me.id)[0] || null;
+      if (me && !STORE.seesWholeTeam()) hood = STORE.hoodsOf(me.id)[0] || null;
     }
     stripHoodId = hood ? hood.id : null;
     el.hidden = !hood;
@@ -1078,7 +1083,9 @@
     // who knocked last comes from the event log (events carry repId)
     const evs = STORE.events.filter((e) => e.pinId === pin.id);
     const last = evs[evs.length - 1];
-    const lastRep = last && last.repId && STORE.userById(last.repId);
+    // named only when the knock is provably that person's; otherwise the
+    // line simply doesn't claim an author
+    const lastRep = last && STORE.isAttributed(last.repId) && STORE.userById(last.repId);
     const n = (pin.history || []).length;
     $("#prop-knockmeta").textContent = n
       ? `${n} knock${n === 1 ? "" : "s"} · last ${MUI.fmtAgo(pin.updatedAt)}${lastRep ? " by " + lastRep.name : ""}`

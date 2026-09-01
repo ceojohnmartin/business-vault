@@ -28,10 +28,18 @@
       specialty: [],                       // [{id, name, initial, monthly}]
       termMonths: MDATA.DEFAULT_TERM,      // always opens at 24
       billing: "monthly",
+      /* RALLY captures NO card or bank credentials — no PAN, no expiry, no
+         routing, no account number, and never a CVV. What a record can
+         honestly hold is an INTENT: which method the customer means to use,
+         whether they asked for autopay, and where to bill. Whether a
+         payment method is actually on file is a fact only the billing
+         backend can author, so status can never read "active" from here.
+           method  ""      nothing chosen yet
+           status  "not_configured" | "pending_setup"  (never "active") */
       payment: {
-        method: "card", autopay: true, last4: "",
-        card: { name: "", number: "", exp: "" },
-        ach: { name: "", routing: "", account: "", type: "checking" },
+        method: "", autopayRequested: false, status: "not_configured", last4: "",
+        card: { name: "" },
+        ach: { name: "", type: "checking" },
         billingAddress: { street: "", city: "", state: "", zip: "" },
       },
       acct: "active",                      // account status: active | frozen | canceled
@@ -39,7 +47,11 @@
       appointments: [], referrals: [], files: [],
       agreement: null,
       pinId: null, lat: null, lng: null,
-      soldBy: STORE.settings.repName, soldAt: Date.now(),
+      // WHO sold this is the stable user id. soldBy keeps the name only as
+      // a display snapshot — a name is not identity and never counts.
+      soldByUserId: STORE.myId(),
+      soldBy: (STORE.currentUser() || {}).name || "",
+      soldAt: Date.now(),
     };
   }
 
@@ -73,13 +85,14 @@
     // the old single notes box becomes Forever Notes
     if (!n.notesForever && c.notes) n.notesForever = c.notes;
     // old flat payment records get the new nested shape without losing last4
-    if (!n.payment.card) n.payment.card = { name: "", number: "", exp: "" };
-    if (!n.payment.ach) n.payment.ach = { name: "", routing: "", account: "", type: "checking" };
+    if (!n.payment.card) n.payment.card = { name: "" };
+    if (!n.payment.ach) n.payment.ach = { name: "", type: "checking" };
     if (!n.payment.billingAddress) n.payment.billingAddress = { street: "", city: "", state: "", zip: "" };
     // "collect at service" no longer exists, and the customer never gave a
     // card — an honest migration records NO method, not a fabricated one
     if (n.payment.method === "collect") n.payment.method = "";
     if (n.payment.method == null) n.payment.method = "";
+    n.payment = MCUST.honestPayment(n.payment);
     if (!n.billing) n.billing = "monthly";
     if (!n.acct) n.acct = "active";
     // a legacy record's sale facts are what they were, not today's
@@ -599,19 +612,40 @@
     }
   }
 
-  // ---------- PAYMENT ----------
-  const luhn = (num) => {
-    const d = String(num || "").replace(/\D/g, "");
-    if (d.length < 13 || d.length > 19) return false;
-    let sum = 0, dbl = false;
-    for (let i = d.length - 1; i >= 0; i--) {
-      let n = +d[i];
-      if (dbl) { n *= 2; if (n > 9) n -= 9; }
-      sum += n; dbl = !dbl;
-    }
-    return sum % 10 === 0;
-  };
-  const fmtCard = (v) => String(v || "").replace(/\D/g, "").slice(0, 19).replace(/(.{4})/g, "$1 ").trim();
+  /* ---------- PAYMENT ----------
+     There is no Luhn check and no card formatter here any more, because
+     there is no card number to check or format. RALLY does not capture card
+     or bank credentials; it records what the customer INTENDS to pay with,
+     and the office collects the actual method before the initial service. */
+
+  // The one place that decides what a payment record is allowed to claim.
+  // Called on every read (normalize) and every write (collectPayment), so a
+  // credential cannot re-enter a record through any path.
+  function honestPayment(pay) {
+    const p = pay || {};
+    const card = { name: (p.card && p.card.name) || "" };
+    const ach = {
+      name: (p.ach && p.ach.name) || "",
+      type: (p.ach && p.ach.type) || "checking",
+    };
+    const method = p.method === "card" || p.method === "ach" ? p.method : "";
+    /* LEGACY AUTOPAY: the old record shape defaulted autopay to TRUE, so an
+       old `autopay: true` is a software default, not evidence the customer
+       asked for anything. Only an explicit autopayRequested (written by a
+       v39+ rep tapping the switch) counts as intent. Everything older
+       migrates to "we don't know", which is the truth. */
+    const autopayRequested = p.autopayRequested === true;
+    /* And status is never inferred — not from a method, not from a legacy
+       last4, not from autopay. "active"/"on file" can only ever be authored
+       by the billing backend against a real provider result. */
+    const status = (method || autopayRequested) ? "pending_setup" : "not_configured";
+    const out = { method, autopayRequested, status, card, ach,
+      billingAddress: p.billingAddress || { street: "", city: "", state: "", zip: "" } };
+    // a legacy last4 is safe historical metadata and the only payment
+    // reference some old records have — kept, labelled, never re-derived
+    if (p.last4) out.last4 = String(p.last4).replace(/\D/g, "").slice(-4);
+    return out;
+  }
 
   function renderPayment() {
     // method can honestly be "" (migrated collect-at-service): no bubble
@@ -621,62 +655,53 @@
     $("#cp-ach").hidden = cur.payment.method !== "ach";
     const c = cur.payment.card, a = cur.payment.ach, ba = cur.payment.billingAddress;
     $("#cp-cc-name").value = c.name || "";
-    $("#cp-cc-num").value = fmtCard(c.number);
-    $("#cp-cc-exp").value = c.exp || "";
-    ccCheckLine();
     $("#cp-ach-name").value = a.name || "";
-    $("#cp-ach-routing").value = a.routing || "";
-    $("#cp-ach-account").value = a.account || "";
     $$("#cp-ach-type .seg-opt").forEach((b) => b.classList.toggle("sel", b.dataset.a === (a.type || "checking")));
     $("#cp-b-street").value = ba.street || "";
     $("#cp-b-city").value = ba.city || "";
     $("#cp-b-state").value = ba.state || "";
     $("#cp-b-zip").value = ba.zip || "";
-    $("#cp-autopay").classList.toggle("on", !!cur.payment.autopay);
+    $("#cp-autopay").classList.toggle("on", cur.payment.autopayRequested === true);
     $("#cp-due").textContent = fmtMoney((cur.plan.initial || 0) + specSum("initial"));
+    paymentStatusLine();
   }
 
-  function ccCheckLine() {
-    const num = $("#cp-cc-num").value.replace(/\D/g, "");
-    const el = $("#cp-cc-check");
-    if (!num) { el.textContent = ""; return; }
-    el.textContent = luhn(num) ? "✓ Card number checks out" : "Card number doesn't check out yet";
-    el.style.color = luhn(num) ? "var(--sold-ink, #15803D)" : "";
+  // says exactly what RALLY knows and what it does not
+  function paymentStatusLine() {
+    const p = cur.payment;
+    const el = $("#cp-status-line");
+    if (el) {
+      el.textContent = p.method
+        ? "Payment setup is PENDING. The customer intends to pay by "
+          + (p.method === "ach" ? "bank draft" : "card")
+          + (p.autopayRequested ? " and asked for autopay" : "")
+          + ". The office must collect the actual payment method before the initial service — autopay is not active yet."
+        : "No payment method chosen yet. Nothing is on file and nothing is scheduled to be charged.";
+    }
+    const lg = $("#cp-legacy-line");
+    if (lg) {
+      lg.hidden = !p.last4;
+      lg.textContent = p.last4
+        ? "Historical reference from an older record: ends " + p.last4
+          + ". That is a note, not a payment method on file."
+        : "";
+    }
   }
 
   function collectPayment() {
-    cur.payment.card = {
-      name: $("#cp-cc-name").value.trim(),
-      number: $("#cp-cc-num").value.replace(/\D/g, ""),
-      exp: $("#cp-cc-exp").value.trim(),
-    };
+    // Names and a billing address, and that is the whole of it. There is no
+    // card-number field, no expiry field, no routing or account field —
+    // nothing on this screen can put a credential into a RALLY record.
+    cur.payment.card = { name: $("#cp-cc-name").value.trim() };
     cur.payment.ach = {
       name: $("#cp-ach-name").value.trim(),
-      routing: $("#cp-ach-routing").value.replace(/\D/g, ""),
-      account: $("#cp-ach-account").value.replace(/\D/g, ""),
-      type: cur.payment.ach.type || "checking",
+      type: (cur.payment.ach && cur.payment.ach.type) || "checking",
     };
     cur.payment.billingAddress = {
       street: $("#cp-b-street").value.trim(), city: $("#cp-b-city").value.trim(),
       state: $("#cp-b-state").value.trim(), zip: $("#cp-b-zip").value.trim(),
     };
-    // last4 keeps status lines working without touching the full number.
-    // A legacy record carries last4 with no stored number — an empty field
-    // must never erase the only payment reference the record has.
-    const n4 = cur.payment.method === "ach"
-      ? cur.payment.ach.account.slice(-4)
-      : cur.payment.card.number.slice(-4);
-    if (n4) cur.payment.last4 = n4;
-  }
-
-  // The unselected method's numbers must not ride the record (and its
-  // backups) forever — scrub them when the customer is actually saved.
-  function scrubUnusedPayment() {
-    if (cur.payment.method === "card") {
-      cur.payment.ach.routing = ""; cur.payment.ach.account = "";
-    } else if (cur.payment.method === "ach") {
-      cur.payment.card.number = ""; cur.payment.card.exp = "";
-    }
+    cur.payment = MCUST.honestPayment(cur.payment);
   }
 
   // ---------- AGREE ----------
@@ -688,8 +713,34 @@
     $("#ca-unsigned").hidden = !!signed;
     $("#ca-signed").hidden = !signed;
     if (signed) {
-      $("#ca-signed-sub").textContent =
-        `Signed ${new Date(cur.agreement.signedAt).toLocaleString()} — a copy is in Files.`;
+      const filed = (cur.files || []).find((x) => x.kind === "agreement");
+      const when = new Date(cur.agreement.signedAt).toLocaleString();
+      const forId = curId; // a late lookup must not paint over another record
+      /* Three honest states, and never a fourth one where RALLY rebuilds a
+         document from today's numbers and calls it the signed copy:
+           have   the filed bytes are on this device — print/share them
+           away   a copy was filed, but on the device that took the sale
+                  (file bytes don't sync yet)
+           none   no copy was ever filed for this agreement */
+      const paint = (state) => {
+        if (curId !== forId) return;
+        const have = state === "have";
+        ["#ca-print", "#ca-share"].forEach((sel) => {
+          const b = $(sel); if (!b) return;
+          b.disabled = !have;
+          b.title = have ? "" : "The signed copy isn't on this device";
+        });
+        $("#ca-signed-sub").textContent =
+          state === "have" ? `Signed ${when} — a copy is in Files.`
+          : state === "away"
+            ? `Signed ${when}. The signed copy is on the device that took this sale — file copies don't sync yet.`
+            : `Signed ${when}. No signed copy was saved for this agreement — RALLY will not rebuild one.`;
+      };
+      if (!filed) { paint("none"); return; }
+      paint("away"); // pessimistic until the blob is actually found
+      STORE.getFile(filed.id)
+        .then((rec) => paint(rec && rec.blob ? "have" : "away"))
+        .catch(() => paint("away"));
       return;
     }
     const { p, initial, monthly, discount, etf, term, bill, perCharge } = MCONTRACT.pricing(cur);
@@ -861,7 +912,6 @@
   // ---------- persist ----------
   async function persist(announce) {
     collectInfo(); collectService(); collectPayment();
-    scrubUnusedPayment();
     if (!cur.first) { showTab("info"); toast("First name is required"); return false; }
     try {
       if (curId) {
@@ -890,7 +940,11 @@
   // ---------- the customers screen ----------
   // One quiet dropdown instead of the chip strip; the full filter panel
   // (scope, service, sales status, sort) drops down from More → Customers.
-  let flt = { stage: "all", scope: "mine", service: "all", sales: "all", sort: "newest" };
+  /* Scope defaults to ALL, not "mine". v39 decides "mine" from a stable id,
+     and a pre-v39 customer has no such id — defaulting to "mine" would make
+     every legacy customer vanish from the list on first launch. They are
+     shown; they are simply not counted as anyone's. */
+  let flt = { stage: "all", scope: "all", service: "all", sales: "all", sort: "newest" };
   let panelOpen = false;
 
   const FILTER_OPTS = [
@@ -922,7 +976,7 @@
       const st = stageOf(c);
       if (flt.stage === "sold" ? !STORE.custSignedAt(c) || st === "canceled" : st !== flt.stage) return false;
     }
-    if (flt.scope === "mine" && c.soldBy && c.soldBy !== STORE.settings.repName) return false;
+    if (flt.scope === "mine" && !STORE.custIsMine(c)) return false;
     if (flt.sales === "active" && (c.acct === "frozen" || c.acct === "canceled")) return false;
     if (flt.sales === "frozen" && c.acct !== "frozen") return false;
     if (flt.service !== "all") {
@@ -1033,10 +1087,16 @@
     // scoping to "my customers" must say so when it's actually hiding rows
     const note = $("#cf-scope-note");
     if (note) {
-      const hiddenByScope = flt.scope === "mine"
-        ? all.filter((c) => c.soldBy && c.soldBy !== STORE.settings.repName).length : 0;
-      note.hidden = !hiddenByScope;
-      note.textContent = hiddenByScope ? `Mine · ${hiddenByScope} more from the team` : "";
+      // say honestly WHY a row is hidden: someone else's sale is not the
+      // same thing as a record nobody can be proved to have sold
+      const hidden = flt.scope === "mine" ? all.filter((c) => !STORE.custIsMine(c)) : [];
+      const unattr = hidden.filter((c) => !STORE.custIsAttributed(c)).length;
+      const theirs = hidden.length - unattr;
+      note.hidden = !hidden.length;
+      note.textContent = hidden.length
+        ? "Mine · " + [theirs ? theirs + " from the team" : "",
+            unattr ? unattr + " unattributed" : ""].filter(Boolean).join(" · ") + " hidden"
+        : "";
       note.onclick = () => { flt.scope = "all"; renderList(); };
     }
     if (!all.length) {
@@ -1047,13 +1107,13 @@
       const stage = STORE.custStage(c);
       const signed = STORE.custSignedAt(c);
       const when = signed ? new Date(signed).getTime() : (c.soldAt || c.createdAt);
-      const who = esc(c.soldBy || STORE.settings.repName);
+      const who = esc(STORE.custSoldByLabel(c));
       const flag = c.acct === "frozen" ? " · ❄️ Frozen" : c.acct === "canceled" ? " · Canceled" : "";
       return `<button class="cust-row" data-cid="${c.id}" type="button">
          <div class="crn">${esc(STORE.custName(c))}
            <span class="stage-tag" style="color:${stage.chip};border-color:${stage.chip}">${stage.label}</span></div>
          <div class="cra">${esc(STORE.custAddress(c)) || "No address"}${flag}</div>
-         <div class="crs">${signed ? "Sold" : "Added"}: ${MUI.fmtDate(when)} by ${who}</div>
+         <div class="crs">${signed ? "Sold" : "Added"}: ${MUI.fmtDate(when)}${who ? " by " + who : " · unattributed"}</div>
          <div class="crst">${actionLine(c, stage)}</div>
        </button>`;
     }).join("") || `<div class="empty plain">Nothing matches those filters.</div>`;
@@ -1090,28 +1150,22 @@
   // ---------- export (More menu) ----------
   async function exportAll() {
     if (!STORE.customers.length) { toast("Nothing to export yet"); return; }
-    // The export gets handed to the office — full card/ACH numbers stay on
-    // this locked device, exactly as the payment tab promises. The office
-    // reads them off the device screen when entering billing.
+    // The export gets handed to the office. It carries no credentials:
+    // RALLY holds no card or bank numbers to leak into it, and the
+    // payment block is rebuilt from the safe allowlist regardless.
     const redacted = STORE.customers.map((c) => {
       const copy = JSON.parse(JSON.stringify(c));
-      if (copy.payment) {
-        copy.payment = {
-          method: copy.payment.method || "",
-          last4: copy.payment.last4 || "",
-          autopay: !!copy.payment.autopay,
-          billingAddress: copy.payment.billingAddress || null,
-        };
-      }
+      if (copy.payment) copy.payment = honestPayment(copy.payment);
       return copy;
     });
     const payload = {
       exportedAt: new Date().toISOString(),
-      rep: STORE.settings.repName,
+      rep: (STORE.currentUser() || {}).name || "",
+      repUserId: STORE.myId(),
       fieldroutes: {
         subdomain: STORE.settings.frSubdomain || null,
         note: "Map each record to customer/create + subscription/create + appointment/create. " +
-          "Payment methods are redacted to last-4 — enter full billing details directly in FieldRoutes.",
+          "RALLY captures NO payment credentials: each record carries only the method the customer intends to use, whether they asked for autopay, and the billing address. Collect the actual payment method separately before the initial service.",
       },
       customers: redacted,
     };
@@ -1293,27 +1347,11 @@
       b.addEventListener("click", () => {
         tick();
         collectPayment();
-        cur.payment.method = b.dataset.m;
+        // tapping the selected method again clears it — "" is a legitimate,
+        // honest answer and must stay reachable
+        cur.payment.method = cur.payment.method === b.dataset.m ? "" : b.dataset.m;
         renderPayment();
       }));
-    $("#cp-cc-num").addEventListener("input", () => {
-      const f = fmtCard($("#cp-cc-num").value);
-      if (f !== $("#cp-cc-num").value) $("#cp-cc-num").value = f;
-      ccCheckLine();
-    });
-    $("#cp-cc-exp").addEventListener("input", () => {
-      const raw = $("#cp-cc-exp").value;
-      // "1/27" means January — pad the single-digit month instead of
-      // shifting its digits into the year
-      const m = /^(\d{1,2})\s*\/\s*(\d{0,2})/.exec(raw);
-      let v;
-      if (m && m[1].length === 1) v = ("0" + m[1]) + (m[2] ? "/" + m[2] : "/");
-      else {
-        v = raw.replace(/[^\d]/g, "").slice(0, 4);
-        if (v.length > 2) v = v.slice(0, 2) + "/" + v.slice(2);
-      }
-      $("#cp-cc-exp").value = v;
-    });
     $$("#cp-ach-type .seg-opt").forEach((b) =>
       b.addEventListener("click", () => {
         tick();
@@ -1331,8 +1369,10 @@
     });
     $("#cp-autopay").addEventListener("click", () => {
       tick();
-      cur.payment.autopay = !cur.payment.autopay;
-      $("#cp-autopay").classList.toggle("on", cur.payment.autopay);
+      // records a REQUEST, which is all a door-step conversation can produce
+      cur.payment.autopayRequested = cur.payment.autopayRequested !== true;
+      $("#cp-autopay").classList.toggle("on", cur.payment.autopayRequested);
+      paymentStatusLine();
     });
 
     // ---- agree ----
@@ -1348,25 +1388,36 @@
     $("#ca-sig-clear").addEventListener("click", () => {
       if (sigCtx) { sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height); sigDrawn = false; }
     });
-    // A signed agreement is a DOCUMENT, not a template: print/share the
-    // exact copy filed at signing. Regenerating from today's price sheet
-    // would silently change the discount and exit-fee arithmetic the
-    // customer actually signed. Fall back to regeneration only if the
-    // filed copy is somehow gone.
+    /* A signed agreement is a DOCUMENT, not a template. Print and Share
+       hand over the exact bytes filed at signing, or they hand over
+       nothing. There is NO regeneration fallback: rebuilding the page from
+       today's record would reprint the discount, term and exit-fee
+       arithmetic as they stand now, under a real signature, and call it the
+       document the customer signed. An honest "we don't have it" is the
+       only other correct answer. */
     const signedDoc = async () => {
       const f = (cur.files || []).find((x) => x.kind === "agreement");
-      if (f) {
-        const rec = await STORE.getFile(f.id).catch(() => null);
-        if (rec) return rec.blob.text();
-      }
-      return MCONTRACT.docHTML(cur, cur.agreement && cur.agreement.signature);
+      if (!f) return null;
+      const rec = await STORE.getFile(f.id).catch(() => null);
+      if (!rec || !rec.blob) return null;
+      return rec.blob.text();
+    };
+    const missingDoc = () => {
+      const filed = (cur.files || []).some((x) => x.kind === "agreement");
+      toast(filed
+        ? "The signed copy is on the device that took this sale — it isn't in the cloud yet"
+        : "No signed copy was saved for this agreement");
     };
     $("#ca-print").addEventListener("click", async () => {
-      if (cur && cur.agreement) MCONTRACT.print(await signedDoc());
+      if (!cur || !cur.agreement) return;
+      const doc = await signedDoc();
+      if (doc) MCONTRACT.print(doc); else missingDoc();
     });
     $("#ca-share").addEventListener("click", async () => {
-      if (cur && cur.agreement)
-        MCONTRACT.share(await signedDoc(), `Agreement — ${STORE.custName(cur)}.html`);
+      if (!cur || !cur.agreement) return;
+      const doc = await signedDoc();
+      if (doc) MCONTRACT.share(doc, `Agreement — ${STORE.custName(cur)}.html`);
+      else missingDoc();
     });
     const sp = $("#ca-sig");
     sp.addEventListener("mousedown", sigStart);
@@ -1383,5 +1434,11 @@
     });
   }
 
-  window.MCUST = { bind, renderList, open, startNew, startForPin, fillAddress, exportAll, setFilter, openAdvanced };
+  window.MCUST = {
+    bind, renderList, open, startNew, startForPin, fillAddress, exportAll,
+    setFilter, openAdvanced,
+    // the payment-shape gate, exported so the boot purge and the store use
+    // the SAME rule the editor does — one definition, no second path
+    honestPayment,
+  };
 })();

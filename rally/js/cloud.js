@@ -9,7 +9,10 @@
    that is Phase 2, behind its own approval. */
 (function () {
   const KEY_TOKENS = "cloudSession";   // { access, refresh, expiresAt, userId }
-  const KEY_PROFILE = "cloudProfile";  // { id, teamId, role, name, email, disabled }
+  // { id, teamId, role, roleVerifiedAt, name, email, disabled }
+  // This record is the ONE durable trusted-role source in RALLY. Nothing
+  // else may author a role: STORE mirrors it, the UI derives from STORE.
+  const KEY_PROFILE = "cloudProfile";
   const TIMEOUT_MS = 6000;             // a dead zone must fail FAST into offline mode
 
   const cfg = () => window.RALLY_CLOUD || {};
@@ -86,6 +89,23 @@
     return t;
   }
 
+  /* Persist a profile row the server just gave us, and hand the role to
+     STORE in the same breath. Cache write and mirror happen together so
+     cloudProfile can never say "manager" while users[] says "rep" — one
+     trusted role, one verification timestamp, one precedence rule. */
+  async function applyProfileRow(r) {
+    if (!r) return null;
+    const p = {
+      id: r.id, teamId: r.team_id, role: r.role, roleVerifiedAt: Date.now(),
+      name: r.name, email: r.email, disabled: !!r.disabled,
+    };
+    await MDB.kvSet(KEY_PROFILE, p);
+    if (window.STORE && STORE.applyServerRole) {
+      await STORE.applyServerRole(p.role, p.roleVerifiedAt, p.id).catch(() => {});
+    }
+    return p;
+  }
+
   async function fetchProfile(access, userId) {
     if (!userId) return null;
     const rows = await call(
@@ -94,12 +114,7 @@
       { access });
     const r = Array.isArray(rows) ? rows[0] : null;
     if (!r) return null;
-    const p = {
-      id: r.id, teamId: r.team_id, role: r.role,
-      name: r.name, email: r.email, disabled: !!r.disabled,
-    };
-    await MDB.kvSet(KEY_PROFILE, p);
-    return p;
+    return applyProfileRow(r);
   }
 
   // Single-flight: the background revalidate and a sync cycle can want a
@@ -192,7 +207,7 @@
   }
 
   window.MCLOUD = {
-    enabled, signIn, signUp, signOut, refresh, fetchProfile, revalidate,
-    getTokens, getProfile, api,
+    enabled, signIn, signUp, signOut, refresh, fetchProfile, applyProfileRow,
+    revalidate, getTokens, getProfile, api,
   };
 })();

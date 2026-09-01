@@ -60,7 +60,7 @@
     // visits age out after 14 days to keep the list about what's next.
     // Reps see their own book (plus unassigned); managers see everything.
     const me = STORE.currentUser();
-    const manager = STORE.isManager();
+    const manager = STORE.seesWholeTeam();
     const cutoff = Date.now() - 14 * 86400e3;
     const visible = appts.filter((x) =>
       (manager || !x.ap.userId || (me && x.ap.userId === me.id)) &&

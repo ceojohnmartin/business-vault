@@ -16,7 +16,8 @@
   async function exportCSV() {
     if (!STORE.customers.length) { toast("Nothing to export yet"); return; }
     const head = ["First", "Last", "Phones", "Email", "Street", "City", "State", "Zip",
-      "Stage", "Plan", "Initial", "Monthly", "Signed", "Sold by", "Source", "Next service", "Notes"];
+      "Stage", "Plan", "Initial", "Monthly", "Signed", "Sold by", "Sold by (user id)",
+      "Source", "Next service", "Notes"];
     const rows = STORE.customers.map((c) => {
       const a = typeof c.address === "object" && c.address ? c.address : { street: STORE.custAddress(c) };
       const stage = STORE.custStage(c);
@@ -32,7 +33,7 @@
         c.plan ? c.plan.initial : c.initial,
         c.plan ? c.plan.monthly : c.monthly,
         signed ? new Date(signed).toLocaleDateString() : "",
-        c.soldBy, c.source,
+        STORE.custSoldByName(c), c.soldByUserId || "", c.source,
         next ? new Date(next.ts).toLocaleString() : "",
         [c.notesForever || c.notes, c.notesInitial].filter(Boolean).join(" | "),
       ].map(cell).join(",");
@@ -101,17 +102,21 @@
 
   // A customer's RAW payment credentials — card.number/exp and the ACH
   // routing/account — never belong in an exported file. This is the same
-  // safe shape the FieldRoutes export, the sync engine and the server-side
-  // trigger all reduce payment to: method, last4, autopay, billingAddress.
-  // (RALLY never captures a CVV/security code at all, so there is none to
-  // strip.) Returns a copy; never mutates the record it is handed.
+  /* The safe shape the office export, the sync engine and the server-side
+     trigger all reduce payment to: method, last4, autopayRequested, status,
+     billingAddress. RALLY never captures a card number, expiry, routing
+     number, account number or CVV at all — this guarantees an OLD backup
+     containing them cannot carry them forward either. Returns a copy; never
+     mutates the record it is handed. */
   function scrubCustomerPayment(c) {
     if (!c || !c.payment) return c;
     const p = c.payment;
     const out = Object.assign({}, c);
     out.payment = {
       method: p.method || "", last4: p.last4 || "",
-      autopay: !!p.autopay, billingAddress: p.billingAddress || null,
+      autopayRequested: p.autopayRequested === true,
+      status: p.status === "pending_setup" ? "pending_setup" : "not_configured",
+      billingAddress: p.billingAddress || null,
     };
     return out;
   }
@@ -176,13 +181,12 @@
         for (const r of d[s] || []) {
           if (s === "customers" && r && r.id) {
             // An older backup may still carry raw card/ACH numbers. They are
-            // dropped on the way in, and this device's own payment record is
-            // kept — so a restore can neither install payment credentials nor
-            // overwrite the ones already here.
-            const local = await MDB.get("customers", r.id).catch(() => null);
-            const incoming = scrubCustomerPayment(r);
-            if (local && local.payment) incoming.payment = local.payment;
-            await MDB.put(s, incoming);
+            // dropped on the way in — a restore can never install a payment
+            // credential, however old the file is. (v38 also preferred the
+            // device's own payment block here, to protect the only copy of a
+            // card number; v39 keeps no such copy, so a restore now simply
+            // restores the backup's credential-free payment state.)
+            await MDB.put(s, scrubCustomerPayment(r));
             continue;
           }
           await MDB.put(s, r);

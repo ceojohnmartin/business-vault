@@ -26,7 +26,7 @@
       }).join("") +
       (cbs ? `<span class="lb-chip">⏰ Callbacks <b class="num">${cbs}</b></span>` : "");
 
-    const manager = STORE.isManager();
+    const manager = STORE.canManageTerritories();
     $("#lasso-hood").hidden = !manager;
     $("#lasso-delete").hidden = !manager;
     openSheet("lasso-sheet");

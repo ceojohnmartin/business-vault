@@ -46,7 +46,11 @@
       const me = {
         id: MDB.uid(),
         name: S.settings.repName === "You" ? "Me" : S.settings.repName,
-        role: "manager",
+        // With a cloud project configured the SERVER owns this role — the
+        // device seeds itself least-privileged and the first profile sync
+        // raises it. Only a cloud-less install (no server to ask) keeps the
+        // old "device owner runs everything" behaviour.
+        role: (window.MCLOUD && MCLOUD.enabled()) ? "rep" : "manager",
         color: MDATA.HOOD_COLORS[0],
         createdAt: Date.now(),
       };
@@ -78,22 +82,182 @@
       S.settings.currentUserId = S.users[0] ? S.users[0].id : null;
       await S.saveSettings().catch(() => {});
     }
+    // before ANYTHING can read, export, back up or sync a customer
+    await S.purgePaymentCredentials();
   });
+
+  /* ---------- v39: raw payment credentials leave this device ----------
+     RALLY no longer captures card or bank numbers anywhere. Records written
+     by v38 and earlier still hold them in IndexedDB, so they are stripped
+     once at boot, in place, before anything can read, export, back up or
+     sync them.
+
+     Deleting keys (rather than rebuilding the object) is deliberate: the
+     list below is the definition of "credential", and anything on it is
+     removed from a payment block wherever it sits. MCUST.honestPayment()
+     independently REBUILDS the block from an allowlist on every read and
+     write, so a credential has to survive two different mechanisms — one
+     naming what is forbidden, one naming what is permitted — to come back.
+     Neither the editor, normalize(), a restore, nor a sync merge has a path
+     that reintroduces one.
+
+     Local only. It never queues a sync push: the server never held these
+     fields (a trigger has always stripped them), so there is nothing to
+     tell it, and marking every customer dirty would push the whole book. */
+  const CREDENTIAL_KEYS = [
+    "number", "cardNumber", "pan", "exp", "expiry", "expiration",
+    "cvv", "cvc", "securityCode", "cardCode",
+    "routing", "routingNumber", "account", "accountNumber", "bankAccount",
+  ];
+
+  S.stripPaymentCredentials = function (rec) {
+    const p = rec && rec.payment;
+    if (!p || typeof p !== "object") return false;
+    let hit = false;
+    const scrub = (o) => {
+      if (!o || typeof o !== "object") return;
+      CREDENTIAL_KEYS.forEach((k) => {
+        if (Object.prototype.hasOwnProperty.call(o, k)) { delete o[k]; hit = true; }
+      });
+    };
+    scrub(p); scrub(p.card); scrub(p.ach);
+    // The pre-v39 shape defaulted autopay to TRUE, so an old `true` records
+    // a software default and not a customer's request. It is dropped, never
+    // migrated into autopayRequested — inventing intent is the failure this
+    // whole change exists to avoid.
+    if (Object.prototype.hasOwnProperty.call(p, "autopay")) {
+      delete p.autopay; hit = true;
+    }
+    return hit;
+  };
+
+  S.purgePaymentCredentials = async function () {
+    const dirty = S.customers.filter((c) => S.stripPaymentCredentials(c));
+    if (dirty.length) await MDB.bulkPut("customers", dirty).catch(() => {});
+    return dirty.length; // 0 on every run after the first — idempotent
+  };
 
   S.saveSettings = () => MDB.kvSet("settings", S.settings);
 
   // ---------- people ----------
   S.currentUser = () =>
     S.users.find((u) => u.id === S.settings.currentUserId) || S.users[0] || null;
-  S.isManager = () => {
-    const u = S.currentUser();
-    return !u || u.role === "manager"; // a device with no team yet sees everything
-  };
   S.userById = (id) => S.users.find((u) => u.id === id) || null;
+
+  /* ---------- role: the server decides, the client only mirrors ----------
+     ONE trusted role state, period. The durable copy lives in the
+     cloudProfile record (written only by MCLOUD); this is the in-memory
+     view of it, and users[].role for THIS device is kept equal to it so
+     nothing derived from the people list can disagree.
+
+       mode "server"  a profile row was read from the server this session
+       mode "cached"  a role the server gave us earlier; we're offline now
+       mode "unknown" authenticated, but no server role has EVER arrived
+       mode "local"   no cloud project configured — there is no server
+
+     "unknown" resolves to rep. Absence of an answer is never permission. */
+  const LEADERSHIP = ["leader", "manager", "owner"];
+  S.roleState = { mode: "unknown", role: null, verifiedAt: 0 };
+
+  // called at boot; also whenever the cloud session changes
+  S.loadRoleState = async function () {
+    if (!(window.MCLOUD && MCLOUD.enabled())) {
+      const u = S.currentUser();
+      S.roleState = { mode: "local", role: (u && u.role) || "manager", verifiedAt: 0 };
+      return S.roleState;
+    }
+    const p = await MCLOUD.getProfile().catch(() => null);
+    if (!p || !p.role) {
+      S.roleState = { mode: "unknown", role: null, verifiedAt: 0 };
+      return S.roleState;
+    }
+    // if this IS the answer we already got from the server this session,
+    // don't demote it to "cached" and start telling the rep they're offline
+    const sameAnswer = S.roleState.mode === "server" &&
+      S.roleState.verifiedAt === (p.roleVerifiedAt || 0);
+    S.roleState = { mode: sameAnswer ? "server" : "cached", role: p.role,
+      verifiedAt: p.roleVerifiedAt || 0 };
+    return S.roleState;
+  };
+
+  /* The ONLY door a server role comes through. MCLOUD.fetchProfile calls
+     this the moment it persists a profile row, so the cached record, its
+     verification timestamp and the local user all move together — there is
+     never a window where cloudProfile says one thing and users[] another. */
+  S.applyServerRole = async function (role, verifiedAt, profileId) {
+    if (!role) return S.roleState;
+    const before = S.roleState.role;
+    S.roleState = { mode: "server", role, verifiedAt: verifiedAt || Date.now() };
+    // the role belongs to the PERSON the profile identifies. Writing it onto
+    // whoever the device is currently displaying would hand one teammate
+    // another's role the moment a device showed someone else's view.
+    /* With a profile id the role goes to THAT person. The one exception is
+       the very first bind: this device's person has no server identity yet,
+       and the profile we just authenticated as is about to become theirs —
+       so adopt it here rather than leave users[] a version behind. A person
+       who already carries a DIFFERENT profileId is never touched, which is
+       what stops one teammate's role landing on another. */
+    let me = null;
+    if (profileId) {
+      me = S.users.find((u) => u.profileId === profileId) || null;
+      if (!me) {
+        const c = S.currentUser();
+        if (c && !c.profileId) { c.profileId = profileId; me = c; }
+      }
+    } else {
+      me = S.currentUser(); // local-only device: no profiles exist
+    }
+    if (me && (me.role !== role || me.profileId === profileId)) {
+      me.role = role;
+      await MDB.put("users", me).catch(() => {});
+    }
+    // a demotion has to strip privileged controls NOW, not next launch
+    if (before !== role) {
+      const go = (f) => { try { f(); } catch (_) {} };
+      go(() => window.MAPP && MAPP.roleChanged && MAPP.roleChanged());
+      go(() => window.MMAP && MMAP.refreshHoods && MMAP.refreshHoods());
+      go(() => window.MHOME && MHOME.render());
+    }
+    return S.roleState;
+  };
+
+  // how the role reads to a human, including WHERE it came from — a device
+  // running with no company account must never look server-authorized
+  S.ROLE_LABELS = { rep: "Rep", leader: "Leader", manager: "Manager", owner: "Owner" };
+  S.roleLine = function () {
+    const st = S.roleState;
+    const label = S.ROLE_LABELS[S.effectiveRole()] || "Rep";
+    if (st.mode === "local") return "Local device only — roles here are not company-authorized";
+    if (st.mode === "server") return label + " · confirmed with the office";
+    if (st.mode === "cached") {
+      const when = st.verifiedAt ? new Date(st.verifiedAt).toLocaleDateString() : "earlier";
+      return label + " · offline, last confirmed " + when;
+    }
+    return "Rep · the office hasn't confirmed your role on this device yet";
+  };
+
+  // authenticated-but-unverified resolves to rep: fail closed
+  S.effectiveRole = () => S.roleState.role || "rep";
+  S.roleIsTrusted = () => S.roleState.mode === "server" || S.roleState.mode === "local";
+
+  /* Mirrors db/migrations/0003_territory_authorization.sql. The SERVER is
+     what actually stops a rep from writing a territory; this only decides
+     whether showing the control would be a lie. Both sides are tested
+     against db/capability-matrix.json so they cannot drift. */
+  S.canManageTerritories = function (role) {
+    return LEADERSHIP.indexOf(role === undefined ? S.effectiveRole() : role) >= 0;
+  };
+
+  // view scope, not authorization: does this person look at the whole
+  // board or just their own turf? Same role set today, different question.
+  S.seesWholeTeam = () => S.canManageTerritories();
 
   S.addUser = async function ({ name, role }) {
     const u = {
-      id: MDB.uid(), name: name.trim(), role: role === "manager" ? "manager" : "rep",
+      id: MDB.uid(), name: name.trim(),
+      // the server's vocabulary, verbatim — collapsing leader/owner into
+      // "manager" is how a client matrix drifts from the RLS one
+      role: ["rep", "leader", "manager", "owner"].indexOf(role) >= 0 ? role : "rep",
       color: MDATA.HOOD_COLORS[S.users.length % MDATA.HOOD_COLORS.length],
       createdAt: Date.now(),
     };
@@ -599,15 +763,60 @@
       .sort((a, b) => a.callbackAt - b.callbackAt);
   };
 
-  // ---------- per-rep activity (events carry repId going forward) ----------
+  /* ---------- attribution ----------
+     Personal numbers are computed from the stable id stored ON the record
+     (event.repId, customer.soldByUserId) and from nothing else — never a
+     display name, never settings.repName, never "whoever this device is".
+     Renaming a person moves no history.
+
+     A record only counts toward an individual when its owner is bound to a
+     server profile, because the profile id is the identity every device
+     agrees on. An unbound owner is UNATTRIBUTED on every device including
+     the one that authored the record — device-local attribution would make
+     two phones compute two different histories from the same data. */
+  S.isAttributed = function (userId) {
+    if (!userId) return false;
+    const u = S.userById(userId);
+    if (!u) return false;
+    // no cloud project = no profiles to bind to and only one device in
+    // existence: the local user IS the stable identity
+    if (!(window.MCLOUD && MCLOUD.enabled())) return true;
+    return !!u.profileId;
+  };
+
+  /* Whose sale is this? The stable id, or nobody. A legacy record carrying
+     only a soldBy NAME stays unattributed: names are mutable and were never
+     unique, so a name that happens to match a current teammate today is not
+     evidence of who signed the customer two seasons ago. */
+  S.custIsMine = function (c) {
+    const me = S.myId();
+    return !!(me && c && c.soldByUserId === me && S.isAttributed(c.soldByUserId));
+  };
+  S.custIsAttributed = (c) => !!(c && S.isAttributed(c.soldByUserId));
+
+  // the plain name for a printed document: resolve the stable id first,
+  // fall back to whatever name the record was signed with
+  S.custSoldByName = function (c) {
+    if (!c) return "";
+    const u = c.soldByUserId && S.userById(c.soldByUserId);
+    return (u && u.name) || c.soldBy || "";
+  };
+
+  // display only — the historical name is shown, and shown as unverified
+  S.custSoldByLabel = function (c) {
+    if (!c) return "—";
+    if (S.custIsAttributed(c)) {
+      const u = S.userById(c.soldByUserId);
+      if (u) return u.name;
+    }
+    // a name with no stable id is history we cannot verify — shown, and
+    // shown as unverified, but it counts toward nobody's numbers
+    return c.soldBy ? c.soldBy + " · legacy/unverified" : "";
+  };
+
+  // ---------- per-rep activity ----------
   S.repStats = function (userId, fromTs) {
-    const evs = S.events.filter((e) =>
-      e.repId === userId && (!fromTs || e.ts >= fromTs));
-    const doors = evs.length;
-    const convos = evs.filter(isContact).length;
-    const dms = evs.filter((e) => e.dm).length;
-    const sales = evs.filter((e) => e.disposition === "sold").length;
-    return { doors, convos, dms, sales };
+    return S.statsFor(fromTs || 0, null, userId);
   };
 
   // ---------- opportunity score (house level, explainable) ----------
@@ -696,8 +905,14 @@
   // ---------- derived stats ----------
   const isContact = (e) => MDATA.DISPOSITIONS[e.disposition] && MDATA.DISPOSITIONS[e.disposition].contact;
 
-  S.statsFor = function (fromTs, toTs) {
-    const evs = S.events.filter((e) => e.ts >= fromTs && (!toTs || e.ts < toTs));
+  /* repId undefined = the whole team's activity, unattributed history and
+     all. repId given = only knocks provably that person's. */
+  S.statsFor = function (fromTs, toTs, repId) {
+    const mine = repId !== undefined && repId !== null;
+    const ok = mine && S.isAttributed(repId);
+    const evs = S.events.filter((e) =>
+      e.ts >= fromTs && (!toTs || e.ts < toTs) &&
+      (!mine || (ok && e.repId === repId)));
     const doors = evs.length;
     const convos = evs.filter(isContact).length;
     const dms = evs.filter((e) => e.dm).length;
@@ -705,35 +920,53 @@
     return { doors, convos, dms, sales };
   };
 
-  S.todayStats = function () {
-    const d = new Date(); d.setHours(0, 0, 0, 0);
-    return S.statsFor(d.getTime());
+  // knocks nobody can be proved to have made — surfaced, never reassigned
+  S.unattributedDoors = function (fromTs, toTs) {
+    return S.events.filter((e) =>
+      e.ts >= (fromTs || 0) && (!toTs || e.ts < toTs) && !S.isAttributed(e.repId)).length;
   };
 
-  S.weekStats = function () {
+  // this device's own person, as a stable id (null when there isn't one)
+  S.myId = () => { const me = S.currentUser(); return me ? me.id : null; };
+
+  S.todayStats = function (repId) {
+    const d = new Date(); d.setHours(0, 0, 0, 0);
+    return S.statsFor(d.getTime(), null, repId);
+  };
+
+  S.weekStart = function () {
     const d = new Date(); d.setHours(0, 0, 0, 0);
     const day = (d.getDay() + 6) % 7; // Monday start
     d.setDate(d.getDate() - day);
-    return S.statsFor(d.getTime());
+    return d.getTime();
   };
 
-  S.dayseries = function (nDays) {
+  S.weekStats = function (repId) {
+    return S.statsFor(S.weekStart(), null, repId);
+  };
+
+  S.dayseries = function (nDays, repId) {
     const out = [];
     for (let i = nDays - 1; i >= 0; i--) {
       // setDate arithmetic is DST-safe where fixed 86400e3 steps are not
       const a = new Date(); a.setHours(0, 0, 0, 0); a.setDate(a.getDate() - i);
       const b = new Date(a); b.setDate(b.getDate() + 1);
-      const s = S.statsFor(a.getTime(), b.getTime());
+      const s = S.statsFor(a.getTime(), b.getTime(), repId);
       out.push({ start: a.getTime(), ...s });
     }
     return out;
   };
 
   // Streak: consecutive days (ending today or yesterday) hitting the door goal.
+  // a PERSONAL streak: only doors provably this device's person counts
   S.streak = function () {
     const goal = Math.max(1, S.settings.doorGoal | 0);
+    const me = S.myId();
     const byDay = {};
-    S.events.forEach((e) => { const k = MUI.dayKey(e.ts); byDay[k] = (byDay[k] || 0) + 1; });
+    S.events.forEach((e) => {
+      if (!me || e.repId !== me || !S.isAttributed(e.repId)) return;
+      const k = MUI.dayKey(e.ts); byDay[k] = (byDay[k] || 0) + 1;
+    });
     let streak = 0;
     const d = new Date(); d.setHours(12, 0, 0, 0); // noon anchor sidesteps DST edges
     // today counts if already at goal; otherwise start from yesterday

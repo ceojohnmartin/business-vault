@@ -344,21 +344,14 @@
     },
   ];
 
-  // Demo teammates for the leaderboard until team sync ships.
-  const DEMO_TEAM = [
-    { name: "Marcus V.",  team: "Alpine",  doors: 512, dms: 118, sales: 14 },
-    { name: "Sofia R.",   team: "Alpine",  doors: 471, dms: 102, sales: 12 },
-    { name: "Jake T.",    team: "Summit",  doors: 440, dms: 96,  sales: 10 },
-    { name: "Priya N.",   team: "Summit",  doors: 388, dms: 90,  sales: 9  },
-    { name: "Danny O.",   team: "Alpine",  doors: 402, dms: 84,  sales: 7  },
-    { name: "Chris B.",   team: "Summit",  doors: 350, dms: 70,  sales: 5  },
-    { name: "Lena M.",    team: "Alpine",  doors: 300, dms: 61,  sales: 4  },
-  ];
+  // (There is no demo team. The leaderboard ranks real, attributed work or
+  // says it has nothing to rank — a fake field flatters or discourages a rep
+  // against people who do not exist.)
 
   window.MDATA = {
     DISPOSITIONS, DECLINE_REASONS, REKNOCK_REASONS, DNK_REASONS, DM_HINT,
     PLANS, AGREEMENT, PIPELINE, SOURCES, HOOD_COLORS, FRESH_SCALE, FRESH_NEVER, COMPANY_DEFAULTS,
     TERMS, DEFAULT_TERM, BILLING, SPECIALTY, PEST_CHIPS, PROP_NOTES, ADD_SERVICES,
-    PESTS, DEMO_TEAM, DEFAULT_GOOGLE_KEY, DEFAULT_REGRID_KEY, ELIGIBILITY,
+    PESTS, DEFAULT_GOOGLE_KEY, DEFAULT_REGRID_KEY, ELIGIBILITY,
   };
 })();

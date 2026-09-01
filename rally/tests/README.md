@@ -18,9 +18,30 @@ Run from anywhere (paths are relative to this directory):
     node tests/cloud-auth-test.js # Supabase auth bridge vs a mock server:
                                   # online/offline sign-in, disabled accounts,
                                   # confirm-email signup, legacy fallback
+    node tests/role-test.js       # v39 REAL REP: the server owns the role.
+                                  # client capability matrix vs
+                                  # db/capability-matrix.json (the same file
+                                  # the RLS suite asserts against), all four
+                                  # roles, fail-closed, offline cached role,
+                                  # demotion and promotion mid-session
+    node tests/attribution-test.js# v39 REAL REP: stable-id attribution.
+                                  # renames move no history, legacy name-only
+                                  # records stay unattributed, two devices
+                                  # agree, the leaderboard is real or empty
+    node tests/payment-honesty-test.js
+                                  # v39 REAL REP: a pre-v39 record with a full
+                                  # PAN/expiry/routing/account driven through
+                                  # boot → normalize → sync merge → backup →
+                                  # restore → boot, asserted clean at every
+                                  # step; plus the three claims v39 must never
+                                  # make (autopay active, method on file,
+                                  # charge authorized)
 
 The database's Row Level Security has its own suite — see rally/db/README.md
 (`sh rally/db/test/run-rls-tests.sh` against any throwaway local Postgres).
+That suite and `tests/role-test.js` both assert against
+`rally/db/capability-matrix.json`, so the client's idea of who may manage a
+territory cannot drift from what RLS actually enforces.
 
 Requires `playwright` resolvable via NODE_PATH and Chromium at
 /opt/pw-browsers/chromium (or edit executablePath). Screenshots land in

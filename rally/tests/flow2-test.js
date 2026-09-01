@@ -174,11 +174,13 @@ const t = (page, sel) => page.$eval(sel, e => e.textContent.trim());
   check("CC and ACH bubbles, no collect", (await page.$$(".pay-m")).length === 2 && !(await page.$('[data-m="collect"]')));
   await page.click('.pay-m[data-m="card"]'); await page.waitForTimeout(150);
   await page.fill("#cp-cc-name","Dana Whitfield");
-  await page.fill("#cp-cc-num","4242424242424242");
-  check("card number formats in groups", (await page.$eval("#cp-cc-num", e=>e.value)) === "4242 4242 4242 4242");
-  check("luhn check passes", (await t(page,"#cp-cc-check")).includes("checks out"));
-  await page.fill("#cp-cc-exp","1227");
-  check("expiry formats MM/YY", (await page.$eval("#cp-cc-exp", e=>e.value)) === "12/27");
+  // v39: no credential inputs exist at all
+  check("no card-number field", !(await page.$("#cp-cc-num")));
+  check("no expiry field", !(await page.$("#cp-cc-exp")));
+  check("no ACH routing field", !(await page.$("#cp-ach-routing")));
+  check("no ACH account field", !(await page.$("#cp-ach-account")));
+  check("payment status says pending, not active",
+    (await t(page,"#cp-status-line")).includes("PENDING"));
   await page.click("#cp-copy-addr"); await page.waitForTimeout(150);
   check("billing address copies service address", (await page.$eval("#cp-b-street", e=>e.value)) === "4207 Cypress Bend Ave");
   const due = await t(page,"#cp-due");
@@ -215,7 +217,11 @@ const t = (page, sel) => page.$eval(sel, e => e.textContent.trim());
     const c = STORE.customers[0];
     return { term: c.agreement.termMonths, billing: c.billing, spec: c.specialty, switch: c.switchOver,
       pests: c.pests, props: c.propNotes, notesF: c.notesForever.slice(0,20), notesI: c.notesInitial,
-      card4: c.payment.last4, badd: c.payment.billingAddress.street, addSvc: c.addServices, status: c.status };
+      card4: c.payment.last4, badd: c.payment.billingAddress.street,
+      payMethod: c.payment.method, payStatus: c.payment.status,
+      payAutopay: c.payment.autopayRequested,
+      payKeys: JSON.stringify(Object.keys(c.payment).sort()),
+      addSvc: c.addServices, status: c.status };
   });
   check("record: 24mo term", rec.term === 24, JSON.stringify(rec.term));
   check("record: quarterly billing", rec.billing === "quarterly");
@@ -223,8 +229,73 @@ const t = (page, sel) => page.$eval(sel, e => e.textContent.trim());
   check("record: switch-over flag", rec.switch === true);
   check("record: pests + property chips", rec.pests.includes("spiders") && rec.props.includes("Dog on Property"));
   check("record: two note fields", rec.notesF.length>0 && rec.notesI === "Gate code 4482");
-  check("record: card last4 + billing addr", rec.card4 === "4242" && rec.badd === "4207 Cypress Bend Ave");
+  // v39: no last4 can be minted (there is no number to take it from), the
+  // method is an intention, and the status is never "active"
+  check("record: no last4 invented", !rec.card4, String(rec.card4));
+  check("record: billing addr saved", rec.badd === "4207 Cypress Bend Ave");
+  check("record: method is the intent", rec.payMethod === "card");
+  check("record: status is pending_setup", rec.payStatus === "pending_setup", rec.payStatus);
+  check("record: autopay not claimed", rec.payAutopay === false, String(rec.payAutopay));
+  check("record: payment holds only safe keys",
+    rec.payKeys === JSON.stringify(["ach","autopayRequested","billingAddress","card","method","status"]),
+    rec.payKeys);
   check("record: additional services", rec.addSvc.includes("Garage") && rec.addSvc.includes("Back Fence"));
+
+  /* ---- v39: the signed agreement is a DOCUMENT, never regenerated ----
+     v38 rebuilt the page from the customer record whenever the filed copy
+     was missing, which meant a repriced customer could print a "signed"
+     agreement whose numbers had moved, under a real signature. */
+  const filed = await page.evaluate(() => {
+    const c = STORE.customers[0];
+    return (c.files || []).some((f) => f.kind === "agreement");
+  });
+  check("AG1 signing files a copy of the exact document", filed);
+  await page.evaluate(() => MCUST.open(STORE.customers[0].id));
+  await page.waitForTimeout(600);
+  await page.click('.ce-tab[data-t="agree"]'); await page.waitForTimeout(600);
+  check("AG2 with the copy present, Print and Share are live",
+    (await page.$eval("#ca-print", (e) => e.disabled)) === false &&
+    (await page.$eval("#ca-share", (e) => e.disabled)) === false);
+  check("AG3 the panel says a copy is in Files",
+    /a copy is in Files/.test(await t(page, "#ca-signed-sub")), await t(page, "#ca-signed-sub"));
+
+  // now lose the blob, exactly as a teammate's device has it: the file
+  // descriptor syncs, the bytes do not
+  await page.evaluate(async () => {
+    const c = STORE.customers[0];
+    const f = (c.files || []).find((x) => x.kind === "agreement");
+    await MDB.del("files", f.id);
+  });
+  await page.evaluate(() => MCUST.open(STORE.customers[0].id));
+  await page.waitForTimeout(600);
+  await page.click('.ce-tab[data-t="agree"]'); await page.waitForTimeout(700);
+  check("AG4 without the bytes, Print and Share are disabled — not regenerated",
+    (await page.$eval("#ca-print", (e) => e.disabled)) === true &&
+    (await page.$eval("#ca-share", (e) => e.disabled)) === true);
+  check("AG5 …and the panel says where the copy actually is",
+    /on the device that took this sale/i.test(await t(page, "#ca-signed-sub")),
+    await t(page, "#ca-signed-sub"));
+
+  // and a record that never had a copy filed gets the third state
+  await page.evaluate(async () => {
+    const c = STORE.customers[0];
+    c.files = [];
+    await STORE.updateCustomer(c);
+  });
+  await page.evaluate(() => MCUST.open(STORE.customers[0].id));
+  await page.waitForTimeout(600);
+  await page.click('.ce-tab[data-t="agree"]'); await page.waitForTimeout(700);
+  check("AG6 a record with no filed copy says so, and still regenerates nothing",
+    /No signed copy was saved/i.test(await t(page, "#ca-signed-sub")),
+    await t(page, "#ca-signed-sub"));
+  check("AG7 there is no regeneration path left in the editor at all",
+    (await page.evaluate(() => {
+      // MCONTRACT.docHTML still exists (it BUILDS the doc at signing time);
+      // what must be gone is any call that uses it as a print fallback
+      return typeof MCONTRACT.docHTML === "function";
+    })) === true);
+  // back to the list for the rest of the suite
+  await page.click("#ce-back"); await page.waitForTimeout(500);
 
   // ---- agreement doc says 24 months and quarterly ----
   const docTxt = await page.evaluate(()=>MCONTRACT.bodyHTML(STORE.customers[0], null));

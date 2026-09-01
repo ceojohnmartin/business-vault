@@ -140,7 +140,7 @@
 
         <li><b>Services; frequency; re-service guarantee.</b> Company will perform the treatments described for the ${esc(p.name)} plan: ${esc(p.services)} Covered pests: ${esc(p.covered)}. If covered pests persist or return <b>between</b> scheduled treatments, Company will return and re-treat at <b>no additional charge</b>, as many times as reasonably necessary — just call, text or email. Interior service is provided on request at any scheduled visit.</li>
 
-        <li><b>Billing; recurring payment authorization.</b> The recurring charge above is billed ${bill.id === "monthly" ? "monthly" : "as " + fmtMoney(perCharge) + " every " + bill.every} and covers the full plan of service across the year, including re-services. By signing, Customer authorizes Company to charge the payment method on file for the initial service and each recurring charge when due${(c.payment && c.payment.autopay === false) ? " only after Customer enrolls in autopay; otherwise Company will invoice each charge" : ""}. This authorization remains in effect until Customer revokes it in writing and Company has had a reasonable opportunity (not exceeding 15 days) to act. A returned or failed payment may be re-presented and may incur a returned-payment fee of $25 where permitted by law. Company will give at least 10 days' notice before any charge that differs in amount or timing from this schedule. Customer may always pay by an alternative method on request.</li>
+        <li><b>Billing${payState(c) === "authorized" ? "; recurring payment authorization" : ""}.</b> The recurring charge above is billed ${bill.id === "monthly" ? "monthly" : "as " + fmtMoney(perCharge) + " every " + bill.every} and covers the full plan of service across the year, including re-services. ${billingClause(c)} A returned or failed payment may be re-presented and may incur a returned-payment fee of $25 where permitted by law. Company will give at least 10 days' notice before any charge that differs in amount or timing from this schedule. Customer may always pay by an alternative method on request.</li>
 
         <li><b>Early termination — discount recapture only.</b> If Customer cancels this Agreement during the initial term other than as permitted below, Customer repays the initial-service discount actually received, capped at ${fmtMoney(A.etfCap)} (${fmtMoney(etf)} under the pricing above). Payment of that amount is Company's <b>sole and exclusive remedy</b> for early termination — no other fee, penalty, or acceleration of remaining payments applies. The fee is <b>waived automatically</b> if: (a) Customer cancels within 3 business days of signing (see "Your right to cancel" below); (b) Company materially breaches this Agreement and does not cure within 10 days of written notice; (c) Customer moves outside Company's service area (proof of new address suffices); or (d) Customer cancels within ${A.priceExitDays} days after notice of a price increase under Section 5.</li>
 
@@ -195,7 +195,7 @@
           <div class="sig-cap">Customer signature — <b>${esc(name)}</b> · ${fmtD(today)}</div>
         </div>
         <div class="sig-col">
-          <div class="sig-blank rep"><span>${esc(c.soldBy || STORE.settings.repName || "")}</span></div>
+          <div class="sig-blank rep"><span>${esc(STORE.custSoldByName(c))}</span></div>
           <div class="sig-cap">Company representative</div>
         </div>
       </div>
@@ -250,6 +250,57 @@
     .noc-sign{display:flex;justify-content:space-between;gap:14px;margin-top:12px;flex-wrap:wrap}
     @media print{body{padding:0}.noc{page-break-inside:avoid}}
   `;
+
+  /* --------- what the customer may honestly be said to have authorized ---
+     Three states, and the document must never claim a higher one:
+
+       "authorized"  a payment method is genuinely on file AND a mandate to
+                     charge it exists. ONLY a billing backend can establish
+                     this against a real payment-provider result — nothing
+                     in the client can produce it, which is why v39 never
+                     prints this branch.
+       "requested"   the customer told the rep how they mean to pay, and may
+                     have asked for autopay. That is an intention, not an
+                     authorization to debit an account.
+       "none"        nothing was chosen.
+
+     A selected method, a legacy last4 and an autopay request are all
+     evidence of intent and none of them is a mandate. Deriving authorization
+     from any of them would have the customer sign a document authorizing
+     charges against an account they never handed over. */
+  function payState(c) {
+    const p = (c && c.payment) || {};
+    // server-authored only; the client cannot write this value (see
+    // db/migrations/0004_payment_allowlist.sql, which refuses it)
+    if (p.status === "authorized" || p.status === "active") return "authorized";
+    if (p.method || p.autopayRequested === true) return "requested";
+    return "none";
+  }
+
+  function billingClause(c) {
+    const p = (c && c.payment) || {};
+    const st = payState(c);
+    if (st === "authorized") {
+      return "By signing, Customer authorizes Company to charge the payment method on file "
+        + "for the initial service and each recurring charge when due. This authorization "
+        + "remains in effect until Customer revokes it in writing and Company has had a "
+        + "reasonable opportunity (not exceeding 15 days) to act.";
+    }
+    if (st === "requested") {
+      const how = p.method === "ach" ? "a bank account (ACH)" : "a credit or debit card";
+      return "<b>No payment method has been collected with this Agreement and Customer "
+        + "authorizes no charge by signing it.</b> Customer indicates an intention to pay by "
+        + how + (p.autopayRequested === true
+            ? " and has asked to be enrolled in automatic payments" : "")
+        + ". Company will contact Customer separately to set up payment before the initial "
+        + "service, and any authorization to charge a specific account will be given at that "
+        + "time, separately from this Agreement. Until then Company will invoice each charge.";
+    }
+    return "<b>No payment method has been collected with this Agreement and Customer "
+      + "authorizes no charge by signing it.</b> Company will contact Customer to arrange "
+      + "payment before the initial service, and will invoice each charge until Customer "
+      + "separately authorizes a payment method.";
+  }
 
   function docHTML(c, sigDataUrl) {
     return `<!doctype html><html><head><meta charset="utf-8">

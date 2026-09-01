@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "The ONE definition of who may manage territories in RALLY.",
+    "The server enforces it (db/migrations/0003_territory_authorization.sql).",
+    "The client mirrors it for UX only (STORE.canManageTerritories in js/store.js).",
+    "Both are tested against THIS file so the two matrices cannot drift:",
+    "  db/test/rls-test.sql   section 13  (server side)",
+    "  tests/role-test.js                 (client side)",
+    "Keys are profile roles as constrained by profiles.role in 0001.",
+    "Adding a second capability here means updating the sh parser in",
+    "db/test/run-rls-tests.sh, which today assumes one capability block."
+  ],
+  "manageTerritories": {
+    "rep": false,
+    "leader": true,
+    "manager": true,
+    "owner": true
+  }
+}

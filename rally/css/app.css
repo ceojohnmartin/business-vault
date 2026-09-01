@@ -1030,3 +1030,25 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .acc-meta{flex:1;text-align:right;font-size:12.5px;font-weight:700;color:#15803D}
 .acc-chev{color:var(--t3);font-size:14px;transition:transform .18s}
 .acc-band.open .acc-chev{transform:rotate(180deg)}
+
+/* where a role came from (server-confirmed, cached-offline, unconfirmed, or
+   a local-only device that no office has authorized) */
+.role-note { color: var(--muted, #6b7280); font-style: italic; }
+
+/* work that belongs to the team but provably to no individual — shown, and
+   never quietly folded into somebody's numbers */
+.rank-unattr { margin: 10px 2px 0; font-size: 12px; line-height: 1.45;
+  color: var(--t3, #6b7280); font-style: italic; }
+
+/* payment: what RALLY actually knows, said out loud. RALLY captures no card
+   or bank credentials, so the record can only ever describe an intent. */
+.pay-pending { font-size: 12px; line-height: 1.5; margin: 10px 2px 0;
+  color: var(--t3, #6b7280); }
+.pay-legacy { font-size: 12px; line-height: 1.5; margin: 6px 2px 0;
+  color: var(--t3, #6b7280); font-style: italic; }
+
+/* the server said no: never dressed up as pending or as synced */
+.sync-chip.refused, #sync-chip.refused {
+  background: var(--warn-bg, #FEF2F2); color: var(--warn-ink, #991B1B);
+  border-color: var(--warn-ink, #991B1B);
+}

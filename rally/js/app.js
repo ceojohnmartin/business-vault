@@ -27,8 +27,8 @@
   let rankMetric = "sales";
 
   function renderRankScreen() {
-    $("#rank-coach-btn").hidden = !STORE.isManager();
-    if (rankView === "coach" && !STORE.isManager()) rankView = "team";
+    $("#rank-coach-btn").hidden = !STORE.seesWholeTeam();
+    if (rankView === "coach" && !STORE.seesWholeTeam()) rankView = "team";
     $$("#rank-seg .seg-opt").forEach((b) => b.classList.toggle("sel", b.dataset.v === rankView));
     $("#rank-team").hidden = rankView !== "team";
     $("#rank-me").hidden = rankView !== "me";
@@ -59,11 +59,20 @@
   }
 
   function renderCoach() {
-    const weekStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); })();
-    const rows = STORE.users.map((u) => ({ u, s: STORE.repStats(u.id, weekStart) }));
+    const weekStart = STORE.weekStart();
+    // only people whose work is provably theirs get a coaching card; the
+    // rest of the log is reported as unattributed rather than pinned on
+    // whoever happens to be nearby in the list
+    const rows = STORE.users
+      .filter((u) => STORE.isAttributed(u.id))
+      .map((u) => ({ u, s: STORE.repStats(u.id, weekStart) }));
     const anyData = rows.some((r) => r.s.doors > 0);
+    const unattributed = STORE.unattributedDoors(weekStart);
     $("#coach-list").innerHTML = (anyData ? "" :
-      `<p class="demo-note" style="text-align:left">Knocks are attributed to whoever the device is set to (More → Team &amp; roles). Work a shift and this fills in.</p>`) +
+      `<p class="demo-note" style="text-align:left">Knocks are attributed to the rep signed in on the device that logged them. Work a shift and this fills in.</p>`) +
+      (unattributed
+        ? `<div class="rank-unattr">${unattributed} door${unattributed === 1 ? "" : "s"} this week aren't attributed to anyone — team history, nobody's card.</div>`
+        : "") +
       rows.map(({ u, s }) => {
         const ins = coachInsight(s);
         return `<div class="coach-card">
@@ -78,22 +87,48 @@
       }).join("");
   }
 
+  /* The board ranks REAL people on this team, by work that is provably
+     theirs. Nobody is invented to pad it out, and a rep is never ranked
+     against a fictional field — if there is nothing to rank, it says so. */
   function renderRank() {
-    const w = STORE.weekStats();
-    const me = {
-      name: STORE.settings.repName || "You",
-      team: STORE.settings.teamName || "My Team",
-      doors: w.doors, dms: w.dms, sales: w.sales, me: true,
-    };
-    const rows = [...MDATA.DEMO_TEAM, me].sort((a, b) => (b[rankMetric] || 0) - (a[rankMetric] || 0));
-    $("#rank-list").innerHTML = rows.map((r, i) =>
+    const weekStart = STORE.weekStart();
+    const myId = STORE.myId();
+    const rows = STORE.users
+      .filter((u) => STORE.isAttributed(u.id))
+      .map((u) => {
+        const s = STORE.repStats(u.id, weekStart);
+        return {
+          name: u.name, team: STORE.settings.teamName || "My Team",
+          doors: s.doors, dms: s.dms, sales: s.sales, me: u.id === myId,
+        };
+      })
+      .sort((a, b) => (b[rankMetric] || 0) - (a[rankMetric] || 0));
+
+    const unattributed = STORE.unattributedDoors(weekStart);
+    const anyWork = rows.some((r) => r.doors || r.dms || r.sales);
+    const el = $("#rank-list");
+    if (!rows.length || !anyWork) {
+      // an honest empty state beats a made-up one
+      el.innerHTML = `<div class="empty plain">Nothing to rank this week yet.` +
+        (rows.length <= 1
+          ? ` Once your team is on RALLY and knocking, the board fills in.`
+          : ` Knocks land here as reps work.`) +
+        (unattributed ? `<br><span class="dim">${unattributed} door${unattributed === 1 ? "" : "s"} this week can't be matched to a rep.</span>` : "") +
+        `</div>`;
+      return;
+    }
+    el.innerHTML = rows.map((r, i) =>
       `<div class="rank-row${i === 0 ? " first" : ""}${r.me ? " me" : ""}">
          <div class="pos">${i === 0 ? "👑" : i + 1}</div>
-         <div class="av">${r.name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase()}</div>
-         <div><div class="nm">${esc(r.name)}${r.me && r.name !== "You" ? " (you)" : ""}</div><div class="tm">${esc(r.team)}</div></div>
+         <div class="av">${esc(r.name.split(" ").map((x) => x[0]).join("").slice(0, 2).toUpperCase())}</div>
+         <div><div class="nm">${esc(r.name)}${r.me ? " (you)" : ""}</div><div class="tm">${esc(r.team)}</div></div>
          <div class="sc num">${r[rankMetric] || 0}</div>
        </div>`
-    ).join("");
+    ).join("") +
+    // knocks that belong to nobody are shown, never folded into a person
+    (unattributed
+      ? `<div class="rank-unattr">${unattributed} door${unattributed === 1 ? "" : "s"} this week aren't attributed to a rep — they count for the team, not for anyone's rank.</div>`
+      : "");
   }
 
   // ---------- field guide ----------
@@ -141,8 +176,11 @@
       : "Set the name printed on every agreement";
     const me = STORE.currentUser();
     $("#more-team-sub").textContent = me
-      ? `${STORE.users.length} teammate${STORE.users.length === 1 ? "" : "s"} · this device: ${me.name} (${me.role})`
+      ? `${STORE.users.length} teammate${STORE.users.length === 1 ? "" : "s"} · this device: ${me.name}`
       : "Add your reps and managers";
+    // where this device's authority actually comes from, said plainly
+    const rl = $("#more-role-line");
+    if (rl) rl.textContent = STORE.roleLine();
     $("#more-profile-sub").textContent = `${s.repName} · ${s.teamName}`;
     $("#more-goals-sub").textContent =
       `${s.doorGoal} doors/day · ${fmtMoney(s.commissionPerSale)}/sale`;
@@ -168,8 +206,12 @@
       ? "Signed in as " + MAUTH.accountEmail()
       : "No device lock set up yet";
     const syncSt = window.MSYNC && MSYNC.status();
+    // "synced" is a claim, and it is only true when nothing is waiting AND
+    // nothing was refused. A record the server rejected is neither.
     const syncBit = syncSt && syncSt.on
-      ? (syncSt.pending ? `${syncSt.pending} to sync` : "synced")
+      ? (!syncSt.loaded ? "checking sync…"
+          : syncSt.refused ? `${syncSt.refused} refused by the server`
+          : syncSt.pending ? `${syncSt.pending} to sync` : "synced")
       : `${STORE.queuedCount()} queued for sync`;
     $("#more-export-sub").textContent = STORE.customers.length
       ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${syncBit}`
@@ -179,16 +221,35 @@
   // ---------- team & roles ----------
   function renderTeam() {
     const cur = STORE.settings.currentUserId;
+    // With a company account, roles are the OFFICE's to set: the server
+    // decides them and the server enforces them (see 0003). Offering a
+    // "Make mgr" button here would promise something this device cannot do
+    // and the next profile sync would silently undo it.
+    const serverRoles = !!(window.MCLOUD && MCLOUD.enabled());
+    // adding a local person on a cloud device is theatre: the roster comes
+    // from the server's profiles, and a local row would just be adopted or
+    // shadowed by the next sync
+    const addWrap = $("#team-add-wrap");
+    if (addWrap) addWrap.hidden = serverRoles;
+    const note = $("#team-role-note");
+    if (note) {
+      note.hidden = !serverRoles;
+      note.textContent = "Roles are set by the office and enforced by the server. "
+        + "This list shows what the server last told this device — people are "
+        + "added and removed there, not here.";
+    }
     $("#team-list").innerHTML = STORE.users.map((u) => {
       const hoods = STORE.hoodsOf(u.id).length;
+      const label = STORE.ROLE_LABELS[u.role] || "Rep";
       return `<div class="team-row">
         <span class="dot" style="background:${u.color}"></span>
-        <span class="tn"><b>${esc(u.name)}</b><span class="tr">${u.role === "manager" ? "Manager" : "Rep"} · ${hoods} hood${hoods === 1 ? "" : "s"}</span></span>
-        ${u.id === cur
-          ? '<span class="me-chip">This device</span>'
+        <span class="tn"><b>${esc(u.name)}</b><span class="tr">${label} · ${hoods} hood${hoods === 1 ? "" : "s"}</span></span>
+        ${u.id === cur ? '<span class="me-chip">This device</span>'
+          : serverRoles ? ""
           : `<button class="team-btn team-me" data-id="${u.id}" type="button">Use</button>`}
-        <button class="team-btn team-role" data-id="${u.id}" type="button">${u.role === "manager" ? "Make rep" : "Make mgr"}</button>
-        <button class="mini-x team-del" data-id="${u.id}" type="button" aria-label="Remove">✕</button>
+        ${serverRoles ? "" : `
+          <button class="team-btn team-role" data-id="${u.id}" type="button">${u.role === "manager" ? "Make rep" : "Make mgr"}</button>
+          <button class="mini-x team-del" data-id="${u.id}" type="button" aria-label="Remove">✕</button>`}
       </div>`;
     }).join("");
 
@@ -201,17 +262,18 @@
         const u = STORE.userById(b.dataset.id);
         if (!u) return;
         STORE.settings.currentUserId = u.id;
-        STORE.settings.repName = u.name; // sales + leaderboard follow the device identity
+        STORE.settings.repName = u.name; // display name only — never identity
         await STORE.saveSettings();
+        await STORE.loadRoleState();
         afterChange();
-        toast(`This device is now ${u.name} (${u.role})`);
+        toast(`This device is now ${u.name}`);
       }));
     $$("#team-list .team-role").forEach((b) =>
       b.addEventListener("click", async () => {
         const u = STORE.userById(b.dataset.id);
         if (!u) return;
-        const managers = STORE.users.filter((x) => x.role === "manager");
-        if (u.role === "manager" && managers.length === 1) {
+        const leads = STORE.users.filter((x) => STORE.canManageTerritories(x.role));
+        if (STORE.canManageTerritories(u.role) && leads.length === 1) {
           toast("Every team needs at least one manager"); return;
         }
         u.role = u.role === "manager" ? "rep" : "manager";
@@ -223,8 +285,8 @@
         const u = STORE.userById(b.dataset.id);
         if (!u) return;
         if (STORE.users.length === 1) { toast("Can't remove the last teammate"); return; }
-        const managers = STORE.users.filter((x) => x.role === "manager");
-        if (u.role === "manager" && managers.length === 1) {
+        const leads = STORE.users.filter((x) => STORE.canManageTerritories(x.role));
+        if (STORE.canManageTerritories(u.role) && leads.length === 1) {
           toast("Every team needs at least one manager"); return;
         }
         if (!confirm(`Remove ${u.name}? Their hoods go back to the pool (history is kept).`)) return;
@@ -444,6 +506,10 @@
       console.error("storage unavailable", e);
       MUI.toast("Storage unavailable — running without saving");
     }
+    // the trusted role this device last heard from the server, loaded before
+    // a single privileged control can render. The gate's revalidate() and the
+    // first sync cycle refresh it; until then this is what we honestly know.
+    try { await STORE.loadRoleState(); } catch (_) {}
     // splash, then the device gate — resolves once this device is unlocked
     try {
       await MGATE.run();
@@ -502,7 +568,9 @@
     try { MMAP.init(); } catch (e) { console.error("map init failed", e); }
     renderGuide("");
     renderMore();
-    window.MAPP = { show };
+    // a role change (promotion, demotion, or the first server answer landing)
+    // has to reach the privileged surfaces immediately — not on next launch
+    window.MAPP = { show, roleChanged: () => { renderMore(); renderRankScreen(); } };
     show("customers"); // Customers is the front tab now; Home lives in More
 
     // keep a focused input visible above the on-screen keyboard inside sheets

@@ -98,6 +98,10 @@ CASES.push(
   [null, { billingAddress: { street: "rt 021000021", city: "acct 123456789012", state: "chk", zip: "84001" } }],
   [null, { billingAddress: { street: "12345 W 5600 S Apt 1201", city: "Salt Lake City", state: "UT", zip: "84604-1234" } }],
   [SAFE, { billingAddress: { state: "12/30 cvv 123" } }],
+  [{ method: "card", billingAddress: { street: "4111 1111", city: "Provo", state: "UT", zip: "84604" } },
+   { billingAddress: { city: "1111 1111" } }],                                            // second half, second write
+  [{ billingAddress: { street: "4111 1111 1111", city: "1111", state: "UT", zip: "84604" } },
+   { billingAddress: { state: "UT" } }],                                                  // stored halves: dropped
   [null, { billingAddress: { zip: "021000021" } }],
   [null, { billingAddress: { zip: "02100-0021" } }],
   [{ method: "card", status: "active" }, { method: "card", status: "not_configured" }],

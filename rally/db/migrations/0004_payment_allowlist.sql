@@ -84,6 +84,15 @@
 --     The hyphen is required.
 --   * and a status a client could never have written is no longer
 --     overwritable by a client sending a value it could.
+--   * the address budget first judged only the INCOMING leaves, so the two
+--     halves of a card number could arrive in two writes. It judges the
+--     RESULT now — sent merged with stored — and a stored address that is
+--     itself a credential does not survive by being stored.
+-- WHAT IS LEFT, BY DESIGN: a twelve-digit "street" plus a four-digit last4
+-- in one write is a card number, and it is also the exact shape of a long
+-- real address beside a real last4. No count can tell them apart without
+-- refusing real records, and this file is shape enforcement on payment
+-- fields, not a scanner. That case is the rep operating rule's to cover.
 --
 -- Idempotent: safe to run more than once.
 
@@ -332,35 +341,49 @@ begin
     /* billingAddress: four named leaves, each following the rule on its
        own, so one bad field cannot wipe the other three. Arbitrary nested
        JSON, extra keys and non-string values cannot pass through. */
-    /* The three text leaves are also judged TOGETHER. A per-leaf cut cannot
-       see a card number split "4111 1111" / "1111 1111" across street and
-       city, or a routing number in one leaf and an account number in the
-       next — each half is under its own cut. An address never carries
-       thirteen digits across street, city and state combined, so when the
-       incoming leaves do, none of them is an address and all three are
-       treated as NOT SENT. A state carries no digits at all; five is the
-       allowance, in case a zip lands in the wrong box. */
-    declare_addr_budget := public.pay_digit_count(pay->'billingAddress'->>'street')
-                         + public.pay_digit_count(pay->'billingAddress'->>'city')
-                         + public.pay_digit_count(pay->'billingAddress'->>'state');
+    /* The three text leaves are also judged TOGETHER, on the RESULT.
+       A per-leaf cut cannot see a card number split "4111 1111" / "1111
+       1111" across street and city, or a routing number in one leaf and an
+       account number in the next: each half is under its own cut. And a
+       budget over the INCOMING leaves alone cannot see the same halves
+       arriving in two separate writes. So the candidate address — what
+       this write would leave stored, sent merged with stored — is what is
+       judged. An address never carries thirteen digits across street, city
+       and state; when the candidate would, the incoming leaves are treated
+       as NOT SENT and the stored ones stand, and if the stored ones alone
+       already carry thirteen, they are dropped too. A state carries no
+       digits at all; five is the allowance, in case a zip lands in the
+       wrong box. */
     addr := '{}'::jsonb;
+    addr := public.pay_put(addr, 'street',
+      public.pay_pick_text(pay->'billingAddress'->'street',
+                           prev->'billingAddress'->'street', 120, 13));
+    addr := public.pay_put(addr, 'city',
+      public.pay_pick_text(pay->'billingAddress'->'city',
+                           prev->'billingAddress'->'city', 80, 13));
+    addr := public.pay_put(addr, 'state',
+      public.pay_pick_text(pay->'billingAddress'->'state',
+                           prev->'billingAddress'->'state', 40, 5));
+    declare_addr_budget := public.pay_digit_count(addr->>'street')
+                         + public.pay_digit_count(addr->>'city')
+                         + public.pay_digit_count(addr->>'state');
     if declare_addr_budget >= 13 then
+      -- the result would be a credential: refuse this write's contribution
+      addr := '{}'::jsonb;
       addr := public.pay_put(addr, 'street',
         public.pay_pick_text('null'::jsonb, prev->'billingAddress'->'street', 120, 13));
       addr := public.pay_put(addr, 'city',
         public.pay_pick_text('null'::jsonb, prev->'billingAddress'->'city', 80, 13));
       addr := public.pay_put(addr, 'state',
         public.pay_pick_text('null'::jsonb, prev->'billingAddress'->'state', 40, 5));
-    else
-      addr := public.pay_put(addr, 'street',
-        public.pay_pick_text(pay->'billingAddress'->'street',
-                             prev->'billingAddress'->'street', 120, 13));
-      addr := public.pay_put(addr, 'city',
-        public.pay_pick_text(pay->'billingAddress'->'city',
-                             prev->'billingAddress'->'city', 80, 13));
-      addr := public.pay_put(addr, 'state',
-        public.pay_pick_text(pay->'billingAddress'->'state',
-                             prev->'billingAddress'->'state', 40, 5));
+      declare_addr_budget := public.pay_digit_count(addr->>'street')
+                           + public.pay_digit_count(addr->>'city')
+                           + public.pay_digit_count(addr->>'state');
+      if declare_addr_budget >= 13 then
+        -- what is stored is itself a credential (planted, or predating
+        -- the rule): it does not get to survive by being stored
+        addr := '{}'::jsonb;
+      end if;
     end if;
     -- a zip is a US zip or nothing. ZIP+4 REQUIRES its hyphen: nine bare
     -- digits is the shape of a routing number, not of a zip.

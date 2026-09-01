@@ -447,8 +447,13 @@ and a digit cut that only counted ASCII digits. All are closed and pinned in
 A second round against that body found three more leaf-level gaps — a
 hand-typed digit class missing 54 of 66 Unicode digit blocks, a credential
 split across address leaves passing each leaf's cut, and ZIP+4 accepting nine
-bare digits — closed and pinned in §20. The client's `honestPayment()` carries
-the identical rules and the identical generated digit table.
+bare digits — closed and pinned in §20, along with the two-write assembly of a
+split credential the first budget could not see. The client's
+`honestPayment()` carries the identical rules and the identical generated
+digit table. **Residual, by design:** a twelve-digit "street" plus a real-shaped
+`last4` in one write is a card number and also the exact shape of a legitimate
+record; no digit count separates them without refusing real addresses, so that
+case is the rep operating rule's to cover, not the trigger's.
 
 ## Smart Split is one server fact (0005)
 

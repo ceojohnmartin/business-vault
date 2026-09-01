@@ -99,14 +99,23 @@ function scrubTrigger(row, prevRow) {
 
   const pb = isObj(p.billingAddress) ? p.billingAddress : {};
   const ob = isObj(o.billingAddress) ? o.billingAddress : {};
-  const addr = {};
-  // the three text leaves are judged TOGETHER too: 13+ digits across them is
-  // a split credential, not an address, and all three count as not sent
-  const budget = digits(pb.street) + digits(pb.city) + digits(pb.state);
-  const sb = budget >= 13 ? {} : pb;
-  put(addr, "street", pickText(sb.street, ob.street, 120, 13));
-  put(addr, "city", pickText(sb.city, ob.city, 80, 13));
-  put(addr, "state", pickText(sb.state, ob.state, 40, 5));
+  // the three text leaves are judged TOGETHER, on the RESULT (sent merged
+  // with stored): 13+ digits across them is a split credential, whether the
+  // halves arrive in one write or two. Then this write's contribution is
+  // refused; and if the stored leaves alone are a credential, they go too.
+  const addrOf = (src) => {
+    const a = {};
+    put(a, "street", pickText(src.street, ob.street, 120, 13));
+    put(a, "city", pickText(src.city, ob.city, 80, 13));
+    put(a, "state", pickText(src.state, ob.state, 40, 5));
+    return a;
+  };
+  const budgetOf = (a) => digits(a.street) + digits(a.city) + digits(a.state);
+  let addr = addrOf(pb);
+  if (budgetOf(addr) >= 13) {
+    addr = addrOf({});
+    if (budgetOf(addr) >= 13) addr = {};
+  }
   // ZIP+4 requires its hyphen: nine bare digits is a routing number's shape
   put(addr, "zip", pickRe(pb.zip, ob.zip, 10, /^([0-9]{5}(-[0-9]{4})?)?$/));
   if (Object.keys(addr).length) safe.billingAddress = addr;

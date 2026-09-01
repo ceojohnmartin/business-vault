@@ -1483,6 +1483,36 @@ select t_assert(
      from public.customers where id = 'cust-adv-i'),
   'I4 a state line carrying an expiry and a CVV is refused on its own');
 
+-- I6. the halves arriving in TWO writes are still one credential
+select pg_temp.upsert_prod('cust-adv-i6',
+  '{"payment":{"method":"card","billingAddress":{"street":"4111 1111","city":"Provo","state":"UT","zip":"84604"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-adv-i6', '{"payment":{"billingAddress":{"city":"1111 1111"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'street' = '4111 1111'
+      and data->'payment'->'billingAddress'->>'city' = 'Provo'
+     from public.customers where id = 'cust-adv-i6'),
+  'I6 the second half of a PAN sent in a later write is refused against the stored first half');
+update public.customers set data = jsonb_set(data, '{payment,billingAddress,street}', '"4111 1111 1111"'::jsonb)
+ where id = 'cust-adv-i6';
+select pg_temp.upsert_prod('cust-adv-i6', '{"payment":{"billingAddress":{"state":"1111"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'state' = 'UT'
+     from public.customers where id = 'cust-adv-i6'),
+  'I7 …and so is a four-digit tail sent as the state');
+-- and stored leaves that are themselves a credential (planted past the rule) do not survive by being stored
+alter table public.customers disable trigger customers_scrub_payment;
+update public.customers set data = jsonb_set(data, '{payment,billingAddress}',
+  '{"street":"4111 1111 1111","city":"1111","state":"UT","zip":"84604"}'::jsonb)
+ where id = 'cust-adv-i6';
+alter table public.customers enable trigger customers_scrub_payment;
+select pg_temp.upsert_prod('cust-adv-i6', '{"payment":{"billingAddress":{"state":"UT"}}}'::jsonb);
+select t_assert(
+  (select not (data->'payment'->'billingAddress' ? 'street')
+      and not (data->'payment'->'billingAddress' ? 'city')
+      and data->'payment'->'billingAddress'->>'zip' = '84604'
+     from public.customers where id = 'cust-adv-i6'),
+  'I8 a planted split credential in the stored address is dropped on the next write, zip untouched');
+
 -- J. nine bare digits is a routing number, not a zip
 select pg_temp.upsert_prod('cust-adv-j', '{"payment":{"method":"ach","billingAddress":{"zip":"021000021"}}}'::jsonb);
 select t_assert(

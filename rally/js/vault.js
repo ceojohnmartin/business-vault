@@ -138,6 +138,12 @@
   };
 
   async function backup() {
+    // a backup written from an unsanitised device could carry a credential
+    // forward forever — refuse rather than produce one
+    if (STORE.paymentSafe && !STORE.paymentSafe()) {
+      MUI.toast("Payment data isn't confirmed clean on this device — reopen RALLY before backing up");
+      return;
+    }
     const data = {};
     for (const s of STORES) {
       const rows = await MDB.getAll(s);

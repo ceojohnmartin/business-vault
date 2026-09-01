@@ -127,13 +127,23 @@
     return c;
   }
 
+  // If sanitation could not be CONFIRMED, this device may still be holding a
+  // raw credential. It does not get to keep doing customer/payment work.
+  function sanitationBlocked() {
+    if (STORE.paymentSafe && STORE.paymentSafe()) return false;
+    toast("RALLY couldn't finish securing stored payment data on this device — reopen the app. Customer work is paused.");
+    return true;
+  }
+
   function startNew() {
+    if (sanitationBlocked()) return;
     cur = stampAuthor(blank()); curId = null;
     returnTo = "customers";
     openEditor("Creating Customer");
   }
 
   function startForPin(pin) {
+    if (sanitationBlocked()) return;
     cur = stampAuthor(blank()); curId = null;
     returnTo = "map";
     cur.pinId = pin.id; cur.lat = pin.lat; cur.lng = pin.lng;
@@ -1180,6 +1190,7 @@
 
   // ---------- export (More menu) ----------
   async function exportAll() {
+    if (sanitationBlocked()) return;
     if (!STORE.customers.length) { toast("Nothing to export yet"); return; }
     // The export gets handed to the office. It carries no credentials:
     // RALLY holds no card or bank numbers to leak into it, and the

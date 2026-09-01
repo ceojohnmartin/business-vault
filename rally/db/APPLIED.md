@@ -32,8 +32,23 @@ point of `rally/tests/mixed-version-test.js`.
    pre-0003 database is strictly today's database with fewer controls shown
    to reps, and v39's own contract language is correct without 0004.
 3. **Get every device onto v39 and verify each one by eye** (see below).
-4. **Apply 0004.**
-5. **Apply 0003.**
+4. **Apply `APPLY_v39.sql`** — 0004 and 0003 in ONE transaction.
+5. **Run `test/verify-production.sql`** — behavioural, rollback-safe.
+
+## Why one transaction
+
+`APPLY_v39.sql` wraps both migrations in `begin; … commit;`. Both are pure DDL
+and DDL is transactional in PostgreSQL, so if either half raises, the COMMIT
+never happens and **neither becomes live**. There is no half-migrated
+production state to reason about or clean up.
+
+Proven: replacing a function reference in the second half with a nonexistent
+one aborts the transaction and leaves both the territory policies and the
+payment trigger at their pre-migration state.
+
+Paste the whole file into the Supabase SQL editor. It is self-contained — the
+editor does not support `\i` includes, so the two migration bodies are inlined
+verbatim. Regenerate it with `db/build-apply.sh` if either migration changes.
 
 ### This is a maintenance window, not a rolling update
 
@@ -108,6 +123,34 @@ path still tombstones and releases; and under a mid-flight demotion every
 affected door is byte-for-byte what it was before the attempt, with nothing
 excluded from the comparison.
 
+## Release coherence — what "Build v39" actually certifies
+
+The app has no build step and no content hashing, and the shell is served
+network-first with an INDEPENDENT per-file race against cache. With bare
+filenames a single page load could therefore mix modules from two releases —
+and it did: a device on a slow link at the moment of publish was measured
+serving v39's `index.html` alongside v38's `store.js`, `sync.js`,
+`customers.js` and `data.js`. The build label said v39; almost nothing else
+was.
+
+Every code asset now carries `?v=<release>` in both `index.html` and the
+service worker's precache list. The query string is part of the Cache API key
+(nothing sets `ignoreSearch`), so a versioned URL simply MISSES an older
+cache; `networkFirstShell` then takes its no-cache branch and *awaits* the
+network instead of racing it. Whichever `index.html` a device gets, the
+modules match it:
+
+- fast link → new `index.html` → versioned URLs → miss → real v39 modules
+- slow link → cached v38 `index.html` → bare URLs → all cached → coherent v38
+
+**"Build v39" now means the whole release is v39.** Regression test:
+`tests/upgrade-transition-test.js` sections 4e and 6, with a wire-level delay
+(a client-side delay would not work — Playwright's `route()` does not
+intercept service-worker fetches, and a test built that way is vacuous).
+
+When cutting the next release, bump `?v=` in `index.html` and `sw.js`
+together with the `CACHE` name. They must agree.
+
 ## Verifying a device is on v39
 
 `RALLY_BUILD` is never synced, so there is no fleet dashboard. Two signals:
@@ -153,6 +196,51 @@ one is v38 markup with v39 code, where the removed card and bank inputs are
 still on the page and v39's code never reads them. v39 detects exactly that
 and disables those inputs with "Reopen RALLY to finish updating" rather than
 letting a rep type a card number into a dead field.
+
+## Evidence gap: the service-worker transition is Chromium-only
+
+Every service-worker result in this repo — the one-reopen upgrade, the cache
+swap, the release-coherence proof — was produced with **Playwright driving
+Chromium**. That is the only browser engine installed here:
+
+    /opt/pw-browsers/  ->  chromium, chromium-1194, chromium_headless_shell, ffmpeg
+
+There is **no WebKit and no iOS device in this environment**, so none of it has
+been verified on an installed iPhone PWA. If the fleet is mostly iPhone, treat
+these as unverified on the platform that matters:
+
+- whether `skipWaiting()` + `clients.claim()` produce a `controllerchange`
+  reload in an installed iOS PWA the same way (WebKit has historically been
+  stricter about worker takeover, and a home-screen PWA is a separate
+  browsing context from Safari)
+- whether the all-or-nothing `addAll()` precache behaves the same under iOS
+  storage pressure, which evicts more aggressively than desktop Chromium
+- whether one reopen is enough, or whether iOS needs the app fully swiped away
+  from the app switcher first
+
+**Recommended before the window:** take ONE spare iPhone with the PWA
+installed, run the upgrade on it by hand, and confirm More reads Build v39
+after a single close-and-reopen. If it does not, the fleet procedure needs the
+swipe-away step, and that is much better learned on one phone than on all of
+them. Nothing else in this checklist depends on the answer.
+
+## Suspended old clients
+
+A maintenance window does not destroy a JavaScript heap. An iOS PWA that was
+open on v38, backgrounded, and resumed after the migrations is still running
+v38 code against a v39 database:
+
+- Its knock and customer work still syncs — neither migration touches those
+  policies.
+- Its territory writes are refused, and it cannot show that to the rep.
+- It is read-only for payment intent (its autopay toggle renders OFF on any
+  v39-touched customer and tapping it records nothing).
+- If it prints an agreement, the recurring-charge carve-out is wrong.
+
+The window rule already covers this, but only if it is enforced literally:
+**every device closed and reopened, verified by eye, before the migrations are
+applied.** A phone left in the app switcher is not closed. This is the reason
+step 3 requires a visual check rather than "they opened it".
 
 ## Do NOT blindly re-run 0002
 
@@ -235,7 +323,30 @@ Expected when applied: `true`. When not: `false` (the trigger still stores the
 legacy `autopay` field and drops `autopayRequested`, so a v39 client's record
 of what the customer actually asked for would be lost on every sync).
 
-## Rollback
+## Rollback ORDER — the hard rule
+
+**NEVER intentionally run v38 against 0003/0004.** Republishing the old client
+while the new migrations are live is the one combination that produces both
+failure modes at once: territory refusals a v38 device cannot show anyone, and
+a v38-printed agreement asserting recurring-charge authorization for a customer
+who declined autopay.
+
+If a rollback is needed AFTER the migrations are live, the order is the exact
+reverse of the deployment:
+
+1. **STOP PRODUCTION.** No sales, no territory administration.
+2. **Roll back 0003 and 0004** (blocks below).
+3. **Verify the old semantics** — the 0001 territory policies are back and the
+   payment trigger stores `autopay` again.
+4. **Publish the v38 assets.**
+5. **Drain every device back to v38** and verify each one by eye
+   (More → Build v38).
+6. **Smoke test.**
+7. **Resume production.**
+
+Rolling back only the client, or only the database, is never correct.
+
+## Rollback blocks
 
 Each migration carries its own rollback in a comment block at the bottom of
 its file:

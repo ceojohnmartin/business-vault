@@ -82,8 +82,16 @@
       S.settings.currentUserId = S.users[0] ? S.users[0].id : null;
       await S.saveSettings().catch(() => {});
     }
-    // before ANYTHING can read, export, back up or sync a customer
-    await S.purgePaymentCredentials();
+    /* before ANYTHING can read, export, back up or sync a customer — and the
+       result is CONFIRMED, not assumed. A throw here must leave the app in
+       the not-safe state rather than silently continuing. */
+    try {
+      await S.purgePaymentCredentials();
+      await S.verifySanitation();
+    } catch (e) {
+      S.sanitation = { ok: false, checked: true, remaining: -1, stores: [],
+        error: "sanitation failed: " + ((e && e.message) || e) };
+    }
   });
 
   /* ---------- v39: raw payment credentials leave this device ----------
@@ -136,6 +144,57 @@
     if (dirty.length) await MDB.bulkPut("customers", dirty).catch(() => {});
     return dirty.length; // 0 on every run after the first — idempotent
   };
+
+  /* ---------- sanitation is CONFIRMED, never assumed ----------
+     A purge that threw, was killed mid-write, or could not open storage must
+     not be mistaken for a clean device. So after purging, every object store
+     is READ BACK and checked for a credential key, and the result is a fact
+     the app can gate on.
+
+     Every store is swept, not just customers, because "customers is clean"
+     is not the same claim as "this device holds no credential":
+       customers    the only store that ever held one by design
+       pins         knock/door records
+       events       the append-only knock log
+       territories  polygons and assignment history
+       users        people on this device
+       outbox       sync queue — rows are {k,table,id,op,at}, never a payload
+       kv           settings, cursors, the dead-letter, the cached profile
+     The files store holds agreement blobs; the contract engine prints no card
+     or bank digits at all (verified in js/contract.js), and its descriptors
+     are metadata, so blob bytes are not scanned. */
+  S.sanitation = { ok: false, checked: false, error: "", remaining: 0, stores: [] };
+
+  S.verifySanitation = async function () {
+    const SWEEP = ["customers", "pins", "events", "territories", "users", "outbox"];
+    const state = { ok: false, checked: true, error: "", remaining: 0, stores: [] };
+    try {
+      for (const name of SWEEP) {
+        const rows = await MDB.getAll(name);
+        let hits = 0;
+        for (const r of rows) if (S.stripPaymentCredentials(r)) hits++;
+        // stripPaymentCredentials MUTATES, so anything it found is now gone
+        // from memory; persist the repair rather than leave the two disagreeing
+        if (hits) await MDB.bulkPut(name, rows).catch(() => {});
+        state.remaining += hits;
+        state.stores.push(name + ":" + rows.length);
+      }
+      const kv = await MDB.getAll("kv");
+      const kvHit = kv.filter((r) => S.stripPaymentCredentials(r.v || {})).length;
+      state.remaining += kvHit;
+      state.stores.push("kv:" + kv.length);
+      state.ok = state.remaining === 0;
+      if (!state.ok) state.error = state.remaining + " record(s) still hold a payment credential";
+    } catch (e) {
+      state.ok = false;
+      state.error = "storage unreadable: " + ((e && e.message) || e);
+    }
+    S.sanitation = state;
+    return state;
+  };
+
+  // the gate every payment-touching surface asks before it will operate
+  S.paymentSafe = () => S.sanitation.ok === true;
 
   S.saveSettings = () => MDB.kvSet("settings", S.settings);
 
@@ -455,10 +514,14 @@
   };
 
   S.deletePin = async function (id) {
+    // captured BEFORE the delete: whether this row ever reached the server is
+    // the only thing that later tells a refused tombstone from one for a row
+    // the server never had
+    const gone = S.pins.find((p) => p.id === id) || null;
     S.pins = S.pins.filter((p) => p.id !== id);
     S.events = S.events.filter((e) => e.pinId !== id);
     await MDB.del("pins", id);
-    if (window.MSYNC) MSYNC.queueDelete("pins", id);
+    if (window.MSYNC) MSYNC.queueDelete("pins", id, gone);
     // events for the pin are removed from memory; purge from disk too
     const stale = await MDB.getAll("events");
     await Promise.all(stale.filter((e) => e.pinId === id).map((e) => MDB.del("events", e.id)));
@@ -489,7 +552,7 @@
     const c = S.customers.find((x) => x.id === id);
     S.customers = S.customers.filter((x) => x.id !== id);
     await MDB.del("customers", id);
-    if (window.MSYNC) MSYNC.queueDelete("customers", id);
+    if (window.MSYNC) MSYNC.queueDelete("customers", id, c);
     // sweep the customer's stored files (agreement snapshots, photos)
     if (c && Array.isArray(c.files)) {
       await Promise.all(c.files.map((f) => MDB.del("files", f.id).catch(() => {})));
@@ -619,9 +682,10 @@
      in the meantime is already a tolerated state: addKnock re-homes a stale
      one to whichever live polygon actually contains the door. */
   S.deleteTerritory = async function (id) {
+    const gone = S.territories.find((t) => t.id === id) || null;
     S.territories = S.territories.filter((t) => t.id !== id);
     await MDB.del("territories", id);
-    if (window.MSYNC) MSYNC.queueDelete("territories", id);
+    if (window.MSYNC) MSYNC.queueDelete("territories", id, gone);
     // With no cloud project there is no server to refuse it, so the delete
     // IS the fact and the doors are released now.
     if (!(window.MCLOUD && MCLOUD.enabled())) {

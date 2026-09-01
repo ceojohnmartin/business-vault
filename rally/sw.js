@@ -9,18 +9,32 @@ const TILE_CACHE = "rally-tiles-v1";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
 
+/* RELEASE COHERENCE. Every code asset carries ?v=<release>. The app has no
+   build step and no content hashing, and the shell is served network-first
+   with an INDEPENDENT per-file race against cache — so with bare filenames a
+   single page load could mix modules from two releases (new index.html plus
+   an old cached store.js), which throws at first render rather than at load.
+
+   The query string is part of the Cache API key (no ignoreSearch anywhere),
+   so a versioned URL simply MISSES an older cache. networkFirstShell then
+   takes its no-cache branch and awaits the network instead of racing it: the
+   module that arrives is the one this index.html asked for, or none at all.
+   A dead network therefore serves the OLD index.html from cache, which asks
+   for the OLD urls, which are all cached — coherent either way, never mixed.
+
+   Keep these in step with index.html: same paths, same ?v. */
 const CORE = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./css/app.css",
-  "./vendor/maplibre-gl.js", "./vendor/maplibre-gl.css",
-  "./js/db.js", "./js/geo.js", "./js/data.js", "./js/ui.js", "./js/store.js",
-  "./js/cloud-config.js", "./js/cloud.js", "./js/sync.js", "./js/realtime.js",
-  "./js/auth.js", "./js/gate.js",
-  "./js/property.js", "./js/crm.js",
-  "./js/contract.js", "./js/map.js", "./js/hoods.js", "./js/customers.js",
-  "./js/route.js", "./js/street.js", "./js/select.js",
-  "./js/home.js", "./js/schedule.js", "./js/stats.js",
-  "./js/vault.js", "./js/app.js",
+  "./css/app.css?v=39",
+  "./vendor/maplibre-gl.js?v=39", "./vendor/maplibre-gl.css?v=39",
+  "./js/db.js?v=39", "./js/geo.js?v=39", "./js/data.js?v=39", "./js/ui.js?v=39", "./js/store.js?v=39",
+  "./js/cloud-config.js?v=39", "./js/cloud.js?v=39", "./js/sync.js?v=39", "./js/realtime.js?v=39",
+  "./js/auth.js?v=39", "./js/gate.js?v=39",
+  "./js/property.js?v=39", "./js/crm.js?v=39",
+  "./js/contract.js?v=39", "./js/map.js?v=39", "./js/hoods.js?v=39", "./js/customers.js?v=39",
+  "./js/route.js?v=39", "./js/street.js?v=39", "./js/select.js?v=39",
+  "./js/home.js?v=39", "./js/schedule.js?v=39", "./js/stats.js?v=39",
+  "./js/vault.js?v=39", "./js/app.js?v=39",
   "./fonts/Noto Sans Bold/0-255.pbf", "./fonts/Noto Sans Bold/256-511.pbf",
   "./img/wordmark.svg", "./img/topo.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png",

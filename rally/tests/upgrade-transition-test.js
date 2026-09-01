@@ -28,6 +28,11 @@ if (!fs.existsSync(path.join(V38_ROOT, "index.html"))) {
 // ONE origin. What it serves is flipped at "publish" time, exactly like a
 // static deploy replacing the files under the same URLs.
 let SERVING = V38_ROOT;
+/* The shell is fetched BY THE SERVICE WORKER, and Playwright's route() does
+   not intercept service-worker requests — so a client-side delay would never
+   reach networkFirstShell and the test would be vacuous. The delay has to be
+   on the wire. */
+let SLOW_JS_MS = 0;
 const served = { v38: 0, v39: 0 };
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".png": "image/png", ".svg": "image/svg+xml",
@@ -36,13 +41,16 @@ const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p === "/") p = "/index.html";
   served[SERVING === V38_ROOT ? "v38" : "v39"]++;
+  const delay = (SLOW_JS_MS && /\.js$/.test(p) && !/index\.html$/.test(p)) ? SLOW_JS_MS : 0;
   fs.readFile(path.join(SERVING, p), (e, d) => {
     if (e) { res.writeHead(404); res.end(); return; }
-    res.writeHead(200, {
-      "Content-Type": MIME[path.extname(p)] || "application/octet-stream",
-      "Cache-Control": "no-cache",   // the SW is the cache, not the HTTP layer
-    });
-    res.end(d);
+    setTimeout(() => {
+      res.writeHead(200, {
+        "Content-Type": MIME[path.extname(p)] || "application/octet-stream",
+        "Cache-Control": "no-cache",   // the SW is the cache, not the HTTP layer
+      });
+      res.end(d);
+    }, delay);
   });
 });
 
@@ -191,12 +199,89 @@ const server = http.createServer((req, res) => {
     JSON.stringify(c3));
   check("4d total user-initiated opens needed: 1", opens === 2, `opens=${opens}`);
 
+  /* ---- 4e. RELEASE COHERENCE ----
+     "Build v39" must mean every loaded module is v39, not merely that
+     index.html is. Each of these lives in a DIFFERENT file, so a mixed load
+     would show up as a v39 build label with a v38-shaped API somewhere. */
+  const coherence = await page.evaluate(() => ({
+    build: window.RALLY_BUILD,
+    store_v39: typeof STORE.canManageTerritories === "function",
+    store_v38: typeof STORE.isManager === "function",
+    sync_v39: typeof MSYNC.refusals === "function",
+    customers_v39: typeof MCUST.honestPayment === "function",
+    data_v39: typeof MDATA.DEMO_TEAM === "undefined",
+    app_v39: !!(window.MAPP && MAPP.roleChanged),
+  }));
+  check("4e every module is from the same release as the build label",
+    coherence.build === "v39" && coherence.store_v39 && !coherence.store_v38 &&
+    coherence.sync_v39 && coherence.customers_v39 && coherence.data_v39 &&
+    coherence.app_v39, JSON.stringify(coherence));
+
   // ---- 5. the operator's verification signal is visible ----
   await page.evaluate(() => MAPP.show("more"));
   await settle(600);
   const buildLabel = await page.$eval("#more-build", (e) => e.textContent).catch(() => "");
   check("5a More shows the build, so a device can be verified by eye",
     /v39/.test(buildLabel), buildLabel);
+
+  /* ---- 6. THE TRANSITION MOMENT, ON A SLOW LINK ----
+     This is the only window where a mixed release was ever possible, and it
+     needs a FRESH context: a device whose cache still holds the OLD release
+     while the new one is published under it. (Testing this after the upgrade
+     proves nothing — the old cache has already been deleted by then.)
+
+     index.html is served fast; every module is delayed past the shell's
+     3.5s per-file race. With bare filenames the new index.html asked for
+     urls the OLD cache already had, so each raced, timed out, and resolved
+     to the OLD module: a v39 page running v38 code. Versioned urls are
+     absent from that cache, so the no-cache branch runs and the module is
+     awaited instead of raced. */
+  {
+    SERVING = V38_ROOT;
+    const c2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await c2.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    await c2.addInitScript(() => { window.RALLY_CLOUD = { url: "", anonKey: "" }; });
+    const p2 = await c2.newPage();
+    await p2.goto(`http://localhost:${PORT}/`);
+    await p2.waitForFunction(() => document.querySelector("#splash").hidden, null, { timeout: 25000 });
+    await p2.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 25000 })
+      .catch(() => {});
+    await p2.waitForTimeout(1500);
+    const pre = await p2.evaluate(() => ({ b: window.RALLY_BUILD, k: null }))
+      .then(async (x) => ({ ...x, k: await p2.evaluate(() => caches.keys()) }));
+    check("6a the device is on v38 with a populated v38 cache",
+      pre.b === "v38" && pre.k.includes("rally-v38"), JSON.stringify(pre));
+
+    // publish v39 underneath it, and make every module slower than the race
+    SERVING = V39_ROOT;
+    SLOW_JS_MS = 4500;                    // > NET_TIMEOUT_MS (3500), on the wire
+    await p2.goto(`http://localhost:${PORT}/`);
+    await p2.waitForFunction(() => !!(window.STORE && window.MSYNC && window.MCUST),
+      null, { timeout: 90000 }).catch(() => {});
+    await p2.waitForTimeout(1500);
+    const mix = await p2.evaluate(() => ({
+      build: window.RALLY_BUILD,
+      store_v39: typeof STORE.canManageTerritories === "function",
+      store_v38: typeof STORE.isManager === "function",
+      sync_v39: typeof MSYNC.refusals === "function",
+      customers_v39: typeof MCUST.honestPayment === "function",
+      data_v39: typeof MDATA.DEMO_TEAM === "undefined",
+    })).catch((e) => ({ error: String(e).slice(0, 80) }));
+    // Either outcome is CORRECT: a coherent v39 page, or a coherent v38 page
+    // (the shell itself fell back to cache). What must never happen is a v39
+    // label over v38 modules.
+    const coherentV39 = mix.build === "v39" && mix.store_v39 && !mix.store_v38 &&
+      mix.sync_v39 && mix.customers_v39 && mix.data_v39;
+    const coherentV38 = mix.build === "v38" && !mix.store_v39 && mix.store_v38 &&
+      !mix.sync_v39 && !mix.customers_v39;
+    check("6b a slow link at the transition cannot produce a MIXED release",
+      coherentV39 || coherentV38, JSON.stringify(mix));
+    check("6c …and it is not a v39 label over v38 modules",
+      !(mix.build === "v39" && mix.store_v38), JSON.stringify(mix));
+    await c2.close();
+    SLOW_JS_MS = 0;
+    SERVING = V39_ROOT;
+  }
 
   check("no page errors across the upgrade", errors.length === 0, errors.slice(0, 4).join(" | "));
 

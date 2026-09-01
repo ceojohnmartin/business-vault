@@ -320,6 +320,68 @@ const DUMP = `(async () => {
   check("D2 …and says outright that RALLY captures none",
     /captures NO payment credentials/i.test(exp || ""));
 
+  /* ===== E. SANITATION MUST BE CONFIRMED, NOT ASSUMED =====
+     A purge that threw, was killed mid-write, or could not open storage must
+     not be mistaken for a clean device. */
+  const clean = await page.evaluate(() => ({
+    safe: STORE.paymentSafe(), state: STORE.sanitation }));
+  check("E1 a healthy device confirms sanitation and reports what it swept",
+    clean.safe === true && clean.state.remaining === 0 && clean.state.stores.length >= 7,
+    JSON.stringify(clean.state));
+  check("E2 …and the sweep covers every store, not just customers",
+    ["customers", "pins", "events", "territories", "users", "outbox", "kv"]
+      .every((n) => clean.state.stores.some((x) => x.indexOf(n + ":") === 0)),
+    clean.state.stores.join(" "));
+
+  // storage unreadable mid-sweep
+  const broken = await page.evaluate(async () => {
+    const orig = MDB.getAll;
+    MDB.getAll = () => Promise.reject(new Error("IndexedDB transaction aborted"));
+    const st = await STORE.verifySanitation();
+    MDB.getAll = orig;
+    return { st, safe: STORE.paymentSafe() };
+  });
+  check("E3 a failed sweep leaves the device NOT confirmed clean",
+    broken.safe === false && /unreadable/.test(broken.st.error), JSON.stringify(broken.st));
+
+  // and while unconfirmed, payment-touching work is refused
+  const blocked = await page.evaluate(async () => {
+    STORE.sanitation = { ok: false, checked: true, error: "forced", remaining: 1, stores: [] };
+    if (window.MAPP) MAPP.show("customers");
+    await new Promise((r) => setTimeout(r, 200));
+    MCUST.startNew();
+    await new Promise((r) => setTimeout(r, 400));
+    const editorOpen = document.querySelector("#screen-custedit").classList.contains("active");
+    let exported = false;
+    const orig = MUI.shareOrDownload;
+    MUI.shareOrDownload = async () => { exported = true; return true; };
+    await MCUST.exportAll();
+    await MVAULT.backup();
+    MUI.shareOrDownload = orig;
+    return { editorOpen, exported };
+  });
+  check("E4 the customer editor will not open while sanitation is unconfirmed",
+    blocked.editorOpen === false, String(blocked.editorOpen));
+  check("E5 …and neither export nor backup will produce a file",
+    blocked.exported === false, String(blocked.exported));
+
+  // a real leftover credential also fails the check, not just a thrown error
+  const leftover = await page.evaluate(async () => {
+    await MDB.put("customers", { id: "unsanitised-1", first: "Left", last: "Over",
+      phones: [], appointments: [], files: [],
+      payment: { method: "card", card: { number: "4111111111111111" } } });
+    STORE.customers.push(await MDB.get("customers", "unsanitised-1"));
+    const st = await STORE.verifySanitation();
+    return { remaining: st.remaining, ok: st.ok,
+      after: JSON.stringify(await MDB.get("customers", "unsanitised-1")) };
+  });
+  check("E6 a real leftover credential is detected, and repaired in place",
+    leftover.remaining === 1 && !leftover.after.includes("4111111111111111"),
+    JSON.stringify(leftover).slice(0, 200));
+  const reswept = await page.evaluate(() => STORE.verifySanitation());
+  check("E7 …and the very next sweep confirms the device clean",
+    reswept.ok === true && reswept.remaining === 0, JSON.stringify(reswept));
+
   check("no page errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 
   console.log("\n=== PASS (" + ok.length + ") ==="); ok.forEach((x) => console.log("  ✓ " + x));

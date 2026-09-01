@@ -58,6 +58,12 @@ Run from anywhere (paths are relative to this directory):
                                   # whether the old cache is dropped, and
                                   # whether the rep's saved work survives.
 
+Engine coverage: every suite here runs on **Chromium** (the only engine
+installed at /opt/pw-browsers). The service-worker results in
+upgrade-transition-test.js are therefore Chromium-only and have NOT been
+verified on an installed iOS PWA — see the evidence-gap section in
+rally/db/APPLIED.md before relying on them for an iPhone fleet.
+
 The database's Row Level Security has its own suite — see rally/db/README.md
 (`sh rally/db/test/run-rls-tests.sh` against any throwaway local Postgres).
 That suite and `tests/role-test.js` both assert against

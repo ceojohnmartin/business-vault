@@ -36,7 +36,12 @@
    {method,last4,autopay,billingAddress} before it ever leaves the phone,
    and the server trigger enforces the same cut again. */
 (function () {
-  const TABLES = ["pins", "events", "territories", "customers"];
+  /* Territories go FIRST. A pin may carry territory_id, so pushing pins before
+     the territory they belong to lets a rep-writable row commit while the
+     privileged fact it references is refused — the same partial-commit shape
+     as the territory-delete defect. Pins still precede events, which is what
+     the knock-needs-its-door rule below relies on. */
+  const TABLES = ["territories", "pins", "events", "customers"];
   const K_CURSORS = "syncCursors";     // { table: iso }
   const K_USERMAP = "syncUserMap";     // { profileId: localUserId }
   const K_BACKFILL = "syncBackfilled"; // one-time whole-book enqueue done
@@ -85,9 +90,13 @@
     if (!active() || !table || !id) return;
     enqueue({ k: table + ":" + id, table, id, op: "upsert", at: Date.now() });
   }
-  function queueDelete(table, id) {
+  /* wasOnServer is captured HERE, while the record still exists, because it
+     is the only durable proof that the row ever reached the server. Callers
+     pass the record they are about to delete. */
+  function queueDelete(table, id, rec) {
     if (!active() || !table || !id) return;
-    enqueue({ k: table + ":" + id, table, id, op: "delete", at: Date.now() });
+    enqueue({ k: table + ":" + id, table, id, op: "delete", at: Date.now(),
+      wasOnServer: !!(rec && rec.serverAt) });
   }
   const isDirty = (table, id) => queued.has(table + ":" + id);
   function dropEntry(table, id) {
@@ -289,6 +298,8 @@
     if (!entries.length) return { pushed: 0 };
     let pushed = 0;
     const pinsFailed = { v: false };
+    // territories refused in THIS cycle: nothing that references one may go up
+    const territoryRefused = new Set();
 
     for (const table of TABLES) {
       if (table === "events" && pinsFailed.v) continue; // a knock's door goes first
@@ -316,6 +327,16 @@
         try { r = await postRows(rows); }
         catch (e) { netDown = true; lastError = "push " + table + " offline"; return; }
         if (r.ok) {
+          /* Durable evidence that these rows REACHED the server. It is the
+             only thing that later distinguishes a refused tombstone from a
+             tombstone for a row that was never uploaded — "the server will
+             not show it to me now" does not mean "it was never there". */
+          const stamped = [];
+          for (const e of ents) {
+            const rec = localRec(table, e.id);
+            if (rec && !rec.serverAt) { rec.serverAt = Date.now(); stamped.push(rec); }
+          }
+          if (stamped.length) await MDB.bulkPut(table, stamped).catch(() => {});
           await MDB.bulkDel("outbox", ents.map((e) => e.k));
           ents.forEach((e) => queued.delete(e.k));
           pushed += rows.length;
@@ -323,6 +344,7 @@
         }
         if (r.status >= 500) { netDown = true; lastError = "push " + table + " " + r.status; return; }
         if (rows.length === 1) { // the poison row: park it, keep the line moving
+          if (table === "territories") territoryRefused.add(ents[0].id);
           lastError = "push " + table + " rejected " + ents[0].id + " (" + r.status + ")";
           const entry = {
             k: ents[0].k, table, id: ents[0].id, status: r.status, at: Date.now(),
@@ -345,13 +367,19 @@
       for (let i = 0; i < ups.length && !netDown; i += PUSH_BATCH) {
         const slice = ups.slice(i, i + PUSH_BATCH);
         const rows = [], live = [];
+        const held = [];
         for (const e of slice) {
           const rec = localRec(table, e.id);
           if (!rec) continue; // deleted since queued; its delete entry handles it
+          // a door whose territory the server just refused stays put: it must
+          // not land pointing at a territory that does not exist there
+          if (table === "pins" && rec.territoryId && territoryRefused.has(rec.territoryId)) {
+            held.push(e); continue;
+          }
           rows.push(rowFor(table, rec, team));
           live.push(e);
         }
-        const gone = slice.filter((e) => !live.includes(e));
+        const gone = slice.filter((e) => !live.includes(e) && held.indexOf(e) < 0);
         await pushSlice(rows, live);
         if (gone.length) {
           await MDB.bulkDel("outbox", gone.map((e) => e.k));
@@ -385,16 +413,28 @@
            refused. Only on the zero-row path, which is rare. */
         const changed = Array.isArray(r.data) ? r.data.length : 1;
         if (!changed) {
-          const probe = await MCLOUD.api("/rest/v1/" + table + where).catch(() => null);
-          const stillThere = probe && probe.ok && Array.isArray(probe.data) && probe.data.length;
-          if (stillThere) {
-            /* The delete was REFUSED, so it never happened — and the local
-               copy was removed optimistically when the rep tapped. Put it
-               back from the row we just read, through the same apply path a
-               pull uses, so a refused delete leaves this device exactly as
-               it was. Nothing else was touched: the doors were never
-               detached, precisely so there is no second half to undo. */
-            try { await APPLY[table]([probe.data[0]]); } catch (_) {}
+          /* Zero rows changed, and the statement did not raise. That is what
+             an RLS-refused UPDATE looks like — and also what a tombstone for a
+             row the server never had looks like. They are indistinguishable
+             from the response.
+
+             The old code asked "can I still SELECT it?" and treated invisible
+             as never-existed. That is wrong twice over: read access can change
+             between the PATCH and the GET, and a row can be invisible for
+             reasons that have nothing to do with whether it was ever stored.
+             It silently discarded real refusals.
+
+             The only durable evidence is whether WE ever pushed this row
+             successfully, recorded on the outbox entry at delete time. No
+             evidence means treat it as refused: a surfaced refusal that turns
+             out to be spurious is recoverable; a discarded one is not. */
+          if (e.wasOnServer !== false) {
+            // put the optimistically-removed record back, so a refused delete
+            // leaves this device exactly as it was
+            const back = await MCLOUD.api("/rest/v1/" + table + where).catch(() => null);
+            if (back && back.ok && Array.isArray(back.data) && back.data.length) {
+              try { await APPLY[table]([back.data[0]]); } catch (_) {}
+            }
             lastError = "delete " + table + " refused " + e.id + " (no rows changed)";
             const entry = { k: e.k, table, id: e.id, status: 403, at: Date.now() };
             const dead = (await MDB.kvGet("syncDead", null)) || [];
@@ -708,6 +748,18 @@
         if (!r.data.length) break;
         if (live && !live()) return applied; // reset/erase raced us — stop
         applied += await APPLY[table](r.data);
+        /* A row we just PULLED demonstrably exists on the server — evidence
+           every bit as good as having pushed it, and the common case for a
+           record this device did not author. Without it a teammate's row
+           would look "never uploaded" and a refused tombstone for it would be
+           discarded silently, which is the failure this evidence exists to
+           prevent. */
+        { const seen = [];
+          for (const row of r.data) {
+            const rec = localRec(table, row.id);
+            if (rec && !rec.serverAt) { rec.serverAt = Date.now(); seen.push(rec); }
+          }
+          if (seen.length) await MDB.bulkPut(table, seen).catch(() => {}); }
         const last = r.data[r.data.length - 1];
         cur = { t: last[clock], id: last.id };
         cursors[table] = cur;

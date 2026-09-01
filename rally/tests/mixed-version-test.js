@@ -50,6 +50,7 @@ const mock = {
   rawBodies: [], upsertWrites: 0,
   territoryRefusals: 0,      // 403s issued by the 0003 gate
   territoryUpserts: 0,       // upsert ATTEMPTS on territories, storm detector
+  hiddenFromSelect: new Set(),  // ids the caller may no longer READ
   territoryPatchNoops: 0,    // PATCHes that changed nothing because of 0003
   requests: 0,
   clock: Date.parse("2026-09-01T00:00:00Z"),
@@ -184,6 +185,7 @@ function handleRest(req, res, u, body) {
   // depends on it, so the mock must too
   const idEq = String(u.searchParams.get("id") || "").replace(/^eq\./, "");
   if (idEq) rows = rows.filter((r) => r.id === idEq);
+  rows = rows.filter((r) => !mock.hiddenFromSelect.has(r.id));
   const clockCol = table === "events" ? "created_at" : "updated_at";
   const gt = u.searchParams.get(clockCol);
   if (gt && gt.startsWith("gt.")) rows = rows.filter((r) => r[clockCol] > gt.slice(3));
@@ -668,6 +670,77 @@ const server = http.createServer((req, res) => {
     after9.restored === true, String(after9.restored));
   check("9i …and nothing is left queued to retry forever",
     after9.pending === 0, String(after9.pending));
+
+  /* ===== 10. A REFUSED TERRITORY MUST NOT LEAVE ITS DOORS BEHIND =====
+     Importing doors into a new hood writes ONE privileged territory row and N
+     rep-writable pins. If authorization changes in between, the pins used to
+     land pointing at a territory the server refused — the same partial-commit
+     shape as the delete defect, in different clothing. */
+  const t10 = await S(BOSS, async () => {
+    const t = await STORE.addTerritory({ id: MDB.uid(), name: "Tenth Hood",
+      points: [[30, 30], [32, 30], [32, 32]], createdAt: Date.now(), assignments: [] });
+    for (let i = 0; i < 3; i++) {
+      const p = { id: "door-10-" + i, lat: 31, lng: 31, address: "10 Tenth St " + i,
+        disposition: "unworked", territoryId: t.id, history: [], notes: [],
+        createdAt: 1, updatedAt: 1 };
+      await MDB.put("pins", p);
+      STORE.pins.push(p);
+      MSYNC.queue("pins", p.id);
+    }
+    return t.id;
+  });
+  await sync(BOSS);   // BOSS was demoted in section 9: the territory is refused
+  const serverPins10 = [...mock.tables.pins.values()].filter((r) => r.territory_id === t10).length;
+  check("10a a refused territory does NOT let its doors commit",
+    !mock.tables.territories.has(TEAM + "|" + t10) && serverPins10 === 0,
+    `territory=${mock.tables.territories.has(TEAM + "|" + t10)} pins=${serverPins10}`);
+  check("10b the doors are held locally, not lost",
+    (await S(BOSS, () => STORE.pins.filter((p) => /^door-10-/.test(p.id)).length)) === 3);
+
+  /* ===== 11. "NOT VISIBLE TO SELECT" IS NOT "NEVER EXISTED" ===== */
+  const t11 = await S(NEW, async () => {
+    const t = { id: "never-pushed-11", name: "Local Only", points: [[0,0],[1,0],[1,1]],
+      createdAt: 1, updatedAt: 1, assignments: [] };
+    await MDB.put("territories", t);
+    STORE.territories.push(t);
+    const before = MSYNC.status().refused;
+    await STORE.deleteTerritory(t.id);
+    for (let i = 0; i < 200 && MSYNC.status().running; i++) await new Promise((r) => setTimeout(r, 50));
+    await MSYNC.syncNow();
+    await new Promise((r) => setTimeout(r, 300));
+    return { before, after: MSYNC.status().refused };
+  });
+  check("11a a row that never reached the server is not reported as refused",
+    t11.after === t11.before, JSON.stringify(t11));
+
+  const bossId11 = mock.users["boss@x.com"].id;
+  mock.profiles[bossId11].role = "owner";
+  await sync(BOSS);
+  await BOSS.page.waitForFunction(() => STORE.effectiveRole() === "owner", null, { timeout: 20000 });
+  const hoodId11 = await S(BOSS, async () => {
+    const t = await STORE.addTerritory({ id: MDB.uid(), name: "Eleventh",
+      points: [[40,40],[42,40],[42,42]], createdAt: Date.now(), assignments: [] });
+    return t.id;
+  });
+  await sync(BOSS);
+  check("11b (setup) the territory reached the server",
+    mock.tables.territories.has(TEAM + "|" + hoodId11));
+  mock.profiles[bossId11].role = "rep";      // demoted
+  mock.hiddenFromSelect.add(hoodId11);       // AND read access is gone too
+  await sync(BOSS);
+  await BOSS.page.waitForFunction(() => STORE.effectiveRole() === "rep", null, { timeout: 20000 });
+  const before11 = await S(BOSS, () => MSYNC.status().refused);
+  await S(BOSS, async (id) => { await STORE.deleteTerritory(id); }, hoodId11);
+  await sync(BOSS); await sync(BOSS);
+  const after11 = await S(BOSS, () => ({ refused: MSYNC.status().refused,
+    lastRefusal: MSYNC.status().lastRefusal }));
+  check("11c a refused tombstone is STILL surfaced when the row is invisible to SELECT",
+    after11.refused === before11 + 1 && after11.lastRefusal &&
+    after11.lastRefusal.id === hoodId11, JSON.stringify(after11));
+  check("11d the server's row is untouched",
+    !!mock.tables.territories.get(TEAM + "|" + hoodId11) &&
+    !mock.tables.territories.get(TEAM + "|" + hoodId11).deleted_at);
+  mock.hiddenFromSelect.clear();
 
   /* The only console noise allowed is the browser reporting the 403 the
      server correctly issued for the v38 rep's territory push. That is the

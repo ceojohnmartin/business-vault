@@ -1,3 +1,30 @@
+-- RALLY v39 — APPLY 0004 AND 0003 AS ONE TRANSACTION.
+--
+-- Paste this WHOLE file into the Supabase SQL editor and run it once, instead
+-- of running the two migration files separately. Only after the entire fleet
+-- is confirmed on v39.
+--
+-- Both migrations are pure DDL (create or replace function, drop/create
+-- policy), and DDL in PostgreSQL is transactional: if either half raises, the
+-- COMMIT never happens and NEITHER becomes live. That removes the
+-- half-migrated production state where the payment allowlist is active and
+-- the territory policies are not.
+--
+-- Order inside the transaction is 0004 then 0003, matching the deployment
+-- reasoning: 0004 is what v39 needs in order to record a customer's autopay
+-- request; 0003 is the one that starts refusing writes.
+--
+-- The two bodies below are the VERBATIM contents of
+--   db/migrations/0004_payment_allowlist.sql
+--   db/migrations/0003_territory_authorization.sql
+-- (regenerate with db/build-apply.sh if either changes.)
+--
+-- If it errors: nothing changed. Read the message, fix, run it again.
+-- Then verify with db/test/verify-production.sql — behaviour, not diagnostics.
+
+begin;
+
+-- ============================ 0004_payment_allowlist.sql ============================
 -- RALLY v39 — the payment allowlist follows the honest record shape.
 -- Run once in the Supabase SQL editor, after 0003.
 --
@@ -157,3 +184,62 @@ end $$;
 -- ------------------------------------------------------------- rollback ---
 -- Restoring 0001's version means restoring the `autopay` field; see
 -- db/migrations/0001_phase1_foundation.sql for the original function body.
+
+-- ============================ 0003_territory_authorization.sql ============================
+-- RALLY v39 — territory writes are a LEADERSHIP operation, enforced by the
+-- server. Run once in the Supabase SQL editor, after 0002.
+--
+-- Why this exists: 0001 gave every data table the same write policy shape —
+-- "your team, and you're active" — with no role predicate. That made
+-- territory creation, renaming, re-polygoning, assignment, Smart Split and
+-- tombstoning reachable by ANY active team member holding a valid JWT.
+-- The client only ever hid the buttons, which is not authorization.
+--
+-- The capability set matches the one already used by loc_read_leadership in
+-- 0001: leader / manager / owner may write territories, rep may not. Pins,
+-- customers and events stay writable by reps — that is the whole job.
+--
+-- Nothing else changes: no new tables, no new helpers, no role renaming, no
+-- tenancy redesign. my_role() is the same SECURITY DEFINER helper 0001
+-- created; it reads the caller's own profile row, never anything the client
+-- claims.
+--
+-- Idempotent: safe to run more than once.
+
+-- ------------------------------------------------- territories: insert ---
+-- covers creation and every child polygon a Smart Split produces
+drop policy if exists territories_insert on public.territories;
+create policy territories_insert on public.territories for insert to authenticated
+  with check (team_id = public.my_team_id()
+              and public.is_active()
+              and public.my_role() in ('leader','manager','owner')
+              and (created_by is null or created_by = auth.uid()));
+
+-- ------------------------------------------------- territories: update ---
+-- covers rename, re-polygon, homes, archive, assignment (assignedTo and the
+-- assignments[] history both live in data), and the deleted_at tombstone —
+-- there is no DELETE grant anywhere, so tombstoning IS an update.
+drop policy if exists territories_update on public.territories;
+create policy territories_update on public.territories for update to authenticated
+  using (team_id = public.my_team_id()
+         and public.is_active()
+         and public.my_role() in ('leader','manager','owner'))
+  with check (team_id = public.my_team_id()
+              and public.is_active()
+              and public.my_role() in ('leader','manager','owner'));
+
+-- ------------------------------------------------------------- rollback ---
+-- To restore the 0001 behaviour exactly (territory writes open to any active
+-- team member), run:
+--
+--   drop policy if exists territories_insert on public.territories;
+--   create policy territories_insert on public.territories for insert to authenticated
+--     with check (team_id = public.my_team_id() and public.is_active()
+--                 and (created_by is null or created_by = auth.uid()));
+--
+--   drop policy if exists territories_update on public.territories;
+--   create policy territories_update on public.territories for update to authenticated
+--     using (team_id = public.my_team_id() and public.is_active())
+--     with check (team_id = public.my_team_id() and public.is_active());
+
+commit;

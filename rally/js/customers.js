@@ -47,10 +47,14 @@
       appointments: [], referrals: [], files: [],
       agreement: null,
       pinId: null, lat: null, lng: null,
-      // WHO sold this is the stable user id. soldBy keeps the name only as
-      // a display snapshot — a name is not identity and never counts.
-      soldByUserId: STORE.myId(),
-      soldBy: (STORE.currentUser() || {}).name || "",
+      /* DELIBERATELY UNATTRIBUTED. blank() is also the base normalize()
+         merges a legacy record onto, and Object.assign only overwrites keys
+         the legacy record actually has — so a default here would silently
+         become a claim about a customer this device never sold. Authorship
+         is stamped by startNew()/startForPin(), which are the only two
+         places a genuinely NEW draft is created. */
+      soldByUserId: null,
+      soldBy: "",
       soldAt: Date.now(),
     };
   }
@@ -95,6 +99,11 @@
     n.payment = MCUST.honestPayment(n.payment);
     if (!n.billing) n.billing = "monthly";
     if (!n.acct) n.acct = "active";
+    /* Authorship comes from the record or from nowhere. A legacy customer
+       carrying only a soldBy NAME — or nothing at all — stays unattributed:
+       a name is not identity, and "whoever opened it" is not evidence. */
+    n.soldByUserId = c.soldByUserId || null;
+    n.soldBy = c.soldBy || "";
     // a legacy record's sale facts are what they were, not today's
     if (!c.soldAt) {
       n.soldAt = c.signedAt ? new Date(c.signedAt).getTime() : (c.createdAt || n.soldAt);
@@ -109,14 +118,23 @@
   }
 
   // ---------- open / start ----------
+  /* The ONLY place a customer acquires an author: a new draft, being
+     written now, by the person this device is. Never inferred, never
+     backfilled onto a record that already existed. */
+  function stampAuthor(c) {
+    c.soldByUserId = STORE.myId();
+    c.soldBy = (STORE.currentUser() || {}).name || "";
+    return c;
+  }
+
   function startNew() {
-    cur = blank(); curId = null;
+    cur = stampAuthor(blank()); curId = null;
     returnTo = "customers";
     openEditor("Creating Customer");
   }
 
   function startForPin(pin) {
-    cur = blank(); curId = null;
+    cur = stampAuthor(blank()); curId = null;
     returnTo = "map";
     cur.pinId = pin.id; cur.lat = pin.lat; cur.lng = pin.lng;
     if (pin.address) {
@@ -648,6 +666,19 @@
   }
 
   function renderPayment() {
+    /* STALE-CACHE GUARD. v39 removed the card/ACH number inputs from the
+       markup. If they are on the page anyway, this load is a mix of cached
+       v38 markup and v39 code — which a slow network can produce for one
+       page load during an upgrade. It boots cleanly and looks fine, and that
+       is the danger: the rep would type a real card number into a field this
+       code never reads. Say so instead of failing silently. */
+    if ($("#cp-cc-num") || $("#cp-ach-routing")) {
+      ["#cp-cc-num", "#cp-cc-exp", "#cp-ach-routing", "#cp-ach-account"].forEach((sel) => {
+        const el = $(sel);
+        if (el) { el.value = ""; el.disabled = true; el.placeholder = "Reopen RALLY to finish updating"; }
+      });
+      toast("RALLY is still updating — close and reopen before taking payment details");
+    }
     // method can honestly be "" (migrated collect-at-service): no bubble
     // lights up and both panels stay closed until the rep picks one
     $$(".pay-m").forEach((b) => b.classList.toggle("sel", b.dataset.m === cur.payment.method));

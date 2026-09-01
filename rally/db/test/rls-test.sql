@@ -637,3 +637,115 @@ begin
 end $$;
 reset role;
 select set_config('request.jwt.claims', '', false);
+
+-- ===== 15. the payment trigger under a MIXED-VERSION fleet (0004)
+-- An older client's payload has no 'autopayRequested' and no 'status' key at
+-- all. Defaulting a missing key to false would let it silently erase what a
+-- customer actually asked for, every time a rep opened and saved the record.
+-- Key PRESENCE is the discriminator: absent -> keep; present -> honour,
+-- including an explicit false.
+reset role;
+select set_config('request.jwt.claims', '', false);
+
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-mix', 'Mix', 'Case',
+   '{"payment":{"method":"ach","autopayRequested":true,"status":"pending_setup"}}'::jsonb);
+select t_assert(
+  (select data->'payment'->>'autopayRequested' = 'true'
+      and data->'payment'->>'status' = 'pending_setup'
+     from public.customers where id = 'cust-mix'),
+  'a current client can record an explicit autopay request');
+
+-- a v38-shaped save: legacy autopay, and no knowledge of the new keys
+update public.customers
+   set data = '{"payment":{"method":"ach","autopay":true,"last4":""}}'::jsonb
+ where id = 'cust-mix';
+select t_assert(
+  (select data->'payment'->>'autopayRequested' = 'true'
+      and data->'payment'->>'status' = 'pending_setup'
+     from public.customers where id = 'cust-mix'),
+  'an older client that omits the keys cannot erase the customer''s request');
+select t_assert(
+  (select not (data->'payment' ? 'autopay') from public.customers where id = 'cust-mix'),
+  'and the legacy autopay field is still not stored');
+
+-- but a current client turning autopay OFF is honoured: the key is present
+update public.customers
+   set data = '{"payment":{"method":"ach","autopayRequested":false,"status":"pending_setup"}}'::jsonb
+ where id = 'cust-mix';
+select t_assert(
+  (select data->'payment'->>'autopayRequested' = 'false'
+     from public.customers where id = 'cust-mix'),
+  'an explicit false from a current client IS honoured');
+
+-- and no client may ever claim a payment method is live
+update public.customers
+   set data = '{"payment":{"method":"card","autopayRequested":true,"status":"active"}}'::jsonb
+ where id = 'cust-mix';
+select t_assert(
+  (select data->'payment'->>'status' = 'not_configured'
+     from public.customers where id = 'cust-mix'),
+  'a client claiming status "active" is refused and stored as not_configured');
+
+-- a brand-new row with no history defaults honestly rather than optimistically
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-mix2', 'Fresh', 'Row',
+   '{"payment":{"method":"card","autopay":true}}'::jsonb);
+select t_assert(
+  (select data->'payment'->>'autopayRequested' = 'false'
+      and data->'payment'->>'status' = 'not_configured'
+     from public.customers where id = 'cust-mix2'),
+  'a NEW row from an older client defaults to no request, not to its legacy autopay');
+
+-- THE STATEMENT SHAPE THAT ACTUALLY MATTERS. Every sync push is a PostgREST
+-- upsert = INSERT .. ON CONFLICT DO UPDATE, for which Postgres fires this
+-- BEFORE INSERT OR UPDATE trigger TWICE. A preservation rule that reads only
+-- OLD passes a plain-UPDATE test and still loses the field here, because the
+-- INSERT pass's output is what becomes EXCLUDED. These checks are the ones
+-- that would have caught it.
+update public.customers
+   set data = '{"payment":{"method":"ach","autopayRequested":true,"status":"pending_setup"}}'::jsonb
+ where id = 'cust-mix';
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-mix', 'Mix', 'Case',
+   '{"payment":{"method":"ach","autopay":true,"last4":""}}'::jsonb)
+on conflict (team_id, id) do update set data = excluded.data;
+select t_assert(
+  (select data->'payment'->>'autopayRequested' = 'true'
+      and data->'payment'->>'status' = 'pending_setup'
+     from public.customers where id = 'cust-mix'),
+  'an UPSERT from an older client cannot erase the request either (double-fire)');
+
+-- and an upsert from a current client still gets its explicit value honoured
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-mix', 'Mix', 'Case',
+   '{"payment":{"method":"ach","autopayRequested":false,"status":"pending_setup"}}'::jsonb)
+on conflict (team_id, id) do update set data = excluded.data;
+select t_assert(
+  (select data->'payment'->>'autopayRequested' = 'false'
+     from public.customers where id = 'cust-mix'),
+  'an UPSERT from a current client still honours an explicit false');
+
+-- an upsert creating a genuinely new row keeps the honest default
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-mix3', 'Brand', 'New',
+   '{"payment":{"method":"card","autopay":true}}'::jsonb)
+on conflict (team_id, id) do update set data = excluded.data;
+select t_assert(
+  (select data->'payment'->>'autopayRequested' = 'false'
+      and data->'payment'->>'status' = 'not_configured'
+     from public.customers where id = 'cust-mix3'),
+  'an UPSERT with no prior row defaults honestly, it does not preserve a ghost');
+
+-- and credentials still cannot ride in through the upsert path
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-mix', 'Mix', 'Case',
+   '{"payment":{"method":"card","card":{"number":"4111111111111111"},
+     "ach":{"routing":"021000021","account":"000123456789"}}}'::jsonb)
+on conflict (team_id, id) do update set data = excluded.data;
+select t_assert(
+  (select position('4111111111111111' in data::text) = 0
+      and position('000123456789' in data::text) = 0
+      and not (data->'payment' ? 'card') and not (data->'payment' ? 'ach')
+     from public.customers where id = 'cust-mix'),
+  'the upsert path strips credentials exactly like the insert path');

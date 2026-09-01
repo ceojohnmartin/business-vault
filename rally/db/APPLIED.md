@@ -21,20 +21,92 @@ Fill these in yourself after running each verification query.
 
 ## Deployment order for v39
 
-1. Apply `0003` and `0004`.
-2. Deploy the v39 client.
+**Client first. Migrations after the fleet has drained.** This is the reverse
+of what an earlier draft of this file said, and the reversal is the whole
+point of `rally/tests/mixed-version-test.js`.
 
-**Immediately before or alongside — not days earlier.** `0003` only *removes*
-a rep's ability to write territories. A v38 client believes every local user
-is a manager, so a v38 rep who taps a territory control after `0003` lands
-gets a silent refusal into the dead-letter and no UI that admits it. v39 is
-the release that surfaces refusals (`MSYNC.status().refused`), so the two
-belong together.
+1. **Verify 0001 and 0002 are live** with the read-only queries below, and
+   fill in the status table. Everything after this depends on `my_role()`,
+   `is_active()` and the payment trigger from 0001 already existing.
+2. **Publish the v39 static assets.** Apply no migration yet. v39 against a
+   pre-0003 database is strictly today's database with fewer controls shown
+   to reps, and v39's own contract language is correct without 0004.
+3. **Get every device onto v39 and verify each one by eye** (see below).
+4. **Apply 0004.**
+5. **Apply 0003.**
 
-`0004` is order-independent with respect to the client: a v38 client's
-`autopay` field is dropped rather than mistranslated, and a v39 client reads
-a missing `autopayRequested` as `false`, which is the honest answer either
-way.
+### Why this order
+
+**0003 must not lead.** It is the only migration that creates refusals, and a
+v38 client cannot show one. A v38 device believes every user is a manager
+(`isManager()` returns true whenever the local role says "manager", and v38
+stamps "manager" at account creation), so the rep still sees every territory
+tool. Their writes are then refused by the server — correctly — while the
+phone keeps the change locally and says nothing. Every hour 0003 is live
+against a v38 device is an hour of silent divergence, plus orphaned pins
+whenever a refused territory delete detaches its doors (that half is
+rep-writable, so it lands).
+
+**0004 must not lead either.** It drops the legacy `autopay` field, and the
+still-deployed v38 contract engine decides whether to print the
+"only after Customer enrolls in autopay" carve-out with `payment.autopay ===
+false`. Once the field is absent, `undefined === false` is false, so a v38
+device prints an unqualified recurring-charge authorization for a customer
+who explicitly declined autopay. Nothing in the database is corrupted; the
+document put in front of the customer is.
+
+**What v39 loses by waiting.** Until 0004 is applied, the 0001 trigger drops
+`autopayRequested` and `status`, so a v39 rep's autopay request does not
+survive a sync round trip. That failure is in the safe direction — the
+record forgets a request rather than inventing one — and v39's contract
+language never asserts authorization regardless, because only a
+server-authored status can unlock that clause and no client can write one.
+
+## Verifying a device is on v39
+
+`RALLY_BUILD` is never synced, so there is no fleet dashboard. Two signals:
+
+- **Per device, by eye:** More → the footer reads **Build v39**. Do not
+  accept "I opened it" — look at the screen.
+- **Fleet-wide, from the server:** once 0003 is applied, `403`s on
+  `/rest/v1/territories` in the PostgREST/Supabase logs are a v38
+  fingerprint. A v39 rep cannot generate one (the controls are gated by the
+  server role); a v38 device does, because its UI still offers them. A
+  steady zero means the v38 population has drained.
+
+## What one reopen actually does
+
+Measured end to end in `rally/tests/upgrade-transition-test.js`, with a real
+service worker and one origin:
+
+- The device boots v38 from the `rally-v38` cache.
+- The new worker installs (`addAll` over the whole CORE list, fetched from
+  the network), calls `skipWaiting()`, activates, deletes every cache except
+  `rally-v39` and the tile cache, and claims the page.
+- `controllerchange` fires and the app reloads itself onto v39.
+- **One user-initiated open is enough.** Every record saved on v38 survives,
+  the device stays unlocked, and v39's boot purge strips the raw credentials
+  the old record was holding.
+
+Two cautions the test also establishes:
+
+- **Refresh on good signal, before a shift, never mid-shift.** `addAll` is
+  all-or-nothing over the whole asset list; on a weak connection it fails,
+  the new worker never activates, and the device stays on v38 and retries on
+  the next open. The self-heal is least likely to work exactly where you can
+  least reach the phone.
+- **The claim-reload discards an open editor.** Committed records are safe in
+  IndexedDB; a customer half-typed in the editor, or an unsaved signature, is
+  not.
+
+On the single transitional load a slow connection can also serve a mix of
+cached v38 markup and fresh v39 code (the shell is network-first with a
+3.5-second race, per file, and the app has no build step or content
+hashing). Both mixes boot and remain usable rather than dying; the dangerous
+one is v38 markup with v39 code, where the removed card and bank inputs are
+still on the page and v39's code never reads them. v39 detects exactly that
+and disables those inputs with "Reopen RALLY to finish updating" rather than
+letting a rep type a card number into a dead field.
 
 ## Do NOT blindly re-run 0002
 
@@ -127,9 +199,27 @@ its file:
 - `0004` — restore the `scrub_customer_payment` function body from
   `0001_phase1_foundation.sql`.
 
-Rolling back `0003` re-opens territory writes to every rep. Rolling back
-`0004` starts dropping `autopayRequested` from stored records; the field is
-not recoverable afterwards, so treat that one as a decision, not a retry.
+Rolling back `0003` re-opens territory writes to every rep — which is exactly
+the state the database has been in since 0001, so it is a safe place to stand
+while you investigate.
+
+Rolling back `0004` restores the legacy `autopay` field and starts dropping
+`autopayRequested` from stored records. Already-stored values are not
+recoverable afterwards, so treat that one as a decision, not a retry. If a v38
+device turns out to still be in the field after 0004 is applied, rolling 0004
+back is the correct move — it is what the deployed v38 contract engine needs
+to print the right document.
+
+## Proving the migrations locally before touching production
+
+    PGHOST=<host> PGPORT=<port> sh rally/db/test/run-rls-tests.sh
+
+applies every migration in order to a throwaway database and runs the full
+security matrix, including the payment trigger under BOTH statement shapes a
+client can produce. The upsert shape is the one that matters: every ordinary
+sync push is `INSERT .. ON CONFLICT DO UPDATE`, for which Postgres fires a
+`BEFORE INSERT OR UPDATE` trigger TWICE. A preservation rule that reads only
+`OLD` passes a plain-UPDATE test and still loses the field on the real path.
 
 ## Proving the whole thing locally
 

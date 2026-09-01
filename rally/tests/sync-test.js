@@ -76,15 +76,22 @@ function handleRest(req, res, u, body) {
           mock.eventUpdateAttempts++;
           return j(res, 401, { code: "42501", message: "permission denied for events" });
         }
-        const merged = Object.assign({}, existing, row,
+        /* A PostgREST upsert is INSERT .. ON CONFLICT DO UPDATE, and Postgres
+           fires a BEFORE INSERT OR UPDATE trigger TWICE for it: once on the
+           proposed tuple (whose output becomes EXCLUDED) and once as the
+           UPDATE. Firing it once here would hide exactly the class of bug
+           where the first pass injects a value the second pass then trusts. */
+        const proposed = JSON.parse(JSON.stringify(row));
+        if (table === "customers") scrubTrigger(proposed, existing);   // BEFORE INSERT
+        const merged = Object.assign({}, existing, proposed,
           { created_at: existing.created_at, updated_at: reqClock });
-        if (table === "customers") scrubTrigger(merged);
+        if (table === "customers") scrubTrigger(merged, existing);     // BEFORE UPDATE
         t.set(key, merged);
         mock.upsertWrites++;
       } else {
         const fresh = Object.assign({}, row, { created_at: reqClock });
         if (table !== "events") fresh.updated_at = fresh.created_at;
-        if (table === "customers") scrubTrigger(fresh);
+        if (table === "customers") scrubTrigger(fresh, null);
         t.set(key, fresh);
         mock.upsertWrites++;
       }
@@ -99,16 +106,23 @@ function handleRest(req, res, u, body) {
     if (teamQ !== me.team_id) return j(res, 200, undefined); // RLS: matches nothing
     const key = teamQ + "|" + id;
     const row = t.get(key);
+    const wantRep = String(req.headers.prefer || "").includes("return=representation");
     if (row) {
+      const before = JSON.parse(JSON.stringify(row));
       Object.assign(row, body, { updated_at: tick() });
-      if (table === "customers") scrubTrigger(row);
+      if (table === "customers") scrubTrigger(row, before);
       mock.upsertWrites++;
+      return j(res, 200, wantRep ? [row] : undefined);
     }
-    return j(res, 200, undefined);
+    return j(res, 200, wantRep ? [] : undefined);
   }
 
   // GET: RLS team scope, then the query filters
   let rows = [...t.values()].filter((r) => r.team_id === me.team_id);
+  // PostgREST honours an id filter on GET; the sync engine's tombstone probe
+  // depends on it, so the mock must too
+  const idEq = String(u.searchParams.get("id") || "").replace(/^eq\./, "");
+  if (idEq) rows = rows.filter((r) => r.id === idEq);
   const clockCol = table === "events" ? "created_at" : "updated_at";
   const gt = u.searchParams.get(clockCol);
   if (gt && gt.startsWith("gt.")) rows = rows.filter((r) => r[clockCol] > gt.slice(3));
@@ -126,16 +140,21 @@ function handleRest(req, res, u, body) {
   return j(res, 200, rows);
 }
 
-// mirror of the real DB trigger (db/migrations/0004_payment_allowlist.sql):
-// payment survives only as the allowlist, the legacy `autopay` default is
-// dropped rather than carried forward as intent, and a client-claimed
-// status other than the two it is allowed to write is refused.
-function scrubTrigger(row) {
+// mirror of the real DB trigger:
+function scrubTrigger(row, storedRow) {
   if (row.data && row.data.payment) {
     const p = row.data.payment;
-    const st = p.status === "pending_setup" ? "pending_setup" : "not_configured";
+    // the stored row is the authority on a previous value — matching the
+    // trigger's own lookup, which is what makes it double-fire safe
+    const o = (storedRow && storedRow.data && storedRow.data.payment) || {};
+    const req = Object.prototype.hasOwnProperty.call(p, "autopayRequested")
+      ? p.autopayRequested === true
+      : o.autopayRequested === true;
+    let st = Object.prototype.hasOwnProperty.call(p, "status")
+      ? p.status : (o.status || "not_configured");
+    if (st !== "not_configured" && st !== "pending_setup") st = "not_configured";
     row.data.payment = { method: p.method || "", last4: p.last4 || "",
-      autopayRequested: p.autopayRequested === true, status: st,
+      autopayRequested: req, status: st,
       billingAddress: p.billingAddress || null };
   }
 }

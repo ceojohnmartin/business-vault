@@ -36,6 +36,23 @@ Run from anywhere (paths are relative to this directory):
                                   # step; plus the three claims v39 must never
                                   # make (autopay active, method on file,
                                   # charge authorized)
+    node tests/mixed-version-test.js
+                                  # MIXED-VERSION DEPLOYMENT SAFETY: the REAL
+                                  # v38 client (checked out from git at the
+                                  # commit it shipped from) and the real v39
+                                  # client side by side against ONE server
+                                  # already carrying 0003 + 0004. Proves no
+                                  # data loss, no payment-intent corruption,
+                                  # no retry storm, no write loop — and
+                                  # documents the two things a v38 device
+                                  # cannot tell its rep.
+    node tests/upgrade-transition-test.js
+                                  # THE UPGRADE ITSELF: one origin, one scope,
+                                  # a REAL service worker. Boots v38, does
+                                  # work, publishes v39 underneath, and
+                                  # measures how many opens it takes to land,
+                                  # whether the old cache is dropped, and
+                                  # whether the rep's saved work survives.
 
 The database's Row Level Security has its own suite — see rally/db/README.md
 (`sh rally/db/test/run-rls-tests.sh` against any throwaway local Postgres).
@@ -46,3 +63,7 @@ territory cannot drift from what RLS actually enforces.
 Requires `playwright` resolvable via NODE_PATH and Chromium at
 /opt/pw-browsers/chromium (or edit executablePath). Screenshots land in
 tests/shots/. Every suite exits non-zero on failure.
+
+`mixed-version-test.js` additionally needs a git checkout: it materialises the
+v38 tree itself with `git archive` into /tmp/rally-v38-tree (idempotent), so
+it always tests the client that actually shipped rather than a mock of it.

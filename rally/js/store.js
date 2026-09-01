@@ -238,7 +238,6 @@
 
   // authenticated-but-unverified resolves to rep: fail closed
   S.effectiveRole = () => S.roleState.role || "rep";
-  S.roleIsTrusted = () => S.roleState.mode === "server" || S.roleState.mode === "local";
 
   /* Mirrors db/migrations/0003_territory_authorization.sql. The SERVER is
      what actually stops a rep from writing a territory; this only decides

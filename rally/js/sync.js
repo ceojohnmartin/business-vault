@@ -371,12 +371,37 @@
         const body = table === "customers"
           ? { deleted_at: iso(), data: {}, first: "", last: "", email: "", phones: [] }
           : { deleted_at: iso() };
-        const r = await MCLOUD.api(
-          "/rest/v1/" + table + "?team_id=eq." + encodeURIComponent(team) +
-          "&id=eq." + encodeURIComponent(e.id),
-          { method: "PATCH", body, headers: { Prefer: "return=minimal" } });
-        // 2xx = tombstoned (or matched nothing: never uploaded — done either way)
+        const where = "?team_id=eq." + encodeURIComponent(team) +
+          "&id=eq." + encodeURIComponent(e.id);
+        const r = await MCLOUD.api("/rest/v1/" + table + where,
+          { method: "PATCH", body, headers: { Prefer: "return=representation" } });
         if (!r.ok) { lastError = "delete " + table + " " + r.status; break; }
+        /* A tombstone that changes NOTHING still returns 2xx. Until 0003 that
+           could only mean "the row was never uploaded", so treating it as done
+           was right. Now a row can also be hidden from us by a role policy —
+           an authorization refusal that arrives dressed as success. The two
+           are indistinguishable from the PATCH alone, so ask: SELECT is not
+           role-gated, and a row we can still READ but could not WRITE was
+           refused. Only on the zero-row path, which is rare. */
+        const changed = Array.isArray(r.data) ? r.data.length : 1;
+        if (!changed) {
+          const probe = await MCLOUD.api("/rest/v1/" + table + where + "&select=id")
+            .catch(() => null);
+          const stillThere = probe && probe.ok && Array.isArray(probe.data) && probe.data.length;
+          if (stillThere) {
+            lastError = "delete " + table + " refused " + e.id + " (no rows changed)";
+            const entry = { k: e.k, table, id: e.id, status: 403, at: Date.now() };
+            const dead = (await MDB.kvGet("syncDead", null)) || [];
+            dead.push(entry);
+            await MDB.kvSet("syncDead", dead.slice(-200));
+            await MDB.del("outbox", e.k).catch(() => {});
+            queued.delete(e.k);
+            deadCount++;
+            deadTables[table] = (deadTables[table] || 0) + 1;
+            lastRefusal = entry;
+            continue;
+          }
+        }
         await MDB.del("outbox", e.k).catch(() => {});
         queued.delete(e.k);
         pushed++;
@@ -571,7 +596,16 @@
         const cmp = cmpClock(data, t);
         const dirty = isDirty("territories", t.id);
         if (cmp === "newer" && dirty) dropEntry("territories", t.id);
-        if (cmp === "older" && !dirty) { queue("territories", t.id); continue; }
+        /* The server holds an older copy than ours: normally we re-queue so
+           the server heals. But territory writes are leadership-only (0003),
+           and a client without that capability re-queuing here would push a
+           row the server refuses — on EVERY delivery, dead-lettering each
+           time and telling the rep their work is being rejected when the
+           real answer is that territories were never theirs to edit. For
+           them the server's copy simply wins, which also repairs whatever
+           divergence a refused local edit left behind. */
+        const mayWrite = !S().canManageTerritories || S().canManageTerritories();
+        if (cmp === "older" && !dirty && mayWrite) { queue("territories", t.id); continue; }
         if (cmp === "same" || (cmp !== "newer" && dirty)) continue;
         patchInPlace(t, data);
         puts.push(t);

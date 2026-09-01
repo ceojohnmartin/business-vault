@@ -198,6 +198,70 @@ const READ = `
   check("B5 the legacy record keeps the name it was signed under",
     b.labels[1] === "Ana Reyes · legacy/unverified", b.labels[1]);
 
+  /* ============ B2: OPENING a legacy record must not claim it ==========
+     blank() is the base normalize() merges a legacy customer onto, and
+     Object.assign only overwrites keys the source actually has. An
+     identity default in blank() therefore becomes a silent claim the
+     moment a rep opens an old customer and taps Save. */
+  await A.page.evaluate(() => MAPP.show("customers"));
+  await A.page.waitForTimeout(300);
+  for (const id of ["c-2", "c-3"]) {
+    await A.page.evaluate((i) => MCUST.open(i), id);
+    await A.page.waitForTimeout(500);
+    await A.page.click("#ce-save");
+    await A.page.waitForTimeout(900);
+    await A.page.evaluate(() => { const e = document.querySelector("#celebrate"); if (e) e.hidden = true; });
+    await A.page.waitForTimeout(200);
+  }
+  const opened = await A.page.evaluate(async () => {
+    const out = [];
+    for (const id of ["c-2", "c-3"]) {
+      const stored = await MDB.get("customers", id);
+      const live = STORE.customers.find((x) => x.id === id);
+      out.push({ id, uid: stored.soldByUserId, name: stored.soldBy,
+        mine: STORE.custIsMine(live), attributed: STORE.custIsAttributed(live) });
+    }
+    return { rows: out, myId: STORE.myId() };
+  });
+  check("B6 opening+saving a legacy record does NOT stamp it with the current rep",
+    opened.rows.every((r) => !r.uid && !r.mine && !r.attributed),
+    JSON.stringify(opened));
+  check("B7 …and its historical name is preserved, not overwritten with mine",
+    opened.rows[0].name === "Ana Reyes" && opened.rows[1].name === "Someone Who Left",
+    JSON.stringify(opened.rows.map((r) => r.name)));
+  check("B8 …and no name was invented for a record that never had one",
+    await A.page.evaluate(async () => {
+      await MDB.put("customers", { id: "c-4", first: "No", last: "Author",
+        createdAt: 1, soldAt: 1, phones: [], appointments: [], files: [] });
+      STORE.customers.push(await MDB.get("customers", "c-4"));
+      MCUST.open("c-4");
+      await new Promise((r) => setTimeout(r, 500));
+      document.querySelector("#ce-save").click();
+      await new Promise((r) => setTimeout(r, 900));
+      const e = document.querySelector("#celebrate"); if (e) e.hidden = true;
+      const c = await MDB.get("customers", "c-4");
+      return !c.soldByUserId && !c.soldBy;
+    }));
+  await A.page.evaluate(() => MAPP.show("customers"));
+  await A.page.waitForTimeout(300);
+
+  // a genuinely NEW draft, by contrast, IS this rep's work
+  const authored = await A.page.evaluate(async () => {
+    MCUST.startNew();
+    await new Promise((r) => setTimeout(r, 500));
+    document.querySelector("#ci-first").value = "Brand";
+    document.querySelector("#ci-last").value = "New";
+    document.querySelector("#ce-save").click();
+    await new Promise((r) => setTimeout(r, 1000));
+    const e = document.querySelector("#celebrate"); if (e) e.hidden = true;
+    const c = STORE.customers.find((x) => x.last === "New");
+    return { uid: c && c.soldByUserId, mine: c && STORE.custIsMine(c), myId: STORE.myId() };
+  });
+  check("B9 a NEW draft is authored by the person this device is",
+    authored.uid === authored.myId && authored.mine === true, JSON.stringify(authored));
+  await A.page.evaluate(() => MAPP.show("customers"));
+  await A.page.waitForTimeout(300);
+
   // ============ C: a second device computes the same thing ============
   const B = await device(true);
   const c = await B.page.evaluate(READ);

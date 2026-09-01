@@ -16,7 +16,7 @@ security-proven ground to land on.
     APPLIED.md                                   read-only checks for what's live, and deploy order
     seed.example.sql                             one-time team/owner bootstrap
     test/supabase-shim.sql                       local stand-in for Supabase bits (TEST ONLY)
-    test/rls-test.sql                            75 security checks
+    test/rls-test.sql                            81 security checks
     test/run-rls-tests.sh                        runs them on a throwaway local Postgres
 
 ## Territory authorization (0003)
@@ -36,6 +36,12 @@ true in the client, so a stored `true` proved nothing about what the customer
 wanted) becomes an explicit `autopayRequested`, plus a `status` the client may
 only ever set to `not_configured` or `pending_setup` — never to anything
 claiming a payment method is on file.
+
+The trigger also treats an ABSENT key as "leave it alone": a client too old to
+know about `autopayRequested` cannot erase what a customer asked for simply by
+saving the record. Key presence is the discriminator — a current client always
+sends the key, including an explicit `false` when a rep turns autopay off. This
+is what makes a mixed v38/v39 fleet safe; see `rally/tests/mixed-version-test.js`.
 
 ## The realtime doorbell (0002)
 
@@ -100,7 +106,7 @@ you or same-team leadership.
     PGHOST=<host> PGPORT=<port> sh test/run-rls-tests.sh
 
 spins `rally_rls_test`, applies the shim + every migration in order, and runs
-all 75 checks (team isolation, escalation attempts, append-only events,
+all 81 checks (team isolation, escalation attempts, append-only events,
 disabled and anon lockouts, payment scrubbing, and the adversarial territory
 matrix: a rep's create / rename / re-polygon / assign / archive / tombstone /
 Smart-Split attempts all refused straight at PostgREST, with no second

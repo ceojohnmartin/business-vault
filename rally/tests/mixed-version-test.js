@@ -19,6 +19,7 @@
    dead-letter growth, no retry storm, and no silent divergence that neither
    version admits to. */
 const { chromium } = require("playwright");
+const { scrubTrigger } = require("./lib/scrub-trigger.js"); // the ONE mirror of 0004
 const http = require("http"), fs = require("fs"), path = require("path");
 const crypto = require("crypto");
 const { execSync } = require("child_process");
@@ -73,31 +74,6 @@ const authOf = (req) => mock.access[String(req.headers.authorization || "").repl
 // 0004_payment_allowlist.sql, faithfully — including the rule that an
 // ABSENT key is "leave it alone", so a client too old to know about a field
 // cannot erase it. Key presence is the discriminator.
-function scrubTrigger(row, prevRow) {
-  if (row.data && row.data.payment) {
-    const p = row.data.payment;
-    /* prevRow models OLD — the row Postgres re-read under the lock. It is
-       null on the INSERT pass, and that is the point: a pass with no OLD must
-       not write a value it did not receive, or its own injection becomes
-       EXCLUDED and the UPDATE pass honours it as client intent (losing a
-       concurrent commit). Key present == the client genuinely sent it. */
-    const o = (prevRow && prevRow.data && prevRow.data.payment) || null;
-    const safe = { method: p.method || "", last4: p.last4 || "",
-      billingAddress: p.billingAddress || null };
-    if (Object.prototype.hasOwnProperty.call(p, "autopayRequested")) {
-      safe.autopayRequested = p.autopayRequested === true;
-    } else if (o && Object.prototype.hasOwnProperty.call(o, "autopayRequested")) {
-      safe.autopayRequested = o.autopayRequested === true;
-    }
-    const valid = (v) => v === "not_configured" || v === "pending_setup";
-    let st;
-    if (Object.prototype.hasOwnProperty.call(p, "status") && valid(p.status)) st = p.status;
-    else if (o && Object.prototype.hasOwnProperty.call(o, "status")) st = o.status;
-    if (st !== undefined) safe.status = valid(st) ? st : "not_configured";
-    row.data.payment = safe;
-  }
-}
-
 function handleRest(req, res, u, body) {
   const uid = authOf(req);
   if (!uid) return j(res, 401, { message: "JWT invalid" });
@@ -627,7 +603,7 @@ const server = http.createServer((req, res) => {
   // THE OFFICE DEMOTES THEM, between the tap and the delivery
   const bossId = mock.users["boss@x.com"].id;
   mock.profiles[bossId].role = "rep";
-  const refusedBefore9 = await S(BOSS, () => MSYNC.status().refused);
+  const refusedBefore9 = await S(BOSS, () => MSYNC.refusals().then((r) => r.map((x) => x.k)));
   await sync(BOSS);
   await BOSS.page.waitForFunction(() => STORE.effectiveRole() === "rep", null, { timeout: 20000 });
   await sync(BOSS);
@@ -636,6 +612,7 @@ const server = http.createServer((req, res) => {
     role: STORE.effectiveRole(),
     refused: MSYNC.status().refused,
     lastRefusal: MSYNC.status().lastRefusal,
+    refusalKeys: null,
     pending: MSYNC.status().pending,
     pins: JSON.stringify(STORE.pins.filter((p) => /^door-9-/.test(p.id))
       .sort((a, b) => (a.id < b.id ? -1 : 1))),
@@ -646,9 +623,12 @@ const server = http.createServer((req, res) => {
 
   check("9d the demotion reached the device before its push",
     after9.role === "rep", after9.role);
+  const keys9 = await S(BOSS, () => MSYNC.refusals().then((r) => r.map((x) => x.k)));
+  const new9 = keys9.filter((k, i) => k !== refusedBefore9[i]);
   check("9e the territory tombstone is REFUSED",
-    after9.refused === refusedBefore9 + 1 && after9.lastRefusal &&
-    after9.lastRefusal.id === hood9, JSON.stringify(after9.lastRefusal));
+    new9.length === 1 && new9[0] === "territories:" + hood9 &&
+    after9.lastRefusal && after9.lastRefusal.id === hood9,
+    JSON.stringify({ added: new9, want: "territories:" + hood9, all: keys9 }));
   if (after9.pins !== doorsBefore) {
     const A = JSON.parse(doorsBefore), B = JSON.parse(after9.pins);
     const diffs = [];
@@ -729,14 +709,21 @@ const server = http.createServer((req, res) => {
   mock.hiddenFromSelect.add(hoodId11);       // AND read access is gone too
   await sync(BOSS);
   await BOSS.page.waitForFunction(() => STORE.effectiveRole() === "rep", null, { timeout: 20000 });
-  const before11 = await S(BOSS, () => MSYNC.status().refused);
+  /* Assert on the CONTENTS of the delta, not a count. A count says "the
+     number moved by one" and tells you nothing when it moves by two — and
+     this suite drives eleven sections of deliberate refusals past each
+     other, so a stray one has to name itself or the failure is unreadable. */
+  const before11 = await S(BOSS, () => MSYNC.refusals().then((r) => r.map((x) => x.k)));
   await S(BOSS, async (id) => { await STORE.deleteTerritory(id); }, hoodId11);
   await sync(BOSS); await sync(BOSS);
-  const after11 = await S(BOSS, () => ({ refused: MSYNC.status().refused,
-    lastRefusal: MSYNC.status().lastRefusal }));
+  const after11 = await S(BOSS, () => MSYNC.refusals().then((r) => ({
+    keys: r.map((x) => x.k), lastRefusal: MSYNC.status().lastRefusal })));
+  const new11 = after11.keys.filter((k, i) => k !== before11[i]);
   check("11c a refused tombstone is STILL surfaced when the row is invisible to SELECT",
-    after11.refused === before11 + 1 && after11.lastRefusal &&
-    after11.lastRefusal.id === hoodId11, JSON.stringify(after11));
+    new11.length === 1 && new11[0] === "territories:" + hoodId11 &&
+    after11.lastRefusal && after11.lastRefusal.id === hoodId11,
+    JSON.stringify({ added: new11, want: "territories:" + hoodId11,
+      before: before11, after: after11.keys }));
   check("11d the server's row is untouched",
     !!mock.tables.territories.get(TEAM + "|" + hoodId11) &&
     !mock.tables.territories.get(TEAM + "|" + hoodId11).deleted_at);

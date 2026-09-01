@@ -322,7 +322,15 @@
     MMAP.refreshHoods();
     closeSheet();
     renderHoodList();
-    toast(`Cut into ${kids.length} hoods — hand them out from the hoods list`);
+    /* Say which of the two things actually happened. With a team project
+       configured the split is a PROPOSAL until the server commits it in one
+       transaction, and the manager should not be told the hood is cut when
+       the answer has not come back yet — least of all if they are about to
+       hand the new turf out. */
+    const cloud = window.MCLOUD && MCLOUD.enabled();
+    toast(cloud
+      ? `Cut into ${kids.length} hoods — sending to the team, hand them out once it lands`
+      : `Cut into ${kids.length} hoods — hand them out from the hoods list`);
   }
 
   // Assignment chips: the rep's territory color rides on the chip, so the
@@ -506,9 +514,14 @@
       const st = STORE.hoodStats(t);
       const prog = st.pct != null ? `${st.pct}%` : `${st.knocked} knocked`;
       const doors = st.doors ? `${st.doors} doors · ` : "";
-      return `<div class="hood-row" data-id="${t.id}">
+      // a child of a split the server has not confirmed says so, rather
+      // than sitting in the list looking like turf that is ready to give out
+      const sub = t.pendingSplit
+        ? "waiting on the team — not confirmed yet"
+        : `${u ? MUI.esc(u.name) + " · " : ""}${doors}${prog}`;
+      return `<div class="hood-row${t.pendingSplit ? " pending" : ""}" data-id="${t.id}">
          <span class="dot" style="background:${STORE.hoodColor(t)}"></span>
-         <span class="hn">${MUI.esc(t.name)}<span class="hr">${u ? MUI.esc(u.name) + " · " : ""}${doors}${prog}</span></span>
+         <span class="hn">${MUI.esc(t.name)}<span class="hr">${sub}</span></span>
          ${manager ? `<button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>` : ""}
        </div>`;
     }).join("") +

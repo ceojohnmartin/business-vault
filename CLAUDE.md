@@ -151,8 +151,68 @@ RALLY client
   → immutable RALLY financial event
 ```
 
-**LOCKED — RALLY does not persist raw PAN, CVV/CVC, or raw bank credentials in the
-permanent architecture.**
+### LOCKED — the raw-credential invariant (Interpretation B)
+
+**RALLY must NEVER intentionally capture, transmit or persist raw payment credentials
+through any payment-specific or structured application path.**
+
+Raw payment credentials are:
+
+- full PAN / card number
+- CVV / CVC
+- payment-card expiry, where it is part of credential storage
+- ACH routing number
+- ACH account number
+
+They must not exist in:
+
+- structured customer payment records
+- IndexedDB payment / customer credential structures
+- sync payloads
+- Supabase customer payment objects
+- outbox payloads
+- dead-letter payloads
+- backups
+- logs
+- debug output
+- payment-specific server records
+
+**This is a statement about RALLY's payment paths, not a promise about arbitrary human
+text.** RALLY cannot guarantee that a person will never type a digit sequence into a free
+text box, and pretending otherwise would be an impossible absolute. What it guarantees is
+that no payment-entry surface, structured payment field, payment-shaped storage, or
+payment sync path in RALLY is capable of holding a credential.
+
+**Free-text fields are not payment-entry surfaces.** Notes, addresses and names are
+customer-record text, and no RALLY code reads them as payment data. The corresponding
+control is an operating rule, not a scanner:
+
+> **Operating rule for reps — never type a card number, CVV, expiry, bank routing number
+> or bank account number into any RALLY notes box or any other free-text field. RALLY has
+> no payment-credential field on purpose. Payment credentials are collected by the office,
+> and will later be collected inside RALLY through a provider-hosted secure component.**
+
+**Do not build a DLP / card-number scanner across every free-text field.** Structured
+payment protections must not be weakened to compensate.
+
+### LOCKED — future door-side payment capture
+
+Door-side payment capture WILL return, and it is core product vision. The rep or the
+customer will enter card or ACH details **inside RALLY**, so the experience stays native
+to RALLY, through a provider-hosted secure component (Stripe, Adyen, or whichever DIRECT
+provider is later approved):
+
+```
+RALLY payment screen
+  → provider-hosted secure field
+  → provider vault / tokenization
+  → RALLY receives only a safe token/reference + approved metadata
+```
+
+**RALLY itself never owns the raw credential** — not before that integration, and not
+after it. v39 deliberately has NO raw credential capture at all, because the hosted
+integration does not exist yet. **Do not implement Stripe or Adyen now**; no provider may
+be selected or implemented without explicit approval (§10).
 
 **LOCKED — Do not design long-term billing around FieldRoutes.**
 
@@ -214,8 +274,14 @@ Backup behavior must continue to exclude:
 
 **RALLY captures no CVV/CVC and must not begin persisting it.**
 
-Provider-hosted payment capture is preferred so raw financial credentials avoid normal
-RALLY persistence.
+The raw-credential invariant is stated in full in §5 (Interpretation B): RALLY never
+intentionally captures, transmits or persists raw payment credentials through any
+payment-specific or structured path. Free-text fields are not payment-entry surfaces, and
+the control there is the rep operating rule in §5 rather than a content scanner.
+
+Provider-hosted capture is the permanent answer: raw financial credentials go to the
+provider's secure component and vault, and RALLY receives only a safe token/reference plus
+approved metadata.
 
 **Protected-characteristic vendor fields such as ethnicity are never stored or exposed by
 RALLY.** Future vendor proxies use explicit field allowlists rather than forwarding full

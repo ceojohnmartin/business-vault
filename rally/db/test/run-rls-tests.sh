@@ -46,3 +46,17 @@ echo "RLS: ALL GREEN ($N checks)"
 # lost-update failure mode that only appears under it. Same database, so the
 # migrations above are already applied.
 sh "$DIR/race-test.sh" "$DB"
+
+# Smart Split's guarantee is that a hood is never covered twice. Two managers
+# reaching for the same parent is the only way to break it, and that needs two
+# sessions too.
+sh "$DIR/split-race-test.sh" "$DB"
+
+# The browser tests run against a JS mirror of the payment trigger. A mirror
+# that has drifted keeps every client test green while describing a server
+# that no longer exists, so the mirror is diffed against this very database.
+if command -v node >/dev/null 2>&1; then
+  node "$DIR/mirror-fidelity.js" "$DB"
+else
+  echo "MIRROR: SKIPPED (no node on PATH)"
+fi

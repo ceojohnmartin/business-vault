@@ -649,12 +649,29 @@
   // The one place that decides what a payment record is allowed to claim.
   // Called on every read (normalize) and every write (collectPayment), so a
   // credential cannot re-enter a record through any path.
+  /* THE CANONICAL SAFE PAYMENT SHAPE, enforced identically on both sides.
+     Every leaf below has the same type, domain and length rule as
+     db/migrations/0004_payment_allowlist.sql, so what a rep sees on the
+     screen is what the server will actually keep. A field the client let
+     through and the server silently dropped would revert on the next pull
+     with no explanation, which is a lie by omission. */
+  const bounded = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+  const digits = (v) => (typeof v === "string" ? v.replace(/[^0-9]/g, "").length : 0);
+  /* A NAME field carrying four or more digits is not a name. Four is below
+     a routing number (9), a bank account (4-17) and a card number (13-19),
+     and a person's name has no digits at all. This is shape enforcement on
+     a PAYMENT-SHAPED field — not a scanner over the app's free text. */
+  const safeName = (v) => (digits(v) >= 4 ? "" : bounded(v, 80));
+  // an address line legitimately carries digits; a card number does not fit
+  const safeAddr = (v, max) => (digits(v) >= 13 ? "" : bounded(v, max));
+  const US_ZIP = /^([0-9]{5}(-?[0-9]{4})?)?$/;
+
   function honestPayment(pay) {
     const p = pay || {};
-    const card = { name: (p.card && p.card.name) || "" };
+    const card = { name: safeName(p.card && p.card.name) };
     const ach = {
-      name: (p.ach && p.ach.name) || "",
-      type: (p.ach && p.ach.type) || "checking",
+      name: safeName(p.ach && p.ach.name),
+      type: (p.ach && p.ach.type) === "savings" ? "savings" : "checking",
     };
     const method = p.method === "card" || p.method === "ach" ? p.method : "";
     /* LEGACY AUTOPAY: the old record shape defaulted autopay to TRUE, so an
@@ -667,11 +684,21 @@
        last4, not from autopay. "active"/"on file" can only ever be authored
        by the billing backend against a real provider result. */
     const status = (method || autopayRequested) ? "pending_setup" : "not_configured";
-    const out = { method, autopayRequested, status, card, ach,
-      billingAddress: p.billingAddress || { street: "", city: "", state: "", zip: "" } };
-    // a legacy last4 is safe historical metadata and the only payment
-    // reference some old records have — kept, labelled, never re-derived
-    if (p.last4) out.last4 = String(p.last4).replace(/\D/g, "").slice(-4);
+    const b = p.billingAddress || {};
+    const billingAddress = {
+      street: safeAddr(b.street, 120), city: safeAddr(b.city, 80),
+      state: safeAddr(b.state, 40),
+      zip: US_ZIP.test(bounded(b.zip, 10)) ? bounded(b.zip, 10) : "",
+    };
+    const out = { method, autopayRequested, status, card, ach, billingAddress };
+    /* A legacy last4 is safe historical metadata and the only payment
+       reference some old records have — kept, labelled, never re-derived.
+       It must be exactly four digits or nothing: taking the last four of a
+       longer value would manufacture a reference out of a number RALLY
+       should not be holding in the first place, and a truncated card number
+       displayed as "ends 4242" is a fabricated payment fact. */
+    const l4 = p.last4 == null ? "" : String(p.last4).replace(/[^0-9]/g, "");
+    if (l4.length === 4) out.last4 = l4;
     return out;
   }
 
@@ -733,16 +760,39 @@
     // Names and a billing address, and that is the whole of it. There is no
     // card-number field, no expiry field, no routing or account field —
     // nothing on this screen can put a credential into a RALLY record.
-    cur.payment.card = { name: $("#cp-cc-name").value.trim() };
+    const typed = {
+      card: $("#cp-cc-name").value.trim(),
+      ach: $("#cp-ach-name").value.trim(),
+      zip: $("#cp-b-zip").value.trim(),
+      street: $("#cp-b-street").value.trim(),
+    };
+    cur.payment.card = { name: typed.card };
     cur.payment.ach = {
-      name: $("#cp-ach-name").value.trim(),
+      name: typed.ach,
       type: (cur.payment.ach && cur.payment.ach.type) || "checking",
     };
     cur.payment.billingAddress = {
-      street: $("#cp-b-street").value.trim(), city: $("#cp-b-city").value.trim(),
-      state: $("#cp-b-state").value.trim(), zip: $("#cp-b-zip").value.trim(),
+      street: typed.street, city: $("#cp-b-city").value.trim(),
+      state: $("#cp-b-state").value.trim(), zip: typed.zip,
     };
     cur.payment = MCUST.honestPayment(cur.payment);
+    /* A value the shape rules refused must not just disappear. Silence here
+       would read as "saved" and the rep would never learn why the field is
+       empty next time they open the record — and if what they typed was a
+       card number, the one thing they must be told is that RALLY has no
+       field for it. Say it out loud, once. */
+    const refused = [];
+    if (typed.card && !cur.payment.card.name) refused.push("name on card");
+    if (typed.ach && !cur.payment.ach.name) refused.push("name on account");
+    if (typed.street && !cur.payment.billingAddress.street) refused.push("billing street");
+    if (typed.zip && !cur.payment.billingAddress.zip) refused.push("billing ZIP");
+    if (refused.length) {
+      const numeric = (typed.card + typed.ach).replace(/[^0-9]/g, "").length >= 4;
+      toast(numeric
+        ? "RALLY has no card or bank number field on purpose — the " +
+          refused.join(" and ") + " was not saved. The office collects the payment method."
+        : "Not saved: " + refused.join(", ") + " — check the format.");
+    }
   }
 
   // ---------- AGREE ----------

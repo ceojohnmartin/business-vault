@@ -9,6 +9,7 @@
    across both devices; offline work queues and drains; nothing loops; and
    no card number ever crosses the wire. */
 const { chromium } = require("playwright");
+const { scrubTrigger } = require("./lib/scrub-trigger.js"); // the ONE mirror of 0004
 const http = require("http"), fs = require("fs"), path = require("path");
 const crypto = require("crypto");
 const ROOT = path.join(__dirname, "..");
@@ -140,32 +141,6 @@ function handleRest(req, res, u, body) {
   return j(res, 200, rows);
 }
 
-// mirror of the real DB trigger:
-function scrubTrigger(row, prevRow) {
-  if (row.data && row.data.payment) {
-    const p = row.data.payment;
-    /* prevRow models OLD — the row Postgres re-read under the lock. It is
-       null on the INSERT pass, and that is the point: a pass with no OLD must
-       not write a value it did not receive, or its own injection becomes
-       EXCLUDED and the UPDATE pass honours it as client intent (losing a
-       concurrent commit). Key present == the client genuinely sent it. */
-    const o = (prevRow && prevRow.data && prevRow.data.payment) || null;
-    const safe = { method: p.method || "", last4: p.last4 || "",
-      billingAddress: p.billingAddress || null };
-    if (Object.prototype.hasOwnProperty.call(p, "autopayRequested")) {
-      safe.autopayRequested = p.autopayRequested === true;
-    } else if (o && Object.prototype.hasOwnProperty.call(o, "autopayRequested")) {
-      safe.autopayRequested = o.autopayRequested === true;
-    }
-    const valid = (v) => v === "not_configured" || v === "pending_setup";
-    let st;
-    if (Object.prototype.hasOwnProperty.call(p, "status") && valid(p.status)) st = p.status;
-    else if (o && Object.prototype.hasOwnProperty.call(o, "status")) st = o.status;
-    if (st !== undefined) safe.status = valid(st) ? st : "not_configured";
-    row.data.payment = safe;
-  }
-}
-
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".png": "image/png", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
 const server = http.createServer((req, res) => {
@@ -289,12 +264,26 @@ const server = http.createServer((req, res) => {
   const custRow = [...mock.tables.customers.values()][0];
   check("A3 card + bank numbers never crossed the wire",
     !mock.rawBodies.some((b) => b.includes("4242424242424242") || b.includes("000123456789")));
-  check("A4 server payment is the allowlist only",
-    custRow.data.payment.last4 === "4242" && !custRow.data.payment.card && !custRow.data.payment.ach);
-  check("A4b the server stores no legacy autopay and claims no configured method",
+  check("A4 server payment is the canonical allowlist only",
+    Object.keys(custRow.data.payment).sort().join(",")
+      === "ach,autopayRequested,billingAddress,card,last4,method,status",
+    Object.keys(custRow.data.payment).sort().join(","));
+  /* card and ach SURVIVE now, as the names only. That is the point of the
+     shape: the object exists, and there is nowhere inside it for a card
+     number, expiry, routing number or account number to live. */
+  check("A4a the card object crossed as a NAME and nothing else",
+    custRow.data.payment.card.name === "Dana Miles"
+      && Object.keys(custRow.data.payment.card).join(",") === "name"
+      && Object.keys(custRow.data.payment.ach).sort().join(",") === "name,type",
+    JSON.stringify({ card: custRow.data.payment.card, ach: custRow.data.payment.ach }));
+  /* The legacy fixture names a method, so "setup pending" is the honest
+     status and the server stores exactly that. What must never appear is a
+     claim that a method is on file, or the legacy autopay default carried
+     forward as if the customer had asked for it. */
+  check("A4b the server stores no legacy autopay and claims nothing on file",
     custRow.data.payment.autopay === undefined &&
     custRow.data.payment.autopayRequested === false &&
-    custRow.data.payment.status === "not_configured",
+    custRow.data.payment.status === "pending_setup",
     JSON.stringify(custRow.data.payment));
   check("A5 events carry John's identity", [...mock.tables.events.values()][0].by_user === johnId);
 
@@ -492,8 +481,8 @@ const server = http.createServer((req, res) => {
   check("M1 teammate's edit applies and no credential survives the merge",
     holder.email === "holder@x.com" && !holder.raw.includes("4111111111111111"),
     JSON.stringify(holder).slice(0, 200));
-  check("M1b the merged record does not claim autopay or a configured method",
-    holder.autopay === false && holder.status === "not_configured",
+  check("M1b the merged record does not claim autopay or a method ON FILE",
+    holder.autopay === false && holder.status === "pending_setup",
     JSON.stringify({ a: holder.autopay, s: holder.status }));
   check("M2 the other phone never held the card",
     (await S(B, () => { const c = STORE.customers.find((x) => x.last === "Holder");

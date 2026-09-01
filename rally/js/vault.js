@@ -102,22 +102,30 @@
 
   // A customer's RAW payment credentials — card.number/exp and the ACH
   // routing/account — never belong in an exported file. This is the same
-  /* The safe shape the office export, the sync engine and the server-side
-     trigger all reduce payment to: method, last4, autopayRequested, status,
-     billingAddress. RALLY never captures a card number, expiry, routing
-     number, account number or CVV at all — this guarantees an OLD backup
-     containing them cannot carry them forward either. Returns a copy; never
-     mutates the record it is handed. */
+  /* THE CANONICAL SAFE PAYMENT SHAPE, on the way out of the device and on
+     the way back in. There is exactly ONE definition of it —
+     MCUST.honestPayment() — and the export, the sync engine and the
+     server-side trigger (0004) all reduce payment to that same shape.
+     Keeping a fourth private copy here is how the shapes drifted apart in
+     the first place: this file used to drop card.name and ach.name, so a
+     restore silently blanked metadata the app had captured.
+
+     RALLY never captures a card number, expiry, routing number, account
+     number or CVV at all, so an OLD backup containing them cannot carry
+     them forward either — the object is rebuilt, not filtered.
+
+     FAIL CLOSED: with no honestPayment() available there is nothing that
+     can vouch for the shape, so the payment block is dropped rather than
+     written out or restored unvetted. Returns a copy; never mutates the
+     record it is handed. */
   function scrubCustomerPayment(c) {
     if (!c || !c.payment) return c;
-    const p = c.payment;
     const out = Object.assign({}, c);
-    out.payment = {
-      method: p.method || "", last4: p.last4 || "",
-      autopayRequested: p.autopayRequested === true,
-      status: p.status === "pending_setup" ? "pending_setup" : "not_configured",
-      billingAddress: p.billingAddress || null,
-    };
+    if (!window.MCUST || typeof MCUST.honestPayment !== "function") {
+      delete out.payment;
+      return out;
+    }
+    out.payment = MCUST.honestPayment(c.payment);
     return out;
   }
 

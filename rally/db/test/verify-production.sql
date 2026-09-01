@@ -112,6 +112,59 @@ begin
   end;
   reset role;
   perform set_config('request.jwt.claims', '', true);
+
+  -- 7. a rep may NOT reach the Smart Split function
+  perform set_config('request.jwt.claims', json_build_object('sub', rep_id)::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform public.smart_split_territory(tid2, 'probe-op-rep',
+      jsonb_build_array(
+        jsonb_build_object('id', tid2 || '-a', 'name', 'a',
+          'polygon', '[[0,0],[1,0],[1,1]]'::jsonb),
+        jsonb_build_object('id', tid2 || '-b', 'name', 'b',
+          'polygon', '[[1,0],[2,0],[2,1]]'::jsonb)));
+    insert into probe_result values ('7 rep smart split', false,
+      'ALLOWED — a rep split a territory');
+  exception when others then
+    insert into probe_result values ('7 rep smart split', true,
+      'refused: ' || sqlerrm);
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+
+  -- 8. a leader CAN, it is atomic, and repeating it creates nothing new
+  perform set_config('request.jwt.claims', json_build_object('sub', boss_id)::text, true);
+  execute 'set local role authenticated';
+  begin
+    perform public.smart_split_territory(tid2, 'probe-op-boss',
+      jsonb_build_array(
+        jsonb_build_object('id', tid2 || '-a', 'name', 'a',
+          'polygon', '[[0,0],[1,0],[1,1]]'::jsonb),
+        jsonb_build_object('id', tid2 || '-b', 'name', 'b',
+          'polygon', '[[1,0],[2,0],[2,1]]'::jsonb)));
+    select count(*) into n from public.territories
+      where team_id = team and id in (tid2 || '-a', tid2 || '-b') and deleted_at is null;
+    select (deleted_at is not null) into ok from public.territories
+      where team_id = team and id = tid2;
+    insert into probe_result values ('8 leadership smart split is atomic',
+      n = 2 and ok, n || ' child(ren), parent retired = ' || ok);
+    -- the same operation again: recognised, never repeated
+    perform public.smart_split_territory(tid2, 'probe-op-boss',
+      jsonb_build_array(
+        jsonb_build_object('id', tid2 || '-a', 'name', 'a',
+          'polygon', '[[0,0],[1,0],[1,1]]'::jsonb),
+        jsonb_build_object('id', tid2 || '-b', 'name', 'b',
+          'polygon', '[[1,0],[2,0],[2,1]]'::jsonb)));
+    select count(*) into n from public.territories
+      where team_id = team and id like tid2 || '-%' and deleted_at is null;
+    insert into probe_result values ('9 smart split retry creates nothing new',
+      n = 2, n || ' child(ren) after the retry');
+  exception when others then
+    insert into probe_result values ('8 leadership smart split is atomic', false,
+      'FAILED: ' || sqlerrm);
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
 end $$;
 
 select step,

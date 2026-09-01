@@ -319,10 +319,24 @@ insert into public.customers (team_id, id, first, last, data) values
      "billingAddress":{"street":"1 Elm","city":"Wichita","state":"KS","zip":"67202"},
      "card":{"name":"Pat Woo","number":"4242424242424242","exp":"12/27"},
      "ach":{"routing":"110000000","account":"000123456789"}}}'::jsonb);
+/* card and ach now SURVIVE as objects, because the name on the card and the
+   name/type on the bank account are honest metadata the payment screen has
+   always captured. What must not survive is a CREDENTIAL inside them: the
+   objects are rebuilt from named leaves, so number/exp/routing/account have
+   nowhere to land. This is the stronger assertion — the old one only proved
+   the whole object was thrown away. */
 select t_assert(
-  (select not (data->'payment' ? 'card') and not (data->'payment' ? 'ach')
+  (select data->'payment'->'card' = '{"name":"Pat Woo"}'::jsonb
      from public.customers where id = 'cust-a2'),
-  'card + bank objects are stripped before a customer row is stored');
+  'card survives as the NAME ONLY — number and exp have nowhere to land');
+select t_assert(
+  (select data->'payment'->'ach' is null
+     from public.customers where id = 'cust-a2'),
+  'an ach object carrying only credentials stores nothing at all');
+select t_assert(
+  (select not (data #>> '{}' ~ '"(number|exp|expiry|cvv|cvc|routing|account|accountNumber|routingNumber)"')
+     from public.customers where id = 'cust-a2'),
+  'no credential KEY exists anywhere in the stored row');
 select t_assert(
   (select data->'payment'->>'last4' = '4242'
       and data->'payment'->>'method' = 'card'
@@ -331,8 +345,10 @@ select t_assert(
   'the safe payment fields (method/last4/autopay/billingAddress) survive');
 select t_assert(
   (select position('4242424242424242' in data::text) = 0
+      and position('110000000' in data::text) = 0
+      and position('000123456789' in data::text) = 0
      from public.customers where id = 'cust-a2'),
-  'no full card number exists anywhere in the stored row');
+  'no card number, routing number or account number exists anywhere in the row');
 reset role;
 select set_config('request.jwt.claims', '', false);
 
@@ -613,15 +629,25 @@ select t_assert(
       and table_name = 'profiles' and privilege_type = 'UPDATE') = 'name',
   'profiles exposes UPDATE on the name column and nothing else');
 
--- and no SECURITY DEFINER function is a callable back door: every one is
--- either a trigger function (uncallable as an RPC) or read-only.
+/* SECURITY DEFINER functions bypass RLS by construction, so each one that
+   can WRITE is a second door into the data. There is exactly one, it is
+   named here, and any new one fails this check until somebody decides it
+   belongs. The name is not a rubber stamp: sections 17 and 18 below take
+   smart_split_territory apart from every role that must not be able to use
+   it. Everything else must still be a trigger function or read-only. */
 select t_assert(
-  (select count(*) from pg_proc p
+  (select coalesce(string_agg(p.proname, ',' order by p.proname), '')
+     from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
       and p.prorettype <> 'trigger'::regtype
-      and p.provolatile = 'v') = 0,
-  'every SECURITY DEFINER function in public is a trigger or read-only');
+      and p.provolatile = 'v') = 'smart_split_territory',
+  'the ONLY writable SECURITY DEFINER function in public is smart_split_territory');
+-- and it is not reachable by anon or by a bare PUBLIC grant
+select t_assert(
+  (select not has_function_privilege('anon',
+     'public.smart_split_territory(text,text,jsonb)', 'execute')),
+  'anon cannot execute the smart split function');
 
 -- the trigger functions are not reachable as RPCs even though PostgREST
 -- exposes the schema: Postgres refuses to call them outside a trigger
@@ -769,3 +795,363 @@ select t_assert(
       and not (data->'payment' ? 'card') and not (data->'payment' ? 'ach')
      from public.customers where id = 'cust-mix'),
   'the upsert path strips credentials exactly like the insert path');
+
+-- ===== 16. the ADMITTED safe metadata, and the uniform three-way rule
+/* card.name, ach.name and ach.type are honest metadata, not credentials:
+   none of them can authorise a payment, and the v39 payment screen has
+   always captured them. Before this revision the client kept them on the
+   device and the server dropped them, so they vanished on any round trip.
+   They are admitted under the same rebuild discipline as everything else.
+
+   These checks also prove the rule that governs EVERY field now:
+     sent and valid   -> stored
+     sent but invalid -> the stored value survives; nothing is invented
+     not sent         -> the stored value survives                        */
+
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-meta', 'Meta', 'Data',
+   '{"payment":{"method":"ach","last4":"1234",
+     "card":{"name":"Dana Q Rivers"},
+     "ach":{"name":"Dana Rivers","type":"savings"},
+     "billingAddress":{"street":"1234 W 5600 S","city":"Provo",
+                       "state":"UT","zip":"84604"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'card'->>'name' = 'Dana Q Rivers'
+      and data->'payment'->'ach'->>'name' = 'Dana Rivers'
+      and data->'payment'->'ach'->>'type' = 'savings'
+     from public.customers where id = 'cust-meta'),
+  'cardholder name, account-holder name and account type round-trip');
+
+-- a PAN typed into the name box is not a name: it is dropped, not stored
+update public.customers
+   set data = '{"payment":{"card":{"name":"4111111111111111"}}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->'card'->>'name' = 'Dana Q Rivers'
+     from public.customers where id = 'cust-meta'),
+  'a card number in the NAME field is refused and the real name survives');
+
+-- so is a routing number in the account-holder name
+update public.customers
+   set data = '{"payment":{"ach":{"name":"021000021"}}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->'ach'->>'name' = 'Dana Rivers'
+      and position('021000021' in data::text) = 0
+     from public.customers where id = 'cust-meta'),
+  'a routing number in the account-holder NAME is refused, the name survives');
+
+-- account type is a closed set; "crypto" is not client intent
+update public.customers
+   set data = '{"payment":{"ach":{"type":"crypto"}}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->'ach'->>'type' = 'savings'
+     from public.customers where id = 'cust-meta'),
+  'an out-of-set account type does not destroy the stored one');
+
+-- an invalid method must not destroy a stored valid one either
+update public.customers
+   set data = '{"payment":{"method":"crypto"}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->>'method' = 'ach'
+     from public.customers where id = 'cust-meta'),
+  'an invalid method does not destroy the stored method');
+
+-- nor may a malformed last4 (a whole PAN) wipe a real one
+update public.customers
+   set data = '{"payment":{"last4":"4111111111111111"}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->>'last4' = '1234'
+     from public.customers where id = 'cust-meta'),
+  'a full PAN in last4 is refused and the stored last4 survives');
+
+-- one bad address leaf must not wipe the other three
+update public.customers
+   set data = '{"payment":{"billingAddress":{"street":"4111111111111111",
+       "city":"Provo","state":"UT","zip":"84604"}}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->'billingAddress'->>'street' = '1234 W 5600 S'
+      and data->'payment'->'billingAddress'->>'city' = 'Provo'
+      and data->'payment'->'billingAddress'->>'zip' = '84604'
+     from public.customers where id = 'cust-meta'),
+  'a card number in the street line is refused; the other leaves are untouched');
+
+-- an EXPLICIT empty string is a rep clearing a field, and must go through
+update public.customers
+   set data = '{"payment":{"card":{"name":""},"billingAddress":{"city":""}}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->'card'->>'name' = ''
+      and data->'payment'->'billingAddress'->>'city' = ''
+     from public.customers where id = 'cust-meta'),
+  'clearing a field is real intent: an explicit empty string is stored');
+
+-- nested JSON where a string belongs is not a value; the stored one stands
+update public.customers
+   set data = '{"payment":{"ach":{"name":{"$ne":null}}}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->'ach'->>'name' = 'Dana Rivers'
+      and jsonb_typeof(data->'payment'->'ach'->'name') = 'string'
+     from public.customers where id = 'cust-meta'),
+  'nested JSON in a name field is refused and cannot become the value');
+
+-- MIXED VERSION: a v38 client knows none of these keys. Saving the record
+-- from that client must not erase them. Both statement shapes.
+update public.customers
+   set data = '{"payment":{"method":"ach","autopay":true,"last4":"1234"}}'::jsonb
+ where id = 'cust-meta';
+select t_assert(
+  (select data->'payment'->'card'->>'name' = ''
+      and data->'payment'->'ach'->>'name' = 'Dana Rivers'
+      and data->'payment'->'ach'->>'type' = 'savings'
+     from public.customers where id = 'cust-meta'),
+  'an older client that never heard of card/ach names cannot erase them');
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-meta', 'Meta', 'Data',
+   '{"payment":{"method":"ach","autopay":true,"last4":"1234"}}'::jsonb)
+on conflict (team_id, id) do update set data = excluded.data;
+select t_assert(
+  (select data->'payment'->'ach'->>'name' = 'Dana Rivers'
+      and data->'payment'->'ach'->>'type' = 'savings'
+      and data->'payment'->'billingAddress'->>'zip' = '84604'
+     from public.customers where id = 'cust-meta'),
+  'and it cannot erase them through the UPSERT path either (double-fire)');
+
+-- a brand-new row from such a client invents nothing
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-meta2', 'Old', 'Client',
+   '{"payment":{"method":"card","autopay":true}}'::jsonb)
+on conflict (team_id, id) do update set data = excluded.data;
+select t_assert(
+  (select not (data->'payment' ? 'card') and not (data->'payment' ? 'ach')
+      and not (data->'payment' ? 'billingAddress')
+     from public.customers where id = 'cust-meta2'),
+  'a new row from an older client records no name metadata rather than blanks');
+
+-- ============ 17. ATOMIC SMART SPLIT: who may, and what a split may be (0005)
+/* Smart Split writes N+1 rows. Doing it from a client meant every one of
+   them could fail alone, so "children exist beside a live parent" and
+   "parent gone, half the children missing" were both reachable. The whole
+   operation is now one transaction behind one SECURITY DEFINER function,
+   which is a door that bypasses RLS — so the checks it makes on the way in
+   are the entire authorization story, and they are taken apart here. */
+
+-- a disposable parent for team A, and one for team B
+insert into public.territories (team_id, id, name, polygon) values
+  ('11111111-1111-4111-a111-111111111111', 'split-parent',  'Big Hood',
+   '[[0,0],[4,0],[4,4],[0,4]]'::jsonb),
+  ('11111111-1111-4111-a111-111111111111', 'split-parent-2','Second Hood',
+   '[[0,0],[4,0],[4,4],[0,4]]'::jsonb),
+  ('22222222-2222-4222-a222-222222222222', 'split-parent-b','Team B Hood',
+   '[[0,0],[4,0],[4,4],[0,4]]'::jsonb);
+
+create or replace function pg_temp.kids(prefix text) returns jsonb
+language sql as $f$
+  select jsonb_build_array(
+    jsonb_build_object('id', prefix || '-a', 'name', 'Big Hood A',
+      'polygon', '[[0,0],[2,0],[2,4],[0,4]]'::jsonb, 'homes', 20),
+    jsonb_build_object('id', prefix || '-b', 'name', 'Big Hood B',
+      'polygon', '[[2,0],[4,0],[4,4],[2,4]]'::jsonb, 'homes', 20))
+$f$;
+
+-- runs the call as `uid` and returns 'ok' or the SQLSTATE it raised
+create or replace function pg_temp.try_split(uid uuid, parent text, op text, kids jsonb)
+returns text language plpgsql as $f$
+declare r jsonb;
+begin
+  call t_as(uid);
+  begin
+    select public.smart_split_territory(parent, op, kids) into r;
+    reset role;
+    perform set_config('request.jwt.claims', '', false);
+    return coalesce(r->>'status', 'ok');
+  exception when others then
+    reset role;
+    perform set_config('request.jwt.claims', '', false);
+    return sqlstate;
+  end;
+end $f$;
+
+-- ---- who may not
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000003', 'split-parent',
+                    'op-rep', pg_temp.kids('rep')) = '42501',
+  'a REP is refused by the split function itself, not by the UI');
+select t_assert(
+  (select count(*) from public.territories where id like 'rep-%') = 0,
+  'and the refused rep created no children');
+
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000004', 'split-parent',
+                    'op-benched', pg_temp.kids('ben')) = '42501',
+  'a DISABLED user is refused even though the role column says otherwise');
+
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000006', 'split-parent',
+                    'op-newbie', pg_temp.kids('new')) = '42501',
+  'a user with NO TEAM is refused');
+
+-- team B's owner may not reach into team A, and vice versa
+update public.profiles set role = 'owner' where email = 'rep-b@x.com';
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000005', 'split-parent',
+                    'op-crossteam', pg_temp.kids('cross')) = '42501',
+  'a CROSS-TEAM owner cannot find, let alone split, another team''s parent');
+select t_assert(
+  (select count(*) from public.territories where id like 'cross-%') = 0,
+  'and no children of that attempt exist anywhere');
+update public.profiles set role = 'rep' where email = 'rep-b@x.com';
+
+-- ---- what a split may not be
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'no-such-parent',
+                    'op-missing', pg_temp.kids('miss')) = '42501',
+  'a parent that does not exist is refused');
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-one', jsonb_build_array(
+      jsonb_build_object('id','one-a','name','A','polygon','[[0,0],[1,0],[1,1]]'::jsonb))) = '22023',
+  'a "split" into ONE child is not a split');
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-dup', jsonb_build_array(
+      jsonb_build_object('id','dup','name','A','polygon','[[0,0],[1,0],[1,1]]'::jsonb),
+      jsonb_build_object('id','dup','name','B','polygon','[[1,0],[2,0],[2,1]]'::jsonb))) = '22023',
+  'two children with the same id are refused');
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-self', jsonb_build_array(
+      jsonb_build_object('id','split-parent','name','A','polygon','[[0,0],[1,0],[1,1]]'::jsonb),
+      jsonb_build_object('id','self-b','name','B','polygon','[[1,0],[2,0],[2,1]]'::jsonb))) = '22023',
+  'a child may not reuse the parent id');
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-badgeom', jsonb_build_array(
+      jsonb_build_object('id','bad-a','name','A','polygon','[[0,0],[1,0]]'::jsonb),
+      jsonb_build_object('id','bad-b','name','B','polygon','[[1,0],[2,0],[2,1]]'::jsonb))) = '22023',
+  'a polygon with fewer than three points is refused');
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-badpt', jsonb_build_array(
+      jsonb_build_object('id','pt-a','name','A','polygon','[[0,0],[1,0],["x",1]]'::jsonb),
+      jsonb_build_object('id','pt-b','name','B','polygon','[[1,0],[2,0],[2,1]]'::jsonb))) = '22023',
+  'a polygon point that is not two numbers is refused');
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-offearth', jsonb_build_array(
+      jsonb_build_object('id','off-a','name','A','polygon','[[0,0],[1,0],[999,91]]'::jsonb),
+      jsonb_build_object('id','off-b','name','B','polygon','[[1,0],[2,0],[2,1]]'::jsonb))) = '22023',
+  'a polygon point off the surface of the earth is refused');
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-notarray', '{"nope":true}'::jsonb) = '22023',
+  'children that are not an array at all are refused');
+
+-- EVERY refusal above left the world exactly as it was
+select t_assert(
+  (select deleted_at is null from public.territories where id = 'split-parent'),
+  'after eleven refused attempts the parent is still alive');
+select t_assert(
+  (select count(*) from public.territories
+    where id ~ '^(rep|ben|new|cross|miss|one|dup|self|bad|pt|off)-') = 0,
+  'and not one child row was created by any of them');
+select t_assert(
+  (select count(*) from public.territory_splits) = 0,
+  'and no operation was recorded');
+
+-- ---- the happy path, as a LEADER
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-real', pg_temp.kids('kid')) = 'committed',
+  'a LEADER splits the hood and the call reports it committed');
+select t_assert(
+  (select count(*) from public.territories
+    where id in ('kid-a','kid-b') and deleted_at is null) = 2,
+  'both children exist');
+select t_assert(
+  (select deleted_at is not null from public.territories where id = 'split-parent'),
+  'and the parent is retired in the same breath');
+select t_assert(
+  (select name = 'Big Hood A' and homes = 20 and polygon = '[[0,0],[2,0],[2,4],[0,4]]'::jsonb
+     from public.territories where id = 'kid-a'),
+  'the child carries the name, homes and geometry the client calculated');
+select t_assert(
+  (select created_by = '00000000-0000-4000-a000-000000000002'
+     from public.territories where id = 'kid-a'),
+  'and is attributed to the leader who ran it, from auth.uid()');
+
+-- ---- IDEMPOTENCY: the response was lost, the device retries
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-real', pg_temp.kids('kid')) = 'already_committed',
+  'the SAME operation submitted again is recognised, not repeated');
+select t_assert(
+  (select count(*) from public.territories where id like 'kid-%') = 2,
+  'and creates ZERO new children');
+
+-- a retry after the operator has been demoted still gets its answer: the
+-- split is a server fact already, and refusing to say so would make the
+-- device roll back state the server holds
+update public.profiles set role = 'rep' where email = 'lead-a@x.com';
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent',
+                    'op-real', pg_temp.kids('kid')) = 'already_committed',
+  'a retry by a since-DEMOTED operator still resolves to the committed fact');
+-- but a NEW split by that same demoted user is refused
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000002', 'split-parent-2',
+                    'op-after-demotion', pg_temp.kids('demoted')) = '42501',
+  'while a NEW split by the demoted user is refused outright');
+update public.profiles set role = 'leader' where email = 'lead-a@x.com';
+
+-- ---- a parent may be split ONCE
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000001', 'split-parent',
+                    'op-second-go', pg_temp.kids('again')) = '55000',
+  'an ALREADY SPLIT parent cannot be split a second time');
+select t_assert(
+  (select count(*) from public.territories where id like 'again-%') = 0,
+  'and that attempt created nothing');
+
+-- ---- an operation id belongs to one parent
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000001', 'split-parent-2',
+                    'op-real', pg_temp.kids('reuse')) = '22023',
+  'reusing an operation id for a DIFFERENT parent is refused');
+select t_assert(
+  (select count(*) from public.territories where id like 'reuse-%') = 0,
+  'and creates nothing');
+
+-- ---- a child id that is already a live territory is not a new child
+select t_assert(
+  pg_temp.try_split('00000000-0000-4000-a000-000000000001', 'split-parent-2',
+                    'op-collide', jsonb_build_array(
+      jsonb_build_object('id','kid-a','name','A','polygon','[[0,0],[1,0],[1,1]]'::jsonb),
+      jsonb_build_object('id','collide-b','name','B','polygon','[[1,0],[2,0],[2,1]]'::jsonb))) = '23505',
+  'a child id that already names a live territory is refused');
+select t_assert(
+  (select count(*) from public.territories where id = 'collide-b') = 0
+    and (select deleted_at is null from public.territories where id = 'split-parent-2'),
+  'and neither the other child nor the parent transition survived it');
+
+-- ---- the operation table is readable but not writable by a client
+call t_as('00000000-0000-4000-a000-000000000002');
+select t_assert((select count(*) from public.territory_splits) = 1,
+  'a leader can READ its own team''s split record (how a lost response heals)');
+reset role;
+select set_config('request.jwt.claims', '', false);
+call t_as('00000000-0000-4000-a000-000000000005');
+select t_assert((select count(*) from public.territory_splits) = 0,
+  'and cannot see another team''s split records at all');
+reset role;
+select set_config('request.jwt.claims', '', false);
+select t_assert(
+  (select not has_table_privilege('authenticated', 'public.territory_splits', 'insert')
+      and not has_table_privilege('authenticated', 'public.territory_splits', 'update')
+      and not has_table_privilege('authenticated', 'public.territory_splits', 'delete')),
+  'no client may write the split record by any route but the function');

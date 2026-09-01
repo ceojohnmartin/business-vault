@@ -372,9 +372,9 @@
     // split hood must not siphon this work into a ghost
     const liveTid = (() => {
       const t0 = pin.territoryId &&
-        S.territories.find((t) => t.id === pin.territoryId && !t.archived);
+        S.territories.find((t) => t.id === pin.territoryId && S.isLive(t));
       if (t0) return t0.id;
-      const t1 = S.territories.find((t) => !t.archived && t.points && t.points.length >= 3 &&
+      const t1 = S.territories.find((t) => S.isLive(t) && t.points && t.points.length >= 3 &&
         S.inHood(t, pin.lng, pin.lat));
       return t1 ? t1.id : null;
     })();
@@ -764,10 +764,16 @@
   };
 
   // territories that should render and count — archived ones sit out
-  S.activeTerritories = () => S.territories.filter((t) => !t.archived);
+  /* A hood nobody can be sent to work: archived, or set aside mid-split.
+     A parent whose split has not committed yet is still a real record —
+     it may still need to reach the server before the split can retire it —
+     but it is not somewhere a rep knocks, and its children are already on
+     the map beside it. Showing both would double-count every door. */
+  S.isLive = (t) => !!t && !t.archived && !t.splitInto;
+  S.activeTerritories = () => S.territories.filter(S.isLive);
 
   // hoods belonging to a user (for rep mode and the manager panel)
-  S.hoodsOf = (userId) => S.territories.filter((t) => !t.archived && t.assignedTo === userId);
+  S.hoodsOf = (userId) => S.territories.filter((t) => S.isLive(t) && t.assignedTo === userId);
 
   // every interaction that happened inside a hood, joined through pins
   S.eventsInHood = function (t) {
@@ -822,24 +828,135 @@
   // Smart Split: replace one hood with N weight-balanced children.
   // The parent is retired (deleted) — its knock history lives on the pins,
   // which fall inside whichever child contains them.
+  /* Smart Split is ONE decision, so it becomes ONE server fact.
+
+     The geometry is unchanged — MGEO.splitPolygon still does the weighted
+     balancing against the doors, and the children still come out named,
+     sized and shaped exactly as before. What changed is the commit. This
+     used to be N addTerritory() calls plus a deleteTerritory(), which is
+     N+1 independent server writes that can each fail on their own: the
+     reachable states included "children exist beside a live parent" (the
+     hood covered twice) and "parent gone, half the children missing" (a
+     hole in the map). Now the whole thing is one atomic command
+     (db/migrations/0005_smart_split.sql), and until the server answers,
+     this device holds a PROPOSAL — not a fact.
+
+     Locally that proposal looks like the finished split, because that is
+     what the manager asked for and what they will get if it commits: the
+     children are on the map, the parent is set aside (splitInto), and
+     nothing is queued as an independent territory write. If the server
+     refuses, S.finishSplit() puts every bit of it back. */
   S.splitTerritory = async function (t, n) {
     const pins = S.pins
       .filter((p) => S.inHood(t, p.lng, p.lat))
       .map((p) => [p.lng, p.lat]);
     const { rings, shares } = MGEO.splitPolygon(t.points, n, pins);
     const letters = ["A", "B", "C", "D", "E", "F", "G", "H"];
-    const kids = [];
-    for (let i = 0; i < rings.length; i++) {
-      kids.push(await S.addTerritory({
-        name: `${t.name} ${letters[i] || i + 1}`,
-        homes: t.homes ? Math.max(1, Math.round(t.homes * shares[i])) : null,
-        points: rings[i],
-        assignments: [],
-      }));
+    const operationId = MDB.uid();
+    const now = Date.now();
+    const kids = rings.map((ring, i) => ({
+      id: MDB.uid(),
+      name: `${t.name} ${letters[i] || i + 1}`,
+      homes: t.homes ? Math.max(1, Math.round(t.homes * shares[i])) : null,
+      points: ring,
+      assignments: [],
+      createdAt: now,
+      updatedAt: now,
+      pendingSplit: operationId,   // proposed, not yet a server fact
+    }));
+    S.territories.push(...kids);
+    await MDB.bulkPut("territories", kids);
+    /* The parent stays in the book. It is hidden from every place that
+       hands out work (S.isLive), but it is still a real record, because a
+       hood cut offline may itself never have reached the server — and the
+       split cannot commit until its parent is there to be retired. */
+    t.splitInto = operationId;
+    t.updatedAt = now;
+    await MDB.put("territories", t);
+    /* Everything needed to undo this lives on the device, not in memory:
+       a reload mid-flight, or a crash between send and response, still
+       finds the proposal and the exact parent to restore. */
+    const pend = (await MDB.kvGet("splitPending", null)) || {};
+    pend[operationId] = { parentId: t.id, parent: JSON.parse(JSON.stringify(t)),
+      childIds: kids.map((k) => k.id), at: now };
+    delete pend[operationId].parent.splitInto;
+    await MDB.kvSet("splitPending", pend);
+
+    if (window.MCLOUD && MCLOUD.enabled()) {
+      if (window.MSYNC) MSYNC.queueSplit(operationId, t.id);
+    } else {
+      // No cloud project, so there is no server to refuse it: the local act
+      // IS the fact, exactly as it is for a territory delete.
+      await S.finishSplit(operationId, true);
     }
-    await S.deleteTerritory(t.id);
     return kids;
   };
+
+  /* The outcome of a proposed split, applied once and only once.
+
+     committed: the parent is a server-side tombstone already, so it is
+       simply gone from here too — no second write, no queued delete. The
+       doors it held are re-homed into whichever child now contains them,
+       which is a CONSEQUENCE of the split having happened, never a step
+       towards making it happen. Every other device does the same when it
+       pulls the children and the parent's tombstone.
+     refused: the proposal is erased and the parent comes back exactly as
+       it was. The manager sees the hood they started with, not a half
+       split they have to work out for themselves. */
+  S.finishSplit = async function (operationId, committed) {
+    const pend = (await MDB.kvGet("splitPending", null)) || {};
+    const rec = pend[operationId];
+    if (!rec) return null;
+    const kids = S.territories.filter((t) => t.pendingSplit === operationId);
+    if (committed) {
+      kids.forEach((k) => { delete k.pendingSplit; });
+      if (kids.length) await MDB.bulkPut("territories", kids);
+      S.territories = S.territories.filter((t) => t.id !== rec.parentId);
+      await MDB.del("territories", rec.parentId).catch(() => {});
+      const moved = S.rehomeInto(rec.parentId, kids);
+      if (moved.length) {
+        await MDB.bulkPut("pins", moved);
+        // this device saw it first; the others re-home from the same
+        // geometry when they pull, so only one of us needs to say so
+        if (window.MSYNC) moved.forEach((p) => MSYNC.queue("pins", p.id));
+      }
+    } else {
+      const ids = new Set(kids.map((k) => k.id));
+      S.territories = S.territories.filter((t) => !ids.has(t.id));
+      await MDB.bulkDel("territories", [...ids]).catch(() => {});
+      const back = S.territories.find((t) => t.id === rec.parentId);
+      if (back) {
+        delete back.splitInto;
+        await MDB.put("territories", back);
+      }
+      /* If the parent is no longer here, a TOMBSTONE for it arrived from the
+         server while this proposal was in flight — someone else split or
+         deleted the hood first. Putting it back would resurrect a territory
+         the team has already retired, and this device would then push that
+         resurrection at everyone. The proposal is dropped and the hood stays
+         gone, which is what the server says is true. */
+    }
+    delete pend[operationId];
+    await MDB.kvSet("splitPending", Object.keys(pend).length ? pend : null);
+    return { committed, childIds: kids.map((k) => k.id) };
+  };
+
+  // every door the retired hood held moves to whichever child contains it;
+  // a door in none of them is simply unhomed, the same as any orphan
+  S.rehomeInto = function (parentId, kids) {
+    const moved = [];
+    S.pins.forEach((p) => {
+      if (p.territoryId !== parentId) return;
+      const home = kids.find((k) => S.inHood(k, p.lng, p.lat));
+      p.territoryId = home ? home.id : null;
+      p.updatedAt = Date.now();
+      moved.push(p);
+    });
+    return moved;
+  };
+
+  // proposals this device is still waiting on, for the UI and for boot
+  S.pendingSplits = async () => (await MDB.kvGet("splitPending", null)) || {};
 
   // ---------- callbacks ----------
   S.callbacksDue = function () {

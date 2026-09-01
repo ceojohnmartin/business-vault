@@ -54,7 +54,8 @@ VALUES ('$TEAM','race-1','','','$2'::jsonb)
 ON CONFLICT (team_id,id) DO UPDATE SET data = excluded.data;
 SQL
   wait
-  got="$(psql -d "$DB" -Atc "select coalesce(data->'payment'->>'autopayRequested','<absent>')
+  probe="${5:-data->'payment'->>'autopayRequested'}"
+  got="$(psql -d "$DB" -Atc "select coalesce($probe,'<absent>')
                                from public.customers where id = 'race-1'")"
   if [ "$got" = "$3" ]; then echo "PASS: $4"
   else echo "FAIL: $4 (expected $3, got $got)"; fails=$((fails+1)); fi
@@ -75,6 +76,36 @@ race '{"payment":{"method":"ach","autopayRequested":false,"status":"not_configur
      true \
      "a current client's EXPLICIT true still wins over a concurrent false"
 
+# The newly ADMITTED metadata (card.name, ach.name, ach.type) is governed by
+# the same rule and therefore has the same failure mode. A client that has
+# never heard of these keys is the common case during a rollout, so a lost
+# update here is the likely one, not the exotic one.
+race '{"payment":{"method":"ach","card":{"name":"Dana Rivers"}}}' \
+     '{"payment":{"method":"ach","autopay":true,"last4":""}}' \
+     "Dana Rivers" \
+     "a concurrently committed cardholder name is not lost to an older client" \
+     "data->'payment'->'card'->>'name'"
+
+race '{"payment":{"method":"ach","card":{"name":"Dana Rivers"}}}' \
+     '{"payment":{"method":"ach","card":{"name":"4111111111111111"}}}' \
+     "Dana Rivers" \
+     "nor to a concurrent client sending a card number as the name" \
+     "data->'payment'->'card'->>'name'"
+
+race '{"payment":{"method":"ach","card":{"name":"Dana Rivers"}}}' \
+     '{"payment":{"method":"ach","card":{"name":"Sam Vance"}}}' \
+     "Sam Vance" \
+     "but a real concurrent name change still wins (genuine intent, last write)" \
+     "data->'payment'->'card'->>'name'"
+
+# last4 under the same race: a PAN must never be truncated into a
+# plausible-looking reference, least of all over a real stored one.
+race '{"payment":{"method":"card","last4":"4242"}}' \
+     '{"payment":{"method":"card","last4":"4111111111111111"}}' \
+     "4242" \
+     "a full PAN cannot truncate itself into last4 over a concurrent real one" \
+     "data->'payment'->>'last4'"
+
 [ -z "$1" ] && psql -q -d postgres -c "drop database if exists $DB" >/dev/null 2>&1
 if [ "$fails" -gt 0 ]; then echo "RACE: FAILED ($fails)"; exit 1; fi
-echo "RACE: ALL GREEN (3 checks)"
+echo "RACE: ALL GREEN (7 checks)"

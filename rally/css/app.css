@@ -789,6 +789,11 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .imp-chip{font-weight:700}
 .imp-chip.sel{background:rgba(34,181,88,.1);border-color:rgba(34,181,88,.55);color:var(--sold-ink)}
 .hood-row.archived{opacity:.55}
+/* a child of a split the server has not confirmed: visibly provisional, so
+   nobody hands the turf out before it is real */
+.hood-row.pending{opacity:.7}
+.hood-row.pending .dot{opacity:.45;border:1.5px dashed var(--t3);background:transparent!important}
+.hood-row.pending .hr{font-style:italic}
 
 /* ============================================================
    ENTRY SCREENS — splash + device gate

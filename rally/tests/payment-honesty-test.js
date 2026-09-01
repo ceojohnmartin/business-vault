@@ -259,12 +259,21 @@ const DUMP = `(async () => {
   check("C6 backup: the file carries no credential", !hasSentinel(payload),
     SENTINELS.filter((v) => payload.includes(v)).join(","));
   const backedUp = JSON.parse(payload).data.customers.find((c) => c.id === legacyId);
-  check("C6b backup: payment is rebuilt from the allowlist",
-    Object.keys(backedUp.payment).sort().join(",") === "autopayRequested,billingAddress,last4,method,status",
+  check("C6b backup: payment is rebuilt from the ONE canonical allowlist",
+    Object.keys(backedUp.payment).sort().join(",") === "ach,autopayRequested,billingAddress,card,last4,method,status",
     Object.keys(backedUp.payment).sort().join(","));
-  check("C6c backup: no autopay claim and no configured status",
-    backedUp.payment.autopayRequested === false && backedUp.payment.status === "not_configured",
+  /* The legacy fixture names ACH as the method, so "setup pending" is the
+     honest status and the export says so. What it must never say is that a
+     payment method is on file, and it must never carry the legacy autopay
+     default forward as a customer request. */
+  check("C6c backup: no autopay claim and no ACTIVE/on-file status",
+    backedUp.payment.autopayRequested === false
+      && (backedUp.payment.status === "not_configured" || backedUp.payment.status === "pending_setup"),
     JSON.stringify(backedUp.payment));
+  check("C6d backup: the names survive the round trip, the credentials do not",
+    backedUp.payment.card.name === "Pat Woo" && !("number" in backedUp.payment.card)
+      && !("routing" in backedUp.payment.ach) && !("account" in backedUp.payment.ach),
+    JSON.stringify(backedUp.payment.card) + " " + JSON.stringify(backedUp.payment.ach));
 
   // --- step 5: RESTORE a LEGACY file that still carries them
   const legacyFile = JSON.parse(payload);

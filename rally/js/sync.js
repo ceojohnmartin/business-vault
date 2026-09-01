@@ -56,6 +56,8 @@
   let queued = new Set();      // in-memory mirror of outbox keys
   let loaded = false;          // has start() finished reading stored state?
   let deadCount = 0;           // rows the server refused outright
+  let territoryWithheld = 0;   // doors uploaded without a territory claim
+  let parked = new Set();      // rows THIS cycle dead-lettered (never restored)
   let deadTables = {};         // which tables they were in
   let lastRefusal = null;      // { table, id, status, at }
   let requeued = [];           // entries queued while a push was in flight
@@ -98,6 +100,41 @@
     enqueue({ k: table + ":" + id, table, id, op: "delete", at: Date.now(),
       wasOnServer: !!(rec && rec.serverAt) });
   }
+  /* Parking a refused row, exactly ONCE per row.
+
+     "Refused" is a fact about a row, not a tally of attempts. The same row
+     can reach here twice — an edit queued while a push is in flight is
+     stashed and restored afterwards, so the next cycle re-offers a row this
+     one already parked — and appending twice made the More screen report
+     two outstanding refusals where there is one, and pushed real distinct
+     refusals out of the 200-entry cap. The counters are derived from the
+     stored list rather than incremented, so what status() reports and what
+     refusals() lists can never disagree. */
+  async function deadLetter(entry) {
+    const dead = (await MDB.kvGet("syncDead", null)) || [];
+    const next = dead.filter((d) => d.k !== entry.k);
+    next.push(entry);
+    const capped = next.slice(-200);
+    await MDB.kvSet("syncDead", capped);
+    deadCount = capped.length;
+    deadTables = {};
+    capped.forEach((d) => { deadTables[d.table] = (deadTables[d.table] || 0) + 1; });
+    lastRefusal = entry;
+    parked.add(entry.k);
+  }
+
+  /* A Smart Split is not a row, it is a COMMAND — the one thing this engine
+     sends that is not an upsert or a tombstone. The outbox entry still holds
+     no payload: it names the operation and its parent, and the children are
+     rebuilt from the live territory records at push time, exactly as every
+     other payload is. So a child renamed between the tap and the send goes
+     up with its new name, and a proposal that was abandoned sends nothing. */
+  function queueSplit(operationId, parentId) {
+    if (!active() || !operationId || !parentId) return;
+    enqueue({ k: "splits:" + operationId, table: "splits", id: operationId,
+      op: "split", parentId, at: Date.now() });
+  }
+
   const isDirty = (table, id) => queued.has(table + ":" + id);
   function dropEntry(table, id) {
     const k = table + ":" + id;
@@ -203,18 +240,41 @@
 
   // ---------- payloads (push) ----------
   const iso = (ms) => new Date(ms || Date.now()).toISOString();
-  /* The safe payment shape, matching the server trigger's allowlist
-     (db/migrations/0004_payment_allowlist.sql). Rebuilt from named fields,
-     so a key that isn't listed cannot ride along — and there are no
-     credential keys to list, because v39 never captures any. */
+  /* THE CANONICAL SAFE PAYMENT SHAPE on the wire — the same allowlist the
+     server trigger rebuilds (db/migrations/0004_payment_allowlist.sql) and
+     the same one MCUST.honestPayment() enforces on the device. Rebuilt from
+     named fields, so a key that isn't listed cannot ride along, and there
+     are no credential keys to list because v39 never captures any.
+
+     card.name, ach.name and ach.type travel too. They are the customer's
+     intent, not credentials — none of them can authorise a payment — and
+     the payment screen has always captured them. Leaving them behind meant
+     a record opened on a second device came back with the name blank,
+     which looked like a rep had failed to fill it in. */
   const scrubPayment = (c) => {
     if (!c || !c.payment) return c;
-    const p = c.payment;
+    /* FAIL CLOSED. honestPayment() is the single enforcement point, and
+       sync.js loads BEFORE customers.js — a partially-cached release can
+       leave this module running without it. Sending the payment object
+       unscrubbed to save the round trip is exactly the wrong trade: drop
+       the key instead, and the server's three-way rule keeps whatever it
+       already holds. Nothing is lost and nothing unvetted is uploaded. */
+    if (!window.MCUST || typeof MCUST.honestPayment !== "function") {
+      delete c.payment;
+      return c;
+    }
+    // one enforcement point: whatever honestPayment() permits is what goes
+    const p = MCUST.honestPayment(c.payment);
     c.payment = {
-      method: p.method || "", last4: p.last4 || "",
+      method: p.method, last4: p.last4 || "",
       autopayRequested: p.autopayRequested === true,
       status: p.status === "pending_setup" ? "pending_setup" : "not_configured",
-      billingAddress: p.billingAddress || null,
+      card: { name: p.card.name },
+      ach: { name: p.ach.name, type: p.ach.type },
+      billingAddress: {
+        street: p.billingAddress.street, city: p.billingAddress.city,
+        state: p.billingAddress.state, zip: p.billingAddress.zip,
+      },
     };
     return c;
   };
@@ -250,6 +310,13 @@
     }
     if (table === "territories") {
       const data = JSON.parse(JSON.stringify(rec));
+      /* Device-local split bookkeeping. `pendingSplit` marks a child whose
+         split has not committed here yet, and `splitInto` marks a parent
+         set aside for one — both describe THIS device's view of an
+         operation in flight, not anything true of the territory, so
+         neither belongs in the team's copy of the record. */
+      delete data.pendingSplit;
+      delete data.splitInto;
       if (data.assignedTo) data.assignedTo = toProfile(data.assignedTo) || data.assignedTo;
       (data.assignments || []).forEach((a) => {
         if (a.userId) a.userId = toProfile(a.userId) || a.userId;
@@ -298,10 +365,27 @@
     if (!entries.length) return { pushed: 0 };
     let pushed = 0;
     const pinsFailed = { v: false };
-    // territories refused in THIS cycle: nothing that references one may go up
-    const territoryRefused = new Set();
+    /* A door may only CLAIM membership of a territory the server actually
+       has. The evidence is durable (serverAt, stamped on a successful push
+       and on every pull) rather than "was it refused during this cycle":
+       a refusal parks the territory permanently in the dead-letter, so a
+       within-cycle set is empty on the very next cycle and the doors sail
+       through pointing at a territory that was never accepted. */
+    const territoryOnServer = (id) => {
+      if (!id) return true;                  // no claim to make
+      const t = localRec("territories", id);
+      return !!(t && t.serverAt);
+    };
 
     for (const table of TABLES) {
+      if (table === "pins") {
+        /* SPLITS GO AFTER TERRITORIES AND BEFORE PINS.
+           After territories, because a hood cut offline may never have
+           reached the server, and the split cannot retire a parent that is
+           not there yet. Before pins, because the children have to exist
+           before a door can say it belongs to one. */
+        await pushSplits(entries, team);
+      }
       if (table === "events" && pinsFailed.v) continue; // a knock's door goes first
       const mine = entries.filter((e) => e.table === table);
       const ups = mine.filter((e) => e.op === "upsert");
@@ -334,7 +418,18 @@
           const stamped = [];
           for (const e of ents) {
             const rec = localRec(table, e.id);
-            if (rec && !rec.serverAt) { rec.serverAt = Date.now(); stamped.push(rec); }
+            if (rec && !rec.serverAt) {
+              rec.serverAt = Date.now(); stamped.push(rec);
+              /* This territory has only NOW become a server fact. Doors that
+                 were uploaded without a membership claim can finally state
+                 it truthfully, so re-queue them once. Without this the door
+                 work is safe but permanently homeless on the server. */
+              if (table === "territories") {
+                S().pins.forEach((p) => {
+                  if (p.territoryId === e.id && p.serverAt) queue("pins", p.id);
+                });
+              }
+            }
           }
           if (stamped.length) await MDB.bulkPut(table, stamped).catch(() => {});
           await MDB.bulkDel("outbox", ents.map((e) => e.k));
@@ -344,20 +439,13 @@
         }
         if (r.status >= 500) { netDown = true; lastError = "push " + table + " " + r.status; return; }
         if (rows.length === 1) { // the poison row: park it, keep the line moving
-          if (table === "territories") territoryRefused.add(ents[0].id);
           lastError = "push " + table + " rejected " + ents[0].id + " (" + r.status + ")";
-          const entry = {
+          // the refusal becomes VISIBLE — a parked row is not a synced row
+          await deadLetter({
             k: ents[0].k, table, id: ents[0].id, status: r.status, at: Date.now(),
-          };
-          const dead = (await MDB.kvGet("syncDead", null)) || [];
-          dead.push(entry);
-          await MDB.kvSet("syncDead", dead.slice(-200));
+          });
           await MDB.del("outbox", ents[0].k).catch(() => {});
           queued.delete(ents[0].k);
-          // the refusal becomes VISIBLE — a parked row is not a synced row
-          deadCount++;
-          deadTables[table] = (deadTables[table] || 0) + 1;
-          lastRefusal = entry;
           return;
         }
         const mid = Math.ceil(rows.length / 2);
@@ -367,19 +455,26 @@
       for (let i = 0; i < ups.length && !netDown; i += PUSH_BATCH) {
         const slice = ups.slice(i, i + PUSH_BATCH);
         const rows = [], live = [];
-        const held = [];
         for (const e of slice) {
           const rec = localRec(table, e.id);
           if (!rec) continue; // deleted since queued; its delete entry handles it
-          // a door whose territory the server just refused stays put: it must
-          // not land pointing at a territory that does not exist there
-          if (table === "pins" && rec.territoryId && territoryRefused.has(rec.territoryId)) {
-            held.push(e); continue;
+          const row = rowFor(table, rec, team);
+          /* A door whose territory the server does not have goes up WITHOUT
+             the membership claim. The knocks and dispositions on it are the
+             rep's own work and must not be stranded because a privileged
+             territory write was refused — but the association with that
+             territory is exactly the privileged half, and it does not get to
+             commit on the back of a rep-writable row. The local record keeps
+             its hood; only the wire copy drops it, and pushing the territory
+             later re-queues the door to state it properly. */
+          if (table === "pins" && row.territory_id && !territoryOnServer(row.territory_id)) {
+            row.territory_id = null;
+            territoryWithheld++;
           }
-          rows.push(rowFor(table, rec, team));
+          rows.push(row);
           live.push(e);
         }
-        const gone = slice.filter((e) => !live.includes(e) && held.indexOf(e) < 0);
+        const gone = slice.filter((e) => !live.includes(e));
         await pushSlice(rows, live);
         if (gone.length) {
           await MDB.bulkDel("outbox", gone.map((e) => e.k));
@@ -436,15 +531,9 @@
               try { await APPLY[table]([back.data[0]]); } catch (_) {}
             }
             lastError = "delete " + table + " refused " + e.id + " (no rows changed)";
-            const entry = { k: e.k, table, id: e.id, status: 403, at: Date.now() };
-            const dead = (await MDB.kvGet("syncDead", null)) || [];
-            dead.push(entry);
-            await MDB.kvSet("syncDead", dead.slice(-200));
+            await deadLetter({ k: e.k, table, id: e.id, status: 403, at: Date.now() });
             await MDB.del("outbox", e.k).catch(() => {});
             queued.delete(e.k);
-            deadCount++;
-            deadTables[table] = (deadTables[table] || 0) + 1;
-            lastRefusal = entry;
             continue;
           }
         }
@@ -460,6 +549,113 @@
       }
     }
     return { pushed };
+  }
+
+  /* ---------- the Smart Split command ----------
+     One call, one server fact. Either the parent is retired and every child
+     exists, or nothing happened at all — the whole decision is a single
+     transaction inside db/migrations/0005_smart_split.sql, so there is no
+     partial outcome for this code to have to reason about.
+
+     What this code IS responsible for is not lying to the manager about
+     which of the two happened. */
+  async function pushSplits(entries, team) {
+    const mine = entries.filter((e) => e.table === "splits" && e.op === "split");
+    for (const e of mine) {
+      const pend = (await MDB.kvGet("splitPending", null)) || {};
+      const rec = pend[e.id];
+      if (!rec) {                 // resolved already (another tab, a reload)
+        await MDB.del("outbox", e.k).catch(() => {});
+        queued.delete(e.k);
+        continue;
+      }
+      const parent = localRec("territories", rec.parentId);
+      /* WAIT only for a parent that exists here but has never reached the
+         server. Until it does, this command would be refused for the wrong
+         reason ("no such parent") and the proposal thrown away over a race
+         the device could simply have waited out.
+
+         A parent that is GONE from here is a different thing entirely: the
+         only way that happens is a tombstone pulled from the server, so the
+         hood is already retired there — by our own split, or by somebody
+         else's. Waiting for it to come back would strand this proposal
+         forever, with children on the map that no server will ever
+         acknowledge. Send the command and let the server say which it was:
+         our operation id comes back 'already_committed' if we won, and a
+         refusal if another split got there first. */
+      if (parent && !parent.serverAt) continue;
+
+      const kids = S().territories.filter((t) => t.pendingSplit === e.id);
+      if (kids.length < 2) {      // the proposal no longer describes a split
+        await S().finishSplit(e.id, false);
+        await MDB.del("outbox", e.k).catch(() => {});
+        queued.delete(e.k);
+        continue;
+      }
+      const children = kids.map((k) => {
+        const row = rowFor("territories", k, team);
+        return { id: row.id, name: row.name, polygon: row.polygon,
+                 homes: row.homes, data: row.data };
+      });
+
+      let r;
+      try {
+        r = await MCLOUD.api("/rest/v1/rpc/smart_split_territory", {
+          method: "POST",
+          body: { p_parent_id: rec.parentId, p_operation_id: e.id,
+                  p_children: children },
+        });
+      } catch (_) {
+        // offline, or the answer never arrived. The proposal is untouched
+        // and the operation id is unchanged, so the retry is the SAME
+        // operation and the server will recognise it if it did commit.
+        lastError = "split offline";
+        continue;
+      }
+
+      if (r.ok) {
+        /* 'committed' and 'already_committed' are the same news to this
+           device: the split IS a server fact. The second one is what a
+           lost response looks like from here, and treating it as a failure
+           would roll back a hood the server has already split. */
+        const kidIds = new Set(kids.map((k) => k.id));
+        const stamped = [];
+        S().territories.forEach((t) => {
+          if (kidIds.has(t.id) && !t.serverAt) { t.serverAt = Date.now(); stamped.push(t); }
+        });
+        if (stamped.length) await MDB.bulkPut("territories", stamped).catch(() => {});
+        await S().finishSplit(e.id, true);
+        await MDB.del("outbox", e.k).catch(() => {});
+        queued.delete(e.k);
+        pushed++;
+        continue;
+      }
+      if (r.status >= 500 || r.status === 0) {
+        // the server is unwell, not unwilling: keep the proposal and retry
+        lastError = "split " + r.status;
+        continue;
+      }
+      /* A REFUSAL. The manager was demoted, disabled, moved teams, or the
+         hood was split by someone else first. Nothing committed, so the
+         proposal is erased and the hood comes back exactly as it was —
+         and the refusal is SURFACED, because a split that silently
+         un-happened is the worst of the three possible outcomes. */
+      lastError = "split refused " + e.id + " (" + r.status + ")";
+      const undone = S().territories.find((t) => t.id === rec.parentId);
+      await S().finishSplit(e.id, false);
+      if (!undone) lastError = "split lost the race " + e.id;
+      try {
+        if (window.MUI && MUI.toast) {
+          MUI.toast((undone ? "“" + undone.name + "” was NOT split" : "The split was refused")
+            + " — the server refused it and the hood is back as it was");
+        }
+      } catch (_) {}
+      await deadLetter({ k: e.k, table: "splits", id: e.id,
+        status: r.status, at: Date.now() });
+      await MDB.del("outbox", e.k).catch(() => {});
+      queued.delete(e.k);
+      repaint();
+    }
   }
 
   // ---------- pull + merge ----------
@@ -859,11 +1055,19 @@
     } finally {
       // edits that raced the push had their outbox rows swept — restore them
       if (requeued.length) {
-        const back = requeued; requeued = [];
-        back.forEach((e) => queued.add(e.k));
-        MDB.bulkPut("outbox", back).catch(() => {});
-        kick();
+        /* An entry PARKED by this very cycle must not come back: the server
+           refused that row, the refusal is recorded, and re-offering it
+           only earns a second refusal for the same row. Everything else is
+           a genuine edit that raced the push and still needs to go up. */
+        const back = requeued.filter((e) => !parked.has(e.k));
+        requeued = [];
+        if (back.length) {
+          back.forEach((e) => queued.add(e.k));
+          MDB.bulkPut("outbox", back).catch(() => {});
+          kick();
+        }
       }
+      parked = new Set();
       running = false;
       if (wakeAgain) { // doorbell rang mid-cycle: one follow-up, not a storm
         wakeAgain = false;
@@ -917,6 +1121,20 @@
       deadTables[t] = (deadTables[t] || 0) + 1;
     });
     lastRefusal = dead[dead.length - 1] || null;
+    /* A Smart Split proposal that outlived the app. splitTerritory() writes
+       the proposal to disk and then queues the command; a kill between the
+       two, or a proposal made before the cloud was configured, leaves a
+       parent set aside with no command to resolve it — the hood would sit
+       hidden from every screen with nothing in flight to bring it back.
+       Re-queue anything the outbox does not already carry. */
+    try {
+      const pend = (await MDB.kvGet("splitPending", null)) || {};
+      for (const opId in pend) {
+        if (queued.has("splits:" + opId)) continue;
+        enqueue({ k: "splits:" + opId, table: "splits", id: opId, op: "split",
+          parentId: pend[opId].parentId, at: pend[opId].at || Date.now() });
+      }
+    } catch (_) {}
     // only now is a "0 refused" answer trustworthy — before this the counts
     // are simply unknown, and a screen must not read them as "all clear"
     loaded = true;
@@ -939,7 +1157,7 @@
     clearTimeout(kickT); clearTimeout(wakeT); wakeAgain = false;
     if (timer) clearInterval(timer);
     started = false; running = false;
-    queued = new Set(); requeued = []; userMap = {}; cursors = {};
+    queued = new Set(); requeued = []; parked = new Set(); userMap = {}; cursors = {};
     pendingEvents = []; profileCache = null;
     lastSyncAt = 0; lastError = "";
     await MDB.clear("outbox").catch(() => {});
@@ -967,14 +1185,17 @@
     refused: deadCount,
     refusedTables: Object.keys(deadTables).sort(),
     lastRefusal: lastRefusal,
+    // doors uploaded without a territory claim because the territory is not
+    // (yet) a server fact — diagnostic, not an error
+    territoryWithheld,
   });
 
   // everything the server has refused on this device, for the More screen
   const refusals = async () => (await MDB.kvGet("syncDead", null)) || [];
 
   window.MSYNC = {
-    start, queue, queueDelete, syncNow: cycle, wake, status, reset, isDirty,
-    refusals,
+    start, queue, queueDelete, queueSplit, syncNow: cycle, wake, status, reset,
+    isDirty, refusals,
     // read-only view of the identity bridge, for diagnostics and tests
     profileOf: (localId) => toProfile(localId),
   };

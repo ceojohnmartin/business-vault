@@ -11,14 +11,22 @@ security-proven ground to land on.
     migrations/0002_realtime_doorbell.sql        Phase 3: realtime wake-up triggers + listen policy
     migrations/0003_territory_authorization.sql  v39: territory writes are leadership-only
     migrations/0004_payment_allowlist.sql        v39: honest payment allowlist
+    migrations/0005_smart_split.sql              v39: Smart Split as ONE transaction
+    APPLY_v39.sql                                0004 + 0003 + 0005 as one paste-able transaction
     capability-matrix.json                       WHO may manage territories — one definition,
                                                  asserted by the RLS suite AND the client suite
     APPLIED.md                                   read-only checks for what's live, and deploy order
     seed.example.sql                             one-time team/owner bootstrap
+    build-apply.sh                               regenerates APPLY_v39.sql from the migrations
     test/supabase-shim.sql                       local stand-in for Supabase bits (TEST ONLY)
-    test/rls-test.sql                            87 security checks
-    test/race-test.sh                            3 concurrency checks on 0004
-    test/run-rls-tests.sh                        runs them on a throwaway local Postgres
+    test/rls-test.sql                            137 security checks
+    test/race-test.sh                            7 concurrency checks on the payment trigger
+    test/split-race-test.sh                      11 concurrency checks on Smart Split
+    test/apply-atomic-test.sh                    10 checks that APPLY_v39.sql is all-or-nothing
+    test/mirror-fidelity.js                      54 payloads: the tests' JS mirror of the payment
+                                                 trigger vs this database, byte for byte
+    test/verify-production.sql                   rollback-safe behavioural probes, post-migration
+    test/run-rls-tests.sh                        runs them all on a throwaway local Postgres
 
 ## Territory authorization (0003)
 
@@ -119,3 +127,23 @@ disabled and anon lockouts, payment scrubbing, and the adversarial territory
 matrix: a rep's create / rename / re-polygon / assign / archive / tombstone /
 Smart-Split attempts all refused straight at PostgREST, with no second
 reachable mutation path). Any failure exits non-zero.
+
+## Smart Split is one transaction (0005)
+
+A split is N children plus a retired parent. Done from a client that is N+1
+independent writes, and the states that reach are "children beside a live
+parent" and "parent gone, half the children missing". `smart_split_territory()`
+does the whole thing in one transaction or none of it, deriving the caller's
+identity, team and role server-side rather than accepting them.
+
+It is the **only** writable SECURITY DEFINER function in `public`, and
+`test/rls-test.sql` asserts that by name — a second one fails the suite until
+somebody decides it belongs. Section 17 of that file takes it apart from every
+role that must not reach it and every shape a split must not be; two real
+concurrent sessions in `test/split-race-test.sh` prove a hood can only be
+split once.
+
+**A v39 client against a database without 0005 gets a 404 and says so** — the
+hood is left exactly as it was and the manager is told Smart Split is not
+switched on for the team yet. That is the fleet's state for the whole window
+between publishing v39 and running `APPLY_v39.sql`.

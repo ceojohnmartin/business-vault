@@ -60,3 +60,8 @@ if command -v node >/dev/null 2>&1; then
 else
   echo "MIRROR: SKIPPED (no node on PATH)"
 fi
+
+# The deployment story rests on APPLY_v39.sql being all-or-nothing. That is a
+# claim about a real database, so it is tested against one — on its own
+# throwaway database, since it deliberately applies a broken file.
+sh "$DIR/apply-atomic-test.sh"

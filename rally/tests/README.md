@@ -58,6 +58,34 @@ Run from anywhere (paths are relative to this directory):
                                   # whether the old cache is dropped, and
                                   # whether the rep's saved work survives.
 
+    node tests/smart-split-test.js
+                                  # ATOMIC SMART SPLIT, client side: the split
+                                  # is a proposal until the server answers.
+                                  # Covers the happy 2- and 3-way splits, a
+                                  # rep refused, a LOST response (the server
+                                  # committed, the client never heard),
+                                  # offline-then-demoted, a kill between send
+                                  # and answer, a parent someone else split
+                                  # first, a 500, a database without 0005
+                                  # applied, and four splits in a row. The
+                                  # FUNCTION's own correctness is proved
+                                  # against real PostgreSQL instead — see
+                                  # db/test/rls-test.sql §17 and
+                                  # db/test/split-race-test.sh.
+    node tests/torture-test.js    # CLOCK SKEW, INTERRUPTION, THE LONG RUN.
+                                  # A phone five minutes fast against one with
+                                  # the right time; the app killed at every
+                                  # ugly moment including the boot window and
+                                  # mid-sanitation; 100 knocks, five
+                                  # offline/online round trips and four role
+                                  # switches, watching for queue growth,
+                                  # duplicate events and repeated
+                                  # dead-lettering. Prints the skew findings
+                                  # it confirms rather than hiding them behind
+                                  # a green tick.
+
+    sh tests/run-all.sh           # every suite above, with check counts
+
 Engine coverage: every suite here runs on **Chromium** (the only engine
 installed at /opt/pw-browsers). The service-worker results in
 upgrade-transition-test.js are therefore Chromium-only and have NOT been
@@ -73,6 +101,14 @@ territory cannot drift from what RLS actually enforces.
 Requires `playwright` resolvable via NODE_PATH and Chromium at
 /opt/pw-browsers/chromium (or edit executablePath). Screenshots land in
 tests/shots/. Every suite exits non-zero on failure.
+
+One JavaScript file, `tests/lib/scrub-trigger.js`, mirrors the server's
+payment trigger for the mock Supabase in `sync-test.js` and
+`mixed-version-test.js`. A mirror that has drifted is worse than none — every
+client test keeps passing while describing a server that no longer exists — so
+`db/test/mirror-fidelity.js` feeds the same payloads to real PostgreSQL and to
+the mirror and requires byte-identical results, for both statement shapes. It
+runs as part of `db/test/run-rls-tests.sh`.
 
 `mixed-version-test.js` additionally needs a git checkout: it materialises the
 v38 tree itself with `git archive` into /tmp/rally-v38-tree (idempotent), so

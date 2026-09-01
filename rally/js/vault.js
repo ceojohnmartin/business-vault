@@ -83,7 +83,14 @@
     // sync bookkeeping is meaningless on another device — cursors would
     // skip data, the user map points at this device's own user rows
     "syncCursors", "syncUserMap", "syncBackfilled", "syncLastAt", "syncPendingEvents",
-    "syncTeam", "syncDead"];
+    "syncTeam", "syncDead",
+    /* A Smart Split PROPOSAL belongs to the device that made it and to the
+       moment it made it. Carried into a backup it would arrive somewhere
+       else describing an operation that has since committed, been refused,
+       or been made by somebody else entirely — and the parent it names may
+       not even exist in the restored book. The server is the authority on
+       whether a split happened; a restore re-reads it. */
+    "splitPending"];
   // Credentials that live INSIDE the settings record. A backup is a data
   // archive, not a key ring: these are stripped from every export and are
   // never imported from one. Everything else in settings — company name,
@@ -155,7 +162,24 @@
     const data = {};
     for (const s of STORES) {
       const rows = await MDB.getAll(s);
-      data[s] = s === "customers" ? rows.map(scrubCustomerPayment) : rows;
+      if (s === "customers") { data[s] = rows.map(scrubCustomerPayment); continue; }
+      if (s === "territories") {
+        /* Strip the device-local Smart Split markers on the way OUT as well
+           as on the way in. A child marked "waiting on the team" describes an
+           operation belonging to one device at one moment; in a file it is
+           just a hood wearing a label nothing will ever clear, because the
+           proposal store that would resolve it is device-private and does not
+           travel. Restoring re-reads the server, which is the only thing that
+           actually knows whether the split happened. */
+        data[s] = rows.map((t) => {
+          if (!t || (!t.pendingSplit && !t.splitInto)) return t;
+          const copy = Object.assign({}, t);
+          delete copy.pendingSplit; delete copy.splitInto;
+          return copy;
+        });
+        continue;
+      }
+      data[s] = rows;
     }
     data.kv = (await MDB.getAll("kv"))
       .filter((r) => r && !PRIVATE_KV.includes(r.k))
@@ -240,6 +264,19 @@
       await MDB.kvSet("syncBackfilled", null);
       await MDB.kvSet("syncCursors", null);
       await MDB.kvSet("syncPendingEvents", null);
+      /* No half-finished Smart Split survives a restore, in either
+         direction: not one this device was holding when the restore
+         started, and not one written into the book by the file. The
+         proposal store is cleared and the per-record markers are stripped,
+         so the restored book is plain territories. Whether the split
+         actually happened is the server's answer, and the next sync asks
+         it: if it committed, the children and the parent's tombstone
+         arrive; if it did not, the hood is still there. */
+      await MDB.kvSet("splitPending", null);
+      const hoods = await MDB.getAll("territories");
+      const marked = hoods.filter((t) => t && (t.pendingSplit || t.splitInto));
+      marked.forEach((t) => { delete t.pendingSplit; delete t.splitInto; });
+      if (marked.length) await MDB.bulkPut("territories", marked);
     } catch (_) {}
     toast("Restored — reloading");
     setTimeout(() => location.reload(), 900);

@@ -37,17 +37,28 @@ const PAY = {
   routing: "SENTINEL-ROUTING-021000021",
   account: "SENTINEL-ACCOUNT-000123456789",
 };
-// the raw containers and their fields: none may survive an export. Matched
-// as JSON KEYS ("card":) not bare strings — "method":"card" is a legitimate
-// value and must not read as a leak.
-const PAY_FIELDS = ["card", "ach", "number", "exp", "routing", "account"];
+/* CREDENTIAL field names: none may survive an export, at any depth. Matched
+   as JSON KEYS ("number":) not bare strings — "method":"card" is a
+   legitimate value and must not read as a leak.
+
+   `card` and `ach` are NOT on this list any more, and that is a deliberate
+   tightening rather than a relaxation: they now survive as CONTAINERS whose
+   only permitted contents are a name (and, for ach, checking/savings). The
+   old assertion could only say "the whole object was thrown away"; the
+   checks below say exactly what is inside it, which is the stronger claim.
+   A cardholder's name cannot authorise a payment; a card number can. */
+const PAY_FIELDS = ["number", "exp", "expiry", "cvv", "cvc", "routing",
+  "account", "routingNumber", "accountNumber"];
 // what a backup IS allowed to carry — the same safe shape the FieldRoutes
 // export, the sync engine and the server-side trigger all reduce to
 const PAY_SAFE = { method: "card", last4: "4242",
   billingAddress: { street: "18 Vine St", city: "Provo", state: "UT", zip: "84604" } };
 // v39 payment keys a backup MAY carry. No credential key is on this list,
 // and none can be: the block is rebuilt from the allowlist, not filtered.
-const PAY_SAFE_KEYS = "autopayRequested,billingAddress,last4,method,status";
+const PAY_SAFE_KEYS = "ach,autopayRequested,billingAddress,card,last4,method,status";
+// the sentinels split in two: what must NEVER appear, and what MUST survive
+const CRED_SENTINELS = ["number", "exp", "routing", "account"];
+const NAME_SENTINELS = ["cardName", "achName"];
 
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".png": "image/png", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
@@ -161,12 +172,24 @@ const server = http.createServer((req, res) => {
   check("P2. exported backup contains zero raw payment field names",
     payFieldHits.length === 0, payFieldHits.join(","));
 
-  // 2. no raw payment VALUE appears anywhere in the serialized backup
-  const payValueHits = Object.entries(PAY).filter(([, v]) => payload.includes(v)).map(([k]) => k);
-  check("P3. exported backup contains zero payment sentinel values",
+  // 2. no CREDENTIAL value appears anywhere in the serialized backup
+  const payValueHits = CRED_SENTINELS.filter((k) => payload.includes(PAY[k]));
+  check("P3. exported backup contains zero payment CREDENTIAL values",
     payValueHits.length === 0, payValueHits.join(","));
-  check("P3b. the whole payload contains no SENTINEL-PAN/ROUTING/ACCOUNT at all",
-    !/SENTINEL-(PAN|ROUTING|ACCOUNT|EXP|CARDNAME|ACHNAME)/.test(payload));
+  check("P3b. the whole payload contains no SENTINEL-PAN/ROUTING/ACCOUNT/EXP at all",
+    !/SENTINEL-(PAN|ROUTING|ACCOUNT|EXP)/.test(payload));
+  /* The NAMES must survive. Dropping them was a real defect: the payment
+     screen captures them, so a restore that blanked them looked to the rep
+     like work they had failed to do. */
+  const nameHits = NAME_SENTINELS.filter((k) => payload.includes(PAY[k]));
+  check("P3c. the cardholder and account-holder NAMES do survive the export",
+    nameHits.length === 2, nameHits.join(",") || "none survived");
+  check("P3d. …and their containers hold nothing else",
+    expCust && expCust.payment &&
+    Object.keys(expCust.payment.card).join(",") === "name" &&
+    Object.keys(expCust.payment.ach).sort().join(",") === "name,type",
+    JSON.stringify(expCust && expCust.payment &&
+      { card: expCust.payment.card, ach: expCust.payment.ach }));
 
   // 3. the safe metadata DID survive — this is a scrub, not a deletion
   check("P4. safe payment metadata still exports",
@@ -181,8 +204,14 @@ const server = http.createServer((req, res) => {
   check("P4b. legacy autopay:true is NOT exported as a customer request",
     expCust && expCust.payment.autopayRequested === false,
     String(expCust && expCust.payment.autopayRequested));
-  check("P4c. a legacy last4 does not make the payment look configured",
-    expCust && expCust.payment.status === "not_configured",
+  /* The fixture names a METHOD, so "setup pending" is the honest status and
+     the export says exactly that. What it must never say is that a method is
+     on file. That the last4 alone cannot produce even "pending" is proved
+     directly in tests/payment-honesty-test.js (C2b), on a record with a
+     last4 and no method. */
+  check("P4c. a legacy last4 does not make the payment look ON FILE",
+    expCust && expCust.payment.status !== "active" &&
+    ["not_configured", "pending_setup"].includes(expCust.payment.status),
     String(expCust && expCust.payment.status));
   check("P5. ordinary customer data still exports",
     expCust && expCust.first === "Dana" && expCust.last === "Miles" &&
@@ -266,19 +295,38 @@ const server = http.createServer((req, res) => {
   check("5b. records restore normally", !!restoredCust && restoredCust.last === "Ortiz");
 
   // ---- payment, restore side
+  /* WHAT A HOSTILE BACKUP CAN AND CANNOT DO.
+     It can set any ordinary field on a customer — name, phone, address,
+     plan, and now the cardholder name — because that is what restoring a
+     file means, and those fields are not more sensitive than the customer's
+     own name sitting beside them. What it must NEVER be able to do is
+     install a payment CREDENTIAL, or an autopay/status claim that would make
+     a customer look chargeable. That is the line these checks hold. */
+  const CRED_VALUES = ["ATTACKER-PAN-5555444433332222", "ATTACKER-EXP-01-30",
+    "ATTACKER-ROUTING-999999999", "ATTACKER-ACCOUNT-987654321"];
+  const anyCred = (o) => CRED_VALUES.some((v) => JSON.stringify(o).includes(v));
   const dana = await page.evaluate((id) => MDB.get("customers", id), custId);
-  check("P7. a legacy backup cannot restore payment credentials onto an EXISTING record",
-    !!dana && dana.payment && !dana.payment.card && !dana.payment.ach &&
-    !JSON.stringify(dana).includes("ATTACKER"),
+  check("P7. a legacy backup cannot restore payment CREDENTIALS onto an EXISTING record",
+    !!dana && dana.payment && !anyCred(dana) &&
+    Object.keys(dana.payment.card || {}).join(",") === "name" &&
+    Object.keys(dana.payment.ach || {}).sort().join(",") === "name,type",
     JSON.stringify(dana && dana.payment));
   check("P8. a legacy backup cannot INSTALL payment credentials for a new customer",
-    !!restoredCust && restoredCust.payment &&
-    !restoredCust.payment.card && !restoredCust.payment.ach &&
+    !!restoredCust && restoredCust.payment && !anyCred(restoredCust) &&
     Object.keys(restoredCust.payment).sort().join(",") === PAY_SAFE_KEYS,
     JSON.stringify(restoredCust && restoredCust.payment));
-  check("P9. no ATTACKER payment value landed in ANY customer record",
-    !(await page.evaluate(() => MDB.getAll("customers")))
-      .some((c) => JSON.stringify(c).includes("ATTACKER")));
+  check("P8b. …nor an autopay request or an on-file claim the customer never made",
+    !!restoredCust && restoredCust.payment.autopayRequested === false &&
+    restoredCust.payment.status !== "active",
+    JSON.stringify(restoredCust && restoredCust.payment));
+  const allCusts = await page.evaluate(() => MDB.getAll("customers"));
+  check("P9. no ATTACKER CREDENTIAL value landed in ANY customer record",
+    !allCusts.some((c) => anyCred(c)),
+    allCusts.filter((c) => anyCred(c)).map((c) => c.id).join(","));
+  check("P9b. and no credential KEY exists under any stored payment block",
+    !allCusts.some((c) => c.payment &&
+      /"(number|exp|expiry|cvv|cvc|routing|account|routingNumber|accountNumber)"/
+        .test(JSON.stringify(c.payment))));
   check("P10. safe payment metadata DOES restore for the new customer",
     !!restoredCust && restoredCust.payment.method === "ach" &&
     restoredCust.payment.last4 === "2222" && restoredCust.payment.autopayRequested === false &&

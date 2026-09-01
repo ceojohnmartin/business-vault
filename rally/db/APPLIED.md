@@ -17,7 +17,8 @@ Fill these in yourself after running each verification query.
 | `0001_phase1_foundation.sql` | Schema, RLS, the payment scrub trigger |  |  |
 | `0002_realtime_doorbell.sql` | Realtime wake-up triggers + listen policy |  |  |
 | `0003_territory_authorization.sql` | Territory writes are leadership-only |  |  |
-| `0004_payment_allowlist.sql` | Honest payment allowlist (`autopayRequested`, `status`) |  |  |
+| `0004_payment_allowlist.sql` | Honest payment allowlist (`autopayRequested`, `status`, `card.name`, `ach.name`, `ach.type`) |  |  |
+| `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` |  |  |
 
 ## Deployment order for v39
 
@@ -32,23 +33,27 @@ point of `rally/tests/mixed-version-test.js`.
    pre-0003 database is strictly today's database with fewer controls shown
    to reps, and v39's own contract language is correct without 0004.
 3. **Get every device onto v39 and verify each one by eye** (see below).
-4. **Apply `APPLY_v39.sql`** — 0004 and 0003 in ONE transaction.
+4. **Apply `APPLY_v39.sql`** — 0004, 0003 and 0005 in ONE transaction.
 5. **Run `test/verify-production.sql`** — behavioural, rollback-safe.
 
 ## Why one transaction
 
-`APPLY_v39.sql` wraps both migrations in `begin; … commit;`. Both are pure DDL
-and DDL is transactional in PostgreSQL, so if either half raises, the COMMIT
-never happens and **neither becomes live**. There is no half-migrated
-production state to reason about or clean up.
+`APPLY_v39.sql` wraps all three migrations in `begin; … commit;`. Everything
+in them is DDL and DDL is transactional in PostgreSQL, so if any part raises,
+the COMMIT never happens and **none of it becomes live**. There is no
+half-migrated production state to reason about or clean up.
 
-Proven: replacing a function reference in the second half with a nonexistent
-one aborts the transaction and leaves both the territory policies and the
-payment trigger at their pre-migration state.
+Proven, on a real database, by `db/test/apply-atomic-test.sh`: it injects a
+syntax error into the LAST section of the real file — so everything before it
+has already "succeeded" inside the transaction — applies it to a database
+holding only 0001 and 0002, and requires that afterwards none of 0003, 0004
+or 0005 exists. Then it applies the real file and requires that all of it
+does, twice, to prove the file is idempotent.
 
 Paste the whole file into the Supabase SQL editor. It is self-contained — the
-editor does not support `\i` includes, so the two migration bodies are inlined
-verbatim. Regenerate it with `db/build-apply.sh` if either migration changes.
+editor does not support `\i` includes, so the three migration bodies are
+inlined verbatim. Regenerate it with `db/build-apply.sh` if any of them
+changes.
 
 ### This is a maintenance window, not a rolling update
 
@@ -59,6 +64,16 @@ Between publishing v39 and applying 0004, a v39 rep's explicit
 drops the field. That is failure in the safe direction — the record forgets a
 request rather than inventing one — but it is still customer-intent data
 loss, and it is not acceptable during normal production use.
+
+**Smart Split does not work between publishing v39 and applying 0005.** The
+client submits the split as one call to `smart_split_territory()`, and a
+database without 0005 has no such function, so PostgREST answers 404. The
+client handles that honestly — the hood comes back exactly as it was, nothing
+half-commits, and the manager is told Smart Split is not switched on for the
+team yet rather than that they were refused — but the feature is unavailable
+for the length of the window. That is consistent with the window's own rule
+(no territory administration), and it is why the Smart Split part of the
+iPhone certification runs AFTER step 4, not before.
 
 So:
 
@@ -399,3 +414,54 @@ runs the full security matrix — including the adversarial territory checks
 that `0003` exists for:
 
     PGHOST=<host> PGPORT=<port> sh rally/db/test/run-rls-tests.sh
+
+## Smart Split is one server fact (0005)
+
+Smart Split replaces one territory with N children: N+1 rows. The client used
+to write them as N+1 independent upserts plus a tombstone, so the reachable
+states included **children beside a live parent** (the hood covered twice, by
+two sets of reps) and **parent gone, only some children created** (a hole in
+the coverage map with no record of what was meant to be there). Neither state
+announces itself, and no code path intended either.
+
+0005 adds one narrow SECURITY DEFINER function, `smart_split_territory(parent,
+operation_id, children)`. It derives `auth.uid()` itself, resolves team and
+role from the server's own profile row, refuses a rep / a disabled user / a
+user with no team / a parent belonging to another team, takes the parent's row
+lock, validates every child polygon, then inserts all the children and retires
+the parent — or does none of it.
+
+**Idempotent by operation id.** A device whose response was lost retries the
+same operation, and the function recognises it and returns the committed
+result instead of splitting again. The check runs twice: once before the lock
+(so a retry by a since-demoted manager still gets its answer, rather than
+being told a committed split failed) and once under it (so a duplicate sent
+while the first is still in flight is told `already_committed`, not that the
+parent is already gone).
+
+**A parent can be split once.** Two managers racing the same hood serialise on
+the row lock, and the loser sees the tombstone and refuses. A unique index on
+`(team_id, parent_id)` holds even if the lock is bypassed. Both are proved
+with two concurrent PostgreSQL sessions in `db/test/split-race-test.sh`.
+
+**The one writable SECURITY DEFINER function in `public`.** That is asserted
+by name in `db/test/rls-test.sql`, so adding another fails the suite until
+somebody decides it belongs.
+
+### Doors are a consequence, never a step
+
+No rep-writable row is touched to make a split happen. The parent's doors are
+re-homed into whichever child contains them only **after** the split is a
+server fact, and every other device does the same when it pulls the children
+and the parent's tombstone. A refused split leaves every door byte-for-byte
+as it was.
+
+### The client holds a proposal, not a fact
+
+Until the server answers, the children are on the map marked *waiting on the
+team — not confirmed yet*, and the parent is hidden from every screen that
+hands out work but **kept**, because a hood cut offline may itself never have
+reached the server and the split cannot retire a parent that is not there.
+The proposal is written to disk before the command is queued, so a device
+killed between send and response recovers it on boot and retries the same
+operation id. A refusal erases the proposal and restores the hood.

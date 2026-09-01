@@ -75,6 +75,17 @@
     profileCache && !profileCache.disabled ? profileCache.teamId : null;
 
   const active = () => started && !!(window.MCLOUD && MCLOUD.enabled());
+  /* WHETHER TO RECORD WORK IS NOT THE SAME QUESTION AS WHETHER THE ENGINE IS
+     RUNNING YET. queue() used to require active(), which includes `started`
+     — so anything a rep did between the app painting and MSYNC.start()
+     finishing its stored-state reads was never written to the outbox at all.
+     Not queued, not failed, not dead-lettered: gone. The knock stayed on the
+     phone and in that rep's own totals and never reached the team, and
+     nothing ever re-queued it, because backfill only runs once per device.
+
+     A tap in the first second after opening the app is an ordinary thing to
+     do. The only real question is whether there is a cloud to send to. */
+  const queueable = () => !!(window.MCLOUD && MCLOUD.enabled());
   const eligible = () =>
     active() && window.MAUTH && MAUTH.isUnlocked() && navigator.onLine !== false;
 
@@ -89,14 +100,14 @@
     kick();
   }
   function queue(table, id) {
-    if (!active() || !table || !id) return;
+    if (!queueable() || !table || !id) return;
     enqueue({ k: table + ":" + id, table, id, op: "upsert", at: Date.now() });
   }
   /* wasOnServer is captured HERE, while the record still exists, because it
      is the only durable proof that the row ever reached the server. Callers
      pass the record they are about to delete. */
   function queueDelete(table, id, rec) {
-    if (!active() || !table || !id) return;
+    if (!queueable() || !table || !id) return;
     enqueue({ k: table + ":" + id, table, id, op: "delete", at: Date.now(),
       wasOnServer: !!(rec && rec.serverAt) });
   }
@@ -130,7 +141,7 @@
      other payload is. So a child renamed between the tap and the send goes
      up with its new name, and a proposal that was abandoned sends nothing. */
   function queueSplit(operationId, parentId) {
-    if (!active() || !operationId || !parentId) return;
+    if (!queueable() || !operationId || !parentId) return;
     enqueue({ k: "splits:" + operationId, table: "splits", id: operationId,
       op: "split", parentId, at: Date.now() });
   }
@@ -179,8 +190,20 @@
     let changed = false;
     // my own binding comes FIRST — otherwise a teammate who shares my name
     // could name-match onto this device's own user before my row is seen
+    /* "The device's current user IS me" is only true while this device is
+       showing ME. A device displaying a TEAMMATE — a manager looking at a
+       rep's view, a shared phone — must not have the signed-in account's
+       identity written onto that teammate: it would make their existing
+       work read as the account holder's on this device, which is precisely
+       the manufactured attribution the whole identity model exists to
+       prevent. Adopt only a person who carries no server identity yet, or
+       who already carries this one. Everyone else keeps theirs, and the
+       signed-in account stays UNBOUND here — unattributed, which is the
+       honest answer, and self-correcting the moment the device switches
+       back to its own user. */
     const meFirst = mine && S().currentUser && S().currentUser();
-    if (mine && meFirst && userMap[mine.id] !== meFirst.id) {
+    const mayBind = (u, pid) => !!u && (!u.profileId || u.profileId === pid);
+    if (mine && mayBind(meFirst, mine.id) && userMap[mine.id] !== meFirst.id) {
       userMap[mine.id] = meFirst.id;
       changed = true;
     }
@@ -193,14 +216,16 @@
         profileCache = applied
           ? { id: applied.id, teamId: applied.teamId, role: applied.role, disabled: applied.disabled }
           : { id: p.id, teamId: p.team_id, role: p.role, disabled: !!p.disabled };
-        // my own mapping: this device's current user IS me
+        // my own mapping — but only onto a person this account may claim
         const me = S().currentUser && S().currentUser();
-        if (me && userMap[p.id] !== me.id) { userMap[p.id] = me.id; changed = true; }
-        // the binding also lives ON the user record: attribution has to be
-        // decidable at boot, before the sync engine has loaded anything
-        if (me && me.profileId !== p.id) {
-          me.profileId = p.id;
-          await S().updateUser(me).catch(() => {});
+        if (mayBind(me, p.id)) {
+          if (userMap[p.id] !== me.id) { userMap[p.id] = me.id; changed = true; }
+          // the binding also lives ON the user record: attribution has to be
+          // decidable at boot, before the sync engine has loaded anything
+          if (me.profileId !== p.id) {
+            me.profileId = p.id;
+            await S().updateUser(me).catch(() => {});
+          }
         }
         continue;
       }
@@ -633,6 +658,28 @@
       if (r.status >= 500 || r.status === 0) {
         // the server is unwell, not unwilling: keep the proposal and retry
         lastError = "split " + r.status;
+        continue;
+      }
+      /* 404 is neither. PostgREST answers 404 when the FUNCTION does not
+         exist — which is exactly what a v39 client talking to a database
+         that has not had 0005 applied yet looks like. That is a deployment
+         state, not a permission decision, and it will not fix itself on a
+         retry, so the proposal is rolled back like any other refusal. What
+         must not happen is telling a manager they were refused: they were
+         not, the feature simply is not installed on the server yet. */
+      if (r.status === 404) {
+        lastError = "split unavailable: the server has no smart_split_territory (0005)";
+        await S().finishSplit(e.id, false);
+        await deadLetter({ k: e.k, table: "splits", id: e.id, status: 404, at: Date.now() });
+        await MDB.del("outbox", e.k).catch(() => {});
+        queued.delete(e.k);
+        try {
+          if (window.MUI && MUI.toast) {
+            MUI.toast("Smart Split is not switched on for the team yet — "
+              + "the hood is unchanged. Nothing was lost.");
+          }
+        } catch (_) {}
+        repaint();
         continue;
       }
       /* A REFUSAL. The manager was demoted, disabled, moved teams, or the
@@ -1110,8 +1157,12 @@
     cursors = (await MDB.kvGet(K_CURSORS, null)) || {};
     pendingEvents = (await MDB.kvGet("syncPendingEvents", null)) || [];
     lastSyncAt = await MDB.kvGet(K_LAST, 0);
+    /* UNION, never replace. Work queued before the engine finished starting
+       is already in `queued` (and in the outbox); overwriting the set with
+       just what the read returned would drop anything written in the gap
+       between that read being issued and this line running. */
     const box = await MDB.getAll("outbox").catch(() => []);
-    queued = new Set(box.map((e) => e.k));
+    box.forEach((e) => queued.add(e.k));
     // a refusal from a previous session is still a refusal
     const dead = (await MDB.kvGet("syncDead", null)) || [];
     deadCount = dead.length;

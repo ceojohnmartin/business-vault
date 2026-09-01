@@ -394,6 +394,29 @@ const server = http.createServer((req, res) => {
         await STORE.applyServerRole("leader", Date.now(), "p-mate");
         return STORE.userById("u-mate").role === "leader";
       }));
+    /* H6 is the same rule one layer down, and it is why H5 used to fail
+       about one run in three. This device is DISPLAYING a teammate. A sync
+       cycle running underneath used to write the signed-in account's profile
+       id straight onto whoever the device happened to be showing — so the
+       teammate stopped being themselves, and their existing work started
+       reading as the account holder's on this device. A person who already
+       carries a server identity keeps it; the signed-in account simply stays
+       unbound here, which is the honest answer and self-corrects the moment
+       the device switches back. */
+    check("H6 a device DISPLAYING a teammate never hands them the account's identity",
+      await page.evaluate(async () => {
+        const before = STORE.userById("u-mate").profileId;
+        for (let i = 0; i < 6; i++) {
+          await MSYNC.syncNow();
+          await new Promise((r) => setTimeout(r, 120));
+        }
+        const after = STORE.userById("u-mate");
+        return after.profileId === before && before === "p-mate"
+          && after.role === "leader";
+      }),
+      await page.evaluate(() => JSON.stringify({
+        profileId: STORE.userById("u-mate").profileId,
+        role: STORE.userById("u-mate").role })));
     await ctx.close();
   }
 

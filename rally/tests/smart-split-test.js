@@ -67,6 +67,11 @@ function handleSplit(req, res, body) {
 
   if (mock.rpc.mode === "hang") return;                       // never answers
   if (mock.rpc.mode === "500") return j(res, 500, { message: "boom" });
+  // PostgREST's answer when the FUNCTION does not exist — i.e. a v39 client
+  // against a database that has not had 0005 applied yet
+  if (mock.rpc.mode === "404")
+    return j(res, 404, { code: "PGRST202",
+      message: "Could not find the function public.smart_split_territory" });
 
   const opKey = me.team_id + "|" + body.p_operation_id;
   const prior = mock.splits.get(opKey);
@@ -654,15 +659,78 @@ const server = http.createServer((req, res) => {
   check("12c one server call per split, never a retry storm",
     loopCalls === 4, String(loopCalls));
 
-  // ========================================= 13. nothing local leaks upstream
+  // ============== 13. the migration has not been applied yet (0005 missing)
+  /* This is the fleet's real state for the whole window between publishing
+     v39 and running APPLY_v39.sql. The manager must not be told they were
+     refused — they were not; the operation does not exist on the server yet.
+     And the hood must come back, because retrying will not help. */
+  const h13 = await makeHood(BOSS, "Unmigrated Hood", "hood-13");
+  await sync(BOSS);
+  mock.rpc.mode = "404";
+  await S(BOSS, async (id) => {
+    await STORE.splitTerritory(STORE.territories.find((x) => x.id === id), 2);
+  }, h13);
+  await sync(BOSS); await sync(BOSS);
+  const after13 = await S(BOSS, async (id) => ({
+    parentBack: STORE.activeTerritories().some((t) => t.id === id),
+    pendingKids: STORE.territories.filter((t) => t.pendingSplit).length,
+    proposals: Object.keys(await STORE.pendingSplits()).length,
+    lastRefusal: MSYNC.status().lastRefusal,
+    err: MSYNC.status().lastError,
+  }), h13);
+  check("13a a database without 0005 leaves the hood exactly as it was",
+    after13.parentBack && after13.pendingKids === 0 && after13.proposals === 0,
+    JSON.stringify(after13));
+  /* Assert on the DURABLE record, not on lastError: a later clean cycle
+     clears lastError by design, so testing it would be testing how fast the
+     assertion ran. The dead-letter entry is what the More screen reads. */
+  const dead13 = await S(BOSS, () => MSYNC.refusals());
+  check("13b …and records it as a 404 rather than retrying forever",
+    dead13.some((r) => r.table === "splits" && r.status === 404),
+    JSON.stringify(dead13.filter((r) => r.table === "splits")));
+  check("13c …and the server was left untouched",
+    !mock.tables.territories.get(TEAM + "|" + h13).deleted_at &&
+    liveOnServer((r) => r.name.indexOf("Unmigrated Hood ") === 0) === 0);
+  mock.rpc.mode = "normal";
+
+  // ========================================= 14. nothing local leaks upstream
   const wire = mock.splitCalls[mock.splitCalls.length - 1].body;
-  check("13a the command names the parent, the operation and the children only",
+  check("14a the command names the parent, the operation and the children only",
     Object.keys(wire).sort().join(",") === "p_children,p_operation_id,p_parent_id",
     Object.keys(wire).sort().join(","));
-  check("13b no device-local split bookkeeping crosses the wire",
+  check("14b no device-local split bookkeeping crosses the wire",
     !JSON.stringify(wire.p_children).includes("pendingSplit") &&
     !JSON.stringify([...mock.tables.territories.values()]).includes("pendingSplit") &&
     !JSON.stringify([...mock.tables.territories.values()]).includes("splitInto"));
+
+  // ===================== 15. a proposal does not travel in a backup
+  /* A pending split belongs to the device and the moment that made it.
+     Restored somewhere else it would describe an operation that has since
+     committed, been refused, or been made by somebody else — naming a parent
+     the restored book may not even contain. */
+  const h15 = await makeHood(BOSS, "Backup Hood", "hood-15");
+  await sync(BOSS);
+  mock.rpc.mode = "hang";
+  await S(BOSS, async (id) => {
+    await STORE.splitTerritory(STORE.territories.find((x) => x.id === id), 2);
+  }, h15);
+  const backup = await S(BOSS, async () => {
+    let captured = null;
+    const orig = MUI.shareOrDownload;
+    MUI.shareOrDownload = async (text) => { captured = text; return true; };
+    await MVAULT.backup();
+    MUI.shareOrDownload = orig;
+    return captured;
+  });
+  mock.rpc.mode = "normal";
+  check("15a a backup taken mid-proposal carries no split proposal",
+    typeof backup === "string" && !backup.includes("splitPending"),
+    typeof backup === "string" ? "no splitPending key" : "no backup produced");
+  check("15b …and no per-record split markers reach the file",
+    typeof backup === "string" && !backup.includes("pendingSplit")
+      && !backup.includes("splitInto"),
+    (backup || "").includes("pendingSplit") ? "pendingSplit leaked" : "clean");
+  await sync(BOSS); await sync(BOSS);   // let the held proposal resolve
 
   check("no page errors", errors.length === 0, errors.slice(0, 3).join(" | "));
 

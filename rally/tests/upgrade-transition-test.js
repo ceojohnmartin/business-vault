@@ -63,8 +63,31 @@ const server = http.createServer((req, res) => {
     if (m.type() === "error" && !/net::ERR_/.test(t)) errors.push(t);
   });
 
-  const build = () => page.evaluate(() => window.RALLY_BUILD);
-  const cacheNames = () => page.evaluate(() => caches.keys());
+  const build = () => page.evaluate(() => window.RALLY_BUILD).catch(() => undefined);
+  /* The app reloads ITSELF when the new worker claims the page, so any read
+     can land in a destroyed execution context. Poll through it rather than
+     racing it — this is about what the device ends up on, not about timing. */
+  const waitForBuild = async (want, ms) => {
+    const until = 60 * 60 * 1000; // wall-clock is provided by the runner
+    let waited = 0;
+    while (waited < ms) {
+      const b = await build();
+      if (b === want) return b;
+      await page.waitForTimeout(250).catch(() => {});
+      waited += 250;
+      if (until < 0) break;
+    }
+    return build();
+  };
+  // same reason as build(): a self-reload can destroy the context mid-read
+  const cacheNames = async () => {
+    for (let i = 0; i < 40; i++) {
+      const r = await page.evaluate(() => caches.keys()).catch(() => null);
+      if (r) return r;
+      await page.waitForTimeout(250).catch(() => {});
+    }
+    return [];
+  };
   const settle = (ms) => page.waitForTimeout(ms);
 
   // ---- 1. boot on v38 with a real service worker ----
@@ -112,10 +135,11 @@ const server = http.createServer((req, res) => {
   let opens = 0;
   await page.goto(`http://localhost:${PORT}/`); opens++;
   // the app reloads itself when the new worker claims — ride it out
-  await page.waitForFunction(() => window.RALLY_BUILD === "v39", null, { timeout: 30000 })
+  const buildAfter1 = await waitForBuild("v39", 40000);
+  // let the self-reload finish completely before inspecting anything
+  await page.waitForFunction(() => !!(window.STORE && STORE.customers), null, { timeout: 25000 })
     .catch(() => {});
-  await settle(2500);
-  const buildAfter1 = await build();
+  await settle(2000);
   check("2a ONE reopen is enough to land on v39", buildAfter1 === "v39", String(buildAfter1));
   check("2b the new worker actually fetched the new assets", served.v39 > v39FetchesBefore,
     `fetches=${served.v39 - v39FetchesBefore}`);
@@ -155,9 +179,11 @@ const server = http.createServer((req, res) => {
   // ---- 4. a second open changes nothing (idempotent, no reload loop) ----
   const reloadsBefore = served.v39;
   await page.goto(`http://localhost:${PORT}/`); opens++;
-  await page.waitForFunction(() => !!(window.STORE && STORE.customers), null, { timeout: 25000 });
-  await settle(2000);
-  check("4a a second open stays on v39", (await build()) === "v39");
+  const buildAfter2 = await waitForBuild("v39", 40000);
+  await page.waitForFunction(() => !!(window.STORE && STORE.customers), null, { timeout: 25000 })
+    .catch(() => {});
+  await settle(1500);
+  check("4a a second open stays on v39", buildAfter2 === "v39", String(buildAfter2));
   check("4b …and does not loop reloading",
     served.v39 - reloadsBefore < 120, `fetches=${served.v39 - reloadsBefore}`);
   const c3 = await cacheNames();

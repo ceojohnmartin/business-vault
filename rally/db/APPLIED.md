@@ -35,6 +35,30 @@ point of `rally/tests/mixed-version-test.js`.
 4. **Apply 0004.**
 5. **Apply 0003.**
 
+### This is a maintenance window, not a rolling update
+
+**No live sales and no territory administration during steps 2–6.**
+
+Between publishing v39 and applying 0004, a v39 rep's explicit
+`autopayRequested` does not survive a sync round trip: the 0001 trigger still
+drops the field. That is failure in the safe direction — the record forgets a
+request rather than inventing one — but it is still customer-intent data
+loss, and it is not acceptable during normal production use.
+
+So:
+
+- Run it **off-hours or before a shift**, on office WiFi.
+- Tell reps explicitly: **do not create or edit sales, and do not touch
+  territories, until you are told production has resumed.**
+- Production resumes only after 0004 and 0003 are applied, both verification
+  queries return their expected values, and the smoke tests pass.
+
+**If ANY production device cannot get onto v39, STOP before applying 0004 and
+0003.** Do not knowingly run a mixed v38/v39 fleet after the migrations: the
+two failure modes that ordering exists to avoid (invisible territory
+refusals, and a v38-printed contract asserting authorization a customer
+declined) both need a v38 device to be reachable.
+
 ### Why this order
 
 **0003 must not lead.** It is the only migration that creates refusals, and a
@@ -61,6 +85,28 @@ survive a sync round trip. That failure is in the safe direction — the
 record forgets a request rather than inventing one — and v39's contract
 language never asserts authorization regardless, because only a
 server-authored status can unlock that clause and no client can write one.
+
+## Territory deletion is a single server-visible row
+
+Deleting a territory used to write two things: the territory's tombstone
+(leadership-only under 0003) and a detach of every door that pointed at it
+(rep-writable). If authorization changed between the tap and the push — a
+leader queues a delete, the office demotes them, the device syncs — the door
+half committed and the tombstone half was refused, leaving a live territory
+whose doors had all been detached.
+
+v39 defers the door release until the tombstone is a **fact**: on push
+success for the device that deleted it, and on pull for every other device
+(which `applyTerritories` already did). A refused tombstone now also restores
+the local territory from the row the refusal probe reads, so a refused delete
+leaves the device exactly as it was. A dangling `territoryId` in the interim
+is already a tolerated state — `addKnock` re-homes a stale one to whichever
+live polygon actually contains the door.
+
+Proven by `rally/tests/mixed-version-test.js` sections 8c and 9: the happy
+path still tombstones and releases; and under a mid-flight demotion every
+affected door is byte-for-byte what it was before the attempt, with nothing
+excluded from the comparison.
 
 ## Verifying a device is on v39
 

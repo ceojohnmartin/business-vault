@@ -594,17 +594,39 @@
     if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;
   };
+  /* Detaching doors is a consequence of a territory tombstone becoming a
+     FACT — never of intending one. Local only, and never queued: every
+     device does this for itself when it learns the territory is gone, which
+     is exactly what applyTerritories already does for a tombstone that
+     arrives from the server. Returns the changed pins; the caller persists. */
+  S.releasePinsOf = function (territoryId) {
+    const hit = S.pins.filter((p) => p.territoryId === territoryId);
+    hit.forEach((p) => { p.territoryId = null; });
+    return hit;
+  };
+
+  /* Deleting a territory writes exactly ONE server-visible row: its
+     tombstone. It used to detach the territory's doors and queue those pins
+     too — two independent server writes, one of them (pins) permitted to a
+     rep and the other (territories) not. If authorization changed between
+     the tap and the push, the pin half committed and the tombstone half was
+     refused, leaving a live territory whose doors had all been detached: a
+     partial commit across an authorization boundary, which no code path
+     intended and no screen explained.
+
+     Now the doors are not touched until the tombstone is a fact — on push
+     success here, or on pull for every other device. A dangling territoryId
+     in the meantime is already a tolerated state: addKnock re-homes a stale
+     one to whichever live polygon actually contains the door. */
   S.deleteTerritory = async function (id) {
     S.territories = S.territories.filter((t) => t.id !== id);
     await MDB.del("territories", id);
     if (window.MSYNC) MSYNC.queueDelete("territories", id);
-    // release the pins that pointed here — future knocks re-attribute by
-    // whichever live polygon actually contains them
-    const orphans = S.pins.filter((p) => p.territoryId === id);
-    for (const p of orphans) {
-      p.territoryId = null;
-      await MDB.put("pins", p);
-      if (window.MSYNC) MSYNC.queue("pins", p.id);
+    // With no cloud project there is no server to refuse it, so the delete
+    // IS the fact and the doors are released now.
+    if (!(window.MCLOUD && MCLOUD.enabled())) {
+      const released = S.releasePinsOf(id);
+      if (released.length) await MDB.bulkPut("pins", released);
     }
   };
 

@@ -385,10 +385,16 @@
            refused. Only on the zero-row path, which is rare. */
         const changed = Array.isArray(r.data) ? r.data.length : 1;
         if (!changed) {
-          const probe = await MCLOUD.api("/rest/v1/" + table + where + "&select=id")
-            .catch(() => null);
+          const probe = await MCLOUD.api("/rest/v1/" + table + where).catch(() => null);
           const stillThere = probe && probe.ok && Array.isArray(probe.data) && probe.data.length;
           if (stillThere) {
+            /* The delete was REFUSED, so it never happened — and the local
+               copy was removed optimistically when the rep tapped. Put it
+               back from the row we just read, through the same apply path a
+               pull uses, so a refused delete leaves this device exactly as
+               it was. Nothing else was touched: the doors were never
+               detached, precisely so there is no second half to undo. */
+            try { await APPLY[table]([probe.data[0]]); } catch (_) {}
             lastError = "delete " + table + " refused " + e.id + " (no rows changed)";
             const entry = { k: e.k, table, id: e.id, status: 403, at: Date.now() };
             const dead = (await MDB.kvGet("syncDead", null)) || [];
@@ -401,6 +407,12 @@
             lastRefusal = entry;
             continue;
           }
+        }
+        // the tombstone is now a fact: this device releases its own doors,
+        // the same way every other device will when it pulls the tombstone
+        if (table === "territories") {
+          const released = S().releasePinsOf(e.id);
+          if (released.length) await MDB.bulkPut("pins", released);
         }
         await MDB.del("outbox", e.k).catch(() => {});
         queued.delete(e.k);
@@ -582,10 +594,8 @@
         if (t) {
           s.territories = s.territories.filter((x) => x !== t);
           await MDB.del("territories", row.id).catch(() => {});
-          // same release deleteTerritory does: pins fall back to the pool
-          s.pins.forEach((p) => {
-            if (p.territoryId === row.id) { p.territoryId = null; pinPuts.push(p); }
-          });
+          // the tombstone is a fact here: release this device's doors
+          S().releasePinsOf(row.id).forEach((p) => pinPuts.push(p));
           changed++;
         }
         continue;

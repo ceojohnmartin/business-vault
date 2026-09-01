@@ -49,6 +49,7 @@ const mock = {
   tables: { pins: new Map(), events: new Map(), territories: new Map(), customers: new Map() },
   rawBodies: [], upsertWrites: 0,
   territoryRefusals: 0,      // 403s issued by the 0003 gate
+  territoryUpserts: 0,       // upsert ATTEMPTS on territories, storm detector
   territoryPatchNoops: 0,    // PATCHes that changed nothing because of 0003
   requests: 0,
   clock: Date.parse("2026-09-01T00:00:00Z"),
@@ -113,6 +114,7 @@ function handleRest(req, res, u, body) {
       if (row.team_id !== me.team_id)
         return j(res, 401, { code: "42501", message: "row-level security" });
       // ---- 0003: an upsert RAISES for a rep, whether the row exists or not
+      if (table === "territories") mock.territoryUpserts++;
       if (table === "territories" && !canManage) {
         mock.territoryRefusals++;
         return j(res, 403, { code: "42501",
@@ -364,7 +366,7 @@ const server = http.createServer((req, res) => {
 
   /* ===== 3. a v38 rep attempts territory writes under 0003 ===== */
   const refusalsBefore = mock.territoryRefusals;
-  const reqBefore = mock.requests;
+  const upsertsBefore = mock.territoryUpserts;
   const v38Managerish = await S(OLD, () => STORE.isManager());
   check("3a a v38 device still believes it is a manager (stale UI is expected)",
     v38Managerish === true, String(v38Managerish));
@@ -388,9 +390,11 @@ const server = http.createServer((req, res) => {
     deadV38.length === 1, `dead=${deadV38.length}`);
   check("3e the rep's phone now shows a territory the server does not have",
     t3.local === 1, `local=${t3.local}`);
-  const reqPerRefusal = mock.requests - reqBefore;
-  check("3f one refused row costs a bounded number of requests (no storm)",
-    reqPerRefusal <= 6, `requests=${reqPerRefusal}`);
+  // the honest storm measure: a ONE-row batch must be attempted exactly once.
+  // (Raw request counts vary with which background cycles happen to fire.)
+  check("3f one refused row is attempted exactly once — no retry storm",
+    mock.territoryUpserts - upsertsBefore === 1,
+    `attempts=${mock.territoryUpserts - upsertsBefore}`);
 
   /* ===== 4. the rep's KNOCKING work is untouched by 0003 ===== */
   const knockBefore = mock.tables.events.size;
@@ -519,6 +523,133 @@ const server = http.createServer((req, res) => {
   ]);
   check("7b both versions converged on the same book",
     both[0].c === both[1].c && both[0].p === both[1].p, JSON.stringify(both));
+
+  /* ===== 8c. the happy path still works, in cloud mode =====
+     Deferring the door release until the tombstone is a fact must not mean
+     it never happens. */
+  const hood8 = await S(BOSS, async () => {
+    const t = await STORE.addTerritory({ id: MDB.uid(), name: "Eighth Hood",
+      points: [[20, 20], [22, 20], [22, 22]], createdAt: Date.now(), assignments: [] });
+    for (let i = 0; i < 2; i++) {
+      const p = { id: "door-8-" + i, lat: 21, lng: 21, address: "8 Eighth St " + i,
+        disposition: "unworked", territoryId: t.id, history: [], notes: [],
+        createdAt: 1, updatedAt: 1 };
+      await MDB.put("pins", p);
+      STORE.pins.push(p);
+      MSYNC.queue("pins", p.id);
+    }
+    return t.id;
+  });
+  await sync(BOSS); await sync(BOSS);
+  await S(BOSS, async (id) => { await STORE.deleteTerritory(id); }, hood8);
+  const stillHeld = await S(BOSS, () =>
+    STORE.pins.filter((p) => /^door-8-/.test(p.id) && p.territoryId).length);
+  check("8c1 doors stay attached while the tombstone is only queued",
+    stillHeld === 2, String(stillHeld));
+  await sync(BOSS);
+  const done8 = await S(BOSS, (id) => ({
+    released: STORE.pins.filter((p) => /^door-8-/.test(p.id) && !p.territoryId).length,
+    gone: !STORE.territories.some((t) => t.id === id),
+    refused: MSYNC.status().refused, pending: MSYNC.status().pending }), hood8);
+  const row8 = mock.tables.territories.get(TEAM + "|" + hood8);
+  check("8c2 a leader's delete IS accepted and tombstoned on the server",
+    !!row8 && !!row8.deleted_at, JSON.stringify({ has: !!row8, del: row8 && row8.deleted_at }));
+  check("8c3 …and only then are the doors released, locally",
+    done8.released === 2 && done8.gone === true, JSON.stringify(done8));
+  check("8c4 …with nothing refused and nothing left queued",
+    done8.pending === 0, JSON.stringify(done8));
+
+  /* ===== 9. PARTIAL COMMIT ACROSS AN AUTHORIZATION CHANGE =====
+     A leader queues a territory deletion while authorized. Before it syncs,
+     the office demotes them to rep. The tombstone is leadership-only and is
+     refused — but the doors the delete would detach are rep-writable, so
+     that half used to commit, leaving a live territory whose every door had
+     been detached. v39 makes the delete a single server-visible row: the
+     doors are not touched until the tombstone is a FACT. */
+  const hood9 = await S(BOSS, async () => {
+    const t = await STORE.addTerritory({ id: MDB.uid(), name: "Ninth Hood",
+      points: [[10, 10], [12, 10], [12, 12]], createdAt: Date.now(), assignments: [] });
+    // three doors that belong to it
+    for (let i = 0; i < 3; i++) {
+      const p = { id: "door-9-" + i, lat: 11 + i * 0.1, lng: 11, address: "9 Ninth St " + i,
+        disposition: "unworked", territoryId: t.id, history: [], notes: [],
+        createdAt: 1, updatedAt: 1 };
+      await MDB.put("pins", p);
+      STORE.pins.push(p);
+      MSYNC.queue("pins", p.id);
+    }
+    return t.id;
+  });
+  await sync(BOSS); await sync(BOSS);   // push, then pull them back
+  check("9a a leader's territory and its doors are on the server",
+    mock.tables.territories.has(TEAM + "|" + hood9) &&
+    [...mock.tables.pins.values()].filter((r) => r.territory_id === hood9).length === 3,
+    `pins=${[...mock.tables.pins.values()].filter((r) => r.territory_id === hood9).length}`);
+
+  // the exact state of every affected door, before the attempt
+  const doorsBefore = await S(BOSS, (id) => JSON.stringify(
+    STORE.pins.filter((p) => p.territoryId === id || /^door-9-/.test(p.id))
+      .sort((a, b) => (a.id < b.id ? -1 : 1))), hood9);
+
+  // still a leader: queue the deletion, do NOT sync
+  await S(BOSS, async (id) => { await STORE.deleteTerritory(id); }, hood9);
+  const queuedState = await S(BOSS, (id) => ({
+    gone: !STORE.territories.some((t) => t.id === id),
+    pins: JSON.stringify(STORE.pins.filter((p) => /^door-9-/.test(p.id))
+      .sort((a, b) => (a.id < b.id ? -1 : 1))),
+    outbox: MSYNC.status().pending,
+  }), hood9);
+  check("9b the queued delete does not touch the doors at all",
+    queuedState.pins === doorsBefore, "doors changed while merely queued");
+  check("9c …and queues exactly ONE server-visible row",
+    queuedState.outbox === 1, `outbox=${queuedState.outbox}`);
+
+  // THE OFFICE DEMOTES THEM, between the tap and the delivery
+  const bossId = mock.users["boss@x.com"].id;
+  mock.profiles[bossId].role = "rep";
+  const refusedBefore9 = await S(BOSS, () => MSYNC.status().refused);
+  await sync(BOSS);
+  await BOSS.page.waitForFunction(() => STORE.effectiveRole() === "rep", null, { timeout: 20000 });
+  await sync(BOSS);
+
+  const after9 = await S(BOSS, (id) => ({
+    role: STORE.effectiveRole(),
+    refused: MSYNC.status().refused,
+    lastRefusal: MSYNC.status().lastRefusal,
+    pending: MSYNC.status().pending,
+    pins: JSON.stringify(STORE.pins.filter((p) => /^door-9-/.test(p.id))
+      .sort((a, b) => (a.id < b.id ? -1 : 1))),
+    restored: STORE.territories.some((t) => t.id === id),
+  }), hood9);
+  const serverRow9 = mock.tables.territories.get(TEAM + "|" + hood9);
+  const serverPins9 = [...mock.tables.pins.values()].filter((r) => r.territory_id === hood9).length;
+
+  check("9d the demotion reached the device before its push",
+    after9.role === "rep", after9.role);
+  check("9e the territory tombstone is REFUSED",
+    after9.refused === refusedBefore9 + 1 && after9.lastRefusal &&
+    after9.lastRefusal.id === hood9, JSON.stringify(after9.lastRefusal));
+  if (after9.pins !== doorsBefore) {
+    const A = JSON.parse(doorsBefore), B = JSON.parse(after9.pins);
+    const diffs = [];
+    A.forEach((a, i) => {
+      const b = B[i] || {};
+      new Set([...Object.keys(a), ...Object.keys(b)]).forEach((k) => {
+        if (JSON.stringify(a[k]) !== JSON.stringify(b[k]))
+          diffs.push(`${a.id}.${k}: ${JSON.stringify(a[k])} -> ${JSON.stringify(b[k])}`);
+      });
+    });
+    console.log("  [diag 9f] " + diffs.join(" | "));
+  }
+  check("9f EVERY affected door is byte-for-byte what it was before the attempt",
+    after9.pins === doorsBefore, "see diag above");
+  check("9g the server's territory is untouched and still owns its doors",
+    !!serverRow9 && !serverRow9.deleted_at && serverPins9 === 3,
+    `alive=${!!serverRow9 && !serverRow9.deleted_at} pins=${serverPins9}`);
+  check("9h the refused delete is rolled back locally — no half-applied state",
+    after9.restored === true, String(after9.restored));
+  check("9i …and nothing is left queued to retry forever",
+    after9.pending === 0, String(after9.pending));
 
   /* The only console noise allowed is the browser reporting the 403 the
      server correctly issued for the v38 rep's territory push. That is the

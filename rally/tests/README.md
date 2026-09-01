@@ -45,7 +45,11 @@ Run from anywhere (paths are relative to this directory):
                                   # data loss, no payment-intent corruption,
                                   # no retry storm, no write loop — and
                                   # documents the two things a v38 device
-                                  # cannot tell its rep.
+                                  # cannot tell its rep. Also covers the
+                                  # partial-commit case: a leader queues a
+                                  # territory delete, is demoted mid-flight,
+                                  # and every affected door must come out
+                                  # byte-for-byte unchanged.
     node tests/upgrade-transition-test.js
                                   # THE UPGRADE ITSELF: one origin, one scope,
                                   # a REAL service worker. Boots v38, does

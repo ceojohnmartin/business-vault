@@ -1155,3 +1155,135 @@ select t_assert(
       and not has_table_privilege('authenticated', 'public.territory_splits', 'update')
       and not has_table_privilege('authenticated', 'public.territory_splits', 'delete')),
   'no client may write the split record by any route but the function');
+
+-- ===== 18. the WHOLE payment object under the exact production upsert (0004)
+/* The client's upsert is
+     INSERT .. ON CONFLICT (team_id,id) DO UPDATE SET <every column> = EXCLUDED.<column>
+   so the whole `data` column is replaced by whatever the client sent. The
+   field-level three-way rule ran only INSIDE an incoming payment object; a
+   payload with no payment key at all replaced the column before the rule
+   ever looked, and the safe payment the row held was simply gone. That is
+   precisely the payload the client sends when it fails closed. These checks
+   use the production column list verbatim, for both statement shapes. */
+
+-- the exact PostgREST shape, as a helper so every case below sends the same thing
+create or replace function pg_temp.upsert_prod(cid text, d jsonb, tomb boolean default false)
+returns void language sql as $f$
+  insert into public.customers (team_id, id, first, last, email, phones, created_by, deleted_at, data)
+  values ('11111111-1111-4111-a111-111111111111', cid, 'Dana', 'Rivers', 'd@x.com', '[]'::jsonb,
+          null, case when tomb then now() else null end, d)
+  on conflict (team_id, id) do update set
+    team_id = excluded.team_id, id = excluded.id, first = excluded.first, last = excluded.last,
+    email = excluded.email, phones = excluded.phones, created_by = excluded.created_by,
+    deleted_at = excluded.deleted_at, data = excluded.data
+$f$;
+
+-- the SAFE object every case starts from — written through the trigger, then
+-- read back so the comparison is against what the trigger actually stored
+select pg_temp.upsert_prod('cust-abs',
+  '{"plan":{"id":"prem"},"payment":{"method":"ach","autopayRequested":true,"status":"pending_setup",
+    "card":{"name":"Dana Rivers"},"ach":{"name":"Dana Rivers","type":"savings"},
+    "billingAddress":{"street":"1 Elm","city":"Provo","state":"UT","zip":"84604"}}}'::jsonb);
+create temporary table abs_ref as
+  select data->'payment' as pay from public.customers where id = 'cust-abs';
+select t_assert((select pay->>'autopayRequested' = 'true' and pay->'card'->>'name' = 'Dana Rivers'
+                   from abs_ref), '(setup) the reference safe payment is stored');
+
+-- 1. OLD has payment, incoming has NO payment key -> survives UNCHANGED
+select pg_temp.upsert_prod('cust-abs', '{"plan":{"id":"prem"},"notesForever":"edited blind"}'::jsonb);
+select t_assert(
+  (select data->'payment' = (select pay from abs_ref) from public.customers where id = 'cust-abs'),
+  '1 a payment-less UPSERT leaves the stored safe payment byte-for-byte unchanged');
+select t_assert(
+  (select data->>'notesForever' = 'edited blind' from public.customers where id = 'cust-abs'),
+  '1b …while the rest of the record the client DID send lands normally');
+-- the same, as the plain-UPDATE (PATCH) shape
+update public.customers set data = '{"plan":{"id":"prem"},"notesForever":"patched blind"}'::jsonb
+ where id = 'cust-abs';
+select t_assert(
+  (select data->'payment' = (select pay from abs_ref) from public.customers where id = 'cust-abs'),
+  '1c a payment-less plain UPDATE preserves it too');
+
+-- 2. OLD has payment, incoming has payment -> the field-level rules apply (unchanged)
+select pg_temp.upsert_prod('cust-abs',
+  '{"plan":{"id":"prem"},"payment":{"method":"card","autopayRequested":false}}'::jsonb);
+select t_assert(
+  (select data->'payment'->>'method' = 'card' and data->'payment'->>'autopayRequested' = 'false'
+      and data->'payment'->'card'->>'name' = 'Dana Rivers'
+      and data->'payment'->'billingAddress'->>'zip' = '84604'
+     from public.customers where id = 'cust-abs'),
+  '2 an incoming payment object is merged field by field, as before');
+-- put the reference back for the remaining cases
+select pg_temp.upsert_prod('cust-abs',
+  '{"plan":{"id":"prem"},"payment":{"method":"ach","autopayRequested":true,"status":"pending_setup",
+    "card":{"name":"Dana Rivers"},"ach":{"name":"Dana Rivers","type":"savings"},
+    "billingAddress":{"street":"1 Elm","city":"Provo","state":"UT","zip":"84604"}}}'::jsonb);
+
+-- 3. OLD has no payment, incoming has no payment -> nothing is manufactured
+select pg_temp.upsert_prod('cust-abs-none', '{"plan":{"id":"prem"}}'::jsonb);
+select pg_temp.upsert_prod('cust-abs-none', '{"plan":{"id":"prem"},"notesForever":"x"}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-abs-none'),
+  '3 two payment-less writes on a row with no payment invent no payment object');
+update public.customers set data = '{"plan":{"id":"prem"}}'::jsonb where id = 'cust-abs-none';
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-abs-none'),
+  '3b …and neither does a plain UPDATE');
+
+-- 4. OLD has payment, incoming payment is MALFORMED (not an object) -> stored survives
+select pg_temp.upsert_prod('cust-abs', '{"plan":{"id":"prem"},"payment":null}'::jsonb);
+select t_assert(
+  (select data->'payment' = (select pay from abs_ref) from public.customers where id = 'cust-abs'),
+  '4a payment: null cannot erase the stored object');
+select pg_temp.upsert_prod('cust-abs', '{"plan":{"id":"prem"},"payment":"4111111111111111"}'::jsonb);
+select t_assert(
+  (select data->'payment' = (select pay from abs_ref) from public.customers where id = 'cust-abs'),
+  '4b payment: <string> cannot erase it, and the string is not stored');
+select pg_temp.upsert_prod('cust-abs', '{"plan":{"id":"prem"},"payment":[1,2,3]}'::jsonb);
+select t_assert(
+  (select data->'payment' = (select pay from abs_ref) from public.customers where id = 'cust-abs'),
+  '4c payment: <array> cannot erase it');
+select pg_temp.upsert_prod('cust-abs', '{"plan":{"id":"prem"},"payment":12345}'::jsonb);
+select t_assert(
+  (select data->'payment' = (select pay from abs_ref) from public.customers where id = 'cust-abs'),
+  '4d payment: <number> cannot erase it');
+select pg_temp.upsert_prod('cust-abs',
+  '{"plan":{"id":"prem"},"payment":{"method":7,"autopayRequested":"yes","status":"active",
+    "card":"Dana","billingAddress":"1 Elm"}}'::jsonb);
+select t_assert(
+  (select data->'payment' = (select pay from abs_ref) from public.customers where id = 'cust-abs'),
+  '4e an object whose every leaf is malformed changes nothing at all');
+
+-- the one exception: a TOMBSTONE carries nothing forward
+select pg_temp.upsert_prod('cust-abs-tomb',
+  '{"payment":{"method":"card","card":{"name":"Gone Person"},
+    "billingAddress":{"street":"9 Vine","city":"Orem","state":"UT","zip":"84057"}}}'::jsonb);
+update public.customers
+   set deleted_at = now(), data = '{}'::jsonb, first = '', last = '', email = '', phones = '[]'::jsonb
+ where id = 'cust-abs-tomb';                                     -- the client's tombstone PATCH
+select t_assert(
+  (select not (data ? 'payment') and data = '{}'::jsonb
+     from public.customers where id = 'cust-abs-tomb'),
+  '5 a customer tombstone keeps the id and loses the person — payment metadata included');
+select t_assert(
+  (select position('Gone Person' in data::text) = 0 and position('9 Vine' in data::text) = 0
+     from public.customers where id = 'cust-abs-tomb'),
+  '5b …nothing of the billing name or address survives on the tombstone');
+-- and the same tombstone through the upsert shape
+select pg_temp.upsert_prod('cust-abs-tomb2',
+  '{"payment":{"method":"ach","ach":{"name":"Also Gone","type":"checking"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-abs-tomb2', '{}'::jsonb, true);
+select t_assert(
+  (select deleted_at is not null and not (data ? 'payment')
+     from public.customers where id = 'cust-abs-tomb2'),
+  '5c …via the upsert shape as well');
+
+-- and a stored payment that predates the rule cannot smuggle a credential
+-- back in by being "preserved": preservation REBUILDS from the allowlist
+update public.customers
+   set data = jsonb_set(data, '{payment,card,number}', '"4242424242424242"'::jsonb)
+ where id = 'cust-abs';
+select t_assert(
+  (select data->'payment'->'card' ? 'number' = false
+     from public.customers where id = 'cust-abs'),
+  '(setup) the trigger rebuilt even that direct write');

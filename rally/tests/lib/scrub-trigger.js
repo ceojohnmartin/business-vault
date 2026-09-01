@@ -50,10 +50,23 @@ function pickBool(sent, stored) {
 }
 const put = (o, k, v) => { if (v !== undefined) o[k] = v; return o; };
 
+const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
 function scrubTrigger(row, prevRow) {
-  if (!row.data || !row.data.payment) return;
-  const p = row.data.payment;
-  const o = (prevRow && prevRow.data && prevRow.data.payment) || {};
+  if (!row.data) return;
+  /* WHOLE-OBJECT RULE (mirrors 0004). The upsert replaces the entire data
+     column, so a payload with no payment object would otherwise erase the
+     stored one before any field-level rule ran. "Not sent" — absent, null,
+     a string, a number, an array — means "keep the stored object", rebuilt
+     through the same pickers. Only OLD (prevRow) can supply it, and only
+     when this write is not a tombstone: a deleted customer keeps the id and
+     loses the person, payment metadata included. */
+  const sent = isObj(row.data.payment);
+  const held = !!prevRow && prevRow.data && isObj(prevRow.data.payment) && !row.deleted_at;
+  if (!sent && !held) return;
+  const p = sent ? row.data.payment : {};
+  const o = (held || (prevRow && prevRow.data && isObj(prevRow.data.payment)))
+    ? prevRow.data.payment : {};
   const safe = {};
 
   put(safe, "method", pickEnum(p.method, o.method, ["card", "ach", ""]));

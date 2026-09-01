@@ -43,6 +43,21 @@
 -- Getting it wrong is silent: a single-fire test cannot see the double fire,
 -- and a single-session test cannot see the lost update.
 --
+-- THE WHOLE OBJECT FOLLOWS THE SAME RULE. A client upsert is
+--   INSERT .. ON CONFLICT DO UPDATE SET data = EXCLUDED.data
+-- so the ENTIRE data column is replaced by what the client sent. A payload
+-- with no `payment` key at all — which is exactly what the client sends when
+-- it cannot vouch for the shape and fails closed — used to sail past the
+-- `if new.data ? 'payment'` guard and land as-is, ERASING the safe payment
+-- object the row already held. The field-level rule never ran, because there
+-- was no object to run it on. Now "no payment sent" means "keep the stored
+-- payment", exactly as "no field sent" means "keep the stored field", and it
+-- is done on the UPDATE pass from OLD so the INSERT-pass injection race is
+-- not reintroduced. A tombstone is the one exception: a deleted customer's
+-- row keeps the id, not the person, so nothing is carried into it.
+-- (db/test/rls-test.sql §18, db/test/race-test.sh, and the negative control
+-- in db/test/payment-absent-test.sh, which proves the OLD body fails.)
+--
 -- Idempotent: safe to run more than once.
 
 -- One place that decides what a stored payment string may be: a real JSON
@@ -160,13 +175,31 @@ $$;
 create or replace function public.scrub_customer_payment() returns trigger
 language plpgsql as $$
 declare pay jsonb; prev jsonb; safe jsonb; addr jsonb; card jsonb; ach jsonb;
+        sent boolean; held boolean;
 begin
   if new.data is null then
     new.data := '{}'::jsonb;
     return new;
   end if;
-  if new.data ? 'payment' then
-    pay := new.data->'payment';
+
+  /* WHOLE-OBJECT RULE.
+       sent  = the client put a payment OBJECT in this write. A key holding
+               null, a string, a number or an array is not a payment object;
+               it is treated as NOT SENT, so garbage where the object belongs
+               cannot erase a valid stored one.
+       held  = the row already holds a payment object, and this write is not
+               a tombstone. Only OLD can say so, and OLD exists only on the
+               UPDATE pass — which is the pass that runs under the row lock,
+               after any concurrent commit. The INSERT pass of an upsert has
+               no OLD, injects nothing, and so cannot poison EXCLUDED.
+     A tombstone (deleted_at set) carries nothing forward: the row keeps the
+     customer's id and loses the person, payment metadata included. */
+  sent := jsonb_typeof(new.data->'payment') = 'object';
+  held := TG_OP = 'UPDATE' and new.deleted_at is null
+          and jsonb_typeof(old.data->'payment') = 'object';
+
+  if sent or held then
+    pay := case when sent then new.data->'payment' else '{}'::jsonb end;
 
     /* THE ONLY TRUSTWORTHY PREVIOUS VALUE IS OLD.
        Every client write is INSERT .. ON CONFLICT DO UPDATE, and Postgres
@@ -190,7 +223,7 @@ begin
        On the INSERT pass prev is empty, so every picker below either takes
        a value the client genuinely sent or returns NULL and the key is left
        out — which is exactly the rule. */
-    prev := case when TG_OP = 'UPDATE' and old.data ? 'payment'
+    prev := case when TG_OP = 'UPDATE' and jsonb_typeof(old.data->'payment') = 'object'
                  then old.data->'payment' else '{}'::jsonb end;
 
     /* SHAPE, NOT JUST KEY NAMES. An allowlist of key names alone would let

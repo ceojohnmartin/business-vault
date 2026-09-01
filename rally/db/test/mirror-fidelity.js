@@ -62,8 +62,33 @@ const CASES = [
    { billingAddress: { street: "", city: "4111111111111111" } }],
 ];
 
+/* ABSENT means the client sent a data object with NO payment key at all —
+   the fail-closed payload — and TOMB marks a tombstone write (deleted_at
+   set, data {}), which must carry nothing forward. Both are whole-object
+   cases the field-level pickers never see, so they get their own rows. */
+const ABSENT = Symbol("no payment key");
+const TOMB = Symbol("tombstone");
+const SAFE = { method: "ach", autopayRequested: true, status: "pending_setup",
+  card: { name: "Dana Rivers" }, ach: { name: "Dana Rivers", type: "savings" },
+  billingAddress: { street: "1 Elm", city: "Provo", state: "UT", zip: "84604" } };
+CASES.push(
+  [null, ABSENT],                        // nothing stored, nothing sent
+  [SAFE, ABSENT],                        // the bug: stored, nothing sent
+  [SAFE, null],                          // JSON null where the object belongs
+  [SAFE, "4111111111111111"],            // a string
+  [SAFE, [1, 2, 3]],                     // an array
+  [SAFE, 12345],                         // a number
+  [SAFE, TOMB],                          // a tombstone carries nothing forward
+  [{ method: "card", last4: "4242" }, ABSENT],
+  [{ autopayRequested: false }, ABSENT],
+);
+
 let fails = 0, n = 0;
 const jq = (o) => "'" + JSON.stringify(o).replace(/'/g, "''") + "'::jsonb";
+const dataFor = (sent) => sent === ABSENT || sent === TOMB
+  ? `'{"plan":{"id":"prem"}}'::jsonb`
+  : `jsonb_build_object('plan', '{"id":"prem"}'::jsonb, 'payment', ${jq(sent)})`;
+const tombSql = (sent) => sent === TOMB ? "now()" : "null";
 
 for (const [prev, sent] of CASES) {
   for (const shape of ["update", "upsert"]) {
@@ -80,12 +105,17 @@ for (const [prev, sent] of CASES) {
     }
     if (shape === "update") {
       if (!prev) psql(`insert into public.customers (team_id,id,data) values ('${TEAM}','${id}','{}'::jsonb)`);
-      psql(`update public.customers set data = jsonb_build_object('payment', ${jq(sent)})
+      psql(`update public.customers set data = ${dataFor(sent)}, deleted_at = ${tombSql(sent)}
              where id = '${id}'`);
     } else {
-      psql(`insert into public.customers (team_id,id,data) values
-              ('${TEAM}','${id}', jsonb_build_object('payment', ${jq(sent)}))
-            on conflict (team_id,id) do update set data = excluded.data`);
+      // the EXACT production upsert: every payload column SET from EXCLUDED
+      psql(`insert into public.customers (team_id,id,first,last,email,phones,created_by,deleted_at,data)
+            values ('${TEAM}','${id}','','','','[]'::jsonb,null,${tombSql(sent)},${dataFor(sent)})
+            on conflict (team_id,id) do update set
+              team_id = excluded.team_id, id = excluded.id, first = excluded.first,
+              last = excluded.last, email = excluded.email, phones = excluded.phones,
+              created_by = excluded.created_by, deleted_at = excluded.deleted_at,
+              data = excluded.data`);
     }
     const server = JSON.parse(
       psql(`select coalesce(data->'payment','null') from public.customers where id = '${id}'`));
@@ -93,7 +123,9 @@ for (const [prev, sent] of CASES) {
     /* The mirror is fed the same two passes Postgres runs. For an upsert on
        an existing row that is: INSERT pass with no OLD, then UPDATE pass
        whose NEW is the first pass's output and whose OLD is the stored row. */
-    const row = { data: { payment: JSON.parse(JSON.stringify(sent)) } };
+    const row = { data: { plan: { id: "prem" } },
+      deleted_at: sent === TOMB ? "2026-09-01T00:00:00Z" : null };
+    if (sent !== ABSENT && sent !== TOMB) row.data.payment = JSON.parse(JSON.stringify(sent));
     const prevRow = prev ? { data: { payment: JSON.parse(JSON.stringify(prev)) } } : null;
     if (shape === "update") {
       scrubTrigger(row, prevRow);
@@ -101,7 +133,11 @@ for (const [prev, sent] of CASES) {
       scrubTrigger(row, null);                 // BEFORE INSERT: no OLD
       if (prev) scrubTrigger(row, prevRow);    // BEFORE UPDATE: OLD under the lock
     }
-    const mirror = row.data.payment;
+    /* ABSENT is one value on both sides. Postgres reports a missing key as
+       SQL NULL (printed as JSON null by the coalesce above); the mirror
+       simply never sets the property. Neither side holds a payment object,
+       which is what invariants 3 and 5 require — so compare them as equal. */
+    const mirror = row.data.payment === undefined ? null : row.data.payment;
 
     const a = JSON.stringify(server, Object.keys(server || {}).sort());
     const b = JSON.stringify(mirror, Object.keys(mirror || {}).sort());
@@ -110,7 +146,7 @@ for (const [prev, sent] of CASES) {
       fails++;
       console.log(`FAIL: case ${n} (${shape})`);
       console.log(`      prev   ${JSON.stringify(prev)}`);
-      console.log(`      sent   ${JSON.stringify(sent)}`);
+      console.log(`      sent   ${String(sent === ABSENT ? "<ABSENT>" : sent === TOMB ? "<TOMBSTONE>" : JSON.stringify(sent))}`);
       console.log(`      server ${JSON.stringify(server)}`);
       console.log(`      mirror ${JSON.stringify(mirror)}`);
     }

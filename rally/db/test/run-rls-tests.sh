@@ -61,6 +61,11 @@ else
   echo "MIRROR: SKIPPED (no node on PATH)"
 fi
 
+# The whole-payment-object rule, with its NEGATIVE CONTROL: the pre-fix trigger
+# body is installed over a fresh database and the same probe must see the
+# erasure, or the regression test is proving nothing. Its own database.
+sh "$DIR/payment-absent-test.sh"
+
 # The deployment story rests on APPLY_v39.sql being all-or-nothing. That is a
 # claim about a real database, so it is tested against one — on its own
 # throwaway database, since it deliberately applies a broken file.

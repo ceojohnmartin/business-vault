@@ -48,10 +48,15 @@ COMMIT;
 SQL
   ) &
   sleep 1
+  # the EXACT PostgREST upsert: every column in the payload is SET from EXCLUDED,
+  # so the whole data column is replaced — which is the point of the cases below
   psql -q -d "$DB" >/dev/null 2>&1 <<SQL
-INSERT INTO public.customers (team_id,id,first,last,data)
-VALUES ('$TEAM','race-1','','','$2'::jsonb)
-ON CONFLICT (team_id,id) DO UPDATE SET data = excluded.data;
+INSERT INTO public.customers (team_id,id,first,last,email,phones,created_by,deleted_at,data)
+VALUES ('$TEAM','race-1','','','','[]'::jsonb,null,null,'$2'::jsonb)
+ON CONFLICT (team_id,id) DO UPDATE SET
+  team_id = excluded.team_id, id = excluded.id, first = excluded.first, last = excluded.last,
+  email = excluded.email, phones = excluded.phones, created_by = excluded.created_by,
+  deleted_at = excluded.deleted_at, data = excluded.data;
 SQL
   wait
   probe="${5:-data->'payment'->>'autopayRequested'}"
@@ -106,6 +111,33 @@ race '{"payment":{"method":"card","last4":"4242"}}' \
      "a full PAN cannot truncate itself into last4 over a concurrent real one" \
      "data->'payment'->>'last4'"
 
+# THE WHOLE OBJECT under the same race. The stale writer sends NO payment key
+# at all — the fail-closed payload — while a current client commits real
+# intent in between. The whole data column is replaced by the stale write; the
+# stored payment must come through anyway, and it must be B's, not the
+# baseline's.
+race '{"payment":{"method":"ach","autopayRequested":true,"status":"pending_setup"}}' \
+     '{"plan":{"id":"prem"},"notesForever":"stale, payment-less"}' \
+     true \
+     "a PAYMENT-LESS stale upsert cannot erase a concurrently committed request"
+
+race '{"payment":{"method":"ach","card":{"name":"Dana Rivers"}}}' \
+     '{"plan":{"id":"prem"}}' \
+     "Dana Rivers" \
+     "…nor a concurrently committed cardholder name" \
+     "data->'payment'->'card'->>'name'"
+
+race '{"payment":{"method":"ach","card":{"name":"Dana Rivers"}}}' \
+     '{"plan":{"id":"prem"},"payment":null}' \
+     "Dana Rivers" \
+     "a stale upsert with payment:null cannot erase it either" \
+     "data->'payment'->'card'->>'name'"
+
+race '{"payment":{"method":"ach","autopayRequested":true,"status":"pending_setup"}}' \
+     '{"plan":{"id":"prem"},"payment":"garbage"}' \
+     true \
+     "nor one with a string where the payment object belongs"
+
 [ -z "$1" ] && psql -q -d postgres -c "drop database if exists $DB" >/dev/null 2>&1
 if [ "$fails" -gt 0 ]; then echo "RACE: FAILED ($fails)"; exit 1; fi
-echo "RACE: ALL GREEN (7 checks)"
+echo "RACE: ALL GREEN (11 checks)"

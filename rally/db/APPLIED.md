@@ -415,6 +415,28 @@ that `0003` exists for:
 
     PGHOST=<host> PGPORT=<port> sh rally/db/test/run-rls-tests.sh
 
+## A payment-less write keeps the stored payment (0004, whole-object rule)
+
+The client upsert is `INSERT .. ON CONFLICT DO UPDATE SET data = EXCLUDED.data`
+(and every other payload column), so the **entire** `data` column is replaced
+by what the client sent. The field-level three-way rule only ever ran *inside*
+an incoming payment object. A payload with no `payment` key at all — which is
+exactly what a v39 client sends when it cannot vouch for the shape and fails
+closed — used to land as-is and **erase** the safe payment the row already
+held. Reproduced against real PostgreSQL with the production statement shape.
+
+Now "no payment object sent" (absent, `null`, a string, a number, an array)
+means "keep the stored payment", rebuilt through the same allowlist pickers,
+taken from `OLD` on the UPDATE pass — so the INSERT pass still injects nothing
+and the EXCLUDED race stays closed. A tombstone is the one exception: a deleted
+customer keeps the id and loses the person, payment metadata included.
+
+`db/test/payment-absent-test.sh` is the **negative control**: it installs the
+pre-fix trigger body (kept verbatim under `db/test/fixtures/`) over a fresh
+database and requires the identical probe to see the erasure. A regression
+test that cannot see the bug it guards against is a green tick with nothing
+behind it.
+
 ## Smart Split is one server fact (0005)
 
 Smart Split replaces one territory with N children: N+1 rows. The client used

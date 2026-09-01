@@ -260,12 +260,26 @@ to print the right document.
 
     PGHOST=<host> PGPORT=<port> sh rally/db/test/run-rls-tests.sh
 
-applies every migration in order to a throwaway database and runs the full
-security matrix, including the payment trigger under BOTH statement shapes a
-client can produce. The upsert shape is the one that matters: every ordinary
-sync push is `INSERT .. ON CONFLICT DO UPDATE`, for which Postgres fires a
-`BEFORE INSERT OR UPDATE` trigger TWICE. A preservation rule that reads only
-`OLD` passes a plain-UPDATE test and still loses the field on the real path.
+applies every migration in order to a throwaway database, runs the full
+security matrix, and then runs `test/race-test.sh` against the same database.
+
+Two things about the payment trigger are easy to get wrong and impossible to
+see from a naive test:
+
+1. **It fires TWICE per upsert.** Every sync push is
+   `INSERT .. ON CONFLICT DO UPDATE`, and the BEFORE INSERT pass's output
+   becomes `EXCLUDED`. A rule that reads only `OLD` passes a plain-UPDATE
+   test and still loses the field on the real path.
+2. **The INSERT pass must not write a value it did not receive.** If it does,
+   the UPDATE pass cannot tell its own injection from client intent — and a
+   transaction committing in between turns that into a LOST UPDATE. Looking
+   the row up inside the INSERT pass does NOT fix this: that read happens
+   before the row lock is taken. Only `OLD`, which Postgres re-reads under the
+   lock, is trustworthy.
+
+`race-test.sh` reproduces exactly that interleaving with two real sessions.
+Reverting the trigger to the look-it-up version makes it fail; that negative
+control was run.
 
 ## Proving the whole thing locally
 

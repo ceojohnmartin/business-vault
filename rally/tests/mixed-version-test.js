@@ -72,21 +72,28 @@ const authOf = (req) => mock.access[String(req.headers.authorization || "").repl
 // 0004_payment_allowlist.sql, faithfully — including the rule that an
 // ABSENT key is "leave it alone", so a client too old to know about a field
 // cannot erase it. Key presence is the discriminator.
-function scrubTrigger(row, storedRow) {
+function scrubTrigger(row, prevRow) {
   if (row.data && row.data.payment) {
     const p = row.data.payment;
-    // the stored row is the authority on a previous value — matching the
-    // trigger's own lookup, which is what makes it double-fire safe
-    const o = (storedRow && storedRow.data && storedRow.data.payment) || {};
-    const req = Object.prototype.hasOwnProperty.call(p, "autopayRequested")
-      ? p.autopayRequested === true
-      : o.autopayRequested === true;
-    let st = Object.prototype.hasOwnProperty.call(p, "status")
-      ? p.status : (o.status || "not_configured");
-    if (st !== "not_configured" && st !== "pending_setup") st = "not_configured";
-    row.data.payment = { method: p.method || "", last4: p.last4 || "",
-      autopayRequested: req, status: st,
+    /* prevRow models OLD — the row Postgres re-read under the lock. It is
+       null on the INSERT pass, and that is the point: a pass with no OLD must
+       not write a value it did not receive, or its own injection becomes
+       EXCLUDED and the UPDATE pass honours it as client intent (losing a
+       concurrent commit). Key present == the client genuinely sent it. */
+    const o = (prevRow && prevRow.data && prevRow.data.payment) || null;
+    const safe = { method: p.method || "", last4: p.last4 || "",
       billingAddress: p.billingAddress || null };
+    if (Object.prototype.hasOwnProperty.call(p, "autopayRequested")) {
+      safe.autopayRequested = p.autopayRequested === true;
+    } else if (o && Object.prototype.hasOwnProperty.call(o, "autopayRequested")) {
+      safe.autopayRequested = o.autopayRequested === true;
+    }
+    const valid = (v) => v === "not_configured" || v === "pending_setup";
+    let st;
+    if (Object.prototype.hasOwnProperty.call(p, "status") && valid(p.status)) st = p.status;
+    else if (o && Object.prototype.hasOwnProperty.call(o, "status")) st = o.status;
+    if (st !== undefined) safe.status = valid(st) ? st : "not_configured";
+    row.data.payment = safe;
   }
 }
 
@@ -133,7 +140,7 @@ function handleRest(req, res, u, body) {
            UPDATE. Firing it once here would hide exactly the class of bug
            where the first pass injects a value the second pass then trusts. */
         const proposed = JSON.parse(JSON.stringify(row));
-        if (table === "customers") scrubTrigger(proposed, existing);   // BEFORE INSERT
+        if (table === "customers") scrubTrigger(proposed, null);     // BEFORE INSERT: no OLD
         const merged = Object.assign({}, existing, proposed,
           { created_at: existing.created_at, updated_at: reqClock });
         if (table === "customers") scrubTrigger(merged, existing);     // BEFORE UPDATE
@@ -141,7 +148,7 @@ function handleRest(req, res, u, body) {
       } else {
         const fresh = Object.assign({}, row, { created_at: reqClock });
         if (table !== "events") fresh.updated_at = fresh.created_at;
-        if (table === "customers") scrubTrigger(fresh, null);
+        if (table === "customers") scrubTrigger(fresh, null);   // plain INSERT: no OLD
         t.set(key, fresh); mock.upsertWrites++;
       }
     }
@@ -291,12 +298,20 @@ const server = http.createServer((req, res) => {
   const stored = [...mock.tables.customers.values()].find((r) => r.data.last === "Shape");
   check("1a a v38 push carries no credential (its own scrub still runs)",
     !mock.rawBodies.some((b) => b.includes("4111111111111111") || b.includes("000123456789")));
-  check("1b the 0004 trigger stores the safe allowlist and nothing else",
-    Object.keys(stored.data.payment).sort().join(",") ===
-      "autopayRequested,billingAddress,last4,method,status",
+  const ALLOWED = ["autopayRequested", "billingAddress", "last4", "method", "status"];
+  check("1b the 0004 trigger stores allowlisted keys only — no credential survives",
+    Object.keys(stored.data.payment).every((k) => ALLOWED.indexOf(k) >= 0) &&
+    !stored.data.payment.card && !stored.data.payment.ach,
     Object.keys(stored.data.payment).sort().join(","));
-  check("1c v38's autopay:true — the OLD DEFAULT — is not promoted to a request",
-    stored.data.payment.autopayRequested === false && stored.data.payment.status === "not_configured",
+  /* A brand-new row from a client too old to know the fields carries NEITHER
+     key. The INSERT pass must not write a value it did not receive: its
+     output becomes EXCLUDED, and an injected default would be honoured by
+     the UPDATE pass as client intent — losing a concurrent commit. Absent
+     reads as "no request on record", which is the honest answer. */
+  check("1c v38's autopay:true — the OLD DEFAULT — is never promoted to a request",
+    stored.data.payment.autopayRequested !== true &&
+    stored.data.payment.status !== "pending_setup" &&
+    stored.data.payment.autopay === undefined,
     JSON.stringify(stored.data.payment));
   check("1d the customer's real, non-payment data is intact",
     stored.data.first === "Old" && stored.data.plan.monthly === 99 &&
@@ -307,10 +322,13 @@ const server = http.createServer((req, res) => {
     const c = STORE.customers.find((x) => x.last === "Shape");
     return { pay: c && c.payment, name: c && c.first };
   });
-  check("1e v39 reads it as an honest unconfigured record",
-    seenByNew.pay && seenByNew.pay.autopayRequested === false &&
-    seenByNew.pay.status === "not_configured" && seenByNew.pay.method === "card",
-    JSON.stringify(seenByNew.pay));
+  const readBack = await S(NEW, () => {
+    const c = STORE.customers.find((x) => x.last === "Shape");
+    return c ? MCUST.honestPayment(c.payment) : null;
+  });
+  check("1e v39 reads it back as no request on record",
+    !!readBack && readBack.autopayRequested === false && readBack.method === "card" &&
+    readBack.last4 === "4242", JSON.stringify(readBack));
 
   /* ===== 2. a v38 client RECEIVES a v39 customer ===== */
   const newCustId = await S(NEW, async () => {

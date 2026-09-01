@@ -82,7 +82,7 @@ function handleRest(req, res, u, body) {
            UPDATE. Firing it once here would hide exactly the class of bug
            where the first pass injects a value the second pass then trusts. */
         const proposed = JSON.parse(JSON.stringify(row));
-        if (table === "customers") scrubTrigger(proposed, existing);   // BEFORE INSERT
+        if (table === "customers") scrubTrigger(proposed, null);     // BEFORE INSERT: no OLD
         const merged = Object.assign({}, existing, proposed,
           { created_at: existing.created_at, updated_at: reqClock });
         if (table === "customers") scrubTrigger(merged, existing);     // BEFORE UPDATE
@@ -91,7 +91,7 @@ function handleRest(req, res, u, body) {
       } else {
         const fresh = Object.assign({}, row, { created_at: reqClock });
         if (table !== "events") fresh.updated_at = fresh.created_at;
-        if (table === "customers") scrubTrigger(fresh, null);
+        if (table === "customers") scrubTrigger(fresh, null);   // plain INSERT: no OLD
         t.set(key, fresh);
         mock.upsertWrites++;
       }
@@ -141,21 +141,28 @@ function handleRest(req, res, u, body) {
 }
 
 // mirror of the real DB trigger:
-function scrubTrigger(row, storedRow) {
+function scrubTrigger(row, prevRow) {
   if (row.data && row.data.payment) {
     const p = row.data.payment;
-    // the stored row is the authority on a previous value — matching the
-    // trigger's own lookup, which is what makes it double-fire safe
-    const o = (storedRow && storedRow.data && storedRow.data.payment) || {};
-    const req = Object.prototype.hasOwnProperty.call(p, "autopayRequested")
-      ? p.autopayRequested === true
-      : o.autopayRequested === true;
-    let st = Object.prototype.hasOwnProperty.call(p, "status")
-      ? p.status : (o.status || "not_configured");
-    if (st !== "not_configured" && st !== "pending_setup") st = "not_configured";
-    row.data.payment = { method: p.method || "", last4: p.last4 || "",
-      autopayRequested: req, status: st,
+    /* prevRow models OLD — the row Postgres re-read under the lock. It is
+       null on the INSERT pass, and that is the point: a pass with no OLD must
+       not write a value it did not receive, or its own injection becomes
+       EXCLUDED and the UPDATE pass honours it as client intent (losing a
+       concurrent commit). Key present == the client genuinely sent it. */
+    const o = (prevRow && prevRow.data && prevRow.data.payment) || null;
+    const safe = { method: p.method || "", last4: p.last4 || "",
       billingAddress: p.billingAddress || null };
+    if (Object.prototype.hasOwnProperty.call(p, "autopayRequested")) {
+      safe.autopayRequested = p.autopayRequested === true;
+    } else if (o && Object.prototype.hasOwnProperty.call(o, "autopayRequested")) {
+      safe.autopayRequested = o.autopayRequested === true;
+    }
+    const valid = (v) => v === "not_configured" || v === "pending_setup";
+    let st;
+    if (Object.prototype.hasOwnProperty.call(p, "status") && valid(p.status)) st = p.status;
+    else if (o && Object.prototype.hasOwnProperty.call(o, "status")) st = o.status;
+    if (st !== undefined) safe.status = valid(st) ? st : "not_configured";
+    row.data.payment = safe;
   }
 }
 

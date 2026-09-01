@@ -678,24 +678,44 @@ select t_assert(
      from public.customers where id = 'cust-mix'),
   'an explicit false from a current client IS honoured');
 
--- and no client may ever claim a payment method is live
+/* No client may ever claim a payment method is live. An invalid status is
+   treated as NOT SENT rather than clamped down, so a broken or hostile client
+   cannot destroy honest stored state either — it simply changes nothing. */
+update public.customers
+   set data = '{"payment":{"method":"ach","autopayRequested":false,"status":"pending_setup"}}'::jsonb
+ where id = 'cust-mix';
 update public.customers
    set data = '{"payment":{"method":"card","autopayRequested":true,"status":"active"}}'::jsonb
  where id = 'cust-mix';
 select t_assert(
-  (select data->'payment'->>'status' = 'not_configured'
+  (select data->'payment'->>'status' <> 'active'
      from public.customers where id = 'cust-mix'),
-  'a client claiming status "active" is refused and stored as not_configured');
+  'a client claiming status "active" never has that stored');
+select t_assert(
+  (select data->'payment'->>'status' = 'pending_setup'
+     from public.customers where id = 'cust-mix'),
+  'an invalid status changes nothing rather than destroying stored state');
 
 -- a brand-new row with no history defaults honestly rather than optimistically
 insert into public.customers (team_id, id, first, last, data) values
   ('11111111-1111-4111-a111-111111111111', 'cust-mix2', 'Fresh', 'Row',
    '{"payment":{"method":"card","autopay":true}}'::jsonb);
+/* A brand-new row written by a client too old to know the fields carries
+   NEITHER key. That is deliberate: the INSERT pass must not write a value it
+   did not receive, because its output becomes EXCLUDED and the UPDATE pass
+   would then honour the injection as client intent (and lose a concurrent
+   commit — see test/race-test.sh). An absent key reads as "no request on
+   record", which is the honest answer. */
 select t_assert(
-  (select data->'payment'->>'autopayRequested' = 'false'
-      and data->'payment'->>'status' = 'not_configured'
+  (select not (data->'payment' ? 'autopayRequested')
+      and not (data->'payment' ? 'status')
      from public.customers where id = 'cust-mix2'),
-  'a NEW row from an older client defaults to no request, not to its legacy autopay');
+  'a NEW row from an older client records NO request rather than inventing one');
+select t_assert(
+  (select coalesce(data->'payment'->>'autopayRequested','false') = 'false'
+      and coalesce(data->'payment'->>'status','not_configured') = 'not_configured'
+     from public.customers where id = 'cust-mix2'),
+  'and it reads back as no request and nothing configured');
 
 -- THE STATEMENT SHAPE THAT ACTUALLY MATTERS. Every sync push is a PostgREST
 -- upsert = INSERT .. ON CONFLICT DO UPDATE, for which Postgres fires this
@@ -732,10 +752,10 @@ insert into public.customers (team_id, id, first, last, data) values
    '{"payment":{"method":"card","autopay":true}}'::jsonb)
 on conflict (team_id, id) do update set data = excluded.data;
 select t_assert(
-  (select data->'payment'->>'autopayRequested' = 'false'
-      and data->'payment'->>'status' = 'not_configured'
+  (select coalesce(data->'payment'->>'autopayRequested','false') = 'false'
+      and coalesce(data->'payment'->>'status','not_configured') = 'not_configured'
      from public.customers where id = 'cust-mix3'),
-  'an UPSERT with no prior row defaults honestly, it does not preserve a ghost');
+  'an UPSERT with no prior row records nothing, it does not preserve a ghost');
 
 -- and credentials still cannot ride in through the upsert path
 insert into public.customers (team_id, id, first, last, data) values

@@ -16,7 +16,8 @@ security-proven ground to land on.
     APPLIED.md                                   read-only checks for what's live, and deploy order
     seed.example.sql                             one-time team/owner bootstrap
     test/supabase-shim.sql                       local stand-in for Supabase bits (TEST ONLY)
-    test/rls-test.sql                            81 security checks
+    test/rls-test.sql                            87 security checks
+    test/race-test.sh                            3 concurrency checks on 0004
     test/run-rls-tests.sh                        runs them on a throwaway local Postgres
 
 ## Territory authorization (0003)
@@ -40,8 +41,15 @@ claiming a payment method is on file.
 The trigger also treats an ABSENT key as "leave it alone": a client too old to
 know about `autopayRequested` cannot erase what a customer asked for simply by
 saving the record. Key presence is the discriminator — a current client always
-sends the key, including an explicit `false` when a rep turns autopay off. This
-is what makes a mixed v38/v39 fleet safe; see `rally/tests/mixed-version-test.js`.
+sends the key, including an explicit `false` when a rep turns autopay off.
+
+The previous value comes from `OLD` and from nowhere else. The trigger fires
+twice per upsert and the first firing's output becomes `EXCLUDED`, so a pass
+with no `OLD` must not write a value it did not receive — otherwise the second
+pass honours the injection as client intent and a concurrent commit is lost.
+`test/race-test.sh` proves that with two real sessions; a brand-new row from a
+client too old to send the keys therefore carries neither, which reads as "no
+request on record".
 
 ## The realtime doorbell (0002)
 
@@ -106,7 +114,7 @@ you or same-team leadership.
     PGHOST=<host> PGPORT=<port> sh test/run-rls-tests.sh
 
 spins `rally_rls_test`, applies the shim + every migration in order, and runs
-all 81 checks (team isolation, escalation attempts, append-only events,
+all 87 checks (team isolation, escalation attempts, append-only events,
 disabled and anon lockouts, payment scrubbing, and the adversarial territory
 matrix: a rep's create / rename / re-polygon / assign / archive / tombstone /
 Smart-Split attempts all refused straight at PostgREST, with no second

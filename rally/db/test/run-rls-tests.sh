@@ -41,3 +41,8 @@ OUT="$(psql -v ON_ERROR_STOP=1 -d "$DB" \
 echo "$OUT" | grep -o "PASS: .*"
 N="$(echo "$OUT" | grep -c "PASS: ")"
 echo "RLS: ALL GREEN ($N checks)"
+
+# Concurrency cannot be tested from one session, and the payment trigger has a
+# lost-update failure mode that only appears under it. Same database, so the
+# migrations above are already applied.
+sh "$DIR/race-test.sh" "$DB"

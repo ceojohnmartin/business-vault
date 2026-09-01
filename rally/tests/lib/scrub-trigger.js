@@ -19,11 +19,15 @@
    honours it as client intent — losing a concurrently committed value. */
 
 const has = (o, k) => o != null && Object.prototype.hasOwnProperty.call(o, k);
-const digits = (v) => (typeof v === "string" ? v.replace(/[^0-9]/g, "").length : 0);
+// every Unicode decimal digit a card number could be written in — the SAME
+// literal class as public.pay_digit_count() in 0004, counted on the RAW value
+const DIGIT = /[^0-9０-９٠-٩۰-۹०-९০-৯๐-๙⁰¹²³⁴⁵⁶⁷⁸⁹₀-₉𝟎-𝟿]/gu;
+const digits = (v) => (typeof v === "string" ? v.replace(DIGIT, "").length : 0);
 
 // bounded text with a digit cut: >= maxdigits digits means it is not what
 // the field claims to be (a name has none; an address line has a few)
 function pickText(sent, stored, maxlen, maxdigits) {
+  // digits are counted BEFORE the length cut, so truncation cannot hide a PAN
   const ok = (v) => typeof v === "string" && (v === "" || digits(v) < maxdigits);
   if (ok(sent)) return sent.slice(0, maxlen);
   if (ok(stored)) return stored.slice(0, maxlen);
@@ -53,20 +57,29 @@ const put = (o, k, v) => { if (v !== undefined) o[k] = v; return o; };
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 
 function scrubTrigger(row, prevRow) {
-  if (!row.data) return;
-  /* WHOLE-OBJECT RULE (mirrors 0004). The upsert replaces the entire data
-     column, so a payload with no payment object would otherwise erase the
-     stored one before any field-level rule ran. "Not sent" — absent, null,
-     a string, a number, an array — means "keep the stored object", rebuilt
-     through the same pickers. Only OLD (prevRow) can supply it, and only
-     when this write is not a tombstone: a deleted customer keeps the id and
-     loses the person, payment metadata included. */
+  // a null data column is an empty record, not an exit
+  if (row.data == null) row.data = {};
+  // a scalar or array where the document belongs is a malformed write: REFUSED
+  if (!isObj(row.data)) {
+    const e = new Error("customers.data must be a JSON object");
+    e.code = "22023"; throw e;
+  }
+  /* A TOMBSTONE CARRIES NOTHING: whatever was sent, whatever was held. */
+  if (row.deleted_at) { delete row.data.payment; return; }
+
+  /* WHOLE-OBJECT RULE (mirrors 0004).
+       keyed: the client wrote something under payment.
+       sent:  …and it is an object. null/string/number/array contribute
+              nothing and are never stored.
+       held:  OLD holds a payment object (prevRow models OLD on the UPDATE
+              pass; it is null on the INSERT pass, which therefore injects
+              nothing and cannot poison EXCLUDED). */
+  const keyed = has(row.data, "payment");
   const sent = isObj(row.data.payment);
-  const held = !!prevRow && prevRow.data && isObj(prevRow.data.payment) && !row.deleted_at;
-  if (!sent && !held) return;
+  const held = !!(prevRow && prevRow.data && isObj(prevRow.data.payment));
+  if (!keyed && !held) return;
   const p = sent ? row.data.payment : {};
-  const o = (held || (prevRow && prevRow.data && isObj(prevRow.data.payment)))
-    ? prevRow.data.payment : {};
+  const o = held ? prevRow.data.payment : {};
   const safe = {};
 
   put(safe, "method", pickEnum(p.method, o.method, ["card", "ach", ""]));
@@ -102,7 +115,9 @@ function scrubTrigger(row, prevRow) {
   put(ach, "type", pickEnum(pa.type, oa.type, ["checking", "savings"]));
   if (Object.keys(ach).length) safe.ach = ach;
 
-  row.data.payment = safe;
+  // nothing valid to store is NO payment, not an empty (and then sticky) one
+  if (Object.keys(safe).length) row.data.payment = safe;
+  else delete row.data.payment;
 }
 
 module.exports = { scrubTrigger };

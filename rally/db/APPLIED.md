@@ -437,6 +437,14 @@ database and requires the identical probe to see the erasure. A regression
 test that cannot see the bug it guards against is a green tick with nothing
 behind it.
 
+An adversarial pass (four independent attackers, 202 attacks, ten claims
+verified against real PostgreSQL) then found that the first whole-object
+revision had **introduced** a worse hole — a payment key holding a bare string
+or an array of credential objects was stored verbatim on a row with no held
+payment — plus a `data: null` erasure, tombstones that carried payment forward,
+and a digit cut that only counted ASCII digits. All are closed and pinned in
+`rls-test.sql` §19; the 0a185f8 body is a second negative-control fixture.
+
 ## Smart Split is one server fact (0005)
 
 Smart Split replaces one territory with N children: N+1 rows. The client used

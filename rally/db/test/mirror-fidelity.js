@@ -71,7 +71,22 @@ const TOMB = Symbol("tombstone");
 const SAFE = { method: "ach", autopayRequested: true, status: "pending_setup",
   card: { name: "Dana Rivers" }, ach: { name: "Dana Rivers", type: "savings" },
   billingAddress: { street: "1 Elm", city: "Provo", state: "UT", zip: "84604" } };
+const REFUSE = Symbol("data is not an object");
 CASES.push(
+  // what the adversarial pass found
+  [null, "4111111111111111"],            // a bare PAN string on a fresh row
+  [null, [{ number: "4111111111111111", cvv: "123", routing: "021000021", account: "12345678" }]],
+  [null, 4111111111111111],
+  [null, {}],                            // an empty object is nothing, not something sticky
+  [SAFE, {}],
+  [null, { method: "bogus", last4: "x" }],
+  [null, { card: { name: "４１１１１１１１１１１１１１１１" }, ach: { name: "٤١١١١١١١١١١١١١١١" },
+           billingAddress: { street: "𝟎𝟐𝟏𝟎𝟎𝟎𝟎𝟐𝟏 𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗" } }],
+  [SAFE, { card: { name: "４１１１１１１１１１１１１１１１" } }],
+  [null, { billingAddress: { street: "x".repeat(110) + " 4111111111111111" } }],
+  [SAFE, { card: { name: "Sam" }, __proto__x: 1, constructor: { name: "y" } }],
+  [null, REFUSE],                        // data that is not a document
+  [SAFE, REFUSE],
   [null, ABSENT],                        // nothing stored, nothing sent
   [SAFE, ABSENT],                        // the bug: stored, nothing sent
   [SAFE, null],                          // JSON null where the object belongs
@@ -85,7 +100,8 @@ CASES.push(
 
 let fails = 0, n = 0;
 const jq = (o) => "'" + JSON.stringify(o).replace(/'/g, "''") + "'::jsonb";
-const dataFor = (sent) => sent === ABSENT || sent === TOMB
+const dataFor = (sent) => sent === REFUSE ? `'"not a document"'::jsonb`
+  : sent === ABSENT || sent === TOMB
   ? `'{"plan":{"id":"prem"}}'::jsonb`
   : `jsonb_build_object('plan', '{"id":"prem"}'::jsonb, 'payment', ${jq(sent)})`;
 const tombSql = (sent) => sent === TOMB ? "now()" : "null";
@@ -103,13 +119,18 @@ for (const [prev, sent] of CASES) {
       psql(`update public.customers set data = jsonb_build_object('payment', ${jq(prev)})
              where id = '${id}'`);
     }
+    let serverRefused = false;
+    // psql prints the message, not the SQLSTATE, so match the trigger's own words
+    const tryPsql = (sql) => { try { psql(sql); } catch (e) {
+      if (/22023|must be a JSON object/.test(String(e.stderr || e.message))) serverRefused = true;
+      else throw e; } };
     if (shape === "update") {
       if (!prev) psql(`insert into public.customers (team_id,id,data) values ('${TEAM}','${id}','{}'::jsonb)`);
-      psql(`update public.customers set data = ${dataFor(sent)}, deleted_at = ${tombSql(sent)}
+      tryPsql(`update public.customers set data = ${dataFor(sent)}, deleted_at = ${tombSql(sent)}
              where id = '${id}'`);
     } else {
       // the EXACT production upsert: every payload column SET from EXCLUDED
-      psql(`insert into public.customers (team_id,id,first,last,email,phones,created_by,deleted_at,data)
+      tryPsql(`insert into public.customers (team_id,id,first,last,email,phones,created_by,deleted_at,data)
             values ('${TEAM}','${id}','','','','[]'::jsonb,null,${tombSql(sent)},${dataFor(sent)})
             on conflict (team_id,id) do update set
               team_id = excluded.team_id, id = excluded.id, first = excluded.first,
@@ -117,21 +138,34 @@ for (const [prev, sent] of CASES) {
               created_by = excluded.created_by, deleted_at = excluded.deleted_at,
               data = excluded.data`);
     }
-    const server = JSON.parse(
+    // a refused write left no row (fresh) or an untouched one — either way the
+    // comparison below is refusal-vs-refusal, not payload-vs-payload
+    const server = serverRefused ? null : JSON.parse(
       psql(`select coalesce(data->'payment','null') from public.customers where id = '${id}'`));
 
     /* The mirror is fed the same two passes Postgres runs. For an upsert on
        an existing row that is: INSERT pass with no OLD, then UPDATE pass
        whose NEW is the first pass's output and whose OLD is the stored row. */
-    const row = { data: { plan: { id: "prem" } },
+    const row = { data: sent === REFUSE ? "not a document" : { plan: { id: "prem" } },
       deleted_at: sent === TOMB ? "2026-09-01T00:00:00Z" : null };
-    if (sent !== ABSENT && sent !== TOMB) row.data.payment = JSON.parse(JSON.stringify(sent));
+    if (sent !== ABSENT && sent !== TOMB && sent !== REFUSE) row.data.payment = JSON.parse(JSON.stringify(sent));
     const prevRow = prev ? { data: { payment: JSON.parse(JSON.stringify(prev)) } } : null;
-    if (shape === "update") {
-      scrubTrigger(row, prevRow);
-    } else {
-      scrubTrigger(row, null);                 // BEFORE INSERT: no OLD
-      if (prev) scrubTrigger(row, prevRow);    // BEFORE UPDATE: OLD under the lock
+    let mirrorRefused = false;
+    try {
+      if (shape === "update") {
+        scrubTrigger(row, prevRow);
+      } else {
+        scrubTrigger(row, null);                 // BEFORE INSERT: no OLD
+        if (prev) scrubTrigger(row, prevRow);    // BEFORE UPDATE: OLD under the lock
+      }
+    } catch (e) { if (e.code === "22023") mirrorRefused = true; else throw e; }
+    if (serverRefused || mirrorRefused) {
+      if (serverRefused !== mirrorRefused) {
+        fails++;
+        console.log(`FAIL: case ${n} (${shape}) server refused=${serverRefused} mirror refused=${mirrorRefused}`);
+      }
+      psql(`delete from public.customers where id = '${id}'`);
+      continue;
     }
     /* ABSENT is one value on both sides. Postgres reports a missing key as
        SQL NULL (printed as JSON null by the coalesce above); the mirror

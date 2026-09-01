@@ -94,6 +94,23 @@ begin;
 -- (db/test/rls-test.sql §18, db/test/race-test.sh, and the negative control
 -- in db/test/payment-absent-test.sh, which proves the OLD body fails.)
 --
+-- WHAT AN ADVERSARIAL PASS THEN FOUND, AND WHAT CHANGED (rls-test.sql §19):
+--   * a payment key holding a STRING, NUMBER or ARRAY landed verbatim on a
+--     row with no held payment — a bare PAN, or an array of credential
+--     objects. A non-object payment value now contributes nothing and is
+--     never stored.
+--   * PATCH {"data": null} hit an early return before preservation ran and
+--     erased a held payment. A null data column is now {} and falls through.
+--   * a tombstone that SENT a payment object pulled the whole stored payment
+--     onto the deleted row, and a deleted_at-only PATCH kept it. Any write
+--     with deleted_at set now leaves NO payment key, whatever was sent.
+--   * the digit cut counted ASCII digits only, so a PAN in fullwidth,
+--     Arabic-Indic or mathematical digits passed as a "name". Every Unicode
+--     decimal digit counts now, and the count is taken before truncation.
+--   * an empty payment object was stored and then carried forward forever.
+--     Nothing valid to store now means NO payment key.
+--   * a data column that is not a JSON object is refused (22023).
+--
 -- Idempotent: safe to run more than once.
 
 -- One place that decides what a stored payment string may be: a real JSON
@@ -112,11 +129,24 @@ $$;
 --     routing number (9), a bank account (4-17) and a PAN (13-19).
 -- A value at or over the cut is dropped, not truncated: half a card number
 -- is still card-number-shaped data in a field that should not hold it.
+-- A "digit" is any decimal digit a card number could be written in, not just
+-- ASCII. A PAN in fullwidth (４１１１…), Arabic-Indic (٤١١١…), Devanagari,
+-- Bengali, Thai, superscript/subscript or the mathematical digit blocks is
+-- still a card number, and the count is taken on the RAW value before the
+-- length cut so that truncation cannot hide the tail of one.
+-- (tests/lib/scrub-trigger.js carries the identical class; mirror-fidelity
+-- keeps them the same.)
+create or replace function public.pay_digit_count(v text) returns int
+language sql immutable as $$
+  select length(regexp_replace(coalesce(v, ''),
+    '[^0-9０-９٠-٩۰-۹०-९০-৯๐-๙⁰¹²³⁴⁵⁶⁷⁸⁹₀-₉𝟎-𝟿]', '', 'g'))
+$$;
+
 create or replace function public.pay_text_field(v jsonb, maxlen int, maxdigits int)
 returns text language sql immutable as $$
   select case
-    when length(regexp_replace(public.pay_safe_str(v, maxlen), '[^0-9]', '', 'g')) >= maxdigits
-      then ''
+    when jsonb_typeof(v) <> 'string' then ''
+    when public.pay_digit_count(v #>> '{}') >= maxdigits then ''
     else public.pay_safe_str(v, maxlen)
   end
 $$;
@@ -211,30 +241,48 @@ $$;
 create or replace function public.scrub_customer_payment() returns trigger
 language plpgsql as $$
 declare pay jsonb; prev jsonb; safe jsonb; addr jsonb; card jsonb; ach jsonb;
-        sent boolean; held boolean;
+        keyed boolean; sent boolean; held boolean;
 begin
+  /* A null data column is an empty record — and NOT an early exit. Returning
+     here used to skip the whole-object rule, so a PATCH of {"data": null}
+     erased a held payment object on a live row. */
   if new.data is null then
     new.data := '{}'::jsonb;
+  end if;
+  /* data is a document. A scalar or an array where the document belongs is
+     not a record with an odd payment field, it is a malformed write, and it
+     is refused rather than stored for every reader to choke on. */
+  if jsonb_typeof(new.data) <> 'object' then
+    raise exception 'customers.data must be a JSON object, got %', jsonb_typeof(new.data)
+      using errcode = '22023';
+  end if;
+
+  /* A TOMBSTONE CARRIES NOTHING. A deleted customer's row keeps the id and
+     loses the person, payment metadata included — whatever the client sent
+     alongside deleted_at, and whatever the row held. Decided here, before
+     any preservation logic, so no fallback below can put it back; and it
+     holds for the deleted_at-only PATCH too, where data is untouched. */
+  if new.deleted_at is not null then
+    new.data := new.data - 'payment';
     return new;
   end if;
 
   /* WHOLE-OBJECT RULE.
-       sent  = the client put a payment OBJECT in this write. A key holding
-               null, a string, a number or an array is not a payment object;
-               it is treated as NOT SENT, so garbage where the object belongs
-               cannot erase a valid stored one.
-       held  = the row already holds a payment object, and this write is not
-               a tombstone. Only OLD can say so, and OLD exists only on the
-               UPDATE pass — which is the pass that runs under the row lock,
-               after any concurrent commit. The INSERT pass of an upsert has
-               no OLD, injects nothing, and so cannot poison EXCLUDED.
-     A tombstone (deleted_at set) carries nothing forward: the row keeps the
-     customer's id and loses the person, payment metadata included. */
-  sent := jsonb_typeof(new.data->'payment') = 'object';
-  held := TG_OP = 'UPDATE' and new.deleted_at is null
-          and jsonb_typeof(old.data->'payment') = 'object';
+       keyed = the client wrote SOMETHING under the payment key.
+       sent  = …and it is an OBJECT. A key holding null, a string, a number
+               or an array is not a payment object: it contributes nothing,
+               and it is never stored — a card number is not less of a card
+               number for arriving as a bare string.
+       held  = the row already holds a payment object. Only OLD can say so,
+               and OLD exists only on the UPDATE pass — the pass that runs
+               under the row lock, after any concurrent commit. The INSERT
+               pass of an upsert has no OLD, injects nothing, and so cannot
+               poison EXCLUDED. */
+  keyed := new.data ? 'payment';
+  sent  := jsonb_typeof(new.data->'payment') = 'object';
+  held  := TG_OP = 'UPDATE' and jsonb_typeof(old.data->'payment') = 'object';
 
-  if sent or held then
+  if keyed or held then
     pay := case when sent then new.data->'payment' else '{}'::jsonb end;
 
     /* THE ONLY TRUSTWORTHY PREVIOUS VALUE IS OLD.
@@ -259,8 +307,7 @@ begin
        On the INSERT pass prev is empty, so every picker below either takes
        a value the client genuinely sent or returns NULL and the key is left
        out — which is exactly the rule. */
-    prev := case when TG_OP = 'UPDATE' and jsonb_typeof(old.data->'payment') = 'object'
-                 then old.data->'payment' else '{}'::jsonb end;
+    prev := case when held then old.data->'payment' else '{}'::jsonb end;
 
     /* SHAPE, NOT JUST KEY NAMES. An allowlist of key names alone would let
        a credential be smuggled through an ALLOWED field — method, last4, a
@@ -344,7 +391,14 @@ begin
       safe := safe || jsonb_build_object('ach', ach);
     end if;
 
-    new.data := jsonb_set(new.data, '{payment}', safe);
+    /* Nothing valid to store is NO payment, not an empty one. Writing {}
+       would manufacture a payment object on a row that never had one, and
+       an empty object, once stored, is "held" and rides along forever. */
+    if safe = '{}'::jsonb then
+      new.data := new.data - 'payment';
+    else
+      new.data := jsonb_set(new.data, '{payment}', safe);
+    end if;
   end if;
   return new;
 end $$;

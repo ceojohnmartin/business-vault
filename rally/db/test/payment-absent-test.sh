@@ -75,13 +75,29 @@ upsert '{"plan":{"id":"prem"},"payment":{"method":"ach"}}'
 say "$([ "$(psql -d "$DB" -Atc "select data->'payment'->>'autopayRequested' from public.customers where id='abs-1'")" = "true" ] && echo 1)" \
     "NEGATIVE CONTROL: …while the same old body DID preserve fields inside a sent object"
 
+# ------------------------------------ the SECOND negative control (0a185f8) ---
+# The first whole-object revision fixed the erasure and introduced a worse
+# hole: a payment key holding a STRING or an ARRAY was written verbatim on any
+# row with no held payment. Install that body and require the probe to see a
+# bare PAN land — proving §19 A1/A2 can actually see the regression it pins.
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/fixtures/scrub_customer_payment.at-0a185f8.sql"
+psql -q -d "$DB" -c "delete from public.customers where id='abs-1'"
+upsert '{"plan":{"id":"prem"},"payment":"4111111111111111"}'
+LANDED="$(payment)"
+say "$([ "$LANDED" = '"4111111111111111"' ] && echo 1)" \
+    "NEGATIVE CONTROL: the 0a185f8 body stores a bare PAN string verbatim (regression reproduced)"
+
 # ------------------------------------------------- restored, and re-proved ---
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0004_payment_allowlist.sql" 2>/dev/null
 reset_row
 upsert "$BLIND"
 say "$([ "$(payment)" = "$BEFORE" ] && echo 1)" \
     "re-installing the current 0004 restores preservation on the same database"
+psql -q -d "$DB" -c "delete from public.customers where id='abs-1'"
+upsert '{"plan":{"id":"prem"},"payment":"4111111111111111"}'
+say "$([ "$(payment)" = "<<ABSENT>>" ] && echo 1)" \
+    "…and the bare PAN string lands nothing under the current body"
 
 psql -q -d postgres -c "drop database if exists $DB" >/dev/null 2>&1
 if [ "$fails" -gt 0 ]; then echo "PAYMENT ABSENT: FAILED ($fails)"; exit 1; fi
-echo "PAYMENT ABSENT: ALL GREEN (5 checks, incl. 2 negative controls)"
+echo "PAYMENT ABSENT: ALL GREEN (7 checks, incl. 3 negative controls)"

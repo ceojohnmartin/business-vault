@@ -1287,3 +1287,133 @@ select t_assert(
   (select data->'payment'->'card' ? 'number' = false
      from public.customers where id = 'cust-abs'),
   '(setup) the trigger rebuilt even that direct write');
+
+-- ===== 19. what an adversarial pass found in the whole-object rule (0004)
+/* Four independent attackers ran 202 attacks against the first whole-object
+   revision and ten claims verified real, all in this trigger. Each is pinned
+   here so it cannot come back. The most serious one was INTRODUCED by that
+   revision: `sent := jsonb_typeof(payment) = 'object'` meant a payment key
+   holding a string or an array — a bare PAN, or an array of
+   {number,cvv,routing,account} — was written VERBATIM on any row that held
+   no payment object. 0001's guard rebuilt any value; the revision regressed
+   it. A card number is not less of a card number for arriving unwrapped. */
+
+-- A. a non-object payment on a FRESH row lands NOTHING (the regression)
+select pg_temp.upsert_prod('cust-adv-a1', '{"plan":{"id":"prem"},"payment":"4111111111111111"}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') and position('4111111111111111' in data::text) = 0
+     from public.customers where id = 'cust-adv-a1'),
+  'A1 a bare PAN string where the payment object belongs is not stored on a fresh row');
+select pg_temp.upsert_prod('cust-adv-a2',
+  '{"plan":{"id":"prem"},"payment":[{"number":"4111111111111111","cvv":"123","routing":"021000021","account":"12345678"}]}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') and position('4111111111111111' in data::text) = 0
+      and position('021000021' in data::text) = 0
+     from public.customers where id = 'cust-adv-a2'),
+  'A2 an ARRAY of credential objects lands nothing');
+select pg_temp.upsert_prod('cust-adv-a3', '{"plan":{"id":"prem"},"payment":4111111111111111}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-adv-a3'),
+  'A3 a numeric PAN lands nothing');
+select pg_temp.upsert_prod('cust-adv-a4', '{"plan":{"id":"prem"},"payment":null}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-adv-a4'),
+  'A4 payment:null on a fresh row manufactures nothing');
+-- and the same through a plain INSERT, which is a single fire with no OLD
+insert into public.customers (team_id, id, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-adv-a5', '{"payment":"4111111111111111"}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-adv-a5'),
+  'A5 …nor through a plain INSERT');
+
+-- B. data = SQL NULL is an empty record, not an erasure
+select pg_temp.upsert_prod('cust-adv-b', '{"payment":{"method":"card","last4":"4242","card":{"name":"Ann"}}}'::jsonb);
+update public.customers set data = null where id = 'cust-adv-b';    -- PostgREST PATCH {"data":null}
+select t_assert(
+  (select data->'payment'->>'last4' = '4242' and data->'payment'->'card'->>'name' = 'Ann'
+      and deleted_at is null
+     from public.customers where id = 'cust-adv-b'),
+  'B1 a PATCH of data:null keeps the held payment object');
+
+-- C. a TOMBSTONE carries nothing, whatever it sends and whatever was held
+select pg_temp.upsert_prod('cust-adv-c1', '{"payment":{"method":"card","last4":"4242","card":{"name":"Ann"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-adv-c1', '{"payment":{}}'::jsonb, true);         -- sends an object
+select t_assert(
+  (select deleted_at is not null and not (data ? 'payment')
+     from public.customers where id = 'cust-adv-c1'),
+  'C1 a tombstone that SENDS an empty payment object pulls nothing forward');
+select pg_temp.upsert_prod('cust-adv-c2', '{"payment":{"method":"card","last4":"4242","card":{"name":"Ann"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-adv-c2',
+  '{"payment":{"method":"ach","last4":"4111111111111111","status":"active"}}'::jsonb, true);
+select t_assert(
+  (select deleted_at is not null and not (data ? 'payment')
+     from public.customers where id = 'cust-adv-c2'),
+  'C2 …nor one that sends invalid fields (whose stored fallback used to fire)');
+select pg_temp.upsert_prod('cust-adv-c3', '{"payment":{"method":"card","last4":"4242","card":{"name":"Ann"}}}'::jsonb);
+update public.customers set deleted_at = now() where id = 'cust-adv-c3';          -- deleted_at ONLY
+select t_assert(
+  (select deleted_at is not null and not (data ? 'payment')
+     from public.customers where id = 'cust-adv-c3'),
+  'C3 a deleted_at-only PATCH strips the held payment too');
+-- D. and an UN-DELETE has nothing to resurrect
+update public.customers set deleted_at = null where id = 'cust-adv-c3';
+select t_assert(
+  (select deleted_at is null and not (data ? 'payment')
+     from public.customers where id = 'cust-adv-c3'),
+  'D1 un-deleting the row resurrects no payment metadata');
+select pg_temp.upsert_prod('cust-adv-c3', '{"first":"x"}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-adv-c3'),
+  'D2 …and a later payment-less write still has nothing to carry');
+
+-- E. digits are digits in every script, counted before the length cut
+select pg_temp.upsert_prod('cust-adv-e', '{"payment":{"method":"card","card":{"name":"Dana Rivers"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-adv-e',
+  '{"payment":{"card":{"name":"４１１１１１１１１１１１１１１１"},
+     "ach":{"name":"٤١١١١١١١١١١١١١١١"},
+     "billingAddress":{"street":"𝟎𝟐𝟏𝟎𝟎𝟎𝟎𝟐𝟏 𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'card'->>'name' = 'Dana Rivers'
+      and not (data->'payment' ? 'ach')
+      and not (data->'payment' ? 'billingAddress')
+     from public.customers where id = 'cust-adv-e'),
+  'E1 a PAN in fullwidth, Arabic-Indic or mathematical digits is refused like an ASCII one');
+select pg_temp.upsert_prod('cust-adv-e',
+  jsonb_build_object('payment', jsonb_build_object('billingAddress',
+    jsonb_build_object('street', repeat('x', 110) || ' 4111111111111111'))));
+select t_assert(
+  (select not (data->'payment' ? 'billingAddress')
+     from public.customers where id = 'cust-adv-e'),
+  'E2 a PAN past the length cut is still counted, so truncation cannot hide it');
+
+-- F. an empty payment object is nothing, not something sticky
+select pg_temp.upsert_prod('cust-adv-f', '{"plan":{"id":"prem"},"payment":{}}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-adv-f'),
+  'F1 payment:{} stores no payment object');
+select pg_temp.upsert_prod('cust-adv-f', '{"plan":{"id":"prem"},"payment":{"method":"bogus","last4":"x"}}'::jsonb);
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-adv-f'),
+  'F2 an object with no valid leaf, on a row with nothing held, stores nothing');
+
+-- G. a data column that is not a document is refused, not stored
+do $$
+begin
+  begin
+    insert into public.customers (team_id, id, data) values
+      ('11111111-1111-4111-a111-111111111111', 'cust-adv-g', '"just a string"'::jsonb);
+    raise exception 'FAIL: a scalar data column was stored';
+  exception when sqlstate '22023' then
+    raise notice 'PASS: G1 a scalar where the data document belongs is refused (22023)';
+  end;
+  begin
+    insert into public.customers (team_id, id, data) values
+      ('11111111-1111-4111-a111-111111111111', 'cust-adv-g', '[1,2,3]'::jsonb);
+    raise exception 'FAIL: an array data column was stored';
+  exception when sqlstate '22023' then
+    raise notice 'PASS: G2 …and so is an array';
+  end;
+end $$;
+select t_assert(
+  (select count(*) = 0 from public.customers where id = 'cust-adv-g'),
+  'G3 and neither refused write left a row behind');

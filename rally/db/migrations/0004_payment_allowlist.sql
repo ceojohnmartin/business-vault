@@ -88,6 +88,18 @@
 --     halves of a card number could arrive in two writes. It judges the
 --     RESULT now — sent merged with stored — and a stored address that is
 --     itself a credential does not survive by being stored.
+-- A THIRD ROUND (cut short by a usage limit; four of five attackers
+-- finished, their claims verified by hand) added (rls-test.sql §21):
+--   * a NAME carries no digits at all. A cut of four let a three-digit CVV
+--     and a three-or-four-digit expiry sit inside "name on card".
+--   * the digit class is pinned to a Unicode VERSION and will always lag
+--     the next one: Unicode 16's six new digit blocks counted as zero. They
+--     are in now, along with the digit-LIKE forms people write digits in
+--     (superscript, subscript, circled, parenthesized, dingbat, Roman).
+--     The class needs revisiting at each Unicode release.
+--   * rows written under 0001 held last4 and billingAddress VERBATIM, so a
+--     card number sent then sat there until the row was next written.
+--     0006 passes every row through this trigger once.
 -- WHAT IS LEFT, BY DESIGN: a twelve-digit "street" plus a four-digit last4
 -- in one write is a card number, and it is also the exact shape of a long
 -- real address beside a real last4. No count can tell them apart without
@@ -108,8 +120,9 @@ $$;
 -- the field claims to be:
 --   * address lines legitimately carry digits (house number, unit, zip), so
 --     13 — the shortest real card number — is the cut.
---   * a person's NAME carries none, so 4 is the cut, which is below a
---     routing number (9), a bank account (4-17) and a PAN (13-19).
+--   * a person's NAME carries none, so ONE digit is the cut: a CVV is
+--     exactly three digits and an expiry three or four, and a cut of four
+--     let both sit inside a "name".
 -- A value at or over the cut is dropped, not truncated: half a card number
 -- is still card-number-shaped data in a field that should not hold it.
 -- A "digit" is ANY Unicode decimal digit (general category Nd), not just
@@ -123,7 +136,7 @@ $$;
 create or replace function public.pay_digit_count(v text) returns int
 language sql immutable as $$
   select length(regexp_replace(coalesce(v, ''),
-    '[^\u0030-\u0039\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19\U000104A0-\U000104A9\U00010D30-\U00010D39\U00011066-\U0001106F\U000110F0-\U000110F9\U00011136-\U0001113F\U000111D0-\U000111D9\U000112F0-\U000112F9\U00011450-\U00011459\U000114D0-\U000114D9\U00011650-\U00011659\U000116C0-\U000116C9\U00011730-\U00011739\U000118E0-\U000118E9\U00011950-\U00011959\U00011C50-\U00011C59\U00011D50-\U00011D59\U00011DA0-\U00011DA9\U00016A60-\U00016A69\U00016AC0-\U00016AC9\U00016B50-\U00016B59\U0001D7CE-\U0001D7FF\U0001E140-\U0001E149\U0001E2F0-\U0001E2F9\U0001E950-\U0001E959\U0001FBF0-\U0001FBF9\U00011F50-\U00011F59\U0001E4F0-\U0001E4F9]', '', 'g'))
+    '[^\u0030-\u0039\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19\U000104A0-\U000104A9\U00010D30-\U00010D39\U00011066-\U0001106F\U000110F0-\U000110F9\U00011136-\U0001113F\U000111D0-\U000111D9\U000112F0-\U000112F9\U00011450-\U00011459\U000114D0-\U000114D9\U00011650-\U00011659\U000116C0-\U000116C9\U00011730-\U00011739\U000118E0-\U000118E9\U00011950-\U00011959\U00011C50-\U00011C59\U00011D50-\U00011D59\U00011DA0-\U00011DA9\U00016A60-\U00016A69\U00016AC0-\U00016AC9\U00016B50-\U00016B59\U0001D7CE-\U0001D7FF\U0001E140-\U0001E149\U0001E2F0-\U0001E2F9\U0001E950-\U0001E959\U0001FBF0-\U0001FBF9\U00011F50-\U00011F59\U0001E4F0-\U0001E4F9\U00010D40-\U00010D49\U00011BF0-\U00011BF9\U00016130-\U00016139\U00016D70-\U00016D79\U0001CCF0-\U0001CCF9\U0001E5F1-\U0001E5FA\u00B2\u00B3\u00B9\u2070\u2074-\u2079\u2080-\u2089\u2460-\u2468\u24EA\u24F5-\u24FD\u24FF\u2474-\u247C\u2488-\u2490\u2776-\u277E\u2780-\u2788\u278A-\u2792\u2160-\u217F]', '', 'g'))
 $$;
 
 create or replace function public.pay_text_field(v jsonb, maxlen int, maxdigits int)
@@ -399,7 +412,7 @@ begin
        and every other key are not named here, so the rebuild cannot carry
        them however deeply they are nested. */
     card := public.pay_put('{}'::jsonb, 'name',
-      public.pay_pick_text(pay->'card'->'name', prev->'card'->'name', 80, 4));
+      public.pay_pick_text(pay->'card'->'name', prev->'card'->'name', 80, 1));
     if card <> '{}'::jsonb then
       safe := safe || jsonb_build_object('card', card);
     end if;
@@ -407,7 +420,7 @@ begin
     /* ach: the NAME ON THE ACCOUNT and whether it is checking or savings.
        `routing` and `account` are not named here and cannot survive. */
     ach := public.pay_put('{}'::jsonb, 'name',
-      public.pay_pick_text(pay->'ach'->'name', prev->'ach'->'name', 80, 4));
+      public.pay_pick_text(pay->'ach'->'name', prev->'ach'->'name', 80, 1));
     ach := public.pay_put(ach, 'type',
       public.pay_pick_enum(pay->'ach'->'type', prev->'ach'->'type',
                            array['checking','savings']));

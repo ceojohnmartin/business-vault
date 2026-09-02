@@ -1,0 +1,18 @@
+-- RALLY v39 — rebuild every stored payment object under the current rule.
+-- Run once in the Supabase SQL editor, after 0004 (APPLY_v39.sql runs it
+-- last, inside the same transaction).
+--
+-- 0004 decides what a payment object may hold at the moment a row is
+-- WRITTEN. Rows written under 0001 were filtered by key name only: last4
+-- and billingAddress were stored verbatim, so a client that sent a full
+-- card number as last4, or a credential inside billingAddress, had it
+-- stored, and it sits there until the row is next written by anyone. The
+-- invariant is about what the table HOLDS, not only what it will accept
+-- from now on — so every row is passed through the trigger once, here.
+--
+-- `set data = data` changes nothing itself; it exists to fire the BEFORE
+-- UPDATE trigger, which rebuilds the payment object from the allowlist
+-- (nothing sent, so every leaf is re-validated from what is stored) and
+-- strips payment from tombstones. Idempotent: a second run rebuilds the
+-- same objects to the same values.
+update public.customers set data = data;

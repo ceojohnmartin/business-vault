@@ -1437,8 +1437,8 @@ select t_assert(
   public.pay_digit_count(U&'\17E4\17E1\17E1\17E1') = 4
     and public.pay_digit_count(U&'\+011F54\+011F51') = 2                 -- Kawi (Unicode 15)
     and public.pay_digit_count(U&'\+01E4F4\+01E4F1') = 2                 -- Nag Mundari (Unicode 15)
-    and public.pay_digit_count('④①①①') = 0,                              -- circled: not Nd, not digits
-  'H2 the digit count covers Unicode 15 Nd end to end, and only Nd');
+    and public.pay_digit_count('④①①①') = 4,                              -- circled: a digit people write
+  'H2 the digit count covers Unicode 15 Nd end to end, and the digit-like forms too');
 
 -- I. a credential SPREAD across the address leaves
 select pg_temp.upsert_prod('cust-adv-i',
@@ -1539,3 +1539,66 @@ select pg_temp.upsert_prod('cust-adv-k', '{"payment":{"method":"card","status":"
 select t_assert(
   (select data->'payment'->>'status' = 'active' from public.customers where id = 'cust-adv-k'),
   'K1 a stale phone sending a valid client status cannot downgrade a backend-authored one');
+
+
+-- ===== 21. round three, and the rows that were already there (0004 + 0006)
+-- L. a NAME carries no digits at all: a CVV or an expiry fits inside a cut of four
+select pg_temp.upsert_prod('cust-adv-l', '{"payment":{"method":"card","card":{"name":"cvv 123"},"ach":{"name":"exp 1/26"}}}'::jsonb);
+select t_assert(
+  (select not (data->'payment' ? 'card') and not (data->'payment' ? 'ach')
+     from public.customers where id = 'cust-adv-l'),
+  'L1 a three-digit CVV or an expiry in a name field is refused');
+select pg_temp.upsert_prod('cust-adv-l', '{"payment":{"card":{"name":"Dana Rivers III"}}}'::jsonb);
+select t_assert(
+  (select data->'payment'->'card'->>'name' = 'Dana Rivers III'
+     from public.customers where id = 'cust-adv-l'),
+  'L2 …while Roman-numeral suffixes in a real name are letters and survive');
+
+-- M. digit forms people actually write digits in
+select pg_temp.upsert_prod('cust-adv-m', '{"payment":{"method":"card","card":{"name":"Dana Rivers"}}}'::jsonb);
+select pg_temp.upsert_prod('cust-adv-m', jsonb_build_object('payment', jsonb_build_object(
+  'card', jsonb_build_object('name', U&'\+010D44\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41\+010D41'),  -- Garay (Unicode 16)
+  'ach',  jsonb_build_object('name', '⁴¹¹¹¹¹¹¹¹¹¹¹¹¹¹¹'),                                   -- superscript
+  'billingAddress', jsonb_build_object('street', '④①①①①①①①①①①①①①①①', 'city', '4111 1111 1111 ¹¹¹¹'))));  -- circled; 12 ASCII + 4 superscript
+select t_assert(
+  (select data->'payment'->'card'->>'name' = 'Dana Rivers'
+      and not (data->'payment' ? 'ach') and not (data->'payment' ? 'billingAddress')
+     from public.customers where id = 'cust-adv-m'),
+  'M1 Unicode 16 digits, superscripts, circled digits and a mixed-script PAN are all refused');
+select t_assert(
+  public.pay_digit_count(U&'\+010D44\+010D41') = 2 and public.pay_digit_count('⁴¹') = 2
+    and public.pay_digit_count('④①') = 2 and public.pay_digit_count('Ⅳ') = 1
+    and public.pay_digit_count('½') = 0,
+  'M2 the count covers Nd through Unicode 16 plus the digit-like No/Nl forms, and not fractions');
+
+-- N. THE ROWS THAT WERE ALREADY THERE. 0001 stored last4 and billingAddress
+-- verbatim. 0006 passes every row through 0004's trigger once, so what the
+-- table HOLDS obeys the rule, not just what it will accept from now on.
+alter table public.customers disable trigger customers_scrub_payment;
+insert into public.customers (team_id, id, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-0001-era',
+   '{"payment":{"method":"card","last4":"4111111111111111","autopay":true,
+     "billingAddress":{"street":"1 Elm","cardNumber":"4111111111111111","cvv":"123"}}}'::jsonb);
+insert into public.customers (team_id, id, deleted_at, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-0001-tomb', now(),
+   '{"payment":{"method":"card","card":{"name":"Gone Person"}}}'::jsonb);
+alter table public.customers enable trigger customers_scrub_payment;
+select t_assert(
+  (select position('4111111111111111' in data::text) > 0 from public.customers where id = 'cust-0001-era'),
+  '(setup) a 0001-era row really does hold a full card number');
+update public.customers set data = data;   -- 0006, verbatim
+select t_assert(
+  (select position('4111111111111111' in data::text) = 0
+      and not (data->'payment' ? 'last4') and not (data->'payment' ? 'autopay')
+      and data->'payment'->'billingAddress'->>'street' = '1 Elm'
+      and not (data->'payment'->'billingAddress' ? 'cardNumber')
+      and not (data->'payment'->'billingAddress' ? 'cvv')
+     from public.customers where id = 'cust-0001-era'),
+  'N1 the 0006 rebuild strips a 0001-era card number and keeps the real address');
+select t_assert(
+  (select not (data ? 'payment') from public.customers where id = 'cust-0001-tomb'),
+  'N2 …and strips payment from a 0001-era tombstone');
+select t_assert(
+  (select count(*) = 0 from public.customers
+    where data::text ~ '"(number|cardNumber|cvv|cvc|routing|account|accountNumber|routingNumber)"'),
+  'N3 after the rebuild no credential KEY exists in any customer row in the table');

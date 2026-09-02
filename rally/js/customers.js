@@ -659,14 +659,15 @@
   // every Unicode decimal digit, the same generated class the server uses
   // (db/migrations/0004_payment_allowlist.sql): a card number written in
   // fullwidth or Khmer digits is still a card number
-  const DIGIT = /[^\u0030-\u0039\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19\u{104A0}-\u{104A9}\u{10D30}-\u{10D39}\u{11066}-\u{1106F}\u{110F0}-\u{110F9}\u{11136}-\u{1113F}\u{111D0}-\u{111D9}\u{112F0}-\u{112F9}\u{11450}-\u{11459}\u{114D0}-\u{114D9}\u{11650}-\u{11659}\u{116C0}-\u{116C9}\u{11730}-\u{11739}\u{118E0}-\u{118E9}\u{11950}-\u{11959}\u{11C50}-\u{11C59}\u{11D50}-\u{11D59}\u{11DA0}-\u{11DA9}\u{16A60}-\u{16A69}\u{16AC0}-\u{16AC9}\u{16B50}-\u{16B59}\u{1D7CE}-\u{1D7FF}\u{1E140}-\u{1E149}\u{1E2F0}-\u{1E2F9}\u{1E950}-\u{1E959}\u{1FBF0}-\u{1FBF9}\u{11F50}-\u{11F59}\u{1E4F0}-\u{1E4F9}]/gu;
+  const DIGIT = /[^\u0030-\u0039\u0660-\u0669\u06F0-\u06F9\u07C0-\u07C9\u0966-\u096F\u09E6-\u09EF\u0A66-\u0A6F\u0AE6-\u0AEF\u0B66-\u0B6F\u0BE6-\u0BEF\u0C66-\u0C6F\u0CE6-\u0CEF\u0D66-\u0D6F\u0DE6-\u0DEF\u0E50-\u0E59\u0ED0-\u0ED9\u0F20-\u0F29\u1040-\u1049\u1090-\u1099\u17E0-\u17E9\u1810-\u1819\u1946-\u194F\u19D0-\u19D9\u1A80-\u1A89\u1A90-\u1A99\u1B50-\u1B59\u1BB0-\u1BB9\u1C40-\u1C49\u1C50-\u1C59\uA620-\uA629\uA8D0-\uA8D9\uA900-\uA909\uA9D0-\uA9D9\uA9F0-\uA9F9\uAA50-\uAA59\uABF0-\uABF9\uFF10-\uFF19\u{104A0}-\u{104A9}\u{10D30}-\u{10D39}\u{11066}-\u{1106F}\u{110F0}-\u{110F9}\u{11136}-\u{1113F}\u{111D0}-\u{111D9}\u{112F0}-\u{112F9}\u{11450}-\u{11459}\u{114D0}-\u{114D9}\u{11650}-\u{11659}\u{116C0}-\u{116C9}\u{11730}-\u{11739}\u{118E0}-\u{118E9}\u{11950}-\u{11959}\u{11C50}-\u{11C59}\u{11D50}-\u{11D59}\u{11DA0}-\u{11DA9}\u{16A60}-\u{16A69}\u{16AC0}-\u{16AC9}\u{16B50}-\u{16B59}\u{1D7CE}-\u{1D7FF}\u{1E140}-\u{1E149}\u{1E2F0}-\u{1E2F9}\u{1E950}-\u{1E959}\u{1FBF0}-\u{1FBF9}\u{11F50}-\u{11F59}\u{1E4F0}-\u{1E4F9}\u{10D40}-\u{10D49}\u{11BF0}-\u{11BF9}\u{16130}-\u{16139}\u{16D70}-\u{16D79}\u{1CCF0}-\u{1CCF9}\u{1E5F1}-\u{1E5FA}\u00B2\u00B3\u00B9\u2070\u2074-\u2079\u2080-\u2089\u2460-\u2468\u24EA\u24F5-\u24FD\u24FF\u2474-\u247C\u2488-\u2490\u2776-\u277E\u2780-\u2788\u278A-\u2792\u2160-\u217F]/gu;
   // code points, not UTF-16 units: an astral digit is ONE digit, as in PG's length()
 const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length : 0);
-  /* A NAME field carrying four or more digits is not a name. Four is below
-     a routing number (9), a bank account (4-17) and a card number (13-19),
-     and a person's name has no digits at all. This is shape enforcement on
-     a PAYMENT-SHAPED field — not a scanner over the app's free text. */
-  const safeName = (v) => (digits(v) >= 4 ? "" : bounded(v, 80));
+  /* A NAME field carrying ANY digit is not a name: a person's name has
+     none, a CVV is exactly three and an expiry three or four, so a looser
+     cut let both sit inside a "name". This is shape enforcement on a
+     PAYMENT-SHAPED field — not a scanner over the app's free text. */
+  // a NAME carries no digits at all: a CVV is three, an expiry three or four
+  const safeName = (v) => (digits(v) >= 1 ? "" : bounded(v, 80));
   // an address line legitimately carries digits; a card number does not fit
   const safeAddr = (v, max, cut) => (digits(v) >= (cut || 13) ? "" : bounded(v, max));
   // ZIP+4 requires its hyphen: nine bare digits is the shape of a routing number

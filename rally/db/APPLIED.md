@@ -19,6 +19,7 @@ Fill these in yourself after running each verification query.
 | `0003_territory_authorization.sql` | Territory writes are leadership-only |  |  |
 | `0004_payment_allowlist.sql` | Honest payment allowlist (`autopayRequested`, `status`, `card.name`, `ach.name`, `ach.type`) |  |  |
 | `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` |  |  |
+| `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once |  |  |
 
 ## Deployment order for v39
 
@@ -33,7 +34,7 @@ point of `rally/tests/mixed-version-test.js`.
    pre-0003 database is strictly today's database with fewer controls shown
    to reps, and v39's own contract language is correct without 0004.
 3. **Get every device onto v39 and verify each one by eye** (see below).
-4. **Apply `APPLY_v39.sql`** — 0004, 0003 and 0005 in ONE transaction.
+4. **Apply `APPLY_v39.sql`** — 0004, 0003, 0005 and 0006 in ONE transaction.
 5. **Run `test/verify-production.sql`** — behavioural, rollback-safe.
 
 ## Why one transaction
@@ -454,6 +455,14 @@ digit table. **Residual, by design:** a twelve-digit "street" plus a real-shaped
 `last4` in one write is a card number and also the exact shape of a legitimate
 record; no digit count separates them without refusing real addresses, so that
 case is the rep operating rule's to cover, not the trigger's.
+
+A third round (four of five attackers finished before a usage limit; every
+claim verified by hand against the final body) closed three more: a name may
+carry no digits at all (a CVV fits in four), the digit class now includes
+Unicode 16's blocks and the digit-like superscript/circled/Roman forms (it is
+pinned to a Unicode version and must be revisited at each release), and
+`0006_payment_rebuild.sql` passes every already-stored row through the trigger
+once, because 0001 stored `last4` and `billingAddress` verbatim. Pinned in §21.
 
 ## Smart Split is one server fact (0005)
 

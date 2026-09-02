@@ -102,6 +102,11 @@ CASES.push(
    { billingAddress: { city: "1111 1111" } }],                                            // second half, second write
   [{ billingAddress: { street: "4111 1111 1111", city: "1111", state: "UT", zip: "84604" } },
    { billingAddress: { state: "UT" } }],                                                  // stored halves: dropped
+  [null, { card: { name: "cvv 123" }, ach: { name: "exp 1/26" } }],                       // a name carries no digits
+  [null, { card: { name: "Dana Rivers III" } }],
+  [null, { card: { name: "\u{10D44}\u{10D41}\u{10D41}\u{10D41}" } }],                    // Garay, Unicode 16
+  [SAFE, { ach: { name: "\u2074\u00B9\u00B9\u00B9" } }],                                 // superscript digits
+  [null, { billingAddress: { street: "\u2463\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460\u2460", city: "4111 1111 1111 \u00B9\u00B9\u00B9\u00B9" } }],
   [null, { billingAddress: { zip: "021000021" } }],
   [null, { billingAddress: { zip: "02100-0021" } }],
   [{ method: "card", status: "active" }, { method: "card", status: "not_configured" }],

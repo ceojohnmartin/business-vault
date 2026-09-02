@@ -419,7 +419,11 @@ const cserver = http.createServer((req, res) => {
   /* ---- 4e. RELEASE COHERENCE ----
      "Build v39" must mean every loaded module is v39, not merely that
      index.html is. Each of these lives in a DIFFERENT file, so a mixed load
-     would show up as a v39 build label with a v38-shaped API somewhere. */
+     would show up as a v39 build label with a v38-shaped API somewhere.
+     app.js is the LAST module the shell loads: wait for it, so a slow
+     machine mid-load is not mistaken for a mixed release. */
+  await page.waitForFunction(() => !!(window.MAPP && window.MSYNC && window.MCUST && window.MDATA),
+    null, { timeout: 25000 }).catch(() => {});
   const coherence = await page.evaluate(() => ({
     build: window.RALLY_BUILD,
     store_v39: typeof STORE.canManageTerritories === "function",

@@ -21,6 +21,40 @@ Fill these in yourself after running each verification query.
 | `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` |  |  |
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once |  |  |
 
+## What production actually runs
+
+GitHub Pages serves `origin/main` byte-for-byte, and `main` is **`c623c6f` —
+Build v37**. v38 (`813a056`) was a branch build that was never merged or
+published, so the real upgrade is **v37 → v39**. Both transition suites
+(`tests/mixed-version-test.js`, `tests/upgrade-transition-test.js`) run
+against the exact v37 tree from git with `OLD_REF=c623c6f OLD_BUILD=v37`, and
+`tests/run-all.sh` runs that pair alongside the v38 pair.
+
+What the v37 → v39 runs established (all against the real v37 files, a real
+service worker, and a mock cloud on its own origin):
+
+- IndexedDB, a marked go-back pin (callback time, note, hood), a customer and
+  a hood all survive the in-place upgrade; v39's boot purge strips the raw
+  card and bank fields a v37 record carries and keeps the safe metadata.
+- v39 boots as a whole release over v37 storage — never a v39 label over v37
+  modules, on a fast link or a slow one — and the rep stays signed in.
+- A v37 device suspended with UNSENT work (a hood, a knocked door, a customer,
+  two deletes) keeps every outbox entry, key for key, under v39, and v39
+  drains them to the server once coverage returns. No credential crosses the
+  wire.
+- **Takeover timing is the browser's, not v39's.** A skip-waiting worker
+  activates only once the old worker has no work in flight; Chromium was
+  seen taking over during the first open on some runs and on the next open on
+  others. Both paths are coherent and both land on v39 after at most one
+  open. This is why the iPhone checklist asks for observation in §3 rather
+  than promising an in-place reload.
+- **One visible, non-lossy quirk:** a door knocked AND deleted while v37 was
+  out of coverage (never uploaded) leaves a v37 delete entry with no
+  `wasOnServer`. v39 treats "no evidence it was ever on the server" as a
+  refusal by design, so the More screen shows one refused row for it. Nothing
+  is lost — the door is gone locally and never existed on the server — and
+  the row is clearable from More. Not worth a v39 change.
+
 ## Deployment order for v39
 
 **Client first. Migrations after the fleet has drained.** This is the reverse

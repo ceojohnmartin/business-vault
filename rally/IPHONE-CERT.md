@@ -53,7 +53,10 @@ that when you are ready to start step 3 and not before.
 
 ## 1. Before you touch the phone
 
-- [ ] **1.1** Confirm the phone currently loads **Build v38**.
+- [ ] **1.1** Confirm the phone currently loads **Build v37**. (Production serves
+      commit `c623c6f`. v38 was a branch build that was never published; the real
+      jump is v37 → v39, and that is the jump the automated transition suites
+      certify.)
 - [ ] **1.2** Confirm the database still has only 0001 and 0002 applied
       (`db/APPLIED.md` has the read-only queries). **Do not apply
       `APPLY_v39.sql` yet.** Steps 2–7 run against the un-migrated database on
@@ -63,20 +66,20 @@ that when you are ready to start step 3 and not before.
 
 ---
 
-## 2. Starting state — v38, before the update
+## 2. Starting state — v37, before the update
 
 - [ ] **2.1** How do you actually open RALLY: installed to the Home Screen
       ("Add to Home Screen"), or a Safari tab? **Test the way reps will use
       it.** If it is installed, do the whole test from the Home Screen icon.
 - [ ] **2.2** Open RALLY and sign in as your usual account.
-- [ ] **2.3** Confirm the build badge reads **v38**. Write down where you
+- [ ] **2.3** Confirm the build badge reads **v37**. Write down where you
       found it.
 - [ ] **2.4** Create **one test knock** at an address you can recognise. Use a
       fake street ("999 Test Ln"). Note the disposition you chose.
 - [ ] **2.5** Create **one test customer**: first name `ZZTest`, last name
       `Before39`, a fake phone. Do **not** enter any real person's details.
 - [ ] **2.6** On the customer's PAYMENT tab, note whether you can see **card
-      number / expiry / routing / account** input fields. On v38 you can.
+      number / expiry / routing / account** input fields. On v37 you can.
       **Write down exactly which fields you see** — step 6 checks they are
       gone.
 - [ ] **2.7** Create **one test territory** called `ZZ Test Hood`, big enough
@@ -91,7 +94,7 @@ that when you are ready to start step 3 and not before.
 This is the case no automated test can answer, and the one that decides the
 fleet update instruction.
 
-- [ ] **3.1** With RALLY **open on v38**, swipe up to the app switcher and
+- [ ] **3.1** With RALLY **open on v37**, swipe up to the app switcher and
       leave RALLY **suspended there**. Do not swipe it away. Use another app
       for a minute.
 - [ ] **3.2** Now publish v39 (merge the branch). Wait ~2 minutes for GitHub
@@ -99,16 +102,24 @@ fleet update instruction.
 - [ ] **3.3** Return to the **still-suspended** RALLY from the app switcher —
       do not relaunch it from the Home Screen.
 - [ ] **3.4** Observe and write down, in this order:
-      - Does it still say **v38**?
+      - Does it still say **v37**?
       - Does it reload by itself within ~10 seconds?
       - Does the build badge change to **v39** without you doing anything?
       - Do you see any transitional message, a blank flash, or a toast?
       - Does anything look broken or half-styled?
 
-      *(What v39 is built to do: the new service worker takes over and forces
-      one reload. Whether iOS lets that happen to a resumed suspended app is
-      exactly what we do not know and are asking you to find out. Report what
-      you see, not what you expect.)*
+      *(What v39 is built to do: the new service worker installs, skips
+      waiting, takes over and forces one reload. The automated v37 → v39
+      run saw BOTH outcomes in Chromium, and both are correct: sometimes the
+      resumed page reloads itself onto v39 within seconds; sometimes the
+      browser holds the new worker in "waiting" until the next open, and the
+      page stays a whole, coherent v37 until then. What was never seen, and
+      must never be seen, is a mix — a v39 badge over v37 screens or the
+      reverse. Whether iOS takes the first path or the second on a resumed
+      suspended app is exactly what we do not know and are asking you to
+      find out. Report what you see, not what you expect. Either path
+      keeps every pin, hood, customer and unsent write — proven in
+      tests/upgrade-transition-test.js §7 against the real v37 tree.)*
 
 ---
 
@@ -118,10 +129,10 @@ Do these in order and stop at the first one that gets you to v39. **Record
 which step it was** — that number becomes the fleet instruction.
 
 - [ ] **4.1** Close RALLY normally (Home gesture) and reopen it. Build?
-- [ ] **4.2** If still v38: swipe RALLY fully **away** in the app switcher,
+- [ ] **4.2** If still v37: swipe RALLY fully **away** in the app switcher,
       then reopen. Build?
-- [ ] **4.3** If still v38: reopen a second time. Build?
-- [ ] **4.4** If still v38: Settings → Safari → Advanced → Website Data →
+- [ ] **4.3** If still v37: reopen a second time. Build?
+- [ ] **4.4** If still v37: Settings → Safari → Advanced → Website Data →
       remove `github.io`. **Then reopen and sign in again.** Build?
       *(This is the last resort and it clears the phone's local data — take
       the backup in 1.3 seriously.)*
@@ -153,7 +164,7 @@ which step it was** — that number becomes the fleet instruction.
       or active.
 - [ ] **6.4** If you see a toast saying *"RALLY is still updating — close and
       reopen before taking payment details"*, **that is a real finding**:
-      the page loaded v38 markup with v39 code. Note it and reopen the app.
+      the page loaded v37 markup with v39 code. Note it and reopen the app.
 - [ ] **6.5** Type `4111111111111111` into **Name on card** and save. It must
       refuse it and tell you RALLY has no card-number field. Clear it after.
 
@@ -234,6 +245,7 @@ Only once steps 1–8 pass and **every** device you care about is on v39.
 - [ ] **11.3** All the test data from 5.1–5.4 is still there.
 - [ ] **11.4** Airplane mode ON, reopen: it still boots offline.
 - [ ] **11.5** The payment screen still shows no credential fields.
+      (v37's did.)
 
 ---
 
@@ -255,7 +267,7 @@ Installed PWA or Safari tab:
 Starting build:
 Ending build:
 
-3.4  Suspended v38, resumed after v39 published, behaved as:
+3.4  Suspended v37, resumed after v39 published, behaved as:
 4.x  Which step first showed v39 (4.1 / 4.2 / 4.3 / 4.4):
 4.5  Did it STAY v39 across two more reopens:
 5.x  Data survived (knock / customer / territory / numbers / role):

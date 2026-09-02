@@ -25,22 +25,30 @@ const crypto = require("crypto");
 const { execSync } = require("child_process");
 
 const V39_ROOT = path.join(__dirname, "..");
-const V38_REF = "ac125e6";                 // the commit v38 shipped from
-const V38_ROOT = "/tmp/rally-v38-tree/rally";
-const PORT = 8857;
+/* The OLD release is a parameter: the v38 candidate by default, and the
+   runner also passes the commit production really serves (origin/main =
+   c623c6f, Build v37 — v38 was never published). v37 and v38 share the
+   same sync.js / customers.js / store.js byte for byte, so every finding
+   below is about both. */
+const OLD_REF = process.env.OLD_REF || "ac125e6";
+const OLD_BUILD = process.env.OLD_BUILD || "v38";
+const V38_REF = OLD_REF;
+const V38_ROOT = `/tmp/rally-${OLD_BUILD}-tree/rally`;
+const OLD_PATH = "/old/";                  // where the old tree is served
+const PORT = Number(process.env.PORT || 8857);
 const ok = [], bad = [];
 const check = (n, c, x = "") => (c ? ok : bad).push(n + (x ? " — " + x : ""));
 
-// ---- materialise the real v38 tree (idempotent) ----
+// ---- materialise the real old tree (idempotent) ----
 if (!fs.existsSync(path.join(V38_ROOT, "index.html"))) {
-  fs.mkdirSync("/tmp/rally-v38-tree", { recursive: true });
-  execSync(`git archive ${V38_REF} rally | tar -x -C /tmp/rally-v38-tree`,
+  fs.mkdirSync(`/tmp/rally-${OLD_BUILD}-tree`, { recursive: true });
+  execSync(`git archive ${V38_REF} rally | tar -x -C /tmp/rally-${OLD_BUILD}-tree`,
     { cwd: path.join(V39_ROOT, ".."), stdio: "pipe" });
 }
 const v38Build = /RALLY_BUILD = "(.*?)"/.exec(fs.readFileSync(path.join(V38_ROOT, "index.html"), "utf8"))[1];
 const v39Build = /RALLY_BUILD = "(.*?)"/.exec(fs.readFileSync(path.join(V39_ROOT, "index.html"), "utf8"))[1];
-if (v38Build !== "v38" || v39Build !== "v39") {
-  console.error(`expected v38/v39 trees, got ${v38Build}/${v39Build}`); process.exit(1);
+if (v38Build !== OLD_BUILD || v39Build !== "v39") {
+  console.error(`expected ${OLD_BUILD}/v39 trees, got ${v38Build}/${v39Build}`); process.exit(1);
 }
 
 // ---------------- mock Supabase, POST-MIGRATION ----------------
@@ -205,9 +213,9 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
-  // two document roots: the real v38 tree under /v38/, v39 at the root
-  const v38 = u.pathname.startsWith("/v38/");
-  let p = decodeURIComponent(v38 ? u.pathname.slice(4) : u.pathname);
+  // two document roots: the real old tree under /old/, v39 at the root
+  const v38 = u.pathname.startsWith(OLD_PATH);
+  let p = decodeURIComponent(v38 ? u.pathname.slice(OLD_PATH.length - 1) : u.pathname);
   if (p === "/" || p === "") p = "/index.html";
   fs.readFile(path.join(v38 ? V38_ROOT : V39_ROOT, p), (e, d) => {
     if (e) { res.writeHead(404); res.end(); return; }
@@ -239,7 +247,7 @@ const server = http.createServer((req, res) => {
       if (m.type() === "error" && !/net::ERR_/.test(t) && !/WebSocket/.test(t))
         errors.push(`[${which}] ${t}`);
     });
-    await page.goto(`http://localhost:${PORT}${which === "v38" ? "/v38/" : "/"}`);
+    await page.goto(`http://localhost:${PORT}${which === "old" ? OLD_PATH : "/"}`);
     await page.waitForFunction(() => document.querySelector("#splash").hidden, null, { timeout: 25000 });
     await page.fill("#gate-email", email); await page.fill("#gate-pass", "knock1234");
     await page.click("#gate-submit");
@@ -256,10 +264,10 @@ const server = http.createServer((req, res) => {
     await d.page.waitForTimeout(300);
   };
 
-  const OLD = await device("v38", "rep@x.com");
+  const OLD = await device("old", "rep@x.com");
   const NEW = await device("v39", "rep2@x.com");
   check("S0 both clients booted and report their own build",
-    (await S(OLD, () => window.RALLY_BUILD)) === "v38" &&
+    (await S(OLD, () => window.RALLY_BUILD)) === OLD_BUILD &&
     (await S(NEW, () => window.RALLY_BUILD)) === "v39");
   await sync(OLD); await sync(NEW);
 
@@ -274,7 +282,7 @@ const server = http.createServer((req, res) => {
   });
   await sync(OLD);
   const stored = [...mock.tables.customers.values()].find((r) => r.data.last === "Shape");
-  check("1a a v38 push carries no credential (its own scrub still runs)",
+  check(`1a a ${OLD_BUILD} push carries no credential (its own scrub still runs)`,
     !mock.rawBodies.some((b) => b.includes("4111111111111111") || b.includes("000123456789")));
   const ALLOWED = ["autopayRequested", "billingAddress", "last4", "method", "status"];
   check("1b the 0004 trigger stores allowlisted keys only — no credential survives",
@@ -286,7 +294,7 @@ const server = http.createServer((req, res) => {
      output becomes EXCLUDED, and an injected default would be honoured by
      the UPDATE pass as client intent — losing a concurrent commit. Absent
      reads as "no request on record", which is the honest answer. */
-  check("1c v38's autopay:true — the OLD DEFAULT — is never promoted to a request",
+  check(`1c ${OLD_BUILD}'s autopay:true — the OLD DEFAULT — is never promoted to a request`,
     stored.data.payment.autopayRequested !== true &&
     stored.data.payment.status !== "pending_setup" &&
     stored.data.payment.autopay === undefined,
@@ -327,7 +335,7 @@ const server = http.createServer((req, res) => {
     const c = STORE.customers.find((x) => x.last === "Shape" && x.first === "New");
     return c ? { pay: JSON.stringify(c.payment), soldBy: c.soldByUserId } : null;
   });
-  check("2b a v38 device pulls the v39 record without error", !!v38Sees, JSON.stringify(v38Sees));
+  check(`2b a ${OLD_BUILD} device pulls the v39 record without error`, !!v38Sees, JSON.stringify(v38Sees));
   check("2c …and does not lose the fields it does not understand",
     v38Sees && /autopayRequested/.test(v38Sees.pay) && !!v38Sees.soldBy, v38Sees && v38Sees.pay);
 
@@ -351,7 +359,7 @@ const server = http.createServer((req, res) => {
   // v38's scrubPayment rebuilds payment as {method,last4,autopay,billingAddress} —
   // it drops autopayRequested and status entirely, because it has never heard
   // of them. 0004 therefore has to treat an ABSENT key as "leave it alone".
-  check("2d a v38 open+save does NOT erase the customer's autopay request",
+  check(`2d a ${OLD_BUILD} open+save does NOT erase the customer's autopay request`,
     afterRoundTrip.data.payment.autopayRequested === true,
     JSON.stringify({ server: afterRoundTrip.data.payment, v38Local: v38RoundTrip.pay }));
   check("2e …and does NOT destroy the v39 authorship id",
@@ -364,7 +372,7 @@ const server = http.createServer((req, res) => {
   const refusalsBefore = mock.territoryRefusals;
   const upsertsBefore = mock.territoryUpserts;
   const v38Managerish = await S(OLD, () => STORE.isManager());
-  check("3a a v38 device still believes it is a manager (stale UI is expected)",
+  check(`3a a ${OLD_BUILD} device still believes it is a manager (stale UI is expected)`,
     v38Managerish === true, String(v38Managerish));
   await S(OLD, async () => {
     await STORE.addTerritory({ id: MDB.uid(), name: "Rep Made This", points: [[0,0],[1,0],[1,1]],
@@ -379,10 +387,10 @@ const server = http.createServer((req, res) => {
   check("3b the server refused it — nothing was written",
     mock.tables.territories.size === 0 && mock.territoryRefusals > refusalsBefore,
     `serverRows=${mock.tables.territories.size} refusals=${mock.territoryRefusals - refusalsBefore}`);
-  check("3c the v38 queue is NOT wedged — the row is parked, not retried forever",
+  check(`3c the ${OLD_BUILD} queue is NOT wedged — the row is parked, not retried forever`,
     t3.pending === 0, JSON.stringify(t3));
   const deadV38 = await S(OLD, () => MDB.kvGet("syncDead", []));
-  check("3d v38 dead-letters it (bounded), but shows the rep nothing",
+  check(`3d ${OLD_BUILD} dead-letters it (bounded), but shows the rep nothing`,
     deadV38.length === 1, `dead=${deadV38.length}`);
   check("3e the rep's phone now shows a territory the server does not have",
     t3.local === 1, `local=${t3.local}`);
@@ -399,7 +407,7 @@ const server = http.createServer((req, res) => {
     await STORE.addCustomer({ first: "Mid", last: "Shift", phones: [], appointments: [] });
   });
   await sync(OLD);
-  check("4a a v38 rep mid-shift keeps logging doors and customers",
+  check(`4a a ${OLD_BUILD} rep mid-shift keeps logging doors and customers`,
     mock.tables.events.size === knockBefore + 1 &&
     [...mock.tables.customers.values()].some((r) => r.data.last === "Shift"),
     `events=${mock.tables.events.size}`);
@@ -736,7 +744,7 @@ const server = http.createServer((req, res) => {
   const refusalNoise = errors.filter((e) => /403 \(Forbidden\)/.test(e));
   const realErrors = errors.filter((e) => !/403 \(Forbidden\)/.test(e));
   check("8a the only console error is the server's honest 403 refusal",
-    refusalNoise.length > 0 && /^\[v38\]/.test(refusalNoise[0]), refusalNoise[0] || "none");
+    refusalNoise.length > 0 && /^\[old\]/.test(refusalNoise[0]), refusalNoise[0] || "none");
   check("8b no application errors on either version",
     realErrors.length === 0, realErrors.slice(0, 4).join(" | "));
 

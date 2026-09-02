@@ -1,6 +1,6 @@
 /* A JavaScript MIRROR of the server's payment trigger
-   (rally/db/migrations/0004_payment_allowlist.sql), for the browser tests'
-   mock Supabase.
+   (rally/db/migrations/0004_payment_allowlist.sql as amended by
+   0007_last4_strict.sql), for the browser tests' mock Supabase.
 
    THE SQL IS THE AUTHORITY. This file exists only so a client test can see
    what the server would do to a payload; the trigger's own correctness is
@@ -10,7 +10,8 @@
    harnesses, which is how a mirror drifts from the thing it mirrors.
 
    THE THREE-WAY RULE (see the SQL for the full reasoning):
-     sent and VALID    -> store it ('' and false are valid values)
+     sent and VALID    -> store it ('' and false are valid values — except
+                          last4, where '' is NOT SENT: four digits or absent)
      sent but INVALID  -> keep what is stored, else OMIT the key
      NOT SENT          -> keep what is stored, else OMIT the key
    `prev` models OLD. It is null on the INSERT pass of an upsert, and that
@@ -84,7 +85,8 @@ function scrubTrigger(row, prevRow) {
   const safe = {};
 
   put(safe, "method", pickEnum(p.method, o.method, ["card", "ach", ""]));
-  put(safe, "last4", pickRe(p.last4, o.last4, 4, /^([0-9]{4})?$/));
+  // exactly four ASCII digits or the key is absent (0007): "" is NOT SENT, never a clear
+  put(safe, "last4", pickRe(p.last4, o.last4, 4, /^[0-9]{4}$/));
   put(safe, "autopayRequested", pickBool(p.autopayRequested, o.autopayRequested));
 
   /* status: a client may only ever claim one of two values. The STORED

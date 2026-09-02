@@ -14,18 +14,85 @@ Fill these in yourself after running each verification query.
 
 | Migration | What it does | Applied on | Confirmed by |
 |---|---|---|---|
-| `0001_phase1_foundation.sql` | Schema, RLS, the payment scrub trigger |  |  |
-| `0002_realtime_doorbell.sql` | Realtime wake-up triggers + listen policy |  |  |
-| `0003_territory_authorization.sql` | Territory writes are leadership-only |  |  |
-| `0004_payment_allowlist.sql` | Honest payment allowlist (`autopayRequested`, `status`, `card.name`, `ach.name`, `ach.type`) |  |  |
-| `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` |  |  |
-| `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once |  |  |
+| `0001_phase1_foundation.sql` | Schema, RLS, the payment scrub trigger | before 2026-09-02 | STEP 1 catalog query: "0 problem(s) of 51" |
+| `0002_realtime_doorbell.sql` | Realtime wake-up triggers + listen policy | before 2026-09-02 | STEP 1 catalog query: "fully applied" (9 of 9 pieces) |
+| `0003_territory_authorization.sql` | Territory writes are leadership-only | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 1, 6 PASS |
+| `0004_payment_allowlist.sql` | Honest payment allowlist (`autopayRequested`, `status`, `card.name`, `ach.name`, `ach.type`) | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 3, 4, 5, 10, 11 PASS |
+| `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 7, 8, 9 PASS |
+| `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
+| `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | **not yet** | — |
 
 ## What production actually runs
 
-GitHub Pages serves `origin/main` byte-for-byte, and `main` is **`c623c6f` —
-Build v37**. v38 (`813a056`) was a branch build that was never merged or
-published, so the real upgrade is **v37 → v39**. Both transition suites
+**Client:** GitHub Pages serves `origin/main` byte-for-byte. On 2026-09-02
+13:33 UTC `main` became `95e2fb4` — **Build v39** (Pages run #100, every
+served file byte-identical to the tree). Before that it was `c623c6f`, Build
+v37; v38 (`813a056`) was a branch build that was never published, so the real
+upgrade was **v37 → v39**, and the physical-iPhone certification of that jump
+passed the same day (data survived; the reliable update procedure on iOS is
+force-close / swipe RALLY out of the app switcher → reopen).
+
+**Database, 2026-09-02 (the controlled cutover, one step at a time):**
+
+1. STEP 1 — read-only catalog query: 0001 "0 problem(s) of 51", 0002 "fully
+   applied", no v39 object present.
+2. STEP 2 — `APPLY_v39.sql` (0004 → 0003 → 0005 → 0006, one transaction)
+   returned Success at ~16:28 UTC; the read-only confirmation query returned
+   "APPLIED — all 13 v39 pieces are live".
+3. STEP 3 — `test/verify-production.editor.sql`: probes SETUP and 1–11 PASS,
+   **probe 12 FAIL: "1 row(s) violate it"**. The row: a v37-era customer
+   (created 05:08 UTC) whose payment object held `"last4": ""`, `updated_at`
+   at 16:29 UTC — the APPLY minute. Root cause and fix: **0007**, below.
+   Nothing was changed by hand in production.
+
+**Next production step: `APPLY_v39_1.sql`** (0007, one transaction), then
+`test/verify-production.editor.sql` must be 13 PASS.
+
+## 0007 — `last4` is four digits or absent (found by probe 12 in production)
+
+The migration and the verification disagreed, and the verification was right.
+
+- **Mechanism, reproduced on real PostgreSQL from the committed files
+  (`test/last4-strict-test.sh`):** 0004's rule for `last4` was
+  `'^([0-9]{4})?$'` — four digits **or empty**, by design ("a rep clearing the
+  field"). A v37 client stores `last4: ""` for a customer with no card, and
+  the v39 wire copy (`js/sync.js`, `last4: p.last4 || ""`) sends `""` for every
+  customer without a legacy last4. So `""` reached the table on the INSERT
+  path, the UPDATE path and the upsert path alike. 0006's
+  `update public.customers set data = data` passed the v37-era row through
+  0004's trigger: it dropped the legacy `autopay`, kept the `""`, and
+  `customers_touch` stamped `updated_at = now()` — which is exactly the
+  `updated_at` production shows on the row. **0006 caused the timestamp; the
+  app did not rewrite the row.**
+- **Blast radius:** any customer row holding `last4: ""` — the one v37-era
+  row today, and every future v39 customer save without a legacy last4, had
+  the rule stayed. No credential was involved; the client's own
+  `honestPayment()` already omits anything that is not four digits.
+- **The rule now (0007, enforced in the trigger, its JS mirror, and probe
+  12):** exactly four ASCII digits may be stored; anything else — `""`,
+  whitespace, 1–3 or 5+ digits, a stray space, non-ASCII digits, null, a
+  number, an array, an object — is NOT SENT under the whole-object rule: a
+  valid held last4 stands, otherwise the key is absent. There is no "clear"
+  through last4: v39 has no last4 input, so no client can intend one, and a
+  clear would have to survive the INSERT pass of an upsert as `""` to reach
+  the UPDATE pass, i.e. be stored as the very value ruled out.
+- **What 0007 does:** replaces `scrub_customer_payment()` with 0004's body
+  carrying that one changed regex (the test diffs the two bodies and fails if
+  anything else differs), then the same one-statement rebuild as 0006. Same
+  measured side effects as 0006: `updated_at = now()` on every customer row
+  (one pull wave per device), one doorbell per team, nothing else in `data`
+  changes. Idempotent; no schema change. `APPLY_v39_1.sql` wraps it in one
+  transaction, and `test/last4-strict-test.sh` proves on a real database that
+  a broken copy changes nothing and the real one removes the `""` from both a
+  v37-era row and a v39-wire row while keeping every other leaf.
+- **Pinned by:** `rls-test.sql` §O (78 checks: 17 malformed shapes × the
+  INSERT / UPDATE / upsert-on-held / fresh-upsert paths, the valid and held
+  cases, the planted production row rebuilt, probe 12 over the whole table),
+  40 mirror-fidelity payloads, and the 24-check negative-control script.
+- **Rollback:** 0007 changes one rule and rebuilds data under it. Rolling
+  the rule back means re-installing 0004's function body (it is in the repo),
+  and the rebuilt rows simply lack a key that meant nothing. There is no
+  data loss to reverse. Both transition suites
 (`tests/mixed-version-test.js`, `tests/upgrade-transition-test.js`) run
 against the exact v37 tree from git with `OLD_REF=c623c6f OLD_BUILD=v37`, and
 `tests/run-all.sh` runs that pair alongside the v38 pair.
@@ -76,9 +143,15 @@ point of `rally/tests/mixed-version-test.js`.
    the rule" (verify probe 12) is unambiguous, and it keeps the one-time
    pull wave 0006 causes (below) from landing on top of unsynced work.
 5. **Apply `APPLY_v39.sql`** — 0004, 0003, 0005 and 0006 in ONE transaction.
-6. **Run `test/verify-production.sql`** — behavioural, rollback-safe. Probe 12
-   is the proof 0006 ran: no stored row, any team, holds a credential key, a
-   non-four-digit `last4`, the legacy `autopay`, or payment on a tombstone.
+6. **Run `test/verify-production.editor.sql`** (the Supabase SQL Editor form of
+   `verify-production.sql`, generated from it by `test/build-editor-verify.sh`;
+   the psql file's `\set` line and its pre-rollback SELECT do not work in the
+   editor). Behavioural, nothing kept. Probe 12 is the proof the rebuild ran:
+   no stored row, any team, holds a credential key, a non-four-digit `last4`,
+   the legacy `autopay`, or payment on a tombstone.
+7. **Apply `APPLY_v39_1.sql`** (0007, one transaction) if step 6 shows probe
+   12 failing on an empty `last4` — as it did in production on 2026-09-02 —
+   then run step 6 again: 13 PASS.
 
 ## Why one transaction
 

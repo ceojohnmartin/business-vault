@@ -1602,3 +1602,101 @@ select t_assert(
   (select count(*) = 0 from public.customers
     where data::text ~ '"(number|cardNumber|cvv|cvc|routing|account|accountNumber|routingNumber)"'),
   'N3 after the rebuild no credential KEY exists in any customer row in the table');
+
+-- O. last4 IS FOUR ASCII DIGITS OR ABSENT (0007). Found in production by
+-- verify-production probe 12 right after APPLY_v39.sql: 0004 accepted "" as
+-- a valid ("cleared") last4, the client's wire copy sends "" for every
+-- customer without a legacy last4, and 0006 rebuilt a v37-era row and kept
+-- its "". The rule is now: exactly four ASCII digits may be stored; anything
+-- else — "", whitespace, 1–3 or 5+ digits, a stray space, non-ASCII digits,
+-- null, a number, an array, an object — is NOT SENT: a valid held last4
+-- stands, otherwise the key is absent. On EVERY path: INSERT, UPDATE, and the
+-- production upsert with its double-fire.
+do $$
+declare v jsonb; lbl text; i int := 0;
+begin
+  for v in select value from jsonb_array_elements(
+      '["", " ", "1", "123", "12345", "1234 ", " 1234", "12 34", "\u0664\u0662\u0664\u0662", "\uFF11\uFF12\uFF13\uFF14", "12a4", "١٢٣٤", null, 4242, true, ["1","2","3","4"], {"n":"1234"}]'::jsonb)
+  loop
+    i := i + 1; lbl := v::text;
+    delete from public.customers where id = 'cust-l4';
+    insert into public.customers (team_id, id, first, last, data) values
+      ('11111111-1111-4111-a111-111111111111', 'cust-l4', 'L', '4',
+       jsonb_build_object('payment', jsonb_build_object('method', 'card', 'last4', v)));
+    perform t_assert((select not (data->'payment' ? 'last4') and data->'payment'->>'method' = 'card'
+                        from public.customers where id = 'cust-l4'),
+      format('O%s-a INSERT with last4 %s stores no last4 key (method kept)', i, lbl));
+    update public.customers set data = '{"payment":{"method":"card","last4":"1234"}}'::jsonb where id = 'cust-l4';
+    update public.customers
+       set data = jsonb_build_object('payment', jsonb_build_object('method', 'card', 'last4', v))
+     where id = 'cust-l4';
+    perform t_assert((select data->'payment'->>'last4' = '1234' from public.customers where id = 'cust-l4'),
+      format('O%s-b UPDATE with last4 %s keeps the held 1234', i, lbl));
+    perform pg_temp.upsert_prod('cust-l4',
+      jsonb_build_object('payment', jsonb_build_object('method', 'card', 'last4', v)));
+    perform t_assert((select data->'payment'->>'last4' = '1234' from public.customers where id = 'cust-l4'),
+      format('O%s-c UPSERT with last4 %s keeps the held 1234 (double-fire)', i, lbl));
+    delete from public.customers where id = 'cust-l4';
+    perform pg_temp.upsert_prod('cust-l4',
+      jsonb_build_object('payment', jsonb_build_object('method', 'card', 'last4', v)));
+    perform t_assert((select not (data->'payment' ? 'last4') from public.customers where id = 'cust-l4'),
+      format('O%s-d UPSERT of a fresh row with last4 %s stores no last4 key', i, lbl));
+  end loop;
+end $$;
+
+-- four ASCII digits are stored, and a new valid value replaces a held one
+delete from public.customers where id = 'cust-l4';
+insert into public.customers (team_id, id, first, last, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-l4', 'L', '4',
+   '{"payment":{"method":"card","last4":"1234"}}'::jsonb);
+select t_assert((select data->'payment'->>'last4' = '1234' from public.customers where id = 'cust-l4'),
+  'O-v1 INSERT with last4 "1234" stores it');
+update public.customers set data = '{"payment":{"method":"card","last4":"5678"}}'::jsonb where id = 'cust-l4';
+select t_assert((select data->'payment'->>'last4' = '5678' from public.customers where id = 'cust-l4'),
+  'O-v2 UPDATE with a new valid last4 replaces the held one');
+select pg_temp.upsert_prod('cust-l4', '{"payment":{"method":"card","last4":"4242"}}'::jsonb);
+select t_assert((select data->'payment'->>'last4' = '4242' from public.customers where id = 'cust-l4'),
+  'O-v3 UPSERT with a new valid last4 replaces the held one');
+-- omitted, and payment-less: the held value stands (whole-object rule)
+select pg_temp.upsert_prod('cust-l4', '{"payment":{"method":"card"}}'::jsonb);
+select t_assert((select data->'payment'->>'last4' = '4242' from public.customers where id = 'cust-l4'),
+  'O-h1 an upsert that omits last4 keeps the held 4242');
+select pg_temp.upsert_prod('cust-l4', '{"plan":{"id":"prem"}}'::jsonb);
+select t_assert((select data->'payment'->>'last4' = '4242' and data->'payment'->>'method' = 'card'
+                   from public.customers where id = 'cust-l4'),
+  'O-h2 a payment-less production upsert keeps the held 4242');
+-- what the table ALREADY holds is re-validated: the exact production row —
+-- a v37-era customer 0006 rebuilt with last4 "" — planted with the trigger off
+alter table public.customers disable trigger customers_scrub_payment;
+update public.customers set data =
+  '{"payment":{"method":"card","last4":"","billingAddress":{"street":"","city":"","state":"","zip":""}}}'::jsonb
+ where id = 'cust-l4';
+alter table public.customers enable trigger customers_scrub_payment;
+select t_assert((select data->'payment'->>'last4' = '' from public.customers where id = 'cust-l4'),
+  '(setup) a stored empty last4 — the row probe 12 found in production');
+update public.customers set data = data;   -- 0007's rebuild, verbatim
+select t_assert((select not (data->'payment' ? 'last4') and data->'payment'->>'method' = 'card'
+                    and data->'payment'->'billingAddress'->>'zip' = ''
+                   from public.customers where id = 'cust-l4'),
+  'O-r1 the rebuild drops a stored empty last4 and keeps the rest of the object');
+alter table public.customers disable trigger customers_scrub_payment;
+update public.customers set data = '{"payment":{"method":"card","last4":""}}'::jsonb where id = 'cust-l4';
+alter table public.customers enable trigger customers_scrub_payment;
+select pg_temp.upsert_prod('cust-l4', '{"plan":{"id":"prem"}}'::jsonb);
+select t_assert((select not (data->'payment' ? 'last4') and data->'payment'->>'method' = 'card'
+                   from public.customers where id = 'cust-l4'),
+  'O-r2 a payment-less upsert re-validates a stored empty last4 away');
+alter table public.customers disable trigger customers_scrub_payment;
+update public.customers set data = '{"payment":{"method":"card","last4":""}}'::jsonb where id = 'cust-l4';
+alter table public.customers enable trigger customers_scrub_payment;
+select pg_temp.upsert_prod('cust-l4', '{"payment":{"method":"card","last4":""}}'::jsonb);
+select t_assert((select not (data->'payment' ? 'last4') from public.customers where id = 'cust-l4'),
+  'O-r3 the v39 wire copy (last4 "") over a stored "" leaves no last4 key');
+-- verify-production probe 12, verbatim, over every row this suite left behind
+select t_assert((select count(*) = 0 from public.customers
+   where data::text ~ '"(number|cardNumber|exp|expiry|cvv|cvc|routing|account|accountNumber|routingNumber)"'
+      or (data->'payment' ? 'last4' and data->'payment'->>'last4' !~ '^[0-9]{4}$')
+      or (data->'payment' ? 'autopay')
+      or (deleted_at is not null and data ? 'payment')
+      or (jsonb_typeof(data->'payment') is not null and jsonb_typeof(data->'payment') <> 'object')),
+  'O-p12 verify-production probe 12 holds over every row in the table');

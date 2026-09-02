@@ -122,6 +122,28 @@ CASES.push(
   [SAFE, TOMB],                          // a tombstone carries nothing forward
   [{ method: "card", last4: "4242" }, ABSENT],
   [{ autopayRequested: false }, ABSENT],
+  // 0007: last4 is four ASCII digits or the key is absent — found in
+  // production by verify-production probe 12 (an empty last4 kept by 0006)
+  [null, { method: "card", last4: "" }],                          // the v39 wire copy with nothing held
+  [null, { method: "card", last4: " " }],
+  [null, { method: "card", last4: null }],
+  [null, { method: "card", last4: "1" }],
+  [null, { method: "card", last4: "123" }],
+  [null, { method: "card", last4: "1234" }],
+  [null, { method: "card", last4: "12345" }],
+  [null, { method: "card", last4: "1234 " }],
+  [null, { method: "card", last4: "\u0664\u0662\u0664\u0662" }],   // Arabic-Indic 4242: not ASCII
+  [null, { method: "card", last4: "\uFF11\uFF12\uFF13\uFF14" }],   // full-width 1234
+  [{ method: "card", last4: "1234" }, { method: "card", last4: "" }],      // "" is NOT SENT: held stands
+  [{ method: "card", last4: "1234" }, { method: "card", last4: " " }],
+  [{ method: "card", last4: "1234" }, { method: "card", last4: null }],
+  [{ method: "card", last4: "1234" }, { method: "card", last4: "12345" }],
+  [{ method: "card", last4: "1234" }, { method: "card", last4: "5678" }],  // a valid one replaces it
+  [{ method: "card", last4: "1234" }, { method: "card" }],                // omitted: held stands
+  [{ method: "card", last4: "1234" }, ABSENT],                            // payment-less: held stands
+  [{ method: "card", last4: "" }, { method: "ach" }],                     // a STORED "" is re-validated away
+  [{ method: "card", last4: "" }, ABSENT],
+  [{ method: "card", last4: "" }, { method: "card", last4: "" }],
 );
 
 let fails = 0, n = 0;

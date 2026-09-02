@@ -70,3 +70,11 @@ sh "$DIR/payment-absent-test.sh"
 # claim about a real database, so it is tested against one — on its own
 # throwaway database, since it deliberately applies a broken file.
 sh "$DIR/apply-atomic-test.sh"
+
+# 0007 — last4 is four digits or absent — with its NEGATIVE CONTROL: the
+# shipped APPLY_v39.sql really keeps an empty last4 (what probe 12 found in
+# production), and APPLY_v39_1.sql really removes it, atomically. Its own
+# database. It also runs verify-production's editor form end to end, so that
+# form must be in sync with the psql file it is generated from.
+sh "$DIR/build-editor-verify.sh" --check
+sh "$DIR/last4-strict-test.sh"

@@ -88,11 +88,12 @@ say "$([ "$LANDED" = '"4111111111111111"' ] && echo 1)" \
     "NEGATIVE CONTROL: the 0a185f8 body stores a bare PAN string verbatim (regression reproduced)"
 
 # ------------------------------------------------- restored, and re-proved ---
-psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0004_payment_allowlist.sql" 2>/dev/null
+# the CURRENT body is 0004's as amended by 0007 (last4 four digits or absent)
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0007_last4_strict.sql" 2>/dev/null
 reset_row
 upsert "$BLIND"
 say "$([ "$(payment)" = "$BEFORE" ] && echo 1)" \
-    "re-installing the current 0004 restores preservation on the same database"
+    "re-installing the current trigger body (0007) restores preservation on the same database"
 psql -q -d "$DB" -c "delete from public.customers where id='abs-1'"
 upsert '{"plan":{"id":"prem"},"payment":"4111111111111111"}'
 say "$([ "$(payment)" = "<<ABSENT>>" ] && echo 1)" \

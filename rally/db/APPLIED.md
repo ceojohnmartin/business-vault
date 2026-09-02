@@ -34,8 +34,17 @@ point of `rally/tests/mixed-version-test.js`.
    pre-0003 database is strictly today's database with fewer controls shown
    to reps, and v39's own contract language is correct without 0004.
 3. **Get every device onto v39 and verify each one by eye** (see below).
-4. **Apply `APPLY_v39.sql`** — 0004, 0003, 0005 and 0006 in ONE transaction.
-5. **Run `test/verify-production.sql`** — behavioural, rollback-safe.
+4. **Gate for 0006 — confirm on EVERY device before the next step:** the More
+   screen shows nothing pending (outbox empty), nothing refused, and a sync
+   has completed on v39. 0006 does not need this for correctness — a later
+   push merges through the trigger and a re-pulled row never overwrites a
+   local edit — but it is the only moment at which "every stored row obeys
+   the rule" (verify probe 12) is unambiguous, and it keeps the one-time
+   pull wave 0006 causes (below) from landing on top of unsynced work.
+5. **Apply `APPLY_v39.sql`** — 0004, 0003, 0005 and 0006 in ONE transaction.
+6. **Run `test/verify-production.sql`** — behavioural, rollback-safe. Probe 12
+   is the proof 0006 ran: no stored row, any team, holds a credential key, a
+   non-four-digit `last4`, the legacy `autopay`, or payment on a tombstone.
 
 ## Why one transaction
 
@@ -463,6 +472,34 @@ Unicode 16's blocks and the digit-like superscript/circled/Roman forms (it is
 pinned to a Unicode version and must be revisited at each release), and
 `0006_payment_rebuild.sql` passes every already-stored row through the trigger
 once, because 0001 stored `last4` and `billingAddress` verbatim. Pinned in §21.
+
+### What 0006 actually does to the table (measured, not assumed)
+
+`update public.customers set data = data;` fires two things per row and one
+per statement, and nothing else — checked against the real triggers in
+0001/0002 on a migrated database, every column diffed:
+
+- `customers_scrub_payment` (BEFORE UPDATE): rebuilds `data.payment` under the
+  final rule; strips it from tombstones. **Nothing else inside `data` changes** —
+  in particular `data.updatedAt`, the client-stamped LWW clock, is untouched.
+- `customers_touch` (BEFORE UPDATE): sets the server column `updated_at = now()`
+  on **every** row. That column is the PULL CURSOR, so every device's next
+  cycle re-pulls the whole customers table once.
+- `customers_ping_upd` (AFTER UPDATE, per statement): **one** doorbell per team
+  present, empty payload. Every online device wakes once and runs that pull.
+- No other column changes: `created_at`, `deleted_at`, `first/last/email/
+  phones/created_by/team_id` are byte-identical before and after.
+
+**A re-pulled row never overwrites local work.** `applyCustomers` compares the
+client LWW clock (`data.updatedAt`), which 0006 leaves alone: an unchanged
+clock is `"same"` and the row is skipped; a device holding a newer unsynced
+edit sees `"older"` and re-pushes, at which point the trigger merges its
+payload with the rebuilt stored object. Proved in `tests/sync-test.js` (W1–W3)
+by bumping every server row's `updated_at` under a device with a dirty edit.
+
+**The wave is bounded and one-time:** one doorbell per team, then one full
+customers pull per device. With today's row counts it is invisible; at scale
+it is one table read per device, once.
 
 ## Smart Split is one server fact (0005)
 

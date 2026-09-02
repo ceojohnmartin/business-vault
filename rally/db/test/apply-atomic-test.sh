@@ -37,15 +37,28 @@ have_0003() { psql -d "$DB" -Atc "select count(*) from pg_policies where scheman
 role_gated() { psql -d "$DB" -Atc "select count(*) from pg_policies where schemaname='public'
   and tablename='territories' and coalesce(with_check,'') like '%my_role%'"; }
 
+# a 0001-era row: under 0001's trigger last4 is stored VERBATIM, so this is
+# exactly what a card number sent before 0004 looks like in the table. It is
+# the witness for 0006: still there after the broken apply, gone after the real one.
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -c "insert into public.teams (id,name) values
+  ('11111111-1111-4111-a111-111111111111','T')"
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -c "insert into public.customers (team_id,id,data) values
+  ('11111111-1111-4111-a111-111111111111','era-0001',
+   '{\"payment\":{\"method\":\"card\",\"last4\":\"4111111111111111\",\"autopay\":true}}'::jsonb)"
+holds_pan() { psql -d "$DB" -Atc "select position('4111111111111111' in data::text) > 0
+  from public.customers where id='era-0001'"; }
+say "$([ "$(holds_pan)" = "t" ] && echo 1)" "(setup) a 0001-era row holds a verbatim card number in last4"
+
 # ---------------------------------------------------------------- broken ---
-# inject the error into the LAST section, so everything before it has already
-# "succeeded" inside the transaction — the strongest form of the test
-awk '{ print }
-     END { }' "$DIR/../APPLY_v39.sql" > /tmp/rally-apply-broken.sql
+# inject the error into the LAST section — after 0006's own statement, so
+# 0004, 0003, 0005 AND the row rebuild have all already "succeeded" inside
+# the transaction — the strongest form of the test
+cp "$DIR/../APPLY_v39.sql" /tmp/rally-apply-broken.sql
 python3 - <<'PY'
 src = open('/tmp/rally-apply-broken.sql').read()
-marker = 'grant execute on function public.smart_split_territory(text, text, jsonb) to authenticated;'
-assert marker in src, 'apply file no longer ends the way this test expects'
+marker = 'update public.customers set data = data;'
+assert src.count(marker) == 1, 'apply file no longer ends with the 0006 statement'
+assert src.rstrip().endswith('commit;'), 'apply file no longer ends with commit'
 open('/tmp/rally-apply-broken.sql', 'w').write(
     src.replace(marker, marker + '\nthis is not valid sql at all;'))
 PY
@@ -58,6 +71,7 @@ say "$([ "$(have_split_fn)" = "0" ] && echo 1)" "…and the Smart Split function
 say "$([ "$(have_split_tbl)" = "f" ] && echo 1)" "…nor its table"
 say "$([ "$(have_pay_pick)" = "0" ] && echo 1)" "…nor 0004, which ran FIRST and appeared to succeed"
 say "$([ "$(role_gated)" = "0" ] && echo 1)" "…nor 0003's role-gated territory policies"
+say "$([ "$(holds_pan)" = "t" ] && echo 1)" "…nor 0006: the 0001-era card number is STILL there (the rebuild rolled back)"
 
 # ------------------------------------------------------------------ real ---
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../APPLY_v39.sql" >/dev/null
@@ -65,6 +79,7 @@ say "$([ "$(have_split_fn)" = "1" ] && echo 1)" "the real file installs the Smar
 say "$([ "$(have_split_tbl)" = "t" ] && echo 1)" "…and its operation table"
 say "$([ "$(have_pay_pick)" = "1" ] && echo 1)" "…and 0004's payment pickers"
 say "$([ "$(role_gated)" -ge 1 ] && echo 1)" "…and 0003's role-gated territory policies"
+say "$([ "$(holds_pan)" = "f" ] && echo 1)" "…and 0006 ran: the 0001-era card number is gone from the table"
 
 # and running it a SECOND time changes nothing and raises nothing
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../APPLY_v39.sql" >/dev/null
@@ -73,4 +88,4 @@ say "$([ "$(have_split_fn)" = "1" ] && [ "$(role_gated)" -ge 1 ] && echo 1)" \
 
 psql -q -d postgres -c "drop database if exists $DB" >/dev/null 2>&1
 if [ "$fails" -gt 0 ]; then echo "APPLY ATOMIC: FAILED ($fails)"; exit 1; fi
-echo "APPLY ATOMIC: ALL GREEN (10 checks)"
+echo "APPLY ATOMIC: ALL GREEN (13 checks)"

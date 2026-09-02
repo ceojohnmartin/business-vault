@@ -165,6 +165,50 @@ begin
   end;
   reset role;
   perform set_config('request.jwt.claims', '', true);
+
+  -- 10. the FINAL 0004: a payment-less production upsert keeps the whole object
+  perform set_config('request.jwt.claims', json_build_object('sub', rep_id)::text, true);
+  execute 'set local role authenticated';
+  begin
+    insert into public.customers (team_id, id, first, last, email, phones, created_by, deleted_at, data)
+    values (team, cid || '-w', 'probe', '', '', '[]'::jsonb, rep_id, null,
+      '{"payment":{"method":"ach","autopayRequested":true,"status":"pending_setup","card":{"name":"Probe Name"}}}'::jsonb);
+    insert into public.customers (team_id, id, first, last, email, phones, created_by, deleted_at, data)
+    values (team, cid || '-w', 'probe', '', '', '[]'::jsonb, rep_id, null,
+      '{"notesForever":"payment-less write"}'::jsonb)
+    on conflict (team_id, id) do update set
+      team_id = excluded.team_id, id = excluded.id, first = excluded.first, last = excluded.last,
+      email = excluded.email, phones = excluded.phones, created_by = excluded.created_by,
+      deleted_at = excluded.deleted_at, data = excluded.data;
+    select data->'payment' into stored from public.customers where team_id = team and id = cid || '-w';
+    insert into probe_result values ('10 payment-less upsert keeps the object',
+      stored->>'autopayRequested' = 'true' and stored->'card'->>'name' = 'Probe Name',
+      coalesce(stored::text, '<<ABSENT>>'));
+  exception when others then
+    insert into probe_result values ('10 payment-less upsert keeps the object', false, 'ERROR: ' || sqlerrm);
+  end;
+  -- 11. …and a tombstone carries nothing
+  begin
+    update public.customers set deleted_at = now(), data = '{}'::jsonb, first = '', last = '', email = '', phones = '[]'::jsonb
+     where team_id = team and id = cid || '-w';
+    select data into stored from public.customers where team_id = team and id = cid || '-w';
+    insert into probe_result values ('11 a tombstone carries no payment',
+      not (stored ? 'payment'), stored::text);
+  exception when others then
+    insert into probe_result values ('11 a tombstone carries no payment', false, 'ERROR: ' || sqlerrm);
+  end;
+  reset role;
+  perform set_config('request.jwt.claims', '', true);
+
+  -- 12. the 0006 STATE: what the table HOLDS obeys the rule, every row, every team
+  select count(*) into n from public.customers
+   where data::text ~ '"(number|cardNumber|exp|expiry|cvv|cvc|routing|account|accountNumber|routingNumber)"'
+      or (data->'payment' ? 'last4' and data->'payment'->>'last4' !~ '^[0-9]{4}$')
+      or (data->'payment' ? 'autopay')
+      or (deleted_at is not null and data ? 'payment')
+      or (jsonb_typeof(data->'payment') is not null and jsonb_typeof(data->'payment') <> 'object');
+  insert into probe_result values ('12 every stored row obeys the final rule (0006 ran)',
+    n = 0, n || ' row(s) violate it — 0006 has not run, or something wrote past the trigger');
 end $$;
 
 select step,

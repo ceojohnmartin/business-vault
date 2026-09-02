@@ -234,7 +234,7 @@ const server = http.createServer((req, res) => {
     }
     return false;
   }
-  const S = (d, fn) => d.page.evaluate(fn);
+  const S = (d, fn, arg) => d.page.evaluate(fn, arg);   // a third value is passed INTO the page
   const offline = (d) => d.ctx.route(/\/(auth|rest)\/v1\//, (r) => r.abort());
   const online = (d) => d.ctx.unroute(/\/(auth|rest)\/v1\//);
 
@@ -538,6 +538,52 @@ const server = http.createServer((req, res) => {
   const relaunched = await S(A, () => MSYNC.status());
   check("O6 a refusal survives a relaunch",
     relaunched.refused === 1 && relaunched.loaded === true, JSON.stringify(relaunched));
+
+  /* ===== W. the 0006 rebuild wave against a device holding unsynced work
+     0006 is `update public.customers set data = data`: on the real schema it
+     moves every row's server updated_at (the PULL CURSOR) and leaves the
+     client LWW clock data.updatedAt alone. So every device re-pulls the whole
+     customers table once. The question that matters: can that re-pull land on
+     top of a newer edit a device has not pushed yet? Simulated here exactly
+     as measured — bump updated_at on every server row, touch nothing inside
+     data — under a device that is OFFLINE with a dirty customer edit. */
+  await sync(A); await sync(B);
+  // its own customer, so the scenario does not depend on what earlier
+  // sections left in either device's book
+  const wTarget = await S(A, async () => {
+    const c = await STORE.addCustomer({ first: "Wave", last: "Target", phones: [{ n: "8015550199" }],
+      plan: { name: "premium", monthly: 99, initial: 450 } });
+    return c.id;
+  });
+  await sync(A); await sync(B);
+  check("W0 (setup) the customer exists on the server and on both devices",
+    mock.tables.customers.has(TEAM + "|" + wTarget) &&
+    (await S(B, (id) => STORE.customers.some((x) => x.id === id), wTarget)));
+  const deadBeforeWave = await S(A, () => MSYNC.status().refused);   // section O parks one on purpose
+  await offline(A);
+  await S(A, async (id) => {
+    const c = STORE.customers.find((x) => x.id === id);
+    c.notesForever = "edited offline, before the wave";
+    c.updatedAt = Date.now();
+    await MDB.put("customers", c); MSYNC.queue("customers", c.id);
+  }, wTarget);
+  const serverBefore = mock.tables.customers.get(TEAM + "|" + wTarget).data.notesForever;
+  for (const row of mock.tables.customers.values()) row.updated_at = tick();   // the wave
+  await online(A);
+  await sync(A); await sync(A); await sync(B);
+  const wA = await S(A, (id) => ({
+    notes: STORE.customers.find((x) => x.id === id).notesForever,
+    pending: MSYNC.status().pending, dead: MSYNC.status().refused }), wTarget);
+  const wServer = mock.tables.customers.get(TEAM + "|" + wTarget).data.notesForever;
+  const wB = await S(B, (id) => STORE.customers.find((x) => x.id === id).notesForever, wTarget);
+  check("W1 the rebuild wave does not overwrite a newer unsynced local edit",
+    wA.notes === "edited offline, before the wave", wA.notes);
+  check("W2 …the edit still reaches the server and the other device",
+    wServer === "edited offline, before the wave" && wB === wServer,
+    JSON.stringify({ server: wServer, before: serverBefore, b: wB }));
+  check("W3 …and the wave leaves nothing queued and refuses nothing new",
+    wA.pending === 0 && wA.dead === deadBeforeWave,
+    JSON.stringify({ pending: wA.pending, deadBefore: deadBeforeWave, deadAfter: wA.dead }));
 
   check("no page errors on either device", errors.length === 0, errors.slice(0, 3).join("|"));
 

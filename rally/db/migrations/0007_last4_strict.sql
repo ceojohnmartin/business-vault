@@ -43,7 +43,34 @@
 -- 0006: updated_at = now() on every customer row (one pull wave per device),
 -- one doorbell per team; nothing else in `data` changes.
 --
--- Idempotent: safe to run more than once. Nothing here is a schema change.
+-- Data-idempotent: a second run changes no row's data (it does stamp
+-- updated_at again — one more pull wave — so run it once unless a run had to
+-- be repeated). Nothing here is a schema change. Rows whose payment held
+-- NOTHING valid but an empty last4 end up with no payment key at all — that
+-- is the standing rule ("nothing valid to store is NO payment"), and every
+-- client reads an absent key as "nothing on record".
+--
+-- RUN IT THROUGH db/APPLY_v39_1.sql (one transaction), not statement by
+-- statement: the LOCK below only means something inside that transaction.
+
+-- ----------------------------------------------------------- the lock ---
+-- A client write that BLOCKS on the rebuild's row lock (a rep's sync landing
+-- mid-apply) does not re-read the trigger function when the lock frees: a
+-- backend processes catalog invalidations at statement start and when it
+-- opens a relation, not when a row lock is granted. A session that had
+-- already written to customers under 0004 would therefore wake up, run its
+-- UPDATE pass with 0004's CACHED body, and put "" straight back on a row this
+-- rebuild had just cleaned — reproduced on real PostgreSQL, and closed by
+-- taking the table lock FIRST: every client statement then waits at
+-- relation_open, where it sees the new body, and inserts during the window
+-- wait too (an insert the rebuild's snapshot cannot see would otherwise slip
+-- through with ""). EXCLUSIVE blocks writes only; client pulls (SELECT)
+-- continue. Held for the length of this transaction: milliseconds at
+-- today's row counts. (db/test/last4-strict-test.sh runs both interleavings.)
+-- In a DO block so the file also runs statement-by-statement (a bare LOCK
+-- outside a transaction is an error); inside APPLY_v39_1.sql's transaction
+-- the lock taken here is held until COMMIT.
+do $$ begin lock table public.customers in exclusive mode; end $$;
 
 create or replace function public.scrub_customer_payment() returns trigger
 language plpgsql as $$

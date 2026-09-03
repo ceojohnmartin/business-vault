@@ -85,10 +85,58 @@ The migration and the verification disagreed, and the verification was right.
   transaction, and `test/last4-strict-test.sh` proves on a real database that
   a broken copy changes nothing and the real one removes the `""` from both a
   v37-era row and a v39-wire row while keeping every other leaf.
-- **Pinned by:** `rls-test.sql` §O (78 checks: 17 malformed shapes × the
+- **Pinned by:** `rls-test.sql` §O (82 checks: 17 malformed shapes × the
   INSERT / UPDATE / upsert-on-held / fresh-upsert paths, the valid and held
-  cases, the planted production row rebuilt, probe 12 over the whole table),
-  40 mirror-fidelity payloads, and the 24-check negative-control script.
+  cases, the planted production row rebuilt, probes 12 and 13 over the whole
+  table and their ability to see planted violations), 40 mirror-fidelity
+  payloads, and the 28-check negative-control script (8 negative controls,
+  including the apply-window race with and without the lock).
+- **The apply-window race, and the lock.** An adversarial round found —
+  and I reproduced on real PostgreSQL — that a client write BLOCKED on the
+  rebuild's row lock does not re-read the trigger function when the lock
+  frees: a backend processes catalog invalidations at statement start and at
+  relation_open, not when a row lock is granted. A session that had already
+  written to customers under 0004 woke up, ran its UPDATE pass with 0004's
+  cached body, and put `""` straight back on a row the rebuild had just
+  cleaned; a row inserted mid-apply slipped through with `""` too. So 0007's
+  FIRST statement takes `lock table public.customers in exclusive mode`: every
+  client write then waits at relation_open and runs under the new body;
+  client pulls (SELECT) are not blocked; the lock lasts the transaction —
+  milliseconds today. `test/last4-strict-test.sh` runs both interleavings:
+  the file minus its lock line shows the defect, the file itself does not.
+- **Probe 12 was two instruments short, and is now one.** (i) Its last4
+  clause was type-blind: a JSON number `1234` or a JSON `null` under last4
+  was invisible (`->>` renders the number as matching text and the null as
+  SQL NULL). (ii) A list of named shapes cannot see a routing-shaped zip or a
+  card number in a name planted past the trigger. Probe 12 now asserts BOTH
+  the stated rule (type-aware) AND that every row is a fixed point of the
+  live trigger — rebuilding the table inside the rolled-back probe must
+  change nothing. The stated rule is kept on purpose: under 0004, `""` was a
+  fixed point of the live trigger, and the fixed point alone would have said
+  PASS on the very row that started this. New probe 13 is a canary for a
+  credential-shaped KEY anywhere in a customer document (`card.number`,
+  `ach.routing`, `cvv`, … at any depth): the trigger guards `data.payment`,
+  so such a key outside it could only come from a hostile or broken client —
+  not a migration fault, but a STOP. Both forms of the verification (psql,
+  editor) show 14 rows now.
+- **Boundary, stated plainly:** the trigger rebuilds `data.payment` and
+  nothing else in `data`. A credential under any OTHER key is free text to
+  the database, exactly as CLAUDE.md §5 says free-text fields are, and probe
+  13 is the canary for it. Also: a row whose payment held nothing valid but
+  an empty last4 ends up with NO payment key (the standing "nothing valid is
+  no payment" rule); every client reads that as "nothing on record".
+- **Re-running APPLY_v39_1.sql** changes no row's data, but stamps
+  `updated_at` on every row again — one more pull wave per device and one
+  doorbell per team. Run it once. A row whose `data` column is not a JSON
+  object (only writable past the trigger; none exist) would make the whole
+  file fail atomically; the confirmation query would then say NOT APPLIED.
+- **Client follow-up (NOT in this release — no client change is being made):**
+  `js/customers.js` honestPayment strips non-digits before testing for four
+  digits (`"12/26"` → `"1226"`), and `js/sync.js` sends that laundered value,
+  which the server rightly accepts as four digits. No v39 flow can put such a
+  value into `last4` (there is no input; legacy values were derived from a
+  card number), so it is unreachable today, but the client's own rule should
+  be the server's exact one. First item for the next client release.
 - **Rollback:** 0007 changes one rule and rebuilds data under it. Rolling
   the rule back means re-installing 0004's function body (it is in the repo),
   and the rebuilt rows simply lack a key that meant nothing. There is no

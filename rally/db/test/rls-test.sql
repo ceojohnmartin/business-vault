@@ -1692,11 +1692,64 @@ alter table public.customers enable trigger customers_scrub_payment;
 select pg_temp.upsert_prod('cust-l4', '{"payment":{"method":"card","last4":""}}'::jsonb);
 select t_assert((select not (data->'payment' ? 'last4') from public.customers where id = 'cust-l4'),
   'O-r3 the v39 wire copy (last4 "") over a stored "" leaves no last4 key');
--- verify-production probe 12, verbatim, over every row this suite left behind
+-- verify-production probe 12, as it now stands: every row this suite left
+-- behind is a FIXED POINT of the trigger — rebuilding the table (inside a
+-- rolled-back transaction) changes nothing
+begin;
+do $$ declare n int; begin
+  with before as (select team_id, id, deleted_at, data from public.customers),
+       after as (update public.customers c set data = c.data returning c.team_id, c.id, c.data)
+  select count(*) into n from before b join after a using (team_id, id)
+   where a.data is distinct from b.data
+      or (b.data->'payment' ? 'last4' and (jsonb_typeof(b.data->'payment'->'last4') <> 'string'
+          or b.data->'payment'->>'last4' !~ '^[0-9]{4}$'))
+      or (b.data->'payment' ? 'autopay')
+      or (b.deleted_at is not null and b.data ? 'payment')
+      or (jsonb_typeof(b.data->'payment') is not null and jsonb_typeof(b.data->'payment') <> 'object');
+  perform t_assert(n = 0, 'O-p12 every row in the table obeys the rule and is a fixed point of the trigger (verify-production probe 12)');
+end $$;
+rollback;
+-- …and that probe can SEE a planted violation of every kind, in this very table
+alter table public.customers disable trigger customers_scrub_payment;
+insert into public.customers (team_id, id, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-l4-num',  '{"payment":{"method":"card","last4":1234}}'::jsonb),
+  ('11111111-1111-4111-a111-111111111111', 'cust-l4-null', '{"payment":{"method":"card","last4":null}}'::jsonb),
+  ('11111111-1111-4111-a111-111111111111', 'cust-l4-zip',  '{"payment":{"method":"card","billingAddress":{"zip":"021000021"}}}'::jsonb),
+  ('11111111-1111-4111-a111-111111111111', 'cust-l4-name', '{"payment":{"method":"card","card":{"name":"4111 1111 1111 1111"}}}'::jsonb);
+alter table public.customers enable trigger customers_scrub_payment;
+begin;
+do $$ declare n int; begin
+  with before as (select team_id, id, deleted_at, data from public.customers),
+       after as (update public.customers c set data = c.data returning c.team_id, c.id, c.data)
+  select count(*) into n from before b join after a using (team_id, id)
+   where b.id like 'cust-l4-%' and (a.data is distinct from b.data
+      or (b.data->'payment' ? 'last4' and (jsonb_typeof(b.data->'payment'->'last4') <> 'string'
+          or b.data->'payment'->>'last4' !~ '^[0-9]{4}$')));
+  perform t_assert(n = 4, 'O-p12b …and it counts a planted number, null, routing-shaped zip and card-number name (4 of 4)');
+end $$;
+rollback;
+update public.customers set data = data where id like 'cust-l4-%';   -- the rebuild, verbatim
 select t_assert((select count(*) = 0 from public.customers
-   where data::text ~ '"(number|cardNumber|exp|expiry|cvv|cvc|routing|account|accountNumber|routingNumber)"'
-      or (data->'payment' ? 'last4' and data->'payment'->>'last4' !~ '^[0-9]{4}$')
-      or (data->'payment' ? 'autopay')
-      or (deleted_at is not null and data ? 'payment')
-      or (jsonb_typeof(data->'payment') is not null and jsonb_typeof(data->'payment') <> 'object')),
-  'O-p12 verify-production probe 12 holds over every row in the table');
+                  where id like 'cust-l4-%' and (data->'payment' ? 'last4'
+                     or data->'payment'->'billingAddress' ? 'zip' or data->'payment' ? 'card')),
+  'O-p12c …and the rebuild removes all four');
+-- no credential KEY anywhere in any document (verify-production probe 13) —
+-- and a phone number under an unrelated key is not one
+select t_assert((select count(*) = 0 from public.customers
+   where jsonb_path_exists(data, '$.** ? (exists(@.cvv) || exists(@.cvc) || exists(@.cardNumber)
+            || exists(@.routingNumber) || exists(@.accountNumber) || exists(@.expiry)
+            || exists(@.card.number) || exists(@.card.exp) || exists(@.ach.routing) || exists(@.ach.account))')),
+  'O-p13 no credential key anywhere in any customer document (verify-production probe 13)');
+alter table public.customers disable trigger customers_scrub_payment;
+insert into public.customers (team_id, id, data) values
+  ('11111111-1111-4111-a111-111111111111', 'cust-l4-hostile',
+   '{"card":{"number":"4111111111111111","cvv":"123"},"payment":{"method":"card"}}'::jsonb),
+  ('11111111-1111-4111-a111-111111111111', 'cust-l4-phone',
+   '{"referrals":[{"number":"801-555-0100"}],"notes":"exp","payment":{"method":"card"}}'::jsonb);
+alter table public.customers enable trigger customers_scrub_payment;
+select t_assert((select array_agg(id order by id) = array['cust-l4-hostile'] from public.customers
+   where jsonb_path_exists(data, '$.** ? (exists(@.cvv) || exists(@.cvc) || exists(@.cardNumber)
+            || exists(@.routingNumber) || exists(@.accountNumber) || exists(@.expiry)
+            || exists(@.card.number) || exists(@.card.exp) || exists(@.ach.routing) || exists(@.ach.account))')),
+  'O-p13b …it sees a top-level card.number written past the payment guard, and not a referral phone number');
+delete from public.customers where id in ('cust-l4-hostile', 'cust-l4-phone');

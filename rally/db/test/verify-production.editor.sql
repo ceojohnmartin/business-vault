@@ -201,15 +201,40 @@ begin
   reset role;
   perform set_config('request.jwt.claims', '', true);
 
-  -- 12. the 0006 STATE: what the table HOLDS obeys the rule, every row, every team
+  -- 12. the REBUILD STATE, asked two ways at once, every row, every team:
+  --     (a) the STATED rule, whatever trigger is live: a last4 key holds
+  --         exactly four ASCII digits (a string — a number or null is not
+  --         one), no legacy autopay, no payment on a tombstone, payment is an
+  --         object. This is the clause that found the production "" under
+  --         0004, when "" was still a fixed point of the live trigger.
+  --     (b) the FIXED POINT: passing the whole table through the trigger once
+  --         more — inside this rolled-back transaction, nothing kept — must
+  --         change nothing. That is what "the rebuild (0006/0007) ran" means,
+  --         and it catches whatever the trigger would refuse that (a) does
+  --         not name: a routing-shaped zip, a card number in a name, an
+  --         unlisted key inside payment.
+  with before as (select team_id, id, deleted_at, data from public.customers),
+       after as (update public.customers c set data = c.data returning c.team_id, c.id, c.data)
+  select count(*) into n from before b join after a using (team_id, id)
+   where a.data is distinct from b.data
+      or (b.data->'payment' ? 'last4' and (jsonb_typeof(b.data->'payment'->'last4') <> 'string'
+          or b.data->'payment'->>'last4' !~ '^[0-9]{4}$'))
+      or (b.data->'payment' ? 'autopay')
+      or (b.deleted_at is not null and b.data ? 'payment')
+      or (jsonb_typeof(b.data->'payment') is not null and jsonb_typeof(b.data->'payment') <> 'object');
+  res := res || pg_temp.v39_row('12 every stored row obeys the rule and is a fixed point of the trigger (the rebuild ran)',
+    n = 0, n || ' row(s) violate it — the rebuild has not run, or something wrote past the trigger');
+  -- 13. no credential KEY anywhere in any customer document. The trigger
+  --     guards data.payment; a card.number or ach.routing OUTSIDE it could
+  --     only come from a hostile or broken client — not a migration fault,
+  --     a canary, and a STOP all the same. Keys, at any depth; a phone
+  --     number under an unrelated key is not a credential.
   select count(*) into n from public.customers
-   where data::text ~ '"(number|cardNumber|exp|expiry|cvv|cvc|routing|account|accountNumber|routingNumber)"'
-      or (data->'payment' ? 'last4' and data->'payment'->>'last4' !~ '^[0-9]{4}$')
-      or (data->'payment' ? 'autopay')
-      or (deleted_at is not null and data ? 'payment')
-      or (jsonb_typeof(data->'payment') is not null and jsonb_typeof(data->'payment') <> 'object');
-  res := res || pg_temp.v39_row('12 every stored row obeys the final rule (0006 ran)',
-    n = 0, n || ' row(s) violate it — 0006 has not run, or something wrote past the trigger');
+   where jsonb_path_exists(data, '$.** ? (exists(@.cvv) || exists(@.cvc) || exists(@.cardNumber)
+            || exists(@.routingNumber) || exists(@.accountNumber) || exists(@.expiry)
+            || exists(@.card.number) || exists(@.card.exp) || exists(@.ach.routing) || exists(@.ach.account))');
+  res := res || pg_temp.v39_row('13 no credential key anywhere in any customer document',
+    n = 0, n || ' row(s) carry a credential-shaped key');
     -- every write above is undone here; the results live in `res`
     raise exception using message = 'v39-probe-rollback';
   exception when others then

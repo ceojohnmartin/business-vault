@@ -30,12 +30,22 @@ say() { if [ "$1" = "1" ]; then echo "PASS: $2"; else echo "FAIL: $2"; fails=$((
 q() { psql -d "$DB" -Atc "$1"; }
 pay() { q "select coalesce((data->'payment')::text,'<<ABSENT>>') from public.customers where id='$1'"; }
 has_l4() { q "select data->'payment' ? 'last4' from public.customers where id='$1'"; }
-probe12() { q "select count(*) from public.customers
-   where data::text ~ '\"(number|cardNumber|exp|expiry|cvv|cvc|routing|account|accountNumber|routingNumber)\"'
-      or (data->'payment' ? 'last4' and data->'payment'->>'last4' !~ '^[0-9]{4}$')
-      or (data->'payment' ? 'autopay')
-      or (deleted_at is not null and data ? 'payment')
-      or (jsonb_typeof(data->'payment') is not null and jsonb_typeof(data->'payment') <> 'object')"; }
+# verify-production probe 12: rows that break the stated rule OR are not a
+# fixed point of the trigger (rebuilt inside a rolled-back transaction)
+probe12() { psql -d "$DB" -At <<'SQL' | grep -E '^[0-9]+$'
+begin;
+with before as (select team_id, id, deleted_at, data from public.customers),
+     after as (update public.customers c set data = c.data returning c.team_id, c.id, c.data)
+select count(*) from before b join after a using (team_id, id)
+ where a.data is distinct from b.data
+    or (b.data->'payment' ? 'last4' and (jsonb_typeof(b.data->'payment'->'last4') <> 'string'
+        or b.data->'payment'->>'last4' !~ '^[0-9]{4}$'))
+    or (b.data->'payment' ? 'autopay')
+    or (b.deleted_at is not null and b.data ? 'payment')
+    or (jsonb_typeof(b.data->'payment') is not null and jsonb_typeof(b.data->'payment') <> 'object');
+rollback;
+SQL
+}
 body_has_old_rule() { q "select pg_get_functiondef(oid) like '%^([0-9]{4})?\$%' from pg_proc
   where proname='scrub_customer_payment' and pronamespace='public'::regnamespace"; }
 verify() {  # runs the editor form; prints "<pass> <fail>"
@@ -78,8 +88,8 @@ say "$([ "$(has_l4 v39-cust)" = "t" ] && [ "$(q "select data->'payment'->>'autop
     "NEGATIVE CONTROL: under 0004 the v39 wire copy's empty last4 is stored too (beside a real request)"
 say "$([ "$(probe12)" = "2" ] && echo 1)" "NEGATIVE CONTROL: probe 12 counts both rows as violations (2)"
 set -- $(verify)
-say "$([ "$1" = "12" ] && [ "$2" = "1" ] && grep -q '12 every stored row.*FAIL' /tmp/rally-l4-verify.out && echo 1)" \
-    "NEGATIVE CONTROL: verify-production (editor form) reports exactly probe 12 failing (12 PASS, 1 FAIL)"
+say "$([ "$1" = "13" ] && [ "$2" = "1" ] && grep -q '12 every stored row.*FAIL' /tmp/rally-l4-verify.out && echo 1)" \
+    "NEGATIVE CONTROL: verify-production (editor form) reports exactly probe 12 failing (13 PASS, 1 FAIL)"
 psql -q -d "$DB" -c "insert into public.customers (team_id,id,first,last,data) values ('$TEAM','fresh-1','F','1','{\"payment\":{\"method\":\"card\",\"last4\":\"\"}}')"
 say "$([ "$(has_l4 fresh-1)" = "t" ] && echo 1)" "NEGATIVE CONTROL: under the shipped 0004 a fresh write with last4 \"\" stores the key"
 psql -q -d "$DB" -c "delete from public.customers where id='fresh-1'"
@@ -116,7 +126,7 @@ say "$([ "$(q "select updated_at > '$T1'::timestamptz from public.customers wher
     "…updated_at moved again: one pull wave, as documented for 0006"
 say "$([ "$(probe12)" = "0" ] && echo 1)" "probe 12 counts nothing (0)"
 set -- $(verify)
-say "$([ "$1" = "13" ] && [ "$2" = "0" ] && echo 1)" "verify-production (editor form) is 13 PASS, 0 FAIL"
+say "$([ "$1" = "14" ] && [ "$2" = "0" ] && echo 1)" "verify-production (editor form) is 14 PASS, 0 FAIL"
 psql -q -d "$DB" -c "insert into public.customers (team_id,id,first,last,data) values ('$TEAM','fresh-2','F','2','{\"payment\":{\"method\":\"card\",\"last4\":\"\"}}')"
 say "$([ "$(has_l4 fresh-2)" = "f" ] && [ "$(q "select data->'payment'->>'method' from public.customers where id='fresh-2'")" = "card" ] && echo 1)" \
     "a fresh write with last4 \"\" now stores no key (method kept)"
@@ -139,6 +149,60 @@ say "$([ "$(q "select data->'payment'->>'last4' from public.customers where id='
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../APPLY_v39_1.sql" >/dev/null
 say "$([ "$(probe12)" = "0" ] && [ "$(body_has_old_rule)" = "f" ] && echo 1)" "a second run of APPLY_v39_1.sql is safe (idempotent)"
 
+# ------------------------------------------------------- the apply-window race ---
+# A client write that BLOCKS on the rebuild's row lock does not re-read the
+# trigger function when the lock frees (invalidations are processed at
+# statement start and at relation_open, not when a row lock is granted). A
+# WARM session — one that already wrote to customers under 0004 — wakes up
+# and runs its UPDATE pass with 0004's cached body, putting "" back on a row
+# the rebuild just cleaned. APPLY_v39_1.sql takes the table lock FIRST so the
+# write waits at relation_open instead. Both interleavings, for real: the
+# file minus its lock line must show the defect; the file itself must not.
+race() {  # $1 = label, $2 = apply file (transaction held 3 s after the rebuild)
+  psql -q -d "$DB" -c "delete from public.customers where id in ('race-v37','race-real','race-new','race-warm')"
+  psql -q -d "$DB" -c "alter table public.customers disable trigger customers_scrub_payment" \
+    -c "insert into public.customers (team_id,id,first,last,data) values
+        ('$TEAM','race-v37','a','b','{\"payment\":{\"method\":\"card\",\"last4\":\"\"}}'),
+        ('$TEAM','race-real','c','d','{\"payment\":{\"method\":\"card\",\"last4\":\"1234\"}}'),
+        ('$TEAM','race-warm','w','w','{\"payment\":{\"method\":\"ach\"}}')" \
+    -c "alter table public.customers enable trigger customers_scrub_payment"
+  # the 0004 body is what a client session holds cached when the apply starts
+  psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0004_payment_allowlist.sql" >/dev/null 2>&1
+  FIFO=/tmp/rally-l4-race.fifo; rm -f "$FIFO"; mkfifo "$FIFO"
+  psql -q -d "$DB" < "$FIFO" > /tmp/rally-l4-race.client 2>&1 & CLIENT=$!
+  exec 3>"$FIFO"
+  # warm the client session under 0004: one UPDATE and one conflicting upsert
+  echo "update public.customers set first = 'w2' where id = 'race-warm';" >&3
+  echo "insert into public.customers (team_id,id,first,last,data) values ('$TEAM','race-warm','w','w','{\"payment\":{\"method\":\"ach\"}}') on conflict (team_id,id) do update set data = excluded.data;" >&3
+  sleep 1
+  psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$2" > /tmp/rally-l4-race.apply 2>&1 & APPLY=$!
+  sleep 0.8
+  # the wire copy (last4 "") lands on both rows, and a brand-new row, while the apply holds
+  for id in race-v37 race-real; do
+    echo "insert into public.customers (team_id, id, first, last, email, phones, created_by, deleted_at, data) values ('$TEAM','$id','x','y','','[]'::jsonb,null,null,'{\"payment\":{\"method\":\"card\",\"last4\":\"\"}}') on conflict (team_id, id) do update set team_id = excluded.team_id, id = excluded.id, first = excluded.first, last = excluded.last, email = excluded.email, phones = excluded.phones, created_by = excluded.created_by, deleted_at = excluded.deleted_at, data = excluded.data;" >&3
+  done
+  echo "insert into public.customers (team_id,id,first,last,data) values ('$TEAM','race-new','n','n','{\"payment\":{\"method\":\"card\",\"last4\":\"\"}}');" >&3
+  wait $APPLY; APPLY_RC=$?
+  echo "\\q" >&3; exec 3>&-; wait $CLIENT; rm -f "$FIFO"
+  RACE_RC=$APPLY_RC
+  RACE_CLIENT_ERRORS="$(grep -c ERROR /tmp/rally-l4-race.client || true)"
+}
+# a copy of the real file with a 3 s hold after the rebuild — the window
+sed 's/^commit;$/select pg_sleep(3);\ncommit;/' "$DIR/../APPLY_v39_1.sql" > /tmp/rally-apply-v391-held.sql
+# …and the same copy WITHOUT its lock line: the negative control
+grep -v 'lock table public.customers in exclusive mode' /tmp/rally-apply-v391-held.sql > /tmp/rally-apply-v391-nolock.sql
+grep -q 'lock table' /tmp/rally-apply-v391-held.sql || { echo "FAIL: APPLY_v39_1.sql no longer takes the table lock"; fails=$((fails+1)); }
+race nolock /tmp/rally-apply-v391-nolock.sql
+say "$([ "$RACE_RC" = "0" ] && [ "$RACE_CLIENT_ERRORS" = "0" ] && [ "$(has_l4 race-v37)" = "t" ] && echo 1)" \
+    "NEGATIVE CONTROL: without the table lock, a warm client upsert blocked on the rebuild wakes on 0004's cached body and puts \"\" back"
+race lock /tmp/rally-apply-v391-held.sql
+say "$([ "$RACE_RC" = "0" ] && [ "$RACE_CLIENT_ERRORS" = "0" ] && [ "$(has_l4 race-v37)" = "f" ] && [ "$(has_l4 race-new)" = "f" ] && echo 1)" \
+    "with the lock (the real file), the same interleaving leaves no empty last4 — on the cleaned row or the row inserted mid-apply"
+say "$([ "$(q "select data->'payment'->>'last4' from public.customers where id='race-real'")" = "1234" ] && echo 1)" \
+    "…and the valid held 1234 stood through it"
+say "$([ "$(probe12)" = "0" ] && echo 1)" "…and probe 12 counts nothing afterwards"
+psql -q -d "$DB" -c "delete from public.customers where id in ('race-v37','race-real','race-new','race-warm')"
+
 # ------------------------------------------ 0007 is 0004 with ONE rule changed ---
 python3 - "$DIR/../migrations/0004_payment_allowlist.sql" "$DIR/../migrations/0007_last4_strict.sql" <<'PY'
 import sys, re
@@ -159,4 +223,4 @@ PY
 
 psql -q -d postgres -c "drop database if exists $DB" >/dev/null 2>&1
 if [ "$fails" -gt 0 ]; then echo "LAST4 STRICT: FAILED ($fails)"; exit 1; fi
-echo "LAST4 STRICT: ALL GREEN (24 checks, incl. 7 negative controls)"
+echo "LAST4 STRICT: ALL GREEN (28 checks, incl. 8 negative controls)"

@@ -20,7 +20,7 @@ Fill these in yourself after running each verification query.
 | `0004_payment_allowlist.sql` | Honest payment allowlist (`autopayRequested`, `status`, `card.name`, `ach.name`, `ach.type`) | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 3, 4, 5, 10, 11 PASS |
 | `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 7, 8, 9 PASS |
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
-| `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 (APPLY_v39_1.sql; exact UTC minute = `min(updated_at)` over customers) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
+| `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 01:05:18 UTC (APPLY_v39_1.sql; the rebuild stamped every customer row at that instant) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
 
 ## What production actually runs
 
@@ -46,7 +46,8 @@ force-close / swipe RALLY out of the app switcher → reopen).
    Nothing was changed by hand in production.
 
 4. STEP 2 of v39.1 — `APPLY_v39_1.sql` (0007, one transaction, table lock
-   first) returned Success on 2026-09-03; the read-only confirmation query
+   first) returned Success on 2026-09-03 at 01:05:18 UTC (the rebuild's
+   `updated_at` stamp on every customer row); the read-only confirmation query
    returned "APPLIED — 0007 is live and every stored last4 obeys it" (7 of
    7 present).
 5. STEP 3 of v39.1 — `test/verify-production.editor.sql`, all 14 probes:
@@ -59,6 +60,10 @@ force-close / swipe RALLY out of the app switcher → reopen).
    the v37-era test customer present, its PAYMENT tab with no card, CVV,
    expiry, routing or account fields and no "ends ####" line, the screen
    stating that RALLY does not collect card or bank numbers. Clean.
+7. STEP 4a record, read from the live database at 2026-09-03 02:22 UTC:
+   1 customer row, 0 tombstones, 0 rows holding a last4, 1 team, 2 enabled
+   profiles, the trigger carries the 0007 rule, 0 Smart Splits recorded,
+   and no customer write since the rebuild.
 
 **Database state as of 2026-09-03: 0001, 0002, 0003, 0004, 0005, 0006, 0007
 all live and verified. Nothing is pending.** Next: STEP 5, the real-iPhone

@@ -67,7 +67,28 @@ force-close / swipe RALLY out of the app switcher → reopen).
 
 **Database state as of 2026-09-03: 0001, 0002, 0003, 0004, 0005, 0006, 0007
 all live and verified. Nothing is pending.** Next: STEP 5, the real-iPhone
-atomic Smart Split certification — not started.
+atomic Smart Split certification — **blocked by a v39 client defect found
+while preparing it** (below). No production change is involved.
+
+### STEP 5 blocker: records the OLD build synced carry no `serverAt` (client)
+
+v39 gates two things on `serverAt`, its own evidence that a record is a
+server fact: a Smart Split is sent only once the parent hood has it, and a
+door's hood claim is pushed only if its hood has it. The stamp is set on a
+successful push by v39 or when a pull delivers the row. A hood (or door)
+that v37 pushed before the upgrade never got the stamp, and v39's pull
+cursor is already past it — so on an upgraded phone every pre-v39 hood is
+unsplittable (the children sit at "waiting on the team — not confirmed
+yet", no RPC is ever sent, no error is shown) and every door knocked inside
+one is uploaded with `territory_id = null` (`territoryWithheld` counts it).
+Measured against the real v37 tree in `tests/upgrade-transition-test.js` §8
+(gated behind `SPLIT_LEGACY=1` until the fix ships): 8c, 8d, 8e fail.
+
+The database and 0005 are not at fault: the same split committed through
+the real function in `verify-production` probes 8 and 9. The fix is on the
+client — a one-time re-pull after the upgrade so every row the server holds
+stamps its local copy — and needs a client release. Not started; awaiting
+the go.
 
 ## 0007 — `last4` is four digits or absent (found by probe 12 in production)
 

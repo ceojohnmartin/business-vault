@@ -433,28 +433,36 @@
       if (loose && !byAddr.has(loose)) byAddr.set(loose, p);
       gridAdd(p);
     });
+    /* matchTier says HOW a door was matched, because the tiers are not
+       equally trustworthy: a provider's property key or a fully qualified
+       address identifies a door; a parcel can hold several units; a bare
+       street line or a ~30 m box only says "near". The sync merge records
+       the tier so that only an identity-grade match can ever make one
+       server row a proven second identity of a door (sync.js). */
+    const matchTier = (prop) => {
+      if (prop.externalId && byExt.has(prop.externalId)) return { pin: byExt.get(prop.externalId), tier: "ext" };
+      if (prop.parcelId && byParcel.has(prop.parcelId)) return { pin: byParcel.get(prop.parcelId), tier: "parcel" };
+      const street = streetOf(prop.address);
+      const [scoped, loose] = addrKeys(street, scopeOf(prop.city, prop.zip, prop.address));
+      if (scoped && byAddr.has(scoped)) return { pin: byAddr.get(scoped), tier: "addr" };
+      if (loose && byAddr.has(loose)) {
+        // an unscoped street-line match counts only when it's plausibly
+        // the same physical street — cross-town twins fall through
+        const p = byAddr.get(loose);
+        if (nearSameStreet(p, prop)) return { pin: p, tier: "street" };
+      }
+      // coordinate tier: ±2 cells fully covers the accept tolerance
+      const cy = Math.round(prop.lat * 7000), cx = Math.round(prop.lng * 7000);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const arr = grid.get((cy + dy) + ":" + (cx + dx));
+        if (!arr) continue;
+        for (const p of arr) if (nearSameSpot(p, prop)) return { pin: p, tier: "geo" };
+      }
+      return null;
+    };
     return {
-      match(prop) {
-        if (prop.externalId && byExt.has(prop.externalId)) return byExt.get(prop.externalId);
-        if (prop.parcelId && byParcel.has(prop.parcelId)) return byParcel.get(prop.parcelId);
-        const street = streetOf(prop.address);
-        const [scoped, loose] = addrKeys(street, scopeOf(prop.city, prop.zip, prop.address));
-        if (scoped && byAddr.has(scoped)) return byAddr.get(scoped);
-        if (loose && byAddr.has(loose)) {
-          // an unscoped street-line match counts only when it's plausibly
-          // the same physical street — cross-town twins fall through
-          const p = byAddr.get(loose);
-          if (nearSameStreet(p, prop)) return p;
-        }
-        // coordinate tier: ±2 cells fully covers the accept tolerance
-        const cy = Math.round(prop.lat * 7000), cx = Math.round(prop.lng * 7000);
-        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-          const arr = grid.get((cy + dy) + ":" + (cx + dx));
-          if (!arr) continue;
-          for (const p of arr) if (nearSameSpot(p, prop)) return p;
-        }
-        return null;
-      },
+      matchTier,
+      match(prop) { const m = matchTier(prop); return m ? m.pin : null; },
       add(pin) {
         if (pin.prop && pin.prop.externalId) byExt.set(pin.prop.externalId, pin);
         if (pin.prop && pin.prop.parcelId) byParcel.set(pin.prop.parcelId, pin);
@@ -513,18 +521,77 @@
     return pin;
   };
 
+  /* ---------- deleting: one transaction, two possible outcomes ----------
+     Removing a record and writing its tombstone into the outbox used to be
+     two IndexedDB transactions, so a kill between them could leave the
+     record gone and the tombstone gone — a deletion the team would never
+     hear about, and one a later pull would quietly undo. Now they are ONE
+     transaction (MDB.txn): on disk the record is either still there with no
+     new tombstone, or gone with every tombstone we intended. Never half.
+
+     Memory is updated first and the tombstones registered with the engine
+     BEFORE the transaction opens, so a pull page landing in the gap can see
+     the pending delete and refuse to re-insert the record; if the commit
+     fails, all of it is rolled back and the failure is shown. */
+  const showStorageFailure = (what) => {
+    try { MUI.toast("Couldn't delete the " + what + " — storage error, nothing was changed"); } catch (_) {}
+  };
+
+  /* A logical door may have several SERVER identities: its own id and the
+     rows other devices uploaded for the same door, merged in on pull. Only
+     the PROVEN ones (`akaSure`, established by an identity-grade match — see
+     sync.js) are retired with it. An alias that was only ever matched by
+     proximity, or inherited without proof, is left alone on purpose: a false
+     30 m merge must never be able to delete a neighbour's door. If such an
+     alias later comes back as its own door, that is the accepted, recoverable
+     failure — the destructive one is not. Never an id another live door here
+     owns. */
+  S.pinIdentities = function (pin) {
+    const out = new Set([pin.id]);
+    const taken = new Set();
+    S.pins.forEach((p) => {
+      if (p === pin) return;
+      taken.add(p.id);
+      (p.aka || []).forEach((a) => taken.add(a));
+      (p.akaSure || []).forEach((a) => taken.add(a));
+    });
+    (pin.akaSure || []).forEach((a) => { if (a && !taken.has(a)) out.add(a); });
+    return [...out];
+  };
+
   S.deletePin = async function (id) {
     // captured BEFORE the delete: whether this row ever reached the server is
     // the only thing that later tells a refused tombstone from one for a row
     // the server never had
     const gone = S.pins.find((p) => p.id === id) || null;
+    const ids = gone ? S.pinIdentities(gone) : [id];
+    const evs = S.events.filter((e) => e.pinId === id);
+    const entries = window.MSYNC
+      ? ids.map((x) => MSYNC.tombstoneEntry("pins", x, x === id ? gone : null, x !== id)).filter(Boolean)
+      : [];
     S.pins = S.pins.filter((p) => p.id !== id);
     S.events = S.events.filter((e) => e.pinId !== id);
-    await MDB.del("pins", id);
-    if (window.MSYNC) MSYNC.queueDelete("pins", id, gone);
-    // events for the pin are removed from memory; purge from disk too
-    const stale = await MDB.getAll("events");
-    await Promise.all(stale.filter((e) => e.pinId === id).map((e) => MDB.del("events", e.id)));
+    if (window.MSYNC) MSYNC.register(entries);
+    try {
+      await MDB.txn(["pins", "events", "outbox"], (get) => {
+        get("pins").delete(id);
+        evs.forEach((e) => get("events").delete(e.id));
+        entries.forEach((e) => get("outbox").put(e));
+      });
+    } catch (err) {
+      if (gone) S.pins.push(gone);
+      if (evs.length) { S.events.push(...evs); S.events.sort((a, b) => a.ts - b.ts); }
+      if (window.MSYNC) MSYNC.unregister(entries);
+      showStorageFailure("pin");
+      return false;
+    }
+    if (window.MSYNC && entries.length) MSYNC.kick();
+    // events on disk that memory did not know about — none expected
+    try {
+      const stale = (await MDB.getAll("events")).filter((e) => e.pinId === id);
+      if (stale.length) await MDB.bulkDel("events", stale.map((e) => e.id));
+    } catch (_) {}
+    return true;
   };
 
   // ---------- customers ----------
@@ -549,14 +616,27 @@
   };
 
   S.deleteCustomer = async function (id) {
-    const c = S.customers.find((x) => x.id === id);
+    const c = S.customers.find((x) => x.id === id) || null;
+    const files = c && Array.isArray(c.files) ? c.files.filter((f) => f && f.id) : [];
+    const entry = window.MSYNC ? MSYNC.tombstoneEntry("customers", id, c) : null;
+    const entries = entry ? [entry] : [];
     S.customers = S.customers.filter((x) => x.id !== id);
-    await MDB.del("customers", id);
-    if (window.MSYNC) MSYNC.queueDelete("customers", id, c);
-    // sweep the customer's stored files (agreement snapshots, photos)
-    if (c && Array.isArray(c.files)) {
-      await Promise.all(c.files.map((f) => MDB.del("files", f.id).catch(() => {})));
+    if (window.MSYNC) MSYNC.register(entries);
+    try {
+      // the customer's stored files (agreement snapshots, photos) go with it
+      await MDB.txn(["customers", "files", "outbox"], (get) => {
+        get("customers").delete(id);
+        files.forEach((f) => get("files").delete(f.id));
+        entries.forEach((e) => get("outbox").put(e));
+      });
+    } catch (err) {
+      if (c) S.customers.push(c);
+      if (window.MSYNC) MSYNC.unregister(entries);
+      showStorageFailure("customer");
+      return false;
     }
+    if (window.MSYNC && entries.length) MSYNC.kick();
+    return true;
   };
 
   // Legacy-tolerant accessors: pre-RALLY records were flat
@@ -683,15 +763,28 @@
      one to whichever live polygon actually contains the door. */
   S.deleteTerritory = async function (id) {
     const gone = S.territories.find((t) => t.id === id) || null;
+    const entry = window.MSYNC ? MSYNC.tombstoneEntry("territories", id, gone) : null;
+    const entries = entry ? [entry] : [];
     S.territories = S.territories.filter((t) => t.id !== id);
-    await MDB.del("territories", id);
-    if (window.MSYNC) MSYNC.queueDelete("territories", id, gone);
     // With no cloud project there is no server to refuse it, so the delete
-    // IS the fact and the doors are released now.
-    if (!(window.MCLOUD && MCLOUD.enabled())) {
-      const released = S.releasePinsOf(id);
-      if (released.length) await MDB.bulkPut("pins", released);
+    // IS the fact and the doors are released now — in the same commit.
+    const released = (window.MCLOUD && MCLOUD.enabled()) ? [] : S.releasePinsOf(id);
+    if (window.MSYNC) MSYNC.register(entries);
+    try {
+      await MDB.txn(["territories", "pins", "outbox"], (get) => {
+        get("territories").delete(id);
+        released.forEach((p) => get("pins").put(p));
+        entries.forEach((e) => get("outbox").put(e));
+      });
+    } catch (err) {
+      if (gone) S.territories.push(gone);
+      released.forEach((p) => { p.territoryId = id; });
+      if (window.MSYNC) MSYNC.unregister(entries);
+      showStorageFailure("hood");
+      return false;
     }
+    if (window.MSYNC && entries.length) MSYNC.kick();
+    return true;
   };
 
   // Assignment is history, never an overwrite: the old rep's run is closed

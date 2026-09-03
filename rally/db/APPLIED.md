@@ -67,10 +67,13 @@ force-close / swipe RALLY out of the app switcher → reopen).
 
 **Database state as of 2026-09-03: 0001, 0002, 0003, 0004, 0005, 0006, 0007
 all live and verified. Nothing is pending.** Next: STEP 5, the real-iPhone
-atomic Smart Split certification — **blocked by a v39 client defect found
-while preparing it** (below). No production change is involved.
+atomic Smart Split certification — it was **blocked by a v39 client defect
+found while preparing it**, and **v40 fixes that defect** (below). No
+production change is involved, and v40 is client-only.
 
 ### STEP 5 blocker: records the OLD build synced carry no `serverAt` (client)
+
+**Status: fixed in v40. Not deployed.**
 
 v39 gates two things on `serverAt`, its own evidence that a record is a
 server fact: a Smart Split is sent only once the parent hood has it, and a
@@ -81,14 +84,181 @@ cursor is already past it — so on an upgraded phone every pre-v39 hood is
 unsplittable (the children sit at "waiting on the team — not confirmed
 yet", no RPC is ever sent, no error is shown) and every door knocked inside
 one is uploaded with `territory_id = null` (`territoryWithheld` counts it).
-Measured against the real v37 tree in `tests/upgrade-transition-test.js` §8
-(gated behind `SPLIT_LEGACY=1` until the fix ships): 8c, 8d, 8e fail.
+Measured against the real v37 tree in `tests/upgrade-transition-test.js` §8:
+before v40, 8c, 8d and 8e fail.
 
-The database and 0005 are not at fault: the same split committed through
+The database and 0005 were never at fault: the same split committed through
 the real function in `verify-production` probes 8 and 9. The fix is on the
-client — a one-time re-pull after the upgrade so every row the server holds
-stamps its local copy — and needs a client release. Not started; awaiting
-the go.
+client, and it is v40.
+
+## v40 — proving the book once (client only)
+
+**Nothing in v40 touches the database.** No SQL, no migration, no RLS
+change, no change to `smart_split_territory()` or 0005, no change to the
+payment boundary. The whole release is `rally/js`, `index.html`, `sw.js`,
+the tests and these docs. Rollback is republishing a v39 commit.
+
+### The marker
+
+`kv.syncReconcile = { v, team, state }`, where `state` is `"started"` or
+`"done"`. A device is reconciled only when all three of the version, the
+team and `done` match the team the server currently resolves for it. It is
+cleared on reset, on erase, on a team change, and by a restore, and it never
+travels in a backup: it is a fact about a device, not about the data.
+
+On each cycle, while the marker is not this team's `done`, the engine asks
+whether anything here is unprovable — a live record with no `serverAt` that
+is not already queued for upload, **or** a pending tombstone queued without
+proof that the row was ever on the server. If nothing is, it writes `done`
+and costs zero requests: a clean v40 device and a fresh install never pay.
+If something is, it resets the pull cursors of `territories`, `pins` and
+`customers` to the epoch and writes `started` **in the same kv transaction**
+as the reset, so a crash can never leave one without the other. Events keep
+their cursor: the knock log carries no evidence and is the largest table.
+
+`done` is written only after a pull in which **every** table reached its
+last page. A partial read never proves anything.
+
+### The per-page order, and why the cursor is last
+
+Per page, each step awaited to commit before the next begins:
+
+```
+fetch → APPLY (local state; returns outbox INTENTS)
+      → durable serverAt stamps
+      → ONE outbox transaction: claim repairs
+                              + delete-evidence upgrades
+                              + delete/upsert retirements
+      → cursor
+```
+
+So the cursor can only ever pass a row whose stamps and outbox changes are
+already on disk. A crash anywhere before it re-fetches that one page, and
+every step re-derives the same result from the delivered rows — no decision
+depends on anything held only in memory. A stamp write that fails is **not**
+swallowed: the page is abandoned and retried, because a cursor that passes an
+unstamped row reopens the exact gap this release exists to close.
+
+APPLY no longer mutates the outbox at all. It decides local record state and
+returns intents; `pull` commits them. That removed six fire-and-forget
+`dropEntry` calls, two of which could leave a queued upsert able to resurrect
+a record the team had already retired.
+
+### The claim repair
+
+A door the server holds whose `territory_id` column is null, whose local copy
+names a hood, and whose hood is now proven, is queued once. The decision is
+made only from the delivered row plus durable local state, so it is
+recomputed identically after a crash; the repaired row echoes back with the
+column set, so a door costs at most one extra upload. There is no separate
+final scan — one repair path, per page, durable before the cursor.
+
+### Deleting is one transaction
+
+`deletePin`, `deleteCustomer` and `deleteTerritory` used to remove the record
+in one IndexedDB transaction and write the tombstone in another, so a kill
+between them could leave **the record gone and the tombstone gone** — a
+deletion the team never hears about, and one the next pull quietly undoes.
+`MDB.txn` (new, `js/db.js`) runs one readwrite transaction across several
+stores, and each delete now commits the record removal, its cascade (a pin's
+events, a customer's files, a hood's released doors) and every tombstone row
+together. On disk there are exactly two possible states: the record present
+with no new tombstone, or the record gone with every tombstone intended.
+Never half. Memory is updated and the tombstones registered with the engine
+*before* the transaction opens, so a pull landing in the gap cannot reinsert
+the record; if the commit fails, all of it rolls back and the rep is told.
+
+### Pending tombstones are not resurrected
+
+`pendingDeletes` mirrors every outbox delete entry as key → entry, rebuilt
+from disk at `start()` and at the top of every `push()`. The record is gone,
+so this is the only place a pull can learn that a delivered live row must not
+be re-inserted. Each APPLY's "no local record" branch consults it. `cycle()`
+now also requires `loaded`, so no pull can apply before that mirror has been
+read from the outbox.
+
+A delivered **live** row for a pending delete also proves the server holds it,
+so the entry is rewritten `wasOnServer: true` — durably, before that page's
+cursor. A delivered **tombstone** retires the entry the same way. And a
+zero-row PATCH may only be finalised as "never uploaded" once reconciliation
+is `done` for this team; before that the tombstone is *held* (still queued,
+counted by `status().held`), because "zero rows changed" can equally mean the
+pull has not reached that row yet. Discarding it there would lose a real
+deletion — the blind-spot case that a legacy record deleted offline, with
+nothing else unproven, would otherwise have hit.
+
+### Proven identities, and one intentional v39 → v40 reversal
+
+A door can carry several server identities: its own id, plus rows other
+devices uploaded for the same door and this device merged in (`aka`). The
+door index that decides those merges is a heuristic by design — its last two
+tiers are an unscoped street line and a **~30 m coordinate box** — so an
+alias is not proof of identity, and `aka` values can also be inherited
+wholesale from the wire.
+
+v40 records *how* a merge was made. Only an identity-grade tier (a provider's
+`externalId`, or a zip/city-scoped address) creates a **proven** identity, in
+`akaSure`; proximity, `parcelId`, inheritance without proof, and every alias
+predating v40 do not. `akaSure` is inherited from the wire (so the proof is
+transitive across devices), deduplicated, never the door's own id, and never
+an identity another live door here already claims.
+
+**Deleting a door retires its proven identities and only those.** That
+reverses a v39 behaviour deliberately, and `tests/sync-test.js` L1 was
+rewritten to say so:
+
+- v39: deleting one duplicate import identity did not retire the other, so
+  the row stayed live and came back on a later pull as a new door.
+- v40: once identities are proven to be the same logical door, deleting the
+  door retires every proven identity.
+
+A heuristic alias is still never retired: a false 30 m merge must not be able
+to delete a neighbour's door. If such an alias later reappears as its own
+door, that is the accepted, recoverable failure — the destructive one is not.
+
+A proven alias whose server row is already gone produces a zero-row PATCH,
+which is surfaced once through the ordinary refusal path rather than assumed
+harmless. That is deliberate: for deletion a visible refusal beats a silent
+partial delete.
+
+### Backups carry no evidence
+
+`serverAt` is stripped from pins, hoods and customers on export **and** on
+import, and the marker is in `PRIVATE_KV` and cleared by a restore. A
+restored device proves every record again through the normal push and pull.
+Restore already cleared the cursors and the one-time backfill flag.
+
+`backfill()` now reads the book from **disk** rather than the in-memory
+arrays. A restore writes the file's records straight into IndexedDB and only
+then reloads, so for ~900 ms the two disagree; a cycle firing in that gap
+used to spend the one-time flag against the stale copy, leaving every
+restored record unqueued — and, where one had a tombstone pending, letting
+the delete win over the record the file had just put back. This was a v39
+race, not something v40 introduced; it is fixed here because v40's tests
+found it.
+
+### What proves it
+
+- `tests/v40-test.js` — the release gate: the atomic-delete matrix (D0–D6 for
+  pins, hoods and customers), the page crash matrix (P0–P8) with the claim
+  repair, pending-tombstone protection including the legacy-delete-only
+  blind spot for all three tables, the held-delete rule, the reconcile
+  predicate, team change, 1,200-door scale, backup/restore, tier gating,
+  alias uniqueness, transitive `akaSure` across three devices, and the
+  proven-alias delete matrix (A0–A8).
+- `tests/upgrade-transition-test.js` §8 — the original blocker, on the REAL
+  old tree, no longer gated: 8c, 8d and 8e are green. §9 adds the claim
+  repair and an unproven delete made across the upgrade.
+- Every pre-existing suite is unchanged except L1 above.
+
+### One race v40's tests found, and fixed
+
+`backfill()` read the book from the in-memory arrays. A restore writes the
+file's records straight into IndexedDB and only reloads ~900 ms later, so a
+cycle firing in that window spent the one-time flag against the stale copy:
+every restored record stayed unqueued, and where one of them had a tombstone
+pending, the delete won over the record the file had just put back. It now
+reads from disk. This was v39 behaviour, not something v40 introduced.
 
 ## 0007 — `last4` is four digits or absent (found by probe 12 in production)
 

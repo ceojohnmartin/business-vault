@@ -5,10 +5,14 @@
    until every phone holds the same book.
 
    The moving parts:
-   - OUTBOX ("outbox" store): store.js mutators call MSYNC.queue()/
-     queueDelete() after each durable write. One tiny row per changed
-     record ("table:id"); payloads are built fresh at push time from the
-     live record, so rapid edits coalesce into one upload.
+   - OUTBOX ("outbox" store): store.js mutators call MSYNC.queue() after
+     each durable write. One tiny row per changed record ("table:id");
+     payloads are built fresh at push time from the live record, so rapid
+     edits coalesce into one upload. A DELETE is different: its tombstone
+     row is written by store.js INSIDE the same IndexedDB transaction that
+     removes the record (MSYNC.tombstoneEntry builds it, MSYNC.register
+     mirrors it first), so the disk can never hold a deleted record with no
+     tombstone, or a tombstone for a record still present.
    - PUSH: batched PostgREST upserts. Mutable tables use
      resolution=merge-duplicates; the knock log is APPEND-ONLY on the
      server (no UPDATE grant — Postgres rejects ON CONFLICT DO UPDATE at
@@ -46,6 +50,15 @@
   const K_USERMAP = "syncUserMap";     // { profileId: localUserId }
   const K_BACKFILL = "syncBackfilled"; // one-time whole-book enqueue done
   const K_LAST = "syncLastAt";         // last fully-clean cycle, ms
+  /* v40 — the one-time re-read of the team's book. A record this device
+     synced under a build that kept no server evidence (v37 and earlier wrote
+     no `serverAt`) is indistinguishable from one that never uploaded, and
+     every safety gate that reads that evidence (the Smart Split gate, the
+     territory-claim withhold) then fails closed on it forever. The marker
+     records that the book has been proven against the server ONCE, for THIS
+     team, under THIS rule version. { v, team, state: "started" | "done" }. */
+  const K_RECONCILE = "syncReconcile";
+  const RECONCILE_V = 1;
   const PUSH_BATCH = 200;
   const PULL_PAGE = 500;
   const EPOCH = "1970-01-01T00:00:00+00:00";
@@ -54,6 +67,16 @@
   let started = false;
   let running = false;
   let queued = new Set();      // in-memory mirror of outbox keys
+  /* Mirror of every outbox DELETE entry, key -> entry. The record a
+     tombstone is for is gone from memory and from disk, so this is the only
+     place a pull can learn that a delivered live row must NOT be re-inserted
+     — and the only place the reconcile predicate can see a deletion whose
+     server existence was never proven. Rebuilt from the durable outbox at
+     start() and at the top of every push(); kept in step by noteQueued /
+     forget, which are the ONLY mutators of either mirror. */
+  let pendingDeletes = new Map();
+  let reconcile = null;        // in-memory copy of the K_RECONCILE marker
+  let held = 0;                // unproven tombstones waiting on reconciliation
   let loaded = false;          // has start() finished reading stored state?
   let deadCount = 0;           // rows the server refused outright
   let territoryWithheld = 0;   // doors uploaded without a territory claim
@@ -90,9 +113,19 @@
     active() && window.MAUTH && MAUTH.isUnlocked() && navigator.onLine !== false;
 
   // ---------- outbox ----------
+  // The two in-memory mirrors change together or not at all.
+  function noteQueued(entry) {
+    queued.add(entry.k);
+    if (entry.op === "delete") pendingDeletes.set(entry.k, entry);
+    else pendingDeletes.delete(entry.k); // an edit after a delete cancels it
+  }
+  function forget(k) {
+    queued.delete(k);
+    pendingDeletes.delete(k);
+  }
   // Fire-and-forget by design: mutators must never block or fail on sync.
   function enqueue(entry) {
-    queued.add(entry.k);
+    noteQueued(entry);
     // an edit landing while a push is in flight could have its outbox row
     // swept by that push's cleanup — remember it and put it back after
     if (running) requeued.push(entry);
@@ -105,11 +138,25 @@
   }
   /* wasOnServer is captured HERE, while the record still exists, because it
      is the only durable proof that the row ever reached the server. Callers
-     pass the record they are about to delete. */
-  function queueDelete(table, id, rec) {
-    if (!queueable() || !table || !id) return;
-    enqueue({ k: table + ":" + id, table, id, op: "delete", at: Date.now(),
-      wasOnServer: !!(rec && rec.serverAt) });
+     pass the record they are about to delete. `proven` is for an identity
+     that is known to be on the server by construction (a merge-created alias
+     only exists because the server delivered that row here). */
+  function tombstoneEntry(table, id, rec, proven) {
+    if (!queueable() || !table || !id) return null;
+    return { k: table + ":" + id, table, id, op: "delete", at: Date.now(),
+      wasOnServer: proven === true || !!(rec && rec.serverAt) };
+  }
+  /* The store's delete paths write their tombstones INSIDE the same
+     IndexedDB transaction that removes the record (store.js), so the outbox
+     row is never written here. What the engine still owns is the in-memory
+     bookkeeping: register() before the transaction opens, so no pull page
+     can re-insert the record in the gap; unregister() if it aborts. */
+  function register(entries) {
+    entries.forEach((e) => { noteQueued(e); if (running) requeued.push(e); });
+  }
+  function unregister(entries) {
+    entries.forEach((e) => { forget(e.k); });
+    if (requeued.length) requeued = requeued.filter((r) => !entries.some((e) => e.k === r.k));
   }
   /* Parking a refused row, exactly ONCE per row.
 
@@ -147,12 +194,37 @@
   }
 
   const isDirty = (table, id) => queued.has(table + ":" + id);
-  function dropEntry(table, id) {
-    const k = table + ":" + id;
-    if (!queued.has(k)) return;
-    queued.delete(k);
-    MDB.del("outbox", k).catch(() => {});
+  /* Outbox changes a pull page needs are not written where they are decided.
+     APPLY decides LOCAL record state and returns intents; pull commits every
+     intent of the page in ONE awaited outbox transaction and only then
+     advances the cursor. One mutation path, nothing fire-and-forget. */
+  const newIntents = () => ({ puts: [], dels: [] });
+  function commitIntents(plan) {
+    const dels = plan.dels.filter((k) => queued.has(k));
+    const puts = plan.puts;
+    if (!dels.length && !puts.length) return Promise.resolve();
+    // deletes first: a repair put for a key whose stale upsert is being
+    // retired on the same page must survive
+    return MDB.txn(["outbox"], (get) => {
+      const o = get("outbox");
+      dels.forEach((k) => o.delete(k));
+      puts.forEach((e) => o.put(e));
+    }).then(() => {
+      dels.forEach(forget);
+      puts.forEach(noteQueued);
+    });
   }
+  /* A door may only CLAIM membership of a territory the server actually
+     has. The evidence is durable (serverAt, stamped on a successful push
+     and on every pull) rather than "was it refused during this cycle":
+     a refusal parks the territory permanently in the dead-letter, so a
+     within-cycle set is empty on the very next cycle and the doors sail
+     through pointing at a territory that was never accepted. */
+  const territoryOnServer = (id) => {
+    if (!id) return true;                  // no claim to make
+    const t = localRec("territories", id);
+    return !!(t && t.serverAt);
+  };
 
   // Record-level last-write-wins on the RECORD's own clock (client-stamped
   // updatedAt). Strict: an echo of our own push compares equal and is
@@ -386,21 +458,12 @@
   // ---------- push ----------
   async function push(team) {
     const entries = await MDB.getAll("outbox");
-    queued = new Set(entries.map((e) => e.k));
+    queued = new Set(); pendingDeletes = new Map();
+    entries.forEach(noteQueued);
+    held = 0;
     if (!entries.length) return { pushed: 0 };
     let pushed = 0;
     const pinsFailed = { v: false };
-    /* A door may only CLAIM membership of a territory the server actually
-       has. The evidence is durable (serverAt, stamped on a successful push
-       and on every pull) rather than "was it refused during this cycle":
-       a refusal parks the territory permanently in the dead-letter, so a
-       within-cycle set is empty on the very next cycle and the doors sail
-       through pointing at a territory that was never accepted. */
-    const territoryOnServer = (id) => {
-      if (!id) return true;                  // no claim to make
-      const t = localRec("territories", id);
-      return !!(t && t.serverAt);
-    };
 
     for (const table of TABLES) {
       if (table === "pins") {
@@ -458,7 +521,7 @@
           }
           if (stamped.length) await MDB.bulkPut(table, stamped).catch(() => {});
           await MDB.bulkDel("outbox", ents.map((e) => e.k));
-          ents.forEach((e) => queued.delete(e.k));
+          ents.forEach((e) => forget(e.k));
           pushed += rows.length;
           return;
         }
@@ -470,7 +533,7 @@
             k: ents[0].k, table, id: ents[0].id, status: r.status, at: Date.now(),
           });
           await MDB.del("outbox", ents[0].k).catch(() => {});
-          queued.delete(ents[0].k);
+          forget(ents[0].k);
           return;
         }
         const mid = Math.ceil(rows.length / 2);
@@ -503,7 +566,7 @@
         await pushSlice(rows, live);
         if (gone.length) {
           await MDB.bulkDel("outbox", gone.map((e) => e.k));
-          gone.forEach((e) => queued.delete(e.k));
+          gone.forEach((e) => forget(e.k));
         }
       }
       if (netDown && table === "pins") pinsFailed.v = true;
@@ -511,9 +574,16 @@
       for (const e of dels) {
         if (table === "events") { // server log is append-only; pin tombstones cascade
           await MDB.del("outbox", e.k).catch(() => {});
-          queued.delete(e.k);
+          forget(e.k);
           continue;
         }
+        /* A tombstone with NO proof the row was ever on the server is only
+           safe to finalise on a zero-row result once this device has read
+           the whole book back (reconciliation "done" for this team): before
+           that, "zero rows changed" can mean "the pull has not reached that
+           row yet", and finalising would silently discard a real deletion.
+           Hold it — still queued, still counted as pending — until then. */
+        if (!e.wasOnServer && !reconciled(team)) { held++; continue; }
         // a deleted customer's tombstone keeps the id, not the person —
         // no reason for names/phones to sit on the server forever
         const body = table === "customers"
@@ -550,15 +620,21 @@
              out to be spurious is recoverable; a discarded one is not. */
           if (e.wasOnServer !== false) {
             // put the optimistically-removed record back, so a refused delete
-            // leaves this device exactly as it was
+            // leaves this device exactly as it was. The delete is abandoned
+            // here, so it stops being "pending" BEFORE the put-back — the
+            // apply guard would otherwise refuse to re-insert the row.
+            forget(e.k);
             const back = await MCLOUD.api("/rest/v1/" + table + where).catch(() => null);
             if (back && back.ok && Array.isArray(back.data) && back.data.length) {
-              try { await APPLY[table]([back.data[0]]); } catch (_) {}
+              try {
+                const res = await APPLY[table]([back.data[0]]);
+                await commitIntents(res.intents); // this caller owns its intents
+              } catch (_) {}
             }
             lastError = "delete " + table + " refused " + e.id + " (no rows changed)";
             await deadLetter({ k: e.k, table, id: e.id, status: 403, at: Date.now() });
             await MDB.del("outbox", e.k).catch(() => {});
-            queued.delete(e.k);
+            forget(e.k);
             continue;
           }
         }
@@ -569,7 +645,7 @@
           if (released.length) await MDB.bulkPut("pins", released);
         }
         await MDB.del("outbox", e.k).catch(() => {});
-        queued.delete(e.k);
+        forget(e.k);
         pushed++;
       }
     }
@@ -591,7 +667,7 @@
       const rec = pend[e.id];
       if (!rec) {                 // resolved already (another tab, a reload)
         await MDB.del("outbox", e.k).catch(() => {});
-        queued.delete(e.k);
+        forget(e.k);
         continue;
       }
       const parent = localRec("territories", rec.parentId);
@@ -614,7 +690,7 @@
       if (kids.length < 2) {      // the proposal no longer describes a split
         await S().finishSplit(e.id, false);
         await MDB.del("outbox", e.k).catch(() => {});
-        queued.delete(e.k);
+        forget(e.k);
         continue;
       }
       const children = kids.map((k) => {
@@ -651,7 +727,7 @@
         if (stamped.length) await MDB.bulkPut("territories", stamped).catch(() => {});
         await S().finishSplit(e.id, true);
         await MDB.del("outbox", e.k).catch(() => {});
-        queued.delete(e.k);
+        forget(e.k);
         pushed++;
         continue;
       }
@@ -672,7 +748,7 @@
         await S().finishSplit(e.id, false);
         await deadLetter({ k: e.k, table: "splits", id: e.id, status: 404, at: Date.now() });
         await MDB.del("outbox", e.k).catch(() => {});
-        queued.delete(e.k);
+        forget(e.k);
         try {
           if (window.MUI && MUI.toast) {
             MUI.toast("Smart Split is not switched on for the team yet — "
@@ -700,7 +776,7 @@
       await deadLetter({ k: e.k, table: "splits", id: e.id,
         status: r.status, at: Date.now() });
       await MDB.del("outbox", e.k).catch(() => {});
-      queued.delete(e.k);
+      forget(e.k);
       repaint();
     }
   }
@@ -730,9 +806,30 @@
     return data;
   }
 
+  /* A delivered LIVE row whose id this device has a pending tombstone for.
+     The record must not come back — but the row is also proof the server
+     holds it, which the tombstone may have been queued without (a v37-era
+     record had no serverAt). Both facts are recorded as intents; the pull
+     commits them before the page's cursor moves. */
+  function pendingDeleteFor(table, id, intents) {
+    const k = table + ":" + id;
+    const e = pendingDeletes.get(k);
+    if (!e) return false;
+    if (!e.wasOnServer) intents.puts.push(Object.assign({}, e, { wasOnServer: true }));
+    return true;
+  }
+  // a delivered TOMBSTONE for a row this device also has queued work for:
+  // whatever that work was (an upsert that would resurrect it, or a delete
+  // the server has already made a fact), it is moot
+  function retire(table, id, intents) {
+    const k = table + ":" + id;
+    if (queued.has(k)) intents.dels.push(k);
+  }
+
   async function applyPins(rows) {
     const s = S();
     let changed = 0;
+    const intents = newIntents();
     const puts = [], delEvents = [];
     const doorIdx = rows.some((r) => !r.deleted_at && !s.pins.find((p) => p.id === r.id))
       ? s.buildDoorIndex() : null;
@@ -742,16 +839,18 @@
     for (const row of rows) {
       let pin = s.pins.find((p) => p.id === row.id) || byAka.get(row.id);
       if (row.deleted_at) {
-        if (!pin) continue;
+        if (!pin) { retire("pins", row.id, intents); continue; }
         if (pin.id !== row.id) {
-          // a teammate deleted THEIR duplicate row of a door we merged —
+          // a teammate retired a row that is an ALIAS of a door we hold —
           // drop the alias, never the door or its knock history
           pin.aka = (pin.aka || []).filter((a) => a !== row.id);
+          if (pin.akaSure) pin.akaSure = pin.akaSure.filter((a) => a !== row.id);
           puts.push(pin);
+          retire("pins", row.id, intents);
           continue;
         }
         // a pending upsert for a deleted door must not resurrect it
-        dropEntry("pins", pin.id);
+        retire("pins", pin.id, intents);
         // replay deletePin's cascade, without re-queueing
         s.pins = s.pins.filter((p) => p !== pin);
         s.events = s.events.filter((e) => e.pinId !== pin.id && e.pinId !== row.id);
@@ -764,9 +863,13 @@
       }
       const data = row.data && row.data.id ? localizePin(row.data) : null;
       if (!data) continue;
+      let tier = null; // how this row was judged to be one of our doors
       if (!pin) {
+        // this device deleted it and the tombstone has not gone up yet:
+        // the live row is evidence, never a resurrection
+        if (pendingDeleteFor("pins", row.id, intents)) continue;
         // brand-new to this device — but is it the same DOOR imported twice?
-        const match = doorIdx && doorIdx.match({
+        const match = doorIdx && doorIdx.matchTier({
           externalId: data.prop && data.prop.externalId,
           parcelId: data.prop && data.prop.parcelId,
           address: data.address, lat: data.lat, lng: data.lng,
@@ -774,15 +877,25 @@
           zip: data.geo && data.geo.zip,
         });
         if (!match) {
+          /* A wire copy carries the alias lists of whichever device wrote
+             it. `aka` is kept for routing (a knock on any alias still finds
+             this door), but an alias another live door here already claims
+             is not inherited — two live doors must never own one identity.
+             `akaSure` is inherited only where it stays provable (below). */
+          const claimed = takenIdentities(s.pins, data.id);
+          data.aka = (data.aka || []).filter((a) => a !== data.id && !claimed.has(a));
+          setProven(data, provenAliases([], data.akaSure, null, data.id, s.pins));
           s.pins.push(data);
           // a fresh device pulls BOTH copies of a team-duplicated door in
           // one page — the first must be in the index before the second
           if (doorIdx) doorIdx.add(data);
           puts.push(data);
           changed++;
+          claimRepair(row, data, intents);
           continue;
         }
-        pin = match;
+        pin = match.pin;
+        tier = match.tier;
         byAka.set(data.id, pin);
       }
       // merge into the local door: our id survives, remote ids become
@@ -791,6 +904,15 @@
       // still waiting to push, in which case scalars stay ours for now
       pin.aka = pin.aka || [];
       if (data.id !== pin.id && !pin.aka.includes(data.id)) pin.aka.push(data.id);
+      /* PROVEN identity. Only an identity-grade match (a provider's property
+         key, or a fully qualified address) makes a remote id a proven second
+         identity of THIS door — one that deleting the door may retire. A
+         coordinate or bare-street match is a guess about proximity and
+         never qualifies: a false 30 m merge must never be able to delete a
+         neighbour's door. The remote's own proven set is inherited, so the
+         proof is transitive across devices; its plain `aka` is not. */
+      setProven(pin, provenAliases(pin.akaSure, data.akaSure,
+        IDENTITY_TIERS.has(tier) && data.id !== pin.id ? data.id : null, pin.id, s.pins));
       const seen = new Set((pin.history || []).map((h) => h.ts + "|" + h.disposition));
       const freshKnocks = (data.history || []).filter((h) => !seen.has(h.ts + "|" + h.disposition));
       const merged = (pin.history || []).concat(freshKnocks);
@@ -798,12 +920,12 @@
       const cmp = cmpClock(data, pin);
       const dirty = isDirty("pins", pin.id);
       // a restored stale copy loses to the team's newer version outright
-      if (cmp === "newer" && dirty) dropEntry("pins", pin.id);
+      if (cmp === "newer" && dirty) retire("pins", pin.id, intents);
       // the server holds an OLDER version than ours (a late offline push
       // from another device): re-queue ours so the server heals too
       if (cmp === "older" && !dirty) queue("pins", pin.id);
       if (cmp === "newer" || (cmp === "unknown" && !dirty)) {
-        const keep = { id: pin.id, aka: pin.aka };
+        const keep = { id: pin.id, aka: pin.aka, akaSure: pin.akaSure };
         patchInPlace(pin, data);
         Object.assign(pin, keep);
         pin.history = merged;
@@ -816,11 +938,56 @@
         puts.push(pin);
         changed++;
       } // else: pure echo — touch nothing, repaint nothing
+      claimRepair(row, pin, intents);
     }
     if (puts.length) await MDB.bulkPut("pins", puts);
     if (delEvents.length) await MDB.bulkDel("events", delEvents);
-    return changed;
+    return { changed, intents };
   }
+
+  /* The territory-claim repair. A door uploaded while its territory was not
+     yet a server fact went up WITHOUT its membership (the withhold in push).
+     Once the territory is a fact here, a delivered row whose column is still
+     null is a door the server holds without its hood: queue it once, and the
+     next push states the claim. Bounded: the repaired row echoes back with
+     the column set, so a door costs at most one extra upload. Only the
+     server's own column decides — no in-memory list survives a crash, and
+     none is needed, because the same page re-derives the same repair. */
+  function claimRepair(row, pin, intents) {
+    if (!pin || pin.id !== row.id || !pin.territoryId) return;
+    if (row.territory_id != null) return;
+    if (!territoryOnServer(pin.territoryId)) return;
+    const k = "pins:" + pin.id;
+    if (pendingDeletes.has(k)) return;
+    intents.puts.push({ k, table: "pins", id: pin.id, op: "upsert", at: Date.now() });
+  }
+
+  // which door-index tiers count as IDENTITY rather than proximity
+  const IDENTITY_TIERS = new Set(["ext", "addr"]);
+  // every server identity some OTHER live door here already owns
+  function takenIdentities(pins, selfId) {
+    const taken = new Set();
+    pins.forEach((p) => {
+      if (p.id === selfId) return;
+      taken.add(p.id);
+      (p.aka || []).forEach((a) => taken.add(a));
+      (p.akaSure || []).forEach((a) => taken.add(a));
+    });
+    return taken;
+  }
+  /* local ∪ inherited ∪ (this merge, if identity-grade): flat, deduplicated,
+     never our own id, and never an identity another live door here already
+     claims — one server row belongs to one logical door or to none. */
+  function provenAliases(local, inherited, fresh, selfId, pins) {
+    const out = new Set();
+    const taken = takenIdentities(pins, selfId);
+    const add = (a) => { if (a && typeof a === "string" && a !== selfId && !taken.has(a)) out.add(a); };
+    (Array.isArray(local) ? local : []).forEach(add);
+    (Array.isArray(inherited) ? inherited : []).forEach(add);
+    add(fresh);
+    return [...out];
+  }
+  const setProven = (rec, list) => { if (list.length) rec.akaSure = list; else delete rec.akaSure; };
 
   async function applyEvents(rows) {
     const s = S();
@@ -853,7 +1020,7 @@
       s.events.push(...fresh);
       s.events.sort((a, b) => a.ts - b.ts); // renderers assume chronological order
     }
-    return fresh.length;
+    return { changed: fresh.length, intents: newIntents() };
   }
 
   // events stashed above get another chance once their door has arrived
@@ -861,7 +1028,7 @@
     if (!pendingEvents.length) return 0;
     const rows = pendingEvents;
     pendingEvents = [];
-    const n = await applyEvents(rows); // still-doorless rows re-stash themselves
+    const n = (await applyEvents(rows)).changed; // still-doorless rows re-stash themselves
     await MDB.kvSet("syncPendingEvents", pendingEvents.length ? pendingEvents : null);
     return n;
   }
@@ -869,11 +1036,12 @@
   async function applyTerritories(rows) {
     const s = S();
     let changed = 0;
+    const intents = newIntents();
     const puts = [], pinPuts = [];
     for (const row of rows) {
       const t = s.territories.find((x) => x.id === row.id);
       if (row.deleted_at) {
-        dropEntry("territories", row.id);
+        retire("territories", row.id, intents);
         if (t) {
           s.territories = s.territories.filter((x) => x !== t);
           await MDB.del("territories", row.id).catch(() => {});
@@ -888,7 +1056,7 @@
       if (t) {
         const cmp = cmpClock(data, t);
         const dirty = isDirty("territories", t.id);
-        if (cmp === "newer" && dirty) dropEntry("territories", t.id);
+        if (cmp === "newer" && dirty) retire("territories", t.id, intents);
         /* The server holds an older copy than ours: normally we re-queue so
            the server heals. But territory writes are leadership-only (0003),
            and a client without that capability re-queuing here would push a
@@ -904,6 +1072,7 @@
         puts.push(t);
         changed++;
       } else {
+        if (pendingDeleteFor("territories", row.id, intents)) continue;
         s.territories.push(data);
         puts.push(data);
         changed++;
@@ -911,17 +1080,18 @@
     }
     if (puts.length) await MDB.bulkPut("territories", puts);
     if (pinPuts.length) await MDB.bulkPut("pins", pinPuts);
-    return changed;
+    return { changed, intents };
   }
 
   async function applyCustomers(rows) {
     const s = S();
     let changed = 0;
+    const intents = newIntents();
     const puts = [];
     for (const row of rows) {
       const c = s.customers.find((x) => x.id === row.id);
       if (row.deleted_at) {
-        dropEntry("customers", row.id);
+        retire("customers", row.id, intents);
         if (c) {
           s.customers = s.customers.filter((x) => x !== c);
           await MDB.del("customers", row.id).catch(() => {});
@@ -937,7 +1107,7 @@
       if (c) {
         const cmp = cmpClock(data, c);
         const dirty = isDirty("customers", c.id);
-        if (cmp === "newer" && dirty) dropEntry("customers", c.id);
+        if (cmp === "newer" && dirty) retire("customers", c.id, intents);
         if (cmp === "older" && !dirty) { queue("customers", c.id); continue; }
         if (cmp === "same" || (cmp !== "newer" && dirty)) continue;
         // apply — file blobs stay local (Storage is a later phase), so the
@@ -951,20 +1121,32 @@
         puts.push(c);
         changed++;
       } else {
+        if (pendingDeleteFor("customers", row.id, intents)) continue;
         s.customers.push(data);
         puts.push(data);
         changed++;
       }
     }
     if (puts.length) await MDB.bulkPut("customers", puts);
-    return changed;
+    return { changed, intents };
   }
 
   const APPLY = { pins: applyPins, events: applyEvents,
     territories: applyTerritories, customers: applyCustomers };
 
+  /* One page at a time, and nothing durable is allowed to get ahead of what
+     it depends on. Per page, in this order, each step awaited to commit:
+       fetch → APPLY (local state, intents out) → serverAt stamps → ONE
+       outbox transaction (claim repairs, delete evidence, retirements) →
+       cursor.
+     So the cursor can only ever pass a row whose stamps and outbox changes
+     are already on disk; a crash anywhere before it refetches the page, and
+     every step re-derives the same result from the delivered rows. Returns
+     whether every table reached its last page — reconciliation may only be
+     called done on a COMPLETE read. */
   async function pull(team, live) {
     let applied = 0;
+    const partial = (why) => { if (why) lastError = why; return { applied, complete: false }; };
     for (const table of TABLES) {
       const clock = table === "events" ? "created_at" : "updated_at";
       // COMPOUND cursor {t, id}: Postgres stamps every row of one batched
@@ -985,24 +1167,34 @@
           // abort the WHOLE pull: applying later tables against a table
           // that didn't finish (events without their pins) mis-stashes
           // rows; cursors already persist per page, so nothing is lost
-          lastError = "pull " + table + " " + r.status;
-          return applied;
+          return partial("pull " + table + " " + r.status);
         }
         if (!r.data.length) break;
-        if (live && !live()) return applied; // reset/erase raced us — stop
-        applied += await APPLY[table](r.data);
+        if (live && !live()) return partial(); // reset/erase raced us — stop
+        const res = await APPLY[table](r.data);
+        applied += res.changed;
         /* A row we just PULLED demonstrably exists on the server — evidence
            every bit as good as having pushed it, and the common case for a
            record this device did not author. Without it a teammate's row
            would look "never uploaded" and a refused tombstone for it would be
            discarded silently, which is the failure this evidence exists to
-           prevent. */
+           prevent. A stamp that fails to commit is NOT swallowed: the cursor
+           must not pass an unstamped row, or the evidence gap this release
+           exists to close is reopened by a storage error. */
         { const seen = [];
           for (const row of r.data) {
             const rec = localRec(table, row.id);
             if (rec && !rec.serverAt) { rec.serverAt = Date.now(); seen.push(rec); }
           }
-          if (seen.length) await MDB.bulkPut(table, seen).catch(() => {}); }
+          if (seen.length) {
+            try { await MDB.bulkPut(table, seen); }
+            catch (e) {
+              seen.forEach((rec) => { delete rec.serverAt; }); // memory must not outrun disk
+              return partial("stamp " + table + " failed");
+            }
+          } }
+        try { await commitIntents(res.intents); }
+        catch (e) { return partial("outbox " + table + " failed"); }
         const last = r.data[r.data.length - 1];
         cur = { t: last[clock], id: last.id };
         cursors[table] = cur;
@@ -1011,7 +1203,47 @@
         if (r.data.length < PULL_PAGE) break;
       }
     }
-    return applied;
+    return { applied, complete: true };
+  }
+
+  // ---------- reconciliation (v40) ----------
+  const reconciled = (team) =>
+    !!(reconcile && reconcile.v === RECONCILE_V && reconcile.team === team && reconcile.state === "done");
+  /* Does this device hold anything it cannot prove against the server?
+     Either a live record with no server evidence that is not about to be
+     pushed (an upsert in the outbox proves itself on the way up), or a
+     pending tombstone queued without proof — the record is gone, so only the
+     durable outbox entry can say it exists. A clean v40 device and a fresh
+     install both answer "no" and pay nothing. */
+  function needsReconcile() {
+    const s = S();
+    const unproven = (table, arr) =>
+      (arr || []).some((r) => r && !r.serverAt && !queued.has(table + ":" + r.id));
+    if (unproven("pins", s.pins) || unproven("territories", s.territories) ||
+        unproven("customers", s.customers)) return true;
+    for (const e of pendingDeletes.values()) if (!e.wasOnServer) return true;
+    return false;
+  }
+  /* Decide once per cycle while the marker is not this team's "done". A
+     fresh start resets the cursors of the three evidence-bearing tables to
+     the epoch and writes "started" in the SAME kv transaction, so a crash
+     can never leave a reset without its marker or a marker without its
+     reset. "started" is resumed from the persisted cursors, never restarted.
+     Events keep their cursor: the knock log carries no evidence and is by
+     far the largest table. */
+  async function decideReconcile(team) {
+    const mine = reconcile && reconcile.v === RECONCILE_V && reconcile.team === team;
+    if (mine) return;
+    if (needsReconcile()) {
+      const next = Object.assign({}, cursors);
+      delete next.territories; delete next.pins; delete next.customers;
+      cursors = next;
+      reconcile = { v: RECONCILE_V, team, state: "started" };
+      await MDB.bulkPut("kv", [{ k: K_CURSORS, v: cursors }, { k: K_RECONCILE, v: reconcile }]);
+    } else {
+      reconcile = { v: RECONCILE_V, team, state: "done" };
+      await MDB.kvSet(K_RECONCILE, reconcile);
+    }
   }
 
   // ---------- backfill ----------
@@ -1020,15 +1252,23 @@
   // flag, so a restored backup re-uploads too.
   async function backfill() {
     if (await MDB.kvGet(K_BACKFILL, false)) return;
-    const s = S();
+    /* Read the book from DISK, not from the in-memory arrays. A restore
+       writes the file's records straight into IndexedDB and only then
+       reloads the page, so for a moment the store on disk and the store in
+       memory disagree — and a cycle firing in that gap would spend the
+       one-time flag against the stale copy, leaving every restored record
+       unqueued forever (and, where one had a tombstone pending, letting the
+       delete win over the record the file just put back). Disk is what
+       "this device's whole book" means. */
     const entries = [];
-    const add = (table, arr) => arr.forEach((r) =>
-      entries.push({ k: table + ":" + r.id, table, id: r.id, op: "upsert", at: Date.now() }));
-    add("pins", s.pins); add("events", s.events);
-    add("territories", s.territories); add("customers", s.customers);
+    const add = (table, rows) => rows.forEach((r) => { if (r && r.id)
+      entries.push({ k: table + ":" + r.id, table, id: r.id, op: "upsert", at: Date.now() }); });
+    for (const table of ["pins", "events", "territories", "customers"]) {
+      add(table, await MDB.getAll(table).catch(() => []));
+    }
     if (entries.length) {
       await MDB.bulkPut("outbox", entries);
-      entries.forEach((e) => queued.add(e.k));
+      entries.forEach(noteQueued);
     }
     await MDB.kvSet(K_BACKFILL, true);
   }
@@ -1050,7 +1290,9 @@
   // ---------- the cycle ----------
   let gen = 0; // bumped by reset(): a dying cycle must not write stale state
   async function cycle() {
-    if (running || !eligible()) return;
+    // `loaded`: the outbox has been read into the mirrors. Before that a
+    // pull could not know which delivered rows this device has deleted.
+    if (running || !loaded || !eligible()) return;
     running = true;
     const g = gen;
     const live = () => g === gen;
@@ -1069,13 +1311,16 @@
       // stash describe the old world — start clean against the new one
       const t0 = await MDB.kvGet("syncTeam", null);
       if (t0 !== team) {
-        cursors = {}; pendingEvents = [];
+        cursors = {}; pendingEvents = []; reconcile = null;
         await MDB.kvSet(K_CURSORS, null);
         await MDB.kvSet("syncPendingEvents", null);
+        await MDB.kvSet(K_RECONCILE, null);
         if (t0 !== null) await MDB.kvSet(K_BACKFILL, null);
         await MDB.kvSet("syncTeam", team);
       }
       await backfill();
+      if (!live()) return;
+      await decideReconcile(team);
       if (!live()) return;
       // the doorbell follows the SERVER-resolved team (never a client claim)
       try { if (window.MREALTIME) MREALTIME.ensure(team); } catch (_) {}
@@ -1085,8 +1330,16 @@
       // entries BEFORE this device pushes — so a week-old restored backup
       // (or any stale phone) can never roll the whole server back
       let applied = await retryPendingEvents();
-      applied += await pull(team, live);
+      const pulled = await pull(team, live);
+      applied += pulled.applied;
       if (!live()) return;
+      // every page of every table has been read and its evidence committed
+      // — only now is the book proven, and only for this team
+      if (pulled.complete && reconcile && reconcile.state === "started" &&
+          reconcile.team === team && reconcile.v === RECONCILE_V) {
+        reconcile = { v: RECONCILE_V, team, state: "done" };
+        await MDB.kvSet(K_RECONCILE, reconcile);
+      }
       const { pushed } = await push(team);
       if (!live()) return;
       await MDB.kvSet("syncPendingEvents", pendingEvents.length ? pendingEvents : null);
@@ -1109,7 +1362,7 @@
         const back = requeued.filter((e) => !parked.has(e.k));
         requeued = [];
         if (back.length) {
-          back.forEach((e) => queued.add(e.k));
+          back.forEach(noteQueued);
           MDB.bulkPut("outbox", back).catch(() => {});
           kick();
         }
@@ -1162,7 +1415,8 @@
        just what the read returned would drop anything written in the gap
        between that read being issued and this line running. */
     const box = await MDB.getAll("outbox").catch(() => []);
-    box.forEach((e) => queued.add(e.k));
+    box.forEach(noteQueued);
+    reconcile = await MDB.kvGet(K_RECONCILE, null);
     // a refusal from a previous session is still a refusal
     const dead = (await MDB.kvGet("syncDead", null)) || [];
     deadCount = dead.length;
@@ -1208,7 +1462,8 @@
     clearTimeout(kickT); clearTimeout(wakeT); wakeAgain = false;
     if (timer) clearInterval(timer);
     started = false; running = false;
-    queued = new Set(); requeued = []; parked = new Set(); userMap = {}; cursors = {};
+    queued = new Set(); pendingDeletes = new Map(); requeued = []; parked = new Set();
+    userMap = {}; cursors = {}; reconcile = null; held = 0;
     pendingEvents = []; profileCache = null;
     lastSyncAt = 0; lastError = "";
     await MDB.clear("outbox").catch(() => {});
@@ -1219,6 +1474,7 @@
     await MDB.kvSet("syncPendingEvents", null);
     await MDB.kvSet("syncTeam", null);
     await MDB.kvSet("syncDead", null);
+    await MDB.kvSet(K_RECONCILE, null);
     deadCount = 0; deadTables = {}; lastRefusal = null;
   }
 
@@ -1239,14 +1495,22 @@
     // doors uploaded without a territory claim because the territory is not
     // (yet) a server fact — diagnostic, not an error
     territoryWithheld,
+    // v40: has this device proven its book against the server for this team
+    reconcile: reconcile ? reconcile.state : null,
+    // tombstones held back until that proof exists (see push)
+    held,
+    pendingDeletes: pendingDeletes.size,
   });
 
   // everything the server has refused on this device, for the More screen
   const refusals = async () => (await MDB.kvGet("syncDead", null)) || [];
 
   window.MSYNC = {
-    start, queue, queueDelete, queueSplit, syncNow: cycle, wake, status, reset,
+    start, queue, queueSplit, syncNow: cycle, wake, status, reset,
     isDirty, refusals,
+    // the store's atomic delete paths: build the tombstone rows, register
+    // them before the transaction, unregister on abort, nudge a push after
+    tombstoneEntry, register, unregister, kick,
     // read-only view of the identity bridge, for diagnostics and tests
     profileOf: (localId) => toProfile(localId),
   };

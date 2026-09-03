@@ -1164,7 +1164,7 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
         if (navigator.vibrate) { try { navigator.vibrate(30); } catch (_) {} }
         if (!confirm(`Delete ${STORE.custName(c)}?`)) return;
         if (!confirm(`Once you delete this customer they are gone forever, agreement and all. Really delete?`)) return;
-        await STORE.deleteCustomer(c.id);
+        if (!(await STORE.deleteCustomer(c.id))) return; // storage failure: nothing changed
         renderList();
         toast("Customer deleted");
       }, 650);

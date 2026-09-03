@@ -47,8 +47,9 @@ if (!fs.existsSync(path.join(V38_ROOT, "index.html"))) {
 }
 const v38Build = /RALLY_BUILD = "(.*?)"/.exec(fs.readFileSync(path.join(V38_ROOT, "index.html"), "utf8"))[1];
 const v39Build = /RALLY_BUILD = "(.*?)"/.exec(fs.readFileSync(path.join(V39_ROOT, "index.html"), "utf8"))[1];
-if (v38Build !== OLD_BUILD || v39Build !== "v39") {
-  console.error(`expected ${OLD_BUILD}/v39 trees, got ${v38Build}/${v39Build}`); process.exit(1);
+const NEW_BUILD = v39Build;
+if (v38Build !== OLD_BUILD || !/^v\d+$/.test(NEW_BUILD) || NEW_BUILD === OLD_BUILD) {
+  console.error(`expected ${OLD_BUILD}/new trees, got ${v38Build}/${v39Build}`); process.exit(1);
 }
 
 // ---------------- mock Supabase, POST-MIGRATION ----------------
@@ -268,7 +269,7 @@ const server = http.createServer((req, res) => {
   const NEW = await device("v39", "rep2@x.com");
   check("S0 both clients booted and report their own build",
     (await S(OLD, () => window.RALLY_BUILD)) === OLD_BUILD &&
-    (await S(NEW, () => window.RALLY_BUILD)) === "v39");
+    (await S(NEW, () => window.RALLY_BUILD)) === NEW_BUILD);
   await sync(OLD); await sync(NEW);
 
   /* ===== 1. a v38 client pushes the OLD payment shape ===== */

@@ -442,17 +442,34 @@ const server = http.createServer((req, res) => {
   check("K1 a restored stale record loses to the team's newer version",
     patA === "Pat-Newer" && patServer === "Pat-Newer", patA + "/" + patServer);
 
-  // ---- L: a teammate deleting their duplicate import row must not kill
-  //      the merged door (or its history) on other devices
+  /* ---- L: deleting a door that has PROVEN second identities.
+     v39 → v40, an intentional contract change.
+       v39: deleting one duplicate import identity never killed another —
+            B's delete tombstoned B's row only, and on A that row was an
+            alias, so A dropped the alias and kept its door.
+       v40: once two server identities have been PROVEN to be the same
+            logical door (here: both phones imported the same property,
+            matched on the provider's externalId — an identity-grade tier),
+            deleting the logical RALLY door retires EVERY proven identity.
+            B's delete therefore tombstones A's row too, and A's door goes.
+     Only proven identities (akaSure). A heuristic alias — matched by
+     proximity, or inherited without proof — is still never retired; that
+     stays covered by tests/v40-test.js (tier gating). */
   const aBefore = await S(A, () => STORE.pins.length);
-  await S(B, async () => {
-    const dupe = STORE.pins.find((x) => x.aka && x.aka.length);
-    if (dupe) await STORE.deletePin(dupe.id);
+  const dupeInfo = await S(B, async () => {
+    const dupe = STORE.pins.find((x) => x.akaSure && x.akaSure.length);
+    if (!dupe) return null;
+    const ids = STORE.pinIdentities(dupe);
+    await STORE.deletePin(dupe.id);
+    return { id: dupe.id, sure: dupe.akaSure.slice(), ids };
   });
-  await sync(B); await sync(A);
-  check("L1 an alias tombstone drops the alias, never the door",
-    (await S(A, () => STORE.pins.length)) === aBefore,
-    "before=" + aBefore + " after=" + (await S(A, () => STORE.pins.length)));
+  await sync(B); await sync(A); await sync(A);
+  const aAfter = await S(A, () => STORE.pins.length);
+  const retired = dupeInfo ? dupeInfo.ids.map((id) => {
+    const r = mock.tables.pins.get(TEAM + "|" + id); return !!(r && r.deleted_at); }) : [];
+  check("L1 deleting a door retires every PROVEN identity (v40: externalId-matched duplicate rows go together)",
+    !!dupeInfo && dupeInfo.ids.length === 2 && retired.every(Boolean) && aAfter === aBefore - 1,
+    JSON.stringify({ dupeInfo, retired, before: aBefore, after: aAfter }));
 
   /* ---- M: a pre-v39 record that still carries a card is planted straight
        into IndexedDB (the editor cannot create one any more). Syncing it,

@@ -590,7 +590,7 @@
     $("#hood-delete").addEventListener("click", async () => {
       if (!editingId) return;
       if (!confirm("Delete this hood? Pins inside it are not affected.")) return;
-      await STORE.deleteTerritory(editingId);
+      if (!(await STORE.deleteTerritory(editingId))) return; // storage failure: nothing changed
       editingId = null;
       MMAP.refreshHoods();
       closeSheet();

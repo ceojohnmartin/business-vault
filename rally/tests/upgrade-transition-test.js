@@ -17,6 +17,8 @@ const crypto = require("crypto");
 const { execSync } = require("child_process");
 
 const V39_ROOT = path.join(__dirname, "..");
+// the build label of the tree under test, read from the tree itself
+const NEW_BUILD = /RALLY_BUILD = "(.*?)"/.exec(fs.readFileSync(path.join(V39_ROOT, "index.html"), "utf8"))[1];
 /* The OLD release is a parameter. The default is the v38 candidate; the
    runner ALSO passes the commit production actually serves (origin/main =
    c623c6f, Build v37 — v38 was never published), so the jump that gets
@@ -51,14 +53,14 @@ let SERVING = V38_ROOT;
    reach networkFirstShell and the test would be vacuous. The delay has to be
    on the wire. */
 let SLOW_JS_MS = 0;
-const served = { old: 0, v39: 0 };
+const served = { old: 0, [NEW_BUILD]: 0 };   // "old" and the new build's own label
 const MIME = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".png": "image/png", ".svg": "image/svg+xml",
   ".webmanifest": "application/manifest+json", ".pbf": "application/x-protobuf" };
 const server = http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p === "/") p = "/index.html";
-  served[SERVING === V38_ROOT ? "old" : "v39"]++;
+  served[SERVING === V38_ROOT ? "old" : NEW_BUILD]++;
   const delay = (SLOW_JS_MS && /\.js$/.test(p) && !/index\.html$/.test(p)) ? SLOW_JS_MS : 0;
   fs.readFile(path.join(SERVING, p), (e, d) => {
     if (e) { res.writeHead(404); res.end(); return; }
@@ -348,22 +350,23 @@ const cserver = http.createServer((req, res) => {
 
   // ---- 2. PUBLISH v39 under the running device ----
   SERVING = V39_ROOT;
-  const v39FetchesBefore = served.v39;
+  const newFetchesBefore = served[NEW_BUILD] || 0;
 
   // one reopen, exactly what a rep does
   let opens = 0;
   await page.goto(`http://localhost:${PORT}/`); opens++;
   // the app reloads itself when the new worker claims — ride it out
-  const buildAfter1 = await waitForBuild("v39", 40000);
+  const buildAfter1 = await waitForBuild(NEW_BUILD, 40000);
   // let the self-reload finish completely before inspecting anything
   await page.waitForFunction(() => !!(window.STORE && STORE.customers), null, { timeout: 25000 })
     .catch(() => {});
   await settle(2000);
-  check("2a ONE reopen is enough to land on v39", buildAfter1 === "v39", String(buildAfter1));
-  check("2b the new worker actually fetched the new assets", served.v39 > v39FetchesBefore,
-    `fetches=${served.v39 - v39FetchesBefore}`);
+  check(`2a ONE reopen is enough to land on ${NEW_BUILD}`, buildAfter1 === NEW_BUILD, String(buildAfter1));
+  check("2b the new worker actually fetched the new assets",
+    (served[NEW_BUILD] || 0) > newFetchesBefore,
+    `fetches=${(served[NEW_BUILD] || 0) - newFetchesBefore}`);
   const c2 = await cacheNames();
-  check("2c the v39 cache exists — the new worker installed on this open", c2.includes("rally-v39"), JSON.stringify(c2));
+  check("2c the new cache exists — the new worker installed on this open", c2.includes(("rally-" + NEW_BUILD)), JSON.stringify(c2));
   /* WHEN the new worker takes over is the browser's call, not v39's: a
      skip-waiting worker activates only once the old worker has no work in
      flight (Chromium: IsReadyToActivate needs HasNoWork). Sometimes that is
@@ -421,12 +424,12 @@ const cserver = http.createServer((req, res) => {
     }));
 
   // ---- 4. a second open changes nothing (idempotent, no reload loop) ----
-  const reloadsBefore = served.v39;
+  const reloadsBefore = served[NEW_BUILD] || 0;
   // if the takeover lands on THIS open, the app's own reload interrupts the
   // navigation (net::ERR_ABORTED) — that is the takeover, not a failure
   let abort2 = null;
   await page.goto(`http://localhost:${PORT}/`).catch((e) => { abort2 = String(e).split("\n")[0]; }); opens++;
-  const buildAfter2 = await waitForBuild("v39", 40000);
+  const buildAfter2 = await waitForBuild(NEW_BUILD, 40000);
   const takeoversAfter = await page.evaluate(() => Number(sessionStorage.cc || 0)).catch(() => -1);
   check("4a0 by the second open the new worker has taken this device over",
     takeoversAfter >= 1 && (abort2 === null || /ERR_ABORTED/.test(abort2)),
@@ -434,11 +437,12 @@ const cserver = http.createServer((req, res) => {
   await page.waitForFunction(() => !!(window.STORE && STORE.customers), null, { timeout: 25000 })
     .catch(() => {});
   await settle(1500);
-  check("4a a second open stays on v39", buildAfter2 === "v39", String(buildAfter2));
+  check(`4a a second open stays on ${NEW_BUILD}`, buildAfter2 === NEW_BUILD, String(buildAfter2));
   check("4b …and does not loop reloading",
-    served.v39 - reloadsBefore < 120, `fetches=${served.v39 - reloadsBefore}`);
+    (served[NEW_BUILD] || 0) - reloadsBefore < 120,
+    `fetches=${(served[NEW_BUILD] || 0) - reloadsBefore}`);
   const c3 = await cacheNames();
-  check("4c caches are stable", c3.includes("rally-v39") && !c3.includes(OLD_CACHE),
+  check("4c caches are stable", c3.includes(("rally-" + NEW_BUILD)) && !c3.includes(OLD_CACHE),
     JSON.stringify(c3));
   check("4d total user-initiated opens needed: 1", opens === 2, `opens=${opens}`);
 
@@ -460,7 +464,7 @@ const cserver = http.createServer((req, res) => {
     app_v39: !!(window.MAPP && MAPP.roleChanged),
   }));
   check("4e every module is from the same release as the build label",
-    coherence.build === "v39" && coherence.store_v39 && !coherence.store_v38 &&
+    coherence.build === NEW_BUILD && coherence.store_v39 && !coherence.store_v38 &&
     coherence.sync_v39 && coherence.customers_v39 && coherence.data_v39 &&
     coherence.app_v39, JSON.stringify(coherence));
 
@@ -469,7 +473,7 @@ const cserver = http.createServer((req, res) => {
   await settle(600);
   const buildLabel = await page.$eval("#more-build", (e) => e.textContent).catch(() => "");
   check("5a More shows the build, so a device can be verified by eye",
-    /v39/.test(buildLabel), buildLabel);
+    buildLabel.includes(NEW_BUILD), buildLabel);
 
   /* ---- 6. THE TRANSITION MOMENT, ON A SLOW LINK ----
      This is the only window where a mixed release was ever possible, and it
@@ -517,14 +521,14 @@ const cserver = http.createServer((req, res) => {
     // Either outcome is CORRECT: a coherent v39 page, or a coherent v38 page
     // (the shell itself fell back to cache). What must never happen is a v39
     // label over v38 modules.
-    const coherentV39 = mix.build === "v39" && mix.store_v39 && !mix.store_v38 &&
+    const coherentV39 = mix.build === NEW_BUILD && mix.store_v39 && !mix.store_v38 &&
       mix.sync_v39 && mix.customers_v39 && mix.data_v39;
     const coherentV38 = mix.build === OLD_BUILD && !mix.store_v39 && mix.store_v38 &&
       !mix.sync_v39 && !mix.customers_v39;
     check("6b a slow link at the transition cannot produce a MIXED release",
       coherentV39 || coherentV38, JSON.stringify(mix));
     check(`6c …and it is not a v39 label over ${OLD_BUILD} modules`,
-      !(mix.build === "v39" && mix.store_v38), JSON.stringify(mix));
+      !(mix.build === NEW_BUILD && mix.store_v38), JSON.stringify(mix));
     await c2.close();
     SLOW_JS_MS = 0;
     SERVING = V39_ROOT;
@@ -667,30 +671,30 @@ const cserver = http.createServer((req, res) => {
       const oldApi = typeof STORE.isManager === "function" && typeof MSYNC.refusals !== "function";
       return { i: st(r && r.installing), w: st(r && r.waiting), a: st(r && r.active),
         cc: Number(sessionStorage.cc || 0), b,
-        coherent: (b === "v39" && newApi && !oldApi) || (b !== "v39" && oldApi && !newApi) };
+        coherent: (b === NEW_BUILD && newApi && !oldApi) || (b !== NEW_BUILD && oldApi && !newApi) };
     }).catch(() => ({ reloading: true, coherent: true }));
     let landed, path = "in place";
     for (let w = 0; w < 20000; w += 2000) {
       timeline.push(await sample());
       landed = await b7();
-      if (landed === "v39") break;
+      if (landed === NEW_BUILD) break;
       await p7.waitForTimeout(2000).catch(() => {});
     }
     timeline.push({ oldWorkerAlive: await oldAlive() });
-    if (landed !== "v39") {
+    if (landed !== NEW_BUILD) {
       // the takeover did not land in place: ONE open, the app's own reload
       // may interrupt it (net::ERR_ABORTED) — that is the takeover
       path = "one reopen";
       await p7.goto(`http://localhost:${PORT}/`).catch((e) => {
         if (!/ERR_ABORTED/.test(String(e))) throw e;
       });
-      landed = await wait7("v39", 40000);
+      landed = await wait7(NEW_BUILD, 40000);
     }
     await p7.waitForFunction(() => !!(window.STORE && STORE.customers && window.MSYNC && MSYNC.status),
       null, { timeout: 25000 }).catch(() => {});
     await p7.waitForTimeout(2500);
     check("7d the suspended device is on v39 after at most one open — the worker update alone, or the next open",
-      landed === "v39", `${path} — ${JSON.stringify(timeline)}`);
+      landed === NEW_BUILD, `${path} — ${JSON.stringify(timeline)}`);
     check("7d1 at no sample while it waited was the shell a MIX of releases",
       timeline.every((t) => t.coherent !== false), JSON.stringify(timeline.filter((t) => t.coherent === false)));
     const c7keys = await p7.evaluate(() => caches.keys()).catch(() => []);
@@ -715,7 +719,7 @@ const cserver = http.createServer((req, res) => {
       };
     }, Object.assign({ a: idA }, ids));
     check("7e v39 booted coherently over the old device's storage, old cache gone",
-      post.build === "v39" && post.coherent && c7keys.includes("rally-v39") && !c7keys.includes(OLD_CACHE),
+      post.build === NEW_BUILD && post.coherent && c7keys.includes(("rally-" + NEW_BUILD)) && !c7keys.includes(OLD_CACHE),
       JSON.stringify({ b: post.build, coherent: post.coherent, caches: c7keys }));
     check(`7f every ${OLD_BUILD} outbox entry is still queued under v39 — same keys, same ops, still counted`,
       JSON.stringify(post.box) === JSON.stringify(box37) && post.st.pending === box37.length,
@@ -785,14 +789,16 @@ const cserver = http.createServer((req, res) => {
      Does the split still commit, or does it wait forever? Measured, not
      assumed. The same evidence gates the hood claim on every door pushed
      from that hood. */
-  /* KNOWN DEFECT, 2026-09-03 (found preparing STEP 5): v39 stamps
-     `serverAt` only on its own successful push or on a pull, so a record
-     the OLD build synced carries no stamp and the pull cursor is already
-     past it. 8c fails (the door's hood claim is withheld) and 8d/8e fail
-     (the split is never sent). Gated behind SPLIT_LEGACY=1 until the client
-     fix (a one-time re-pull after upgrade to stamp what the server holds)
-     ships; then the gate comes off and these must be green. */
-  if (process.env.SPLIT_LEGACY) {
+  /* FIXED IN v40, and this section is the proof — on the REAL old tree, not
+     an emulation of it. v39 stamped `serverAt` only on its own successful
+     push or on a pull, so a record the OLD build synced carried no stamp and
+     the pull cursor was already past it: 8c failed (the door's hood claim was
+     withheld forever) and 8d/8e failed (the Smart Split was never sent, the
+     children sat at "waiting on the team" with no RPC and no error). v40's
+     one-time reconciliation re-reads the team's book once and stamps what the
+     server actually holds, so all of these must now be GREEN. The gate is
+     off; SPLIT_LEGACY is no longer read. */
+  {
     addUser("up8@x.com", "knock1234", { name: "Split Owner", role: "owner" });
     SERVING = V38_ROOT; cloud.down = false;
     const c8 = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -841,7 +847,7 @@ const cserver = http.createServer((req, res) => {
     // publish v39 and reopen (the reliable iPhone procedure)
     SERVING = V39_ROOT;
     await p8.goto(`http://localhost:${PORT}/`).catch((e) => { if (!/ERR_ABORTED/.test(String(e))) throw e; });
-    for (let w = 0; w < 40000 && (await b8()) !== "v39"; w += 250) await p8.waitForTimeout(250).catch(() => {});
+    for (let w = 0; w < 40000 && (await b8()) !== NEW_BUILD; w += 250) await p8.waitForTimeout(250).catch(() => {});
     await p8.waitForFunction(() => !!(window.STORE && STORE.territories && window.MSYNC && MSYNC.status),
       null, { timeout: 25000 }).catch(() => {});
     await p8.waitForTimeout(2000);
@@ -850,7 +856,7 @@ const cserver = http.createServer((req, res) => {
       const h = STORE.territories.find((t) => t.id === ids.hood);
       return { build: window.RALLY_BUILD, hoodHere: !!h, serverAt: !!(h && h.serverAt), st: MSYNC.status() };
     }, ids8);
-    check("8b on v39 the hood the old build synced is still here", pre8.build === "v39" && pre8.hoodHere, JSON.stringify(pre8));
+    check("8b on v39 the hood the old build synced is still here", pre8.build === NEW_BUILD && pre8.hoodHere, JSON.stringify(pre8));
 
     // a door knocked in that hood AFTER the upgrade: is its hood claim stated?
     const newDoor = await p8.evaluate(async (ids) => {
@@ -880,7 +886,8 @@ const cserver = http.createServer((req, res) => {
       const marked = STORE.pins.find((p) => p.id === ids.marked);
       return { pendingKids: kids.length, parentHere: !!parent, parentSplitInto: !!(parent && parent.splitInto),
         markedHood: marked && marked.territoryId, st: MSYNC.status(),
-        liveNames: STORE.territories.filter((t) => STORE.isLive(t)).map((t) => t.name).sort() };
+        liveNames: STORE.territories.filter((t) => STORE.isLive(t) && /^ZZ Test Hood/.test(t.name))
+          .map((t) => t.name).sort() };
     }, ids8);
     const sParent = cloud.tables.territories.get(key(ids8.hood));
     check("8d the split of a hood the OLD build synced COMMITS on the server (one RPC, children live, parent retired)",
@@ -894,7 +901,133 @@ const cserver = http.createServer((req, res) => {
       JSON.stringify(post8.liveNames) === JSON.stringify(["ZZ Test Hood A", "ZZ Test Hood B"]),
       JSON.stringify(post8));
     check("8f no page errors", errors8.length === 0, errors8.slice(0, 4).join(" | "));
+    check("8g the reconciliation ran once and then stayed done",
+      (await p8.evaluate(() => MSYNC.status())).reconcile === "done");
     await c8.close();
+  }
+
+  /* ---------------- 9. the claim repair, and a delete across the upgrade
+     Same real OLD tree. Two things v40 owes a device that upgrades:
+       - a door the OLD build pushed WITHOUT its hood ever being proven gets
+         its membership claim stated on the server, exactly once;
+       - a record deleted on the upgraded build, while the whole book is
+         still unproven, is never resurrected by the reconciliation that
+         re-reads that book — and its tombstone still reaches the server. */
+  {
+    addUser("up9@x.com", "knock1234", { name: "Repair Owner", role: "owner" });
+    SERVING = V38_ROOT; cloud.down = false;
+    const c9 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    await c9.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    await c9.addInitScript((port) => {
+      window.RALLY_CLOUD = { url: "http://localhost:" + port, anonKey: "test-anon", pollMs: 900 };
+    }, CLOUD_PORT);
+    const p9 = await c9.newPage();
+    const errors9 = [];
+    p9.on("pageerror", (e) => errors9.push("PAGEERROR " + e.message));
+    p9.on("console", (m) => { const t = m.text();
+      if (m.type() === "error" && !/net::ERR_/.test(t) && !/WebSocket/.test(t)) errors9.push(t); });
+    const b9 = () => p9.evaluate(() => window.RALLY_BUILD).catch(() => undefined);
+    const sync9 = async () => {
+      await p9.evaluate(async () => {
+        for (let i = 0; i < 200 && MSYNC.status().running; i++) await new Promise((r) => setTimeout(r, 50));
+        await MSYNC.syncNow();
+      }).catch(() => {});
+      await p9.waitForTimeout(300);
+    };
+    const key9 = (id) => TEAM + "|" + id;
+    await p9.goto(`http://localhost:${PORT}/`);
+    await p9.waitForFunction(() => document.querySelector("#splash").hidden, null, { timeout: 25000 });
+    await p9.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 25000 }).catch(() => {});
+    await p9.fill("#gate-email", "up9@x.com"); await p9.fill("#gate-pass", "knock1234");
+    await p9.click("#gate-submit");
+    await p9.waitForFunction(() => document.querySelector("#gate").hidden, null, { timeout: 25000 });
+    await p9.waitForTimeout(1000);
+
+    // OLD build: a hood with a door in it, and a customer — all synced
+    const ids9 = await p9.evaluate(async () => {
+      const hood = await STORE.addTerritory({ name: "YY Repair Hood", homes: 9,
+        points: [[-97.31, 37.39], [-97.29, 37.39], [-97.29, 37.41], [-97.31, 37.41]] });
+      await STORE.importDoors([{ lat: 37.401, lng: -97.301, address: "20 Repair Ln", source: "test" }],
+        { territoryId: hood.id });
+      const door = STORE.pins.find((p) => p.address === "20 Repair Ln");
+      const cust = await STORE.addCustomer({ first: "Legacy", last: "Customer", phones: [], appointments: [] });
+      return { hood: hood.id, door: door.id, cust: cust.id };
+    });
+    for (let i = 0; i < 10 && !(cloud.tables.territories.has(key9(ids9.hood)) &&
+      cloud.tables.pins.has(key9(ids9.door)) && cloud.tables.customers.has(key9(ids9.cust))); i++) await sync9();
+    check(`9a the ${OLD_BUILD} device synced a hood, a door and a customer`,
+      cloud.tables.territories.has(key9(ids9.hood)) && cloud.tables.pins.has(key9(ids9.door)) &&
+      cloud.tables.customers.has(key9(ids9.cust)));
+
+    /* Blank the door's hood column on the server, which is exactly the state
+       v39 produced for every door knocked inside an unproven hood after an
+       upgrade: the rep's work committed, the privileged membership claim did
+       not. The repair has to notice and state it. */
+    cloud.tables.pins.get(key9(ids9.door)).territory_id = null;
+
+    /* Cut the cloud BEFORE the upgrade reload. The first v40 cycle fires
+       about a second and a half after boot; if it reaches the server it
+       reconciles and stamps this book, and the tombstone below would be born
+       already proven — a different, easier case than the one §9 asserts.
+       Only the cloud origin is cut; the app's own assets serve normally. */
+    const cloudRe9 = new RegExp("localhost:" + CLOUD_PORT);
+    await c9.route(cloudRe9, (r) => r.abort());
+    // publish v40 and reopen
+    SERVING = V39_ROOT;
+    await p9.goto(`http://localhost:${PORT}/`).catch((e) => { if (!/ERR_ABORTED/.test(String(e))) throw e; });
+    for (let w = 0; w < 40000 && (await b9()) !== NEW_BUILD; w += 250) await p9.waitForTimeout(250).catch(() => {});
+    await p9.waitForFunction(() => !!(window.STORE && STORE.pins && window.MSYNC && MSYNC.status),
+      null, { timeout: 25000 }).catch(() => {});
+    await p9.waitForTimeout(1500);
+
+    // delete while the book is still unproven (the cloud is cut, above)
+    await p9.evaluate((id) => STORE.deleteCustomer(id), ids9.cust);
+    const box9 = await p9.evaluate(async () => (await MDB.getAll("outbox"))
+      .map((e) => ({ k: e.k, op: e.op, wasOnServer: e.wasOnServer })));
+    check("9b the delete of a record the OLD build synced is queued as an UNPROVEN tombstone (no serverAt existed to prove it)",
+      box9.some((e) => e.k === "customers:" + ids9.cust && e.op === "delete" && e.wasOnServer === false),
+      JSON.stringify(box9));
+
+    await c9.unroute(cloudRe9);
+    for (let i = 0; i < 14; i++) {
+      const st = await p9.evaluate(() => MSYNC.status());
+      if (st.reconcile === "done" && st.pending === 0) break;
+      await sync9();
+    }
+    const post9 = await p9.evaluate((ids) => ({
+      st: MSYNC.status(),
+      hoodStamped: !!(STORE.territories.find((t) => t.id === ids.hood) || {}).serverAt,
+      doorStamped: !!(STORE.pins.find((p) => p.id === ids.door) || {}).serverAt,
+      custHere: !!STORE.customers.find((c) => c.id === ids.cust),
+    }), ids9);
+    const srvDoor9 = cloud.tables.pins.get(key9(ids9.door));
+    const srvCust9 = cloud.tables.customers.get(key9(ids9.cust));
+    check("9c the withheld hood claim is repaired on the server, and the hood and door are now proven locally",
+      srvDoor9 && srvDoor9.territory_id === ids9.hood && post9.hoodStamped && post9.doorStamped,
+      JSON.stringify({ col: srvDoor9 && srvDoor9.territory_id, post9 }));
+    check("9d the unproven tombstone is NOT resurrected by the re-read of the book, and it reaches the server",
+      !post9.custHere && !!(srvCust9 && srvCust9.deleted_at) && post9.st.pending === 0,
+      JSON.stringify({ custHere: post9.custHere, deleted: !!(srvCust9 && srvCust9.deleted_at), st: post9.st }));
+
+    /* Reopen: the whole app is torn down and booted again from IndexedDB, so
+       nothing about this assertion can be coming from the old JS heap. It is
+       a re-navigation rather than closing the tab because this origin has a
+       live service worker and a brand-new page in the same context does not
+       reliably complete its navigation under one; destroying the page
+       outright is covered, with workers off, throughout tests/v40-test.js. */
+    await p9.goto(`http://localhost:${PORT}/`)
+      .catch((e) => { if (!/ERR_ABORTED/.test(String(e))) throw e; });
+    await p9.waitForFunction(() => !!(window.STORE && STORE.customers && window.MSYNC && MSYNC.status().loaded),
+      null, { timeout: 40000 });
+    await p9.waitForTimeout(800);
+    const after9 = await p9.evaluate((ids) => ({
+      custHere: !!STORE.customers.find((c) => c.id === ids.cust),
+      reconcile: MSYNC.status().reconcile,
+    }), ids9);
+    check("9e after a reopen the record is still gone and the book stays proven",
+      !after9.custHere && after9.reconcile === "done", JSON.stringify(after9));
+    check("9f no page errors", errors9.length === 0, errors9.slice(0, 4).join(" | "));
+    await c9.close();
   }
 
   check("no page errors across the upgrade", errors.length === 0, errors.slice(0, 4).join(" | "));

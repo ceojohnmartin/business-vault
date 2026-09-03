@@ -4,7 +4,7 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "rally-v39";
+const CACHE = "rally-v40";
 const TILE_CACHE = "rally-tiles-v1";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
@@ -25,16 +25,16 @@ const NET_TIMEOUT_MS = 3500;
    Keep these in step with index.html: same paths, same ?v. */
 const CORE = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./css/app.css?v=39",
-  "./vendor/maplibre-gl.js?v=39", "./vendor/maplibre-gl.css?v=39",
-  "./js/db.js?v=39", "./js/geo.js?v=39", "./js/data.js?v=39", "./js/ui.js?v=39", "./js/store.js?v=39",
-  "./js/cloud-config.js?v=39", "./js/cloud.js?v=39", "./js/sync.js?v=39", "./js/realtime.js?v=39",
-  "./js/auth.js?v=39", "./js/gate.js?v=39",
-  "./js/property.js?v=39", "./js/crm.js?v=39",
-  "./js/contract.js?v=39", "./js/map.js?v=39", "./js/hoods.js?v=39", "./js/customers.js?v=39",
-  "./js/route.js?v=39", "./js/street.js?v=39", "./js/select.js?v=39",
-  "./js/home.js?v=39", "./js/schedule.js?v=39", "./js/stats.js?v=39",
-  "./js/vault.js?v=39", "./js/app.js?v=39",
+  "./css/app.css?v=40",
+  "./vendor/maplibre-gl.js?v=40", "./vendor/maplibre-gl.css?v=40",
+  "./js/db.js?v=40", "./js/geo.js?v=40", "./js/data.js?v=40", "./js/ui.js?v=40", "./js/store.js?v=40",
+  "./js/cloud-config.js?v=40", "./js/cloud.js?v=40", "./js/sync.js?v=40", "./js/realtime.js?v=40",
+  "./js/auth.js?v=40", "./js/gate.js?v=40",
+  "./js/property.js?v=40", "./js/crm.js?v=40",
+  "./js/contract.js?v=40", "./js/map.js?v=40", "./js/hoods.js?v=40", "./js/customers.js?v=40",
+  "./js/route.js?v=40", "./js/street.js?v=40", "./js/select.js?v=40",
+  "./js/home.js?v=40", "./js/schedule.js?v=40", "./js/stats.js?v=40",
+  "./js/vault.js?v=40", "./js/app.js?v=40",
   "./fonts/Noto Sans Bold/0-255.pbf", "./fonts/Noto Sans Bold/256-511.pbf",
   "./img/wordmark.svg", "./img/topo.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png",

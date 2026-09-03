@@ -1,5 +1,12 @@
 # RALLY v39 — real-iPhone certification
 
+> **This v39 certification PASSED on 2026-09-02** (v37 → v39 on the real
+> phone; the reliable update path was force-closing RALLY from the app
+> switcher and reopening). The v39 database cutover then completed through
+> 0007. **The v40 certification is a separate, shorter checklist at the end
+> of this file** — go there for the current release. Everything below is kept
+> as the record of what v39 was certified against.
+
 **Nobody has run this yet.** Everything else about v39 is proved by automated
 tests; this is the part no test can reach, because iOS decides when a
 suspended web app reloads and no headless Chromium can tell you what Safari
@@ -288,3 +295,130 @@ Anything odd, slow, ugly or surprising — however small:
 
 **Do not treat v39 as certified until this comes back.** Anything in section
 3, 4, 5, 7.2 or 10.3 going wrong is a blocker, not a note.
+
+
+---
+
+# RALLY v40 — real-iPhone certification
+
+v40 is a **client-only** release. No migration, no Supabase change, no RLS
+change, no change to `smart_split_territory()`, no change to the payment
+boundary. Publishing it is merging the branch; rolling it back is republishing
+a v39 commit.
+
+It exists to fix one thing found while preparing STEP 5: a hood or door that
+the **v37** build synced carries no `serverAt`, so v39 refused to Smart Split
+it (children stuck at "waiting on the team", no error) and uploaded doors
+knocked inside it without their hood. v40 proves the device's book against
+the server once, then behaves exactly as v39 did.
+
+**The phone is currently on v39, and its records are already proven** (they
+were pushed or pulled by v39), so on this phone the one-time re-read will
+most likely find nothing to do and finish instantly. That is the correct
+result, not a failure — section 3 below is how you tell the difference.
+
+Budget 20–30 minutes. Test data created here is deliberately named and
+removed in section 6.
+
+## 1. Before publishing
+
+- [ ] **1.1** Confirm the phone still loads **Build v39**, and write down
+      what the badge says.
+- [ ] **1.2** More → confirm it shows **synced** (0 pending, 0 refused). If
+      anything is pending or refused, stop and tell me before publishing.
+- [ ] **1.3** Note how many hoods and customers you can see, roughly.
+
+## 2. Publish and update
+
+- [ ] **2.1** Publish v40 (merge the branch). Wait ~2 minutes for GitHub Pages.
+- [ ] **2.2** Force-close RALLY from the app switcher and reopen it — the path
+      that proved reliable for v37 → v39.
+- [ ] **2.3** Build badge reads **v40**? Record which reopen it took.
+- [ ] **2.4** Close and reopen twice more: does it **stay** v40?
+
+## 3. The one-time proof
+
+- [ ] **3.1** With the phone online, leave RALLY open for ~30 seconds.
+- [ ] **3.2** More → still shows **synced**, 0 pending, 0 refused?
+- [ ] **3.3** Everything still there: your hoods, customers, doors, knock
+      counts, your role and name?
+
+*What is happening underneath: on the first cycle v40 asks whether this
+device holds anything it cannot prove against the server. On a phone that has
+been running v39 the answer is normally no, and it marks itself proven with
+zero extra requests. If it does find unproven records it re-reads the team's
+book once, page by page, and stamps them — you would see a brief spell of
+activity and then "synced" again. Both outcomes are correct; a phone that
+sits at pending > 0 or shows refusals is not.*
+
+## 4. STEP 5 — the atomic Smart Split certification this unblocks
+
+Use a hood that has been around since before v39 if you have one; that is the
+case v40 fixes.
+
+- [ ] **4.1** Open a hood, Smart Split it into 2. Do the children appear?
+- [ ] **4.2** Within a few seconds, do they stop saying *waiting on the team —
+      not confirmed yet*, and does the parent hood disappear?
+- [ ] **4.3** Do doors that were inside the parent now sit inside one of the
+      children (not homeless)?
+- [ ] **4.4** Force-close and reopen: are the two children still there, still
+      confirmed, and the parent still gone?
+- [ ] **4.5** Turn on Airplane Mode. Split another hood into 3. The children
+      should appear **marked as waiting**. Force-close, reopen — are they
+      still there and still marked waiting?
+- [ ] **4.6** Turn Airplane Mode off. Within a few seconds: do they confirm,
+      and does that parent disappear?
+- [ ] **4.7** More → synced, 0 pending, 0 refused?
+
+**Any of 4.2, 4.4 or 4.6 failing is a blocker.** A split that never confirms
+is exactly the defect v40 is meant to have fixed.
+
+## 5. Deleting still behaves
+
+- [ ] **5.1** Create a door named `ZZ DELETE ME`, knock it once, then delete it.
+      Gone from the map?
+- [ ] **5.2** Force-close and reopen: still gone? (It must not come back.)
+- [ ] **5.3** Turn on Airplane Mode. Delete a second test door. Gone?
+- [ ] **5.4** Force-close and reopen **while still offline**: still gone?
+- [ ] **5.5** Turn Airplane Mode off, wait ~15 seconds, then force-close and
+      reopen once more: still gone, and More shows 0 pending / 0 refused?
+
+**A deleted record reappearing at any point is a blocker.**
+
+## 6. Clean up the test data
+
+- [ ] **6.1** Delete the child hoods created in section 4 (or rename them back
+      as you prefer) and any remaining `ZZ` test doors.
+- [ ] **6.2** More → synced, 0 pending, 0 refused.
+
+## 7. Nothing else moved
+
+- [ ] **7.1** Customer editor: still **no** card number / expiry / routing /
+      account fields, and the note that RALLY does not collect card or bank
+      numbers is still there.
+- [ ] **7.2** A customer's saved details, agreement and files are unchanged.
+- [ ] **7.3** Restart the phone, reopen RALLY: still v40, still signed in,
+      still synced.
+
+## What to send back
+
+```
+Starting build:                       Ending build:
+2.3  Which reopen first showed v40:
+2.4  Stayed v40 across two more reopens:
+3.2  synced / 0 pending / 0 refused after the update:
+3.3  Hoods, customers, doors, knock counts, role all intact:
+4.1-4.4  Smart Split online (appeared / confirmed / parent gone / survived reopen):
+4.5-4.6  Smart Split offline then reconnect (waiting / confirmed):
+4.7  synced afterwards:
+5.1-5.2  Online delete stayed deleted:
+5.3-5.5  Offline delete stayed deleted across reopen and reconnect:
+6.2  Clean after cleanup:
+7.1  No card/bank fields, disclosure still present:
+7.3  Survived a phone restart:
+
+Anything odd, slow, ugly or surprising — however small:
+```
+
+**Do not treat v40 as certified until this comes back.** Anything in 2.3,
+3.2, 4.2, 4.4, 4.6 or section 5 going wrong is a blocker, not a note.

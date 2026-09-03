@@ -1258,7 +1258,7 @@
     $("#lead-delete").addEventListener("click", async () => {
       const p = currentLead; if (!p) return;
       if (!confirm("Delete this pin and its history?")) return;
-      await STORE.deletePin(p.id);
+      if (!(await STORE.deletePin(p.id))) return; // storage failure: nothing changed
       currentLead = null;
       refreshPins();
       if (window.MSTAT) MSTAT.render();

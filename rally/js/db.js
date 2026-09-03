@@ -83,6 +83,36 @@
     );
   }
 
+  /* ONE readwrite transaction across several stores. Commits everything the
+     callback issued, or nothing — the point is a delete that removes a record
+     from its store and writes its tombstone into the outbox in the SAME
+     commit, so a crash can never leave "record gone, tombstone gone" on disk.
+
+     `fn(get)` receives an accessor from store name to object store and MUST
+     issue every request synchronously: an IndexedDB transaction that goes idle
+     for a turn auto-commits, so an `await` inside the callback would commit a
+     partial write and then fail on the rest. Callers compute every key list
+     before opening the transaction. */
+  function txn(stores, fn) {
+    return open().then(
+      (db) =>
+        new Promise((resolve, reject) => {
+          const t = db.transaction(stores, "readwrite");
+          let out;
+          try {
+            out = fn((name) => t.objectStore(name));
+          } catch (err) {
+            try { t.abort(); } catch (_) {}
+            reject(err);
+            return;
+          }
+          t.oncomplete = () => resolve(out);
+          t.onerror = () => reject(t.error);
+          t.onabort = () => reject(t.error || new Error("tx aborted"));
+        })
+    );
+  }
+
   function getAll(store) {
     return open().then(
       (db) =>
@@ -120,6 +150,8 @@
     get,
     getAll,
     clear: (store) => tx(store, "readwrite", (s) => s.clear()),
+    // all-or-nothing across stores; see txn() above for the contract
+    txn,
     kvGet: (k, dflt) => get("kv", k).then((r) => (r === undefined ? dflt : r.v)),
     kvSet: (k, v) => tx("kv", "readwrite", (s) => s.put({ k, v })).then(() => v),
   };

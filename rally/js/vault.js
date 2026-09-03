@@ -84,6 +84,10 @@
     // skip data, the user map points at this device's own user rows
     "syncCursors", "syncUserMap", "syncBackfilled", "syncLastAt", "syncPendingEvents",
     "syncTeam", "syncDead",
+    /* v40: whether THIS device has proven its book against the server. It is
+       a fact about a device, never about the data, and a restored device
+       must prove everything again. */
+    "syncReconcile",
     /* A Smart Split PROPOSAL belongs to the device that made it and to the
        moment it made it. Carried into a backup it would arrive somewhere
        else describing an operation that has since committed, been refused,
@@ -152,6 +156,20 @@
     return new Blob([bytes], { type: type || "application/octet-stream" });
   };
 
+  /* `serverAt` is this device's evidence that a record reached the server.
+     Evidence is not data: carried into a file and restored somewhere else it
+     would vouch for rows that device never saw, and the Smart Split gate and
+     the territory-claim withhold would trust it. Stripped on the way out and
+     on the way in (v40), so a restored device proves every record again
+     through the normal push and pull. */
+  const EVIDENCE_STORES = ["pins", "territories", "customers"];
+  const stripEvidence = (r) => {
+    if (!r || typeof r !== "object" || !("serverAt" in r)) return r;
+    const copy = Object.assign({}, r);
+    delete copy.serverAt;
+    return copy;
+  };
+
   async function backup() {
     // a backup written from an unsanitised device could carry a credential
     // forward forever — refuse rather than produce one
@@ -161,7 +179,8 @@
     }
     const data = {};
     for (const s of STORES) {
-      const rows = await MDB.getAll(s);
+      let rows = await MDB.getAll(s);
+      if (EVIDENCE_STORES.includes(s)) rows = rows.map(stripEvidence);
       if (s === "customers") { data[s] = rows.map(scrubCustomerPayment); continue; }
       if (s === "territories") {
         /* Strip the device-local Smart Split markers on the way OUT as well
@@ -216,7 +235,8 @@
     if (!confirm(`Restore the backup from ${when}?\n${what}\n\nRecords merge in by id — matching ones are replaced by the backup's version, nothing else is touched.`)) return;
     try {
       for (const s of STORES) {
-        for (const r of d[s] || []) {
+        for (let r of d[s] || []) {
+          if (EVIDENCE_STORES.includes(s)) r = stripEvidence(r);
           if (s === "customers" && r && r.id) {
             // An older backup may still carry raw card/ACH numbers. They are
             // dropped on the way in — a restore can never install a payment
@@ -264,6 +284,8 @@
       await MDB.kvSet("syncBackfilled", null);
       await MDB.kvSet("syncCursors", null);
       await MDB.kvSet("syncPendingEvents", null);
+      // v40: the restored book is unproven by definition
+      await MDB.kvSet("syncReconcile", null);
       /* No half-finished Smart Split survives a restore, in either
          direction: not one this device was holding when the restore
          started, and not one written into the book by the file. The

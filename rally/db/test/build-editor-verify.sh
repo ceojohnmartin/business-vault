@@ -35,9 +35,14 @@ out = """-- RALLY v39 — POST-MIGRATION BEHAVIOURAL VERIFICATION (Supabase SQL 
 --     "begin … select … rollback", the probes run inside ONE PL/pgSQL
 --     subtransaction that is always rolled back (a deliberate exception at
 --     the end), and the results are returned by the final SELECT.
--- NOTHING is kept: every territory, pin, customer, split and doorbell
--- message the probes create is undone before the results are returned.
--- Production rows are only ever READ (probe 12 counts them).
+-- No row is kept: every territory, pin, customer, split and doorbell
+-- message the probes create — and probe 12's rebuild of the whole table —
+-- is undone before the results are returned. Only the two pg_temp functions
+-- outlive the statement, and they die with the session.
+-- One difference from the psql form: results here live in a variable, so a
+-- probe that recorded PASS and then raised inside its own block shows BOTH
+-- rows (the psql form's temp-table row is rolled back with the block). A
+-- FAIL is a FAIL in either form.
 -- It picks a real rep and a real leader/manager/owner off your own team.
 
 create or replace function pg_temp.v39_row(step text, ok boolean, detail text)

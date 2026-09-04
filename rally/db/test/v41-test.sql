@@ -267,6 +267,32 @@ select t_assert((select data->>'assignedTo' = rally_first_open_assignee(assignee
     from public.territories where id='h2'),
   'L3 ledger and mirror agree after a legacy write');
 
+/* THE ACTIVATION GATE. A live hood whose CURRENT assignee resolves to no
+   rep on the team cannot appear in the uuid[] mirror, so switching server
+   authority on over one would silently read as "nobody works this hood".
+   The preflight lists them; this refuses to activate until they are gone. */
+select t_upsert_territory(:TEAM, 'h-ghost', 'Ghost Rep', t_rect(700, 0, 800, 100),
+  jsonb_build_object('id','h-ghost','assignedTo','deadbeef-0000-4000-a000-000000000001',
+    'assignments', jsonb_build_array(jsonb_build_object(
+      'userId','deadbeef-0000-4000-a000-000000000001','name','Departed',
+      'assignedBy','Lead Two','assignedAt', 1700000000000::bigint, 'unassignedAt', null))));
+select t_assert((select open_assignees = '{}'::uuid[] from public.territories where id='h-ghost'),
+  'L3a an unresolvable CURRENT assignee cannot enter the uuid[] mirror');
+select t_assert((select jsonb_array_length(assignees->'entries') = 1
+    from public.territories where id='h-ghost'),
+  'L3b but the entry is KEPT in the ledger, not deleted to make the mirror tidy');
+reset role;
+select t_assert(rally_unresolved_live_assignments() = 1,
+  'L3c the activation gate counts it');
+select t_raises('update public.rally_config set assignment_server_authoritative = true',
+  'L3d and REFUSES to switch server authority on over it');
+select t_assert(not (rally_capabilities()->>'assignmentServerAuthoritative')::boolean,
+  'L3e so the capability is still false');
+-- the same hood ARCHIVED is not live turf, and does not block anything
+update public.territories set archived = true where id = 'h-ghost';
+select t_assert(rally_unresolved_live_assignments() = 0,
+  'L3f an ARCHIVED hood carries its unresolved history without blocking');
+
 -- flip
 reset role;
 update public.rally_config set assignment_server_authoritative = true;
@@ -391,6 +417,75 @@ select t_assert((clear_pin_dnk('p-black', 'again', 'clr-1')->>'status') = 'alrea
   'D13 the clear is idempotent on its operation id');
 select t_assert((select rally_dnk_from_history(data) is null from public.pins where id='p-black'),
   'D14 the clear rides in the door''s history, so every device converges');
+reset role;
+
+/* ================= THE FORGED CLEAR =================
+   The clearing signal lives in two client-written places: the door's own
+   history, and the event log. Both were open — a rep could clear ANY black
+   door by appending {disposition:'dnk_clear'} to the history they push, or
+   by inserting one event straight into PostgREST. No client bug required.
+   Found by adversarial review; these are the gates that keep it shut. */
+insert into public.pins (team_id, id, lat, lng, disposition, data) values
+  (:TEAM, 'p-forge', 40.0009, 0.0009, 'dnk',
+   jsonb_build_object('id','p-forge','disposition','dnk','updatedAt',1700000000000::bigint,
+     'history', jsonb_build_array(jsonb_build_object('ts',1700000000000::bigint,'disposition','dnk'))));
+
+call t_as(:JOHN);
+insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+values (:TEAM, 'forged-1', 'p-forge', 'knock', 'dnk_clear', 9999999999999, null,
+        jsonb_build_object('id','forged-1','ts',9999999999999::bigint,'pinId','p-forge',
+                           'disposition','dnk_clear'));
+select t_assert((select count(*) from public.events where id = 'forged-1') = 0,
+  'D17 a rep''s forged dnk_clear EVENT is dropped, not stored');
+
+-- and the batch around it still commits: a refusal would dead-letter honest knocks
+insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+values (:TEAM, 'honest-1', 'p-forge', 'knock', 'nothome', 1700000001000, null,
+        jsonb_build_object('id','honest-1','ts',1700000001000::bigint,'pinId','p-forge',
+                           'disposition','nothome')),
+       (:TEAM, 'forged-2', 'p-forge', 'knock', 'dnk_clear', 9999999999998, null,
+        jsonb_build_object('id','forged-2','ts',9999999999998::bigint,'pinId','p-forge',
+                           'disposition','dnk_clear'));
+select t_assert((select count(*) from public.events where id = 'honest-1') = 1
+            and (select count(*) from public.events where id = 'forged-2') = 0,
+  'D18 the honest knock beside it still commits — the forgery is dropped, not refused');
+
+-- the pin's own history
+update public.pins set data = jsonb_set(data, '{history}',
+  (data->'history') || jsonb_build_object('ts', 9999999999999::bigint, 'disposition','dnk_clear'))
+ where id = 'p-forge';
+select t_assert(
+  (select public.rally_dnk_from_history(data) is not null from public.pins where id='p-forge'),
+  'D19 a forged dnk_clear in the pushed HISTORY is stripped — the door stays black');
+select t_assert((select disposition from public.pins where id='p-forge') = 'dnk',
+  'D20 and so does the column');
+
+-- a clear planted on an ordinary door, dated in the future, must not disarm
+-- the protection the day that door is finally marked
+insert into public.pins (team_id, id, lat, lng, disposition, data) values
+  (:TEAM, 'p-plant', 40.0008, 0.0008, 'unworked',
+   jsonb_build_object('id','p-plant','disposition','unworked',
+     'history', jsonb_build_array(jsonb_build_object('ts',9999999999999::bigint,'disposition','dnk_clear'))));
+select t_assert(
+  (select jsonb_array_length(data->'history') from public.pins where id='p-plant') = 0,
+  'D21 a clear PLANTED on an ordinary door is stripped on INSERT too');
+update public.pins set disposition = 'dnk',
+  data = jsonb_set(jsonb_set(data,'{disposition}','"dnk"'),'{history}',
+    jsonb_build_array(jsonb_build_object('ts', 1700000002000::bigint, 'disposition','dnk')))
+ where id = 'p-plant';
+select t_assert(
+  (select public.rally_dnk_from_history(data) is not null from public.pins where id='p-plant'),
+  'D22 so marking it black later really does make it black');
+
+-- the legitimate route still works
+reset role;
+call t_as(:LEAD);
+select clear_pin_dnk('p-forge', 'the owner moved out', 'clr-forge');
+select t_assert((select disposition from public.pins where id='p-forge') = 'unworked',
+  'D23 while clear_pin_dnk — running as the owner — still clears it');
+select t_assert(
+  (select public.rally_dnk_from_history(data) is null from public.pins where id='p-forge'),
+  'D24 and its clear SURVIVES in the history, because the server wrote it');
 reset role;
 
 -- the event log itself remains unwritable
@@ -530,6 +625,90 @@ select t_assert((select jsonb_array_length(assignees->'entries') from public.ter
   'S9 no CLOSED parent history was copied into the child');
 select t_assert((smart_split_territory_v41('sp', 'split-1', '[]'::jsonb)->>'status') = 'already_committed',
   'S10 a retry does not re-inherit');
+reset role;
+
+\echo '== X — the defects adversarial review found, as permanent gates'
+
+-- A stale client mirror must not permanently dead-letter the row. A phone
+-- that has been offline pushes a mirror missing whatever closed entries it
+-- never saw; a derivation that replaced the ledger would drop them, I4
+-- would refuse with 42501, and the row would dead-letter on every retry.
+reset role;
+update public.rally_config set assignment_server_authoritative = false;
+call t_as(:LEAD);
+select t_upsert_territory(:TEAM, 'x-stale', 'Stale Mirror', t_rect(30000, 0, 30100, 100),
+  jsonb_build_object('id','x-stale',
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId', :JOHN, 'name','John','assignedBy','Lead Two',
+        'assignedAt', 1700000000000::bigint, 'unassignedAt', 1700000100000::bigint),
+      jsonb_build_object('userId', :JAKE, 'name','Jake','assignedBy','Lead Two',
+        'assignedAt', 1700000200000::bigint, 'unassignedAt', null))));
+select t_assert((select jsonb_array_length(assignees->'entries') from public.territories where id='x-stale') = 2,
+  'X1 a legacy hood with one closed and one open entry lands');
+-- now the SAME hood pushed by a device that never saw John's closed run
+select t_upsert_territory(:TEAM, 'x-stale', 'Stale Mirror', t_rect(30000, 0, 30100, 100),
+  jsonb_build_object('id','x-stale',
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId', :JAKE, 'name','Jake','assignedBy','Lead Two',
+        'assignedAt', 1700000200000::bigint, 'unassignedAt', null))));
+select t_assert((select jsonb_array_length(assignees->'entries') from public.territories where id='x-stale') = 2,
+  'X2 a STALE mirror missing closed history is accepted, and the history survives');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='x-stale' and e->>'userId' = :JOHN) = 1,
+  'X3 John''s closed run is still there — no 42501, no dead-letter');
+
+-- the assignedBy uuid must survive an upsert from a phone that speaks only
+-- the v40 mirror, where assignedBy is a display NAME
+reset role;
+call t_as(:LEAD);
+select set_territory_assignments('x-stale', array[:SAM]::uuid[], 'op-x1');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='x-stale' and e->>'userId' = :SAM and e->>'assignedBy' = :LEAD) = 1,
+  'X4 an RPC assignment records assignedBy as a real uuid');
+select t_upsert_territory(:TEAM, 'x-stale', 'Stale Mirror', t_rect(30000, 0, 30100, 100),
+  (select data from public.territories where id='x-stale'));
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='x-stale' and e->>'userId' = :SAM and e->>'assignedBy' = :LEAD) = 1,
+  'X5 and a v40-shaped upsert does NOT clobber it with the name it carries');
+
+-- the cycle boundary must not be settable to a far-future time: it is
+-- monotone, so there would be no way back
+select start_territory_cycle('x-stale', '2099-01-01T00:00:00Z'::timestamptz, 'op-x2');
+select t_assert((select cycle_started_at from public.territories where id='x-stale')
+                < now() + interval '1 hour',
+  'X6 a far-future cycle boundary is clamped to the server clock');
+
+-- save_territory must treat a null door count as "unchanged", like every
+-- sibling field, rather than wiping it
+select save_territory('x-stale', null, null, 250, null, null, null);
+select save_territory('x-stale', 'Renamed', null, null, null, null, null);
+select t_assert((select homes from public.territories where id='x-stale') = 250,
+  'X7 save_territory leaves the door count alone when it is not given');
+select t_assert((select name from public.territories where id='x-stale') = 'Renamed',
+  'X8 while still applying what WAS given');
+
+-- a hood must not go LIVE carrying an outline the map cannot use: inserted
+-- tombstoned with a bad ring, then un-deleted, it would be invisible to the
+-- index and never compared against anything
+select t_raises(
+  'select t_upsert_territory('''||:TEAM||''', ''x-ghost'', ''Ghost'', jsonb_build_array('
+  || 'jsonb_build_array(9,40), jsonb_build_array(9.001,40.001), '
+  || 'jsonb_build_array(9.001,40), jsonb_build_array(9,40.001)))',
+  'X9 an invalid ring is refused outright');
+select t_assert((select count(*) from public.territories where id='x-ghost') = 0,
+  'X9b and nothing was stored');
+reset role;
+insert into public.territories (team_id, id, name, polygon, deleted_at) values
+  (:TEAM, 'x-ghost2', 'Ghost 2', jsonb_build_array(
+    jsonb_build_array(9,40), jsonb_build_array(9.001,40.001),
+    jsonb_build_array(9.001,40), jsonb_build_array(9,40.001)), now());
+select t_assert((select geom is null from public.territories where id='x-ghost2'),
+  'X10 the same ring inserted TOMBSTONED keeps no usable geometry — an invalid'
+  || ' geometry is never stored on ANY row, live or not');
+select t_raises('update public.territories set deleted_at = null where id = ''x-ghost2''',
+  'X11 and un-deleting it is REFUSED — it cannot sneak into live turf');
+select t_assert((select deleted_at is not null from public.territories where id='x-ghost2'),
+  'X12 so it is still not active turf');
 reset role;
 
 \echo '== B — the backfill proofs held on real data'

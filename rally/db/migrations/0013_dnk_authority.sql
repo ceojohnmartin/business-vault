@@ -50,6 +50,68 @@ as $$
     from k
 $$;
 
+
+/* Strip a FORGED clear.
+
+   The clearing signal is a dnk_clear entry — and both places it lives are
+   client-written: the door's own history, and the append-only event log.
+   Without this, a rep clears ANY black door by appending
+   {disposition:'dnk_clear'} to the history they push, or by inserting one
+   event straight into PostgREST. Neither needs a bug in the client; both
+   defeat the whole authority.
+
+   So a client write may carry only the clears the SERVER ALREADY HAS. A new
+   one can arrive exactly one way: clear_pin_dnk, which runs as the function
+   owner and never passes through here. Matching is on the timestamp,
+   because that is what the clear IS — a moment. Everything else in the
+   write is kept untouched: this removes a forgery, not a rep's work. */
+create or replace function public.rally_strip_forged_clears(p_old jsonb, p_new jsonb)
+returns jsonb
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when jsonb_typeof(coalesce(p_new->'history', '[]'::jsonb)) <> 'array' then p_new
+    else jsonb_set(p_new, '{history}', coalesce((
+      select jsonb_agg(h order by ord)
+        from jsonb_array_elements(p_new->'history') with ordinality t(h, ord)
+       where h->>'disposition' is distinct from 'dnk_clear'
+          or exists (
+            select 1 from jsonb_array_elements(coalesce(p_old->'history', '[]'::jsonb)) o
+             where o->>'disposition' = 'dnk_clear'
+               and o->>'ts' = h->>'ts')
+    ), '[]'::jsonb))
+  end
+$$;
+
+/* The event log's half of the same rule. A dnk_clear event written by a
+   CLIENT is silently dropped — dropped, not refused, because events push in
+   batches and a refusal would dead-letter the honest knocks beside it. The
+   real clear is the one clear_pin_dnk writes as the owner, and an honest
+   v41 client uses the SAME id for its local copy, so its echo is an
+   ordinary ignore-duplicate no-op rather than a loss. */
+create or replace function public.events_guard_dnk_clear()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if current_user <> 'authenticated' then return new; end if;
+  if new.disposition = 'dnk_clear' or new.type = 'dnk_clear'
+     or coalesce(new.data->>'disposition', '') = 'dnk_clear' then
+    return null;   -- skip the row; the batch around it still commits
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists events_guard_dnk_clear on public.events;
+create trigger events_guard_dnk_clear
+  before insert on public.events
+  for each row execute function public.events_guard_dnk_clear();
+
 create or replace function public.pins_protect_dnk()
 returns trigger
 language plpgsql
@@ -65,14 +127,6 @@ declare
   v_touched   boolean := false;
   v_hist      jsonb;
 begin
-  if tg_op = 'INSERT' then return new; end if;
-
-  /* WAS the door black before this write? Judged from the row the server
-     already holds — never from anything the request carried. */
-  v_was_dnk := old.disposition = 'dnk'
-               or public.rally_dnk_from_history(old.data) is not null;
-  if not v_was_dnk then return new; end if;
-
   /* THE UNSPOOFABLE TEST. A client write arrives through PostgREST as the
      role `authenticated`; a SECURITY DEFINER RPC runs as the function's
      owner, which no client can become. So clear_pin_dnk() is
@@ -82,6 +136,22 @@ begin
      as DEFINER, current_user would be its own owner on every path. */
   v_via_rpc := current_user <> 'authenticated';
   if v_via_rpc then return new; end if;   -- 0014 is the only legitimate clear
+
+  /* FORGED CLEARS GO FIRST, and on EVERY write — including an INSERT, and
+     including a door that is not black yet. A clear only counts when it is
+     at or after the do-not-knock, so one planted with a future timestamp on
+     an ordinary door would silently disarm the protection the day that door
+     was marked. Stripping only black doors would leave exactly that hole. */
+  new.data := public.rally_strip_forged_clears(
+    case when tg_op = 'UPDATE' then old.data else '{}'::jsonb end, coalesce(new.data, '{}'::jsonb));
+
+  if tg_op = 'INSERT' then return new; end if;
+
+  /* WAS the door black before this write? Judged from the row the server
+     already holds — never from anything the request carried. */
+  v_was_dnk := old.disposition = 'dnk'
+               or public.rally_dnk_from_history(old.data) is not null;
+  if not v_was_dnk then return new; end if;
 
   v_leader := coalesce(public.my_role() in ('leader','manager','owner'), false)
               and coalesce(public.is_active(), false);

@@ -1214,9 +1214,20 @@
           if (mergeServerOwned(t, row)) { puts.push(t); changed++; }
           continue;
         }
-        // patchInPlace deletes every key the incoming data lacks, so the
-        // server-owned fields are re-applied AFTER it, never before
+        /* patchInPlace deletes every key the incoming `data` lacks — and
+           the server-owned fields are deliberately stripped from the wire
+           copy, so it deletes those too. Re-applying them afterwards is not
+           enough: mergeServerOwned compares against what the record ALREADY
+           held, and against a wiped record every comparison is "newer than
+           nothing". Both monotonicity guards would collapse, and a page
+           replayed from an earlier cursor position could roll the ledger
+           back. So they are carried ACROSS the patch. */
+        const held = { assignees: t.assignees, assigneesRev: t.assigneesRev,
+          cycleStartedAt: t.cycleStartedAt };
         patchInPlace(t, data);
+        if (held.assignees !== undefined) t.assignees = held.assignees;
+        if (held.assigneesRev !== undefined) t.assigneesRev = held.assigneesRev;
+        if (held.cycleStartedAt !== undefined) t.cycleStartedAt = held.cycleStartedAt;
         mergeServerOwned(t, row);
         puts.push(t);
         changed++;

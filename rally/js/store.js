@@ -335,13 +335,19 @@
        assigned — the whole point of the set model — so this closes only
        this person's open entry and recomputes the current set from what
        is left. */
-    await Promise.all(S.territories.map((t) => {
+    /* Through setAssignees, not a local edit plus a queue. Once the server
+       owns the ledger an ordinary upsert cannot move it, so a local-only
+       unassign would be undone by the very next pull and the deleted rep
+       would reappear on their hoods. A failure here leaves the hood
+       assigned, which is the safe direction: the person is gone from this
+       device either way, and the turf stays visibly owned rather than
+       silently orphaned. */
+    for (const t of S.territories.slice()) {
       const cur = S.currentAssignees(t);
-      if (cur.indexOf(id) < 0) return null;
-      S.applyAssigneeSet(t, cur.filter((x) => x !== id));
-      if (window.MSYNC) MSYNC.queue("territories", t.id);
-      return MDB.put("territories", t);
-    }));
+      if (cur.indexOf(id) < 0) continue;
+      try { await S.setAssignees(t, cur.filter((x) => x !== id)); }
+      catch (_) { /* reported by the caller's next render; never fatal here */ }
+    }
     if (S.settings.currentUserId === id) {
       S.settings.currentUserId = S.users[0] ? S.users[0].id : null;
       await S.saveSettings();
@@ -570,7 +576,10 @@
        AUTHORITY is the pins trigger, which neutralises the tombstone for a
        non-leadership caller whatever client sent it, plus the append-only
        events log, which no client can touch at all. */
-    if (gone && S.isCurrentDnk(gone) && !S.canManageTerritories()) {
+    // dnkFromHistory reads ONE door's own history. isCurrentDnk would build
+    // the whole door-facts index, which turns a lasso delete of 200 doors
+    // into 200 full passes over every pin, event and customer.
+    if (gone && S.dnkFromHistory(gone.history) !== null && !S.canManageTerritories()) {
       try {
         MUI.toast("This door is marked do-not-knock — a manager has to clear it first");
       } catch (_) {}
@@ -842,7 +851,12 @@
     let doors = 0, knocked = 0, sold = 0, callbacks = 0, lastWorked = 0, imported = 0;
     const by = { unworked: 0, nothome: 0, goback: 0, notint: 0, sold: 0, dnk: 0 };
     S.pins.forEach((p) => {
-      if (!S.inHood(t, p.lng, p.lat)) return;
+      /* THE SAME membership answer Route uses. Bare containment and
+         S.hoodOf disagree about a door whose stamp and polygon differ, so
+         the hood sheet and the Route tab would report different door counts
+         for the same hood — and both would look authoritative. */
+      const hood = S.hoodOf(p);
+      if (!hood || hood.id !== t.id) return;
       doors++;
       if (p.importedAt || p.prop) imported++;
       if (by[p.disposition] != null) by[p.disposition]++;
@@ -1327,7 +1341,18 @@
 
   function legacyEntries(t) {
     const list = Array.isArray(t.assignments) ? t.assignments.filter(Boolean) : [];
-    if (list.length) return list;
+    /* v40 wrote a display NAME into assignedBy. Read straight through, the
+       mirror rebuild would look for a user whose id is that name, find
+       nobody, and blank it — losing who made every historical assignment on
+       the first render. Move it to assignedByName, exactly as the server's
+       rally_legacy_to_entries does. */
+    if (list.length) return list.map((a) => {
+      const uuidish = /^[0-9a-fA-F-]{36}$/.test(String(a.assignedBy || ""));
+      return Object.assign({}, a, {
+        assignedBy: uuidish ? a.assignedBy : null,
+        assignedByName: a.assignedByName || (uuidish ? "" : (a.assignedBy || "")),
+      });
+    });
     // the oldest shape of all: a scalar assignee and no history at all
     if (t.assignedTo) {
       return [{ userId: t.assignedTo, name: "", assignedBy: null,
@@ -1440,8 +1465,20 @@
      team does not have. Before activation (and with no cloud at all) the
      ordinary outbox path is still the truth, exactly as in v40. */
   S.setAssignees = async function (t, userIds) {
-    const before = JSON.parse(JSON.stringify(t.assignees || { entries: [] }));
+    /* Snapshot the RECONSTRUCTED ledger, not the raw field. A hood that has
+       never been through the v41 migration has no `assignees` at all — its
+       assignment lives in the v40 mirrors — so rolling back to
+       `t.assignees || {entries:[]}` would roll back to EMPTY and wipe the
+       assignment the hood actually had. The clock goes with it: leaving
+       updatedAt advanced after a failed save would make this device win the
+       next merge with a change it never made. */
+    const before = { entries: S.assigneeEntries(t).map((e) => Object.assign({}, e)) };
     const beforeRev = t.assigneesRev || 0;
+    const beforeAt = t.updatedAt;
+    const restore = () => {
+      t.assignees = before; t.assigneesRev = beforeRev; t.updatedAt = beforeAt;
+      S.assigneeMirrors(t);
+    };
     if (!S.applyAssigneeSet(t, userIds)) return t;
 
     const authoritative = !!(window.MSYNC && MSYNC.capability &&
@@ -1455,7 +1492,7 @@
       for (const id of userIds || []) {
         const pid = MSYNC.profileOf ? MSYNC.profileOf(id) : null;
         if (!pid) {
-          t.assignees = before; t.assigneesRev = beforeRev; S.assigneeMirrors(t);
+          restore();
           throw new Error("that rep has no account yet — they can't be given turf");
         }
         profiles.push(pid);
@@ -1466,7 +1503,7 @@
         });
         if (res && typeof res.assignees_rev === "number") t.assigneesRev = res.assignees_rev;
       } catch (err) {
-        t.assignees = before; t.assigneesRev = beforeRev; S.assigneeMirrors(t);
+        restore();
         await MDB.put("territories", t).catch(() => {});
         throw err;
       }
@@ -1655,14 +1692,23 @@
        BLACK  do-not-knock — never cleared by a boundary
        GREEN  a signed, non-cancelled household — still their customer
        else   the last outcome AT OR AFTER the boundary, or unworked */
+  // the six things that can happen AT a door — the only values any screen
+  // may paint, and the only ones the map has an image for
+  const OUTCOMES = { unworked: 1, nothome: 1, goback: 1, notint: 1, sold: 1, dnk: 1 };
+
   S.effectiveDisposition = function (pin, t, facts) {
     const f = facts || S.doorFacts();
     if (S.isCurrentDnk(pin, f)) return "dnk";
     if (S.activeCustomerOf(pin, f)) return "sold";
     const C = S.cycleStart(t || S.hoodOf(pin));
-    if (C === null) return pin.disposition || "unworked";
+    if (C === null) return OUTCOMES[pin.disposition] ? pin.disposition : "unworked";
     let best = null;
     (pin.history || []).forEach((h) => {
+      /* Only real OUTCOMES. A dnk_clear is a record of an administrative
+         act, not something that happened at the door — and returning it
+         here would ask the map for a pin image that does not exist, which
+         renders as nothing at all: the door would silently vanish. */
+      if (!OUTCOMES[h.disposition]) return;
       if (h.ts >= C && (!best || h.ts >= best.ts)) best = h;
     });
     return best ? best.disposition : "unworked";
@@ -1698,6 +1744,40 @@
      FIRST CYCLE (C = null): nothing is "before" the window, so a customer
      or a do-not-knock with a KNOWN timestamp counts as worked — the work
      that produced it really did happen inside the window. */
+  /* Doors grouped by their canonical hood, computed ONCE and cached on the
+     facts object the caller is already sharing. Without it every hood
+     re-scans every door, which is O(hoods x doors) — invisible on twenty
+     hoods and a visible hitch on a book with a hundred. */
+  /* Which hood each door belongs to, resolved ONCE and cached on the shared
+     facts object. Asking S.hoodOf per door costs a ray cast against every
+     live hood — fine once, and a real hitch when the map repaints every
+     pin and the Route block recomputes every hood on the same tick. */
+  S.hoodIndex = function (facts) {
+    const f = facts || S.doorFacts();
+    if (f.__hoodOf) return f.__hoodOf;
+    const by = new Map();
+    S.pins.forEach((pin) => { by.set(pin.id, S.hoodOf(pin)); });
+    try { Object.defineProperty(f, "__hoodOf", { value: by, enumerable: false }); }
+    catch (_) { f.__hoodOf = by; }
+    return by;
+  };
+
+  function doorsByHood(f) {
+    if (f.__byHood) return f.__byHood;
+    const by = new Map();
+    const idx = S.hoodIndex(f);
+    S.pins.forEach((pin) => {
+      const hood = idx.get(pin.id);
+      if (!hood) return;
+      let arr = by.get(hood.id);
+      if (!arr) { arr = []; by.set(hood.id, arr); }
+      arr.push(pin);
+    });
+    try { Object.defineProperty(f, "__byHood", { value: by, enumerable: false }); }
+    catch (_) { f.__byHood = by; }
+    return by;
+  }
+
   S.routeMetrics = function (t, facts) {
     const f = facts || S.doorFacts();
     const C = S.cycleStart(t);
@@ -1707,9 +1787,7 @@
       salesThisCycle: 0, salesUnknown: 0, dnkThisCycle: 0,
       callbacks: 0, lastWorked: null, cycleStartedAt: C,
     };
-    S.pins.forEach((pin) => {
-      const hood = S.hoodOf(pin);
-      if (!hood || hood.id !== t.id) return;
+    (doorsByHood(f).get(t.id) || []).forEach((pin) => {
       m.inventory++;
       const fact = factFor(f, pin);
       const dnkAt = S.dnkAtOf(pin, f);
@@ -1835,16 +1913,21 @@
      device, including one too old to know what a dnk_clear is. */
   S.clearPinDnk = async function (pin, reason) {
     const now = Date.now();
+    const opId = MDB.uid();
     if (window.MCLOUD && MCLOUD.enabled()) {
       await rpc("clear_pin_dnk", {
-        p_pin_id: pin.id, p_reason: reason, p_operation_id: MDB.uid(),
+        p_pin_id: pin.id, p_reason: reason, p_operation_id: opId,
       });
     }
     const entry = { ts: now, disposition: "dnk_clear", reason, dm: false, note: "" };
     pin.history = (pin.history || []).concat([entry]);
     pin.disposition = "unworked";
     pin.updatedAt = now;
-    const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition: "dnk_clear",
+    /* The SAME id the server's own clear event carries. The server refuses
+       a client-written dnk_clear (0013) precisely so a forged one cannot
+       clear a door — and because this copy shares the server's id, its push
+       is an ordinary ignore-duplicate no-op rather than something lost. */
+    const ev = { id: "dnkclear-" + opId, ts: now, pinId: pin.id, disposition: "dnk_clear",
       reason, dm: false, repId: (S.currentUser() || {}).id || null,
       territoryId: (S.hoodOf(pin) || {}).id || null };
     S.events.push(ev);

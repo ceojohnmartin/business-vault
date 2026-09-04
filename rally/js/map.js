@@ -258,9 +258,11 @@
      pin; building it per pin would be quadratic on a real book. */
   function pinsGeoJSON() {
     const facts = STORE.doorFacts ? STORE.doorFacts() : null;
+    // one membership pass for the whole repaint, not one per door
+    const hoods = facts && STORE.hoodIndex ? STORE.hoodIndex(facts) : null;
     const key = (p) => {
       if (!facts) return p.disposition;
-      const hood = STORE.hoodOf(p);
+      const hood = hoods ? hoods.get(p.id) : STORE.hoodOf(p);
       const eff = STORE.effectiveDisposition(p, hood, facts);
       if (eff !== "nothome") return eff;
       const n = STORE.nhDepth(p, hood, facts);
@@ -711,6 +713,20 @@
     });
 
     map.on("click", (e) => {
+      /* THE OUTLINE EDITOR OWNS THE SURFACE. While it is open the map is a
+         drawing board, not a door list, so a tap here must never open a
+         door sheet on top of it.
+
+         This is also the only thing standing between a hood-move gesture
+         and a spurious door tap. Moving the whole shape has to call
+         preventDefault() on the pointerdown to stop the browser's own
+         text-selection/scroll gesture — and per the pointer-events spec
+         that also suppresses the COMPATIBILITY mousedown. The engine's
+         "did the finger travel too far to be a tap?" test compares against
+         the position it recorded on mousedown, so with no mousedown it has
+         nothing to compare against and lets the click through, however far
+         the drag went. */
+      if (window.MTEDIT && MTEDIT.isOpen()) return;
       // registered handlers (hood dot-drawing) consume clicks first —
       // they see a plain {lng, lat}, never an engine event
       const norm = { lng: e.lngLat.lng, lat: e.lngLat.lat };
@@ -1371,6 +1387,16 @@
     jumpTo: (lng, lat, zoom) => { if (map) map.jumpTo({ center: [lng, lat], zoom: zoom != null ? zoom : map.getZoom() }); },
     onMapClick: (fn) => { if (typeof fn === "function") clickHandlers.push(fn); },
     onMapMove: (fn) => { if (typeof fn === "function") moveHandlers.push(fn); },
+    /* Hand the camera over. While a leader is dragging a whole hood, the
+       map must hold still — otherwise its own drag-pan runs alongside and
+       keeps the grabbed ground under the finger, so the shape never moves
+       and the map slides away instead. Intercepting pointer events is not
+       enough: the engine listens for mousedown and touchstart, which are
+       different events from the pointerdown an overlay can stop. */
+    setDragPan: (on) => {
+      if (!map || !map.dragPan) return;
+      if (on) map.dragPan.enable(); else map.dragPan.disable();
+    },
     setDraftRing,
   };
 })();

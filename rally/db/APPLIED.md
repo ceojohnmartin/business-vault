@@ -46,7 +46,7 @@ PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 | **0.5** | `db/preflight/v41-preflight.sql` — read-only, creates no durable object | **Review every section.** It reports unusable outlines, existing overlaps, the full assignment census across live/archived/tombstoned/split-parent hoods, unresolvable assignees, duplicate open entries, and the do-not-knock and unlinked-customer counts. |
 | **A** | `0009` → `0010` → `0011` → `0012` → `0013` | All five backfill proofs in 0011 must pass (they abort the transaction otherwise). The do-not-knock trigger is armed here on purpose: it protects v40 phones too. |
 | **B** | `0014` → `0015` | The v41 client must be deployed and its `applyTerritories` server-owned merge live BEFORE the flip, or the server would own a field no device can receive. |
-| **C** | `0016`, then — **separately** — the flip | 0016 refuses to arm while any live hood has an unusable outline. The flip is not a file: it is one reviewed statement, `update public.rally_config set assignment_server_authoritative = true;`, run only when the readiness gate is met. |
+| **C** | `0016`, then — **separately** — the flip | 0016 refuses to arm while any live hood has an unusable outline. The flip is not a file: it is one reviewed statement, `update public.rally_config set assignment_server_authoritative = true;`. It is also GATED: `rally_config_guard` refuses it while any live hood still names a current assignee who is no rep on their team, because that hood would read as unassigned the moment clients trust the server's ledger. |
 
 ### PostGIS schema, discovered (fill in before applying 0009)
 
@@ -56,9 +56,11 @@ PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 
 ### Local proof, 2026-09-04
 
-- `sh rally/db/test/run-v41-tests.sh` — 87 SQL checks, the no-shape-changing-repair
-  grep over `db/migrations/`, and `turf-race-test.sh` (6 checks including the
-  negative control that proves the advisory lock, not merely the check).
+- `sh rally/db/test/run-v41-tests.sh` — 114 SQL checks, the staged-order gate
+  (`turfRpc` false after Stage A and true after Stage B), the
+  no-shape-changing-repair grep over `db/migrations/`, and
+  `turf-race-test.sh` (6 checks including the negative control that proves
+  the advisory lock, not merely the check).
 - `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
   re-run with 0008–0016 applied: RLS 282, RACE 11, SPLIT RACE 11, MIRROR 182,
   PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.

@@ -32,7 +32,13 @@ begin
            jsonb_array_length(coalesce(data->'assignments', '[]'::jsonb)) as n_entries,
            coalesce(data->'assignments', '[]'::jsonb) as entries,
            coalesce(data->>'assignedTo', '')          as assigned_to,
-           md5((data - 'assignedTo' - 'assignments')::text) as rest_md5,
+           /* `updatedAt` is excluded on purpose. The assignment trigger's
+              correction stamp moves the record clock whenever it rewrites a
+              mirror — which is exactly what this backfill makes it do — so
+              hashing it would make the reversibility assertion abort on
+              every real dataset while proving nothing about loss. What must
+              be byte-identical is the CONTENT outside the two mirrors. */
+           md5((data - 'assignedTo' - 'assignments' - 'updatedAt')::text) as rest_md5,
            (coalesce(data->'assignments', '[]'::jsonb) = '[]'::jsonb
             and coalesce(data->>'assignedTo', '') <> '')  as bare_scalar
       from public.territories;
@@ -150,13 +156,28 @@ begin
     raise exception 'v41 backfill PROOF 3 failed: % closed history entr(ies) lost', v_bad;
   end if;
 
-  -- ------------------------------------------------------------- PROOF 4 ---
-  -- the deterministic mirror is correct on every row
-  select count(*) into v_bad from public.territories t
-   where coalesce(t.data->>'assignedTo', '')
-      is distinct from coalesce(public.rally_first_open_assignee(t.assignees), '');
+  /* ------------------------------------------------------------- PROOF 4 ---
+     The deterministic mirror is correct — checked against the BEFORE
+     snapshot, not by re-deriving it from the same function that wrote it.
+     Re-deriving would compare the trigger to itself and pass no matter what
+     either of them did. A row whose scalar CHANGED is legitimate only where
+     the census already named it (assignedTo disagreed with the open set, or
+     duplicate opens were resolved); anything else is a silent reassignment. */
+  select count(*) into v_bad from _v41_before b
+    join public.territories t on t.team_id = b.team_id and t.id = b.id
+   where coalesce(t.data->>'assignedTo', '') is distinct from coalesce((
+           select e->>'userId'
+             from jsonb_array_elements(b.entries) e
+            where e->>'unassignedAt' is null
+            order by (e->>'assignedAt')::bigint, e->>'userId' limit 1), '')
+     and not b.bare_scalar
+     and coalesce(b.assigned_to, '') = coalesce((
+           select e->>'userId'
+             from jsonb_array_elements(b.entries) e
+            where e->>'unassignedAt' is null
+            order by (e->>'assignedAt')::bigint, e->>'userId' limit 1), '');
   if v_bad > 0 then
-    raise exception 'v41 backfill PROOF 4 failed: % hood(s) have a wrong assignedTo mirror', v_bad;
+    raise exception 'v41 backfill PROOF 4 failed: % hood(s) changed their assignedTo mirror without cause', v_bad;
   end if;
 
   -- ------------------------------------------------------------- PROOF 5 ---
@@ -171,7 +192,7 @@ begin
   -- columns returns the world to its pre-v41 state with nothing lost
   select count(*) into v_bad from _v41_before b
     join public.territories t on t.team_id = b.team_id and t.id = b.id
-   where md5((t.data - 'assignedTo' - 'assignments')::text) <> b.rest_md5;
+   where md5((t.data - 'assignedTo' - 'assignments' - 'updatedAt')::text) <> b.rest_md5;
   if v_bad > 0 then
     raise exception 'v41 backfill REVERSIBILITY failed: % row(s) had data outside the mirrors modified', v_bad;
   end if;

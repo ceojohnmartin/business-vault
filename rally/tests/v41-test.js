@@ -50,6 +50,9 @@ const mock = {
   capsStatus: 200,
   capCalls: 0,
   dnkCorrections: 0,
+  forgedEventsDropped: 0,
+  forgedHistoryStripped: 0,
+  serverAuthoredClears: new Set(),   // the ids clear_pin_dnk itself wrote
   pinUpserts: new Map(),   // pin id -> number of upload attempts (loop detector)
 };
 const tick = () => new Date(++mock.clock).toISOString();
@@ -179,6 +182,14 @@ function handleRpc(req, res, u, body, me) {
     });
     row.disposition = "unworked";
     row.updated_at = tick();
+    mock.serverAuthoredClears.add("dnkclear-" + body.p_operation_id);
+    mock.tables.events.set(TEAM + "|dnkclear-" + body.p_operation_id, {
+      team_id: TEAM, id: "dnkclear-" + body.p_operation_id, pin_id: row.id,
+      type: "dnk_clear", disposition: "dnk_clear", at_ms: at, by_user: me.id,
+      data: { id: "dnkclear-" + body.p_operation_id, ts: at, pinId: row.id,
+              disposition: "dnk_clear", reason: body.p_reason },
+      created_at: tick(),
+    });
     return j(res, 200, { status: "ok", pin_id: row.id, cleared_at: at });
   }
   return j(res, 404, { message: "no function " + name });
@@ -211,6 +222,23 @@ function handleRest(req, res, u, body) {
       if (row.team_id !== me.team_id) return j(res, 401, { code: "42501", message: "rls" });
       const key = row.team_id + "|" + row.id;
       if (table === "pins") mock.pinUpserts.set(row.id, (mock.pinUpserts.get(row.id) || 0) + 1);
+      /* 0013's forged-clear guard. A dnk_clear EVENT written by a client is
+         dropped; a dnk_clear the client added to a pin's HISTORY is stripped
+         unless the server already had it. Without this the mock would be
+         more permissive than the real server and the client below would
+         never actually be constrained. */
+      if (table === "events" && (row.disposition === "dnk_clear" || row.type === "dnk_clear")
+          && !mock.serverAuthoredClears.has(row.id)) {
+        mock.forgedEventsDropped++;
+        continue;
+      }
+      if (table === "pins" && row.data && Array.isArray(row.data.history)) {
+        const had = ((t.get(row.team_id + "|" + row.id) || {}).data || {}).history || [];
+        const kept = row.data.history.filter((h) => h.disposition !== "dnk_clear" ||
+          had.some((o) => o.disposition === "dnk_clear" && o.ts === h.ts));
+        if (kept.length !== row.data.history.length) mock.forgedHistoryStripped++;
+        row.data.history = kept;
+      }
       const existing = t.get(key);
       if (existing) {
         if (prefer.includes("ignore-duplicates")) continue;
@@ -424,6 +452,29 @@ const server = http.createServer((req, res) => {
         const t = STORE.territories.find((x) => x.id === "h-merge");
         return STORE.currentAssignees(t).length === 1;
       }));
+      row.assignees = good; row.assignees_rev = 3; mirror(row); row.updated_at = tick();
+      await syncUntil(d, () =>
+        (STORE.territories.find((t) => t.id === "h-merge") || {}).assigneesRev === 3);
+
+      /* THE SAME GUARD, ON THE PATCH PATH. When the record clock DOES move,
+         applyTerritories runs patchInPlace — which deletes every key the
+         wire copy lacks, and the server-owned fields are stripped from the
+         wire on purpose. If they are not carried across, the merge compares
+         against a wiped record, every rev looks newer than nothing, and a
+         replayed page rolls the ledger back. */
+      row.assignees = { entries: [] };
+      row.assignees_rev = 1;                       // LOWER
+      row.data.updatedAt = (row.data.updatedAt || 0) + 10000;   // but a NEWER clock
+      row.updated_at = tick();
+      await sync(d); await sync(d);
+      check("H4b a stale ledger is still ignored when the record clock moves " +
+        "(the patch path must not wipe the guard)", await d.page.evaluate(() => {
+          const t = STORE.territories.find((x) => x.id === "h-merge");
+          return STORE.currentAssignees(t).length === 1 && t.assigneesRev === 3;
+        }), await d.page.evaluate(() => {
+          const t = STORE.territories.find((x) => x.id === "h-merge");
+          return JSON.stringify({ rev: t.assigneesRev, n: STORE.currentAssignees(t).length });
+        }));
       row.assignees = good; row.assignees_rev = 3; mirror(row); row.updated_at = tick();
 
       /* THE BOUNDED-CHANGE PROOF. The merge must NOT have become "the
@@ -673,6 +724,42 @@ const server = http.createServer((req, res) => {
       const at2 = mock.pinUpserts.get(pid) || 0;
       check("D5 and does NOT re-push it forever", at2 === at1,
         "uploads went " + at1 + " -> " + at2);
+
+      /* THE FORGED CLEAR. The clearing signal lives in two client-written
+         places, and both were open: a rep could clear ANY black door by
+         pushing a pin whose history carries a dnk_clear, or by inserting
+         one event straight into PostgREST. Found by adversarial review. */
+      mock.forgedEventsDropped = 0; mock.forgedHistoryStripped = 0;
+      const forgeTok = Object.keys(mock.access).find((k) => mock.access[k] === john);
+      const evResp = await fetch(`http://localhost:${PORT}/rest/v1/events?on_conflict=team_id,id`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + forgeTok,
+                   Prefer: "resolution=ignore-duplicates,return=minimal" },
+        body: JSON.stringify([{ team_id: TEAM, id: "forged-ev", pin_id: pid, type: "knock",
+          disposition: "dnk_clear", at_ms: 9999999999999, by_user: null,
+          data: { id: "forged-ev", ts: 9999999999999, pinId: pid, disposition: "dnk_clear" } }]),
+      });
+      check("D5c a forged dnk_clear EVENT is dropped by the server",
+        evResp.status < 400 && !mock.tables.events.get(TEAM + "|forged-ev"),
+        "status=" + evResp.status);
+
+      const forgePin = JSON.parse(JSON.stringify(mock.tables.pins.get(TEAM + "|" + pid)));
+      forgePin.data.history = (forgePin.data.history || []).concat([
+        { ts: 9999999999998, disposition: "dnk_clear", reason: "forged", dm: false, note: "" }]);
+      forgePin.data.updatedAt = (forgePin.data.updatedAt || 0) + 9000;
+      delete forgePin.created_at; delete forgePin.updated_at;
+      await fetch(`http://localhost:${PORT}/rest/v1/pins?on_conflict=team_id,id`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + forgeTok,
+                   Prefer: "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify([forgePin]),
+      });
+      const stored = mock.tables.pins.get(TEAM + "|" + pid);
+      check("D5d a forged dnk_clear in the pushed HISTORY is stripped",
+        !(stored.data.history || []).some((h) => h.disposition === "dnk_clear"),
+        JSON.stringify(stored.data.history));
+      check("D5e so the door is still black after both forgeries",
+        stored.disposition === "dnk");
 
       // a rep may not delete a black door
       check("D5b the device really is a REP — the guard is not passing by accident",

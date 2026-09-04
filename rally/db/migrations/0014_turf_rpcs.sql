@@ -102,7 +102,13 @@ begin
       u := case when e->>'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
                 then (e->>'userId')::uuid end;
       if u is null or not (coalesce(p_desired, '{}'::uuid[]) @> array[u]) then
-        v_out := v_out || jsonb_set(e, '{unassignedAt}', to_jsonb(p_at));
+        /* The operation id is stamped on entries this call CLOSED as well
+           as on the ones it opened. Without it a close-only operation —
+           "take Jake off this hood" — leaves no trace to be idempotent
+           against, and a replayed request would re-close whoever was
+           assigned in the meantime. */
+        v_out := v_out || (jsonb_set(e, '{unassignedAt}', to_jsonb(p_at))
+                 || coalesce(p_extra, '{}'::jsonb));
         continue;
       end if;
     end if;
@@ -246,7 +252,9 @@ begin
     update public.territories
        set name = coalesce(p_name, name),
            polygon = coalesce(p_polygon, polygon),
-           homes = p_homes,
+           -- null means "leave it alone", exactly as every sibling field
+           -- here does; wiping a door count nobody mentioned is not an edit
+           homes = coalesce(p_homes, homes),
            archived = coalesce(p_archived, archived),
            data = jsonb_set(jsonb_set(jsonb_set(data,
                     '{name}', to_jsonb(coalesce(p_name, name))),
@@ -295,6 +303,17 @@ declare
 begin
   perform public.rally_require_leader();
   v_team := public.rally_my_team();
+
+  /* CLAMP THE CALLER'S CLOCK. The boundary is monotone forward and there is
+     no way back, so a phone whose clock is a year fast would black out a
+     hood permanently: every door reads unworked, every metric reads zero,
+     and no later call can walk it back. A boundary in the FUTURE means
+     nothing anyway — it is the moment a fresh pass began. A small tolerance
+     absorbs ordinary device skew; beyond that, the server's own clock is
+     the answer. */
+  if v_at > clock_timestamp() + interval '5 minutes' then
+    v_at := clock_timestamp();
+  end if;
 
   select * into v_t from public.territories
    where team_id = v_team and id = p_territory_id for update;

@@ -81,8 +81,19 @@ declare
   v_m2    double precision;
   v_tol   double precision := public.rally_overlap_tolerance_m2();
 begin
-  -- a tombstoned, archived or outline-less hood is not active turf
-  if new.deleted_at is not null or new.archived or new.geom is null then
+  -- a tombstoned or archived hood is not active turf
+  if new.deleted_at is not null or new.archived then return null; end if;
+
+  /* A LIVE hood with an outline but no usable geometry is INVISIBLE to the
+     index and would therefore never be compared against anything. Refusing
+     it here closes the invariant whatever route the row took to get here —
+     including one that slipped past 0009's derivation. A hood with no
+     outline at all is a legal draft and is simply not turf yet. */
+  if new.geom is null then
+    if jsonb_array_length(coalesce(new.polygon, '[]'::jsonb)) > 0 then
+      raise exception '% has an outline this map cannot use, so it cannot be made active turf',
+        coalesce(nullif(new.name, ''), new.id) using errcode = '23514';
+    end if;
     return null;
   end if;
 
@@ -127,6 +138,22 @@ begin
      and jsonb_array_length(coalesce(polygon, '[]'::jsonb)) > 0;
   if v_bad > 0 then
     raise exception 'v41 overlap: % live hood(s) have an unusable outline and would be unprotected. Run db/preflight/v41-preflight.sql, fix them, then re-apply.', v_bad;
+  end if;
+
+  /* And no live pair may ALREADY overlap. The constraint is not
+     retroactive, so arming over an existing collision would leave both
+     hoods permanently unwritable — the next edit to either one, however
+     unrelated, would be refused for a problem that predates the rule.
+     The preflight lists every such pair. */
+  select count(*) into v_bad from (
+    select 1 from public.territories a join public.territories b
+      on a.team_id = b.team_id and a.id < b.id
+     where a.deleted_at is null and a.archived = false and a.geom is not null
+       and b.deleted_at is null and b.archived = false and b.geom is not null
+       and a.geom operator(extensions.&&) b.geom
+       and public.rally_overlap_m2(a.geom, b.geom) > public.rally_overlap_tolerance_m2()) z;
+  if v_bad > 0 then
+    raise exception 'v41 overlap: % live pair(s) already overlap. Arming now would make both hoods of every pair unwritable. Run db/preflight/v41-preflight.sql, resolve them, then re-apply.', v_bad;
   end if;
 end $$;
 

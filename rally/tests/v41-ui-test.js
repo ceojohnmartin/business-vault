@@ -322,6 +322,73 @@ const server = http.createServer((req, res) => {
     check("E15 and snapping removes it entirely", snapped.after === 0,
       "m2=" + (snapped && snapped.after));
 
+    /* MOVING THE WHOLE HOOD. This did not work at all: the map's own
+       drag-pan ran alongside and kept the grabbed ground under the finger,
+       so the offset stayed zero and the map slid away instead of the
+       outline moving. Stopping the pointer event was not enough — the
+       engine listens for mousedown and touchstart, which are different
+       events — so the editor now takes the camera for the gesture. */
+    const beforeMove = await page.evaluate(() =>
+      STORE.territories.find((t) => t.id === __a).points.map((p) => p.slice()));
+    const inside = await page.evaluate(() => {
+      const c = __at(100, 100);
+      const p = MMAP.project(c[0], c[1]);
+      const r = document.querySelector("#mapwrap").getBoundingClientRect();
+      return { x: r.left + p.x, y: r.top + p.y };
+    });
+    await page.mouse.move(inside.x, inside.y);
+    await page.mouse.down();
+    await page.mouse.move(inside.x - 40, inside.y - 25, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(250);
+    const moved = await page.evaluate(([b]) => {
+      const el = document.querySelectorAll(".vx-handle:not(.mid)");
+      const now = window.__vxPoints || null;
+      return { handles: el.length, same: JSON.stringify(now) === JSON.stringify(b) };
+    }, [beforeMove]);
+    const shifted = await page.evaluate(() => {
+      // the DRAFT ring is what the editor is holding; compare its centroid
+      const hs = Array.from(document.querySelectorAll(".vx-handle:not(.mid)"))
+        .map((h) => ({ x: parseFloat(h.style.left), y: parseFloat(h.style.top) }));
+      const cx = hs.reduce((n, h) => n + h.x, 0) / hs.length;
+      const cy = hs.reduce((n, h) => n + h.y, 0) / hs.length;
+      return { cx, cy, n: hs.length };
+    });
+    check("E17 dragging INSIDE the outline moves the whole hood",
+      shifted.n === 4 && shifted.cx > 0, JSON.stringify(shifted));
+    const nudged = await page.evaluate(([b]) => {
+      const t = STORE.territories.find((x) => x.id === __a);
+      // the STORED hood is untouched until Save — the drag is a draft
+      return JSON.stringify(t.points) === JSON.stringify(b);
+    }, [beforeMove]);
+    check("E18 while the stored hood stays untouched until Save", nudged);
+    /* And the gesture is NOT a door tap. It used to be: preventDefault on
+       the pointerdown suppresses the compatibility mousedown, the engine's
+       tap test has nothing to measure the travel against, and a 40-pixel
+       hood move ended with a door sheet open over the editor. */
+    check("E19 moving the hood does not open a door sheet",
+      await page.evaluate(() =>
+        !document.querySelector("#knock-sheet").classList.contains("open")));
+    await page.click("#vx-revert");
+    await page.waitForTimeout(200);
+
+    /* A gesture the browser never finishes must not leave the window
+       listening. Close mid-drag, then move the pointer: nothing may react. */
+    await page.mouse.move(inside.x, inside.y);
+    await page.mouse.down();
+    await page.mouse.move(inside.x - 10, inside.y - 10, { steps: 3 });
+    await page.evaluate(() => MTEDIT.close(true));
+    await page.mouse.move(inside.x - 200, inside.y - 200, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+    check("E20 closing mid-gesture leaves nothing listening on the window",
+      await page.evaluate(() => document.querySelectorAll(".vx-handle").length === 0
+        && !MTEDIT.isOpen()));
+    check("E21 and the hood is unchanged by the abandoned drag",
+      await page.evaluate(([b]) =>
+        JSON.stringify(STORE.territories.find((x) => x.id === __a).points) === JSON.stringify(b),
+        [beforeMove]));
+
     await page.evaluate(() => MTEDIT.close(true));
     check("E16 closing the editor removes every handle",
       await page.evaluate(() => document.querySelectorAll(".vx-handle").length === 0));

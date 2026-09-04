@@ -38,4 +38,28 @@ if [ -n "$BAD" ]; then
 fi
 echo "v41 SQL       no shape-changing repair anywhere in db/migrations  ok"
 
+# THE STAGED ORDER IS SAFE IN BOTH DIRECTIONS. rally_capabilities() arrives
+# in 0010 but the turf RPCs it advertises arrive in 0014/0015, so it must
+# report what is actually INSTALLED. A hardcoded true would send every
+# client at smart_split_territory_v41 during Stage A — before it exists —
+# and 404 every Smart Split in the company until Stage B landed.
+STAGE_DB=rally_v41_stage_test
+psql -q -v ON_ERROR_STOP=1 -d postgres -c "drop database if exists $STAGE_DB" \
+     -c "create database $STAGE_DB"
+psql -q -v ON_ERROR_STOP=1 -d "$STAGE_DB" -f "$DIR/supabase-shim.sql"
+for m in "$DIR"/../migrations/000*.sql "$DIR"/../migrations/001[0123]*.sql; do
+  psql -q -v ON_ERROR_STOP=1 -d "$STAGE_DB" -f "$m"
+done
+A_CAPS="$(psql -d "$STAGE_DB" -Atc "select public.rally_capabilities()->>'turfRpc'")"
+for m in "$DIR"/../migrations/001[456]*.sql; do
+  psql -q -v ON_ERROR_STOP=1 -d "$STAGE_DB" -f "$m"
+done
+B_CAPS="$(psql -d "$STAGE_DB" -Atc "select public.rally_capabilities()->>'turfRpc'")"
+psql -q -d postgres -c "drop database if exists $STAGE_DB" >/dev/null 2>&1
+if [ "$A_CAPS" != "false" ] || [ "$B_CAPS" != "true" ]; then
+  echo "v41 STAGED: FAILED — turfRpc was '$A_CAPS' after Stage A (want false) and '$B_CAPS' after Stage B (want true)"
+  exit 1
+fi
+echo "v41 staged     turfRpc false after Stage A, true after Stage B  ok"
+
 sh "$DIR/turf-race-test.sh"

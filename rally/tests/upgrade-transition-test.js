@@ -123,7 +123,13 @@ function handleRest(req, res, u, body) {
      its latch false and keep authoring assignment locally — the case where
      the function is absent entirely is covered by mixed-version-test.js. */
   if (u.pathname === "/rest/v1/rpc/rally_capabilities") {
-    return j(res, 200, { assignmentServerAuthoritative: false, turfRpc: true, postgis: true });
+    /* Stage A applied, Stage B not: this mock implements 0005's
+       smart_split_territory and nothing else, so turfRpc is FALSE — which
+       is exactly what the real rally_capabilities() reports, because it
+       discovers whether the v41 functions exist rather than asserting it.
+       A mock that claimed true here would send the client at a function
+       that is not there and 404 every Smart Split in the company. */
+    return j(res, 200, { assignmentServerAuthoritative: false, turfRpc: false, postgis: true });
   }
   if (u.pathname === "/rest/v1/rpc/smart_split_territory") {
     cloud.rpcCalls++;

@@ -200,8 +200,12 @@
     if (!(await gate("who works a hood"))) return;
     try {
       await STORE.setAssignees(sheetHood, sheetSet);
-    } catch (_) {
-      toast("Couldn't save that — try again");
+    } catch (err) {
+      /* Say what is actually wrong. "Try again" on a save that can NEVER
+         succeed — a rep with no account cannot be given turf — sends a
+         leader round a loop with no way out, and the one message that
+         tells them what to fix is the one being thrown away. */
+      toast((err && err.message) || "Couldn't save that — try again");
       return;
     }
     const names = sheetSet.map((id) => (STORE.userById(id) || {}).name).filter(Boolean);
@@ -226,8 +230,8 @@
     if (!(await gate("starting a fresh pass"))) return;
     try {
       await STORE.startCycle(t);
-    } catch (_) {
-      toast("Couldn't start the pass — try again");
+    } catch (err) {
+      toast((err && err.message) || "Couldn't start the pass — try again");
       return;
     }
     if (window.MMAP && MMAP.isReady && MMAP.isReady()) MMAP.refreshPins();
@@ -253,8 +257,8 @@
     if (!(await gate("clearing a do-not-knock"))) return false;
     try {
       await STORE.clearPinDnk(pin, reason.trim());
-    } catch (_) {
-      toast("Couldn't clear it — try again");
+    } catch (err) {
+      toast((err && err.message) || "Couldn't clear it — try again");
       return false;
     }
     if (window.MMAP && MMAP.isReady && MMAP.isReady()) MMAP.refreshPins();

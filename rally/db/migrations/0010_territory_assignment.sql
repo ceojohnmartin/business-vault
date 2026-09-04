@@ -56,6 +56,15 @@ revoke all on public.rally_config from anon, authenticated;
    accept a later false — false is the more permissive state (the one where
    the client may still author assignment truth), so a downgrade would be a
    privilege escalation rather than a harmless staleness. */
+/* Every answer here is DISCOVERED, never asserted.
+
+   `turfRpc` says whether the v41 turf functions EXIST, and it must, because
+   they arrive two stages after this file: 0014 and 0015. A hardcoded true
+   would tell a client to call smart_split_territory_v41 during Stage A —
+   before it exists — and every Smart Split in the company would 404 until
+   Stage B landed. Reporting what is actually installed makes the staged
+   order safe in both directions: clients keep using the certified 0005 RPC
+   until the v41 one is really there, and switch the moment it is. */
 create or replace function public.rally_capabilities()
 returns jsonb
 language sql
@@ -64,9 +73,13 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object(
-    'assignmentServerAuthoritative', (select assignment_server_authoritative from public.rally_config where id),
-    'turfRpc', true,
-    'postgis', true
+    'assignmentServerAuthoritative',
+      coalesce((select assignment_server_authoritative from public.rally_config where id), false),
+    'turfRpc',
+      to_regprocedure('public.smart_split_territory_v41(text,text,jsonb)') is not null
+      and to_regprocedure('public.set_territory_assignments(text,uuid[],text)') is not null,
+    'postgis',
+      exists (select 1 from pg_extension where extname = 'postgis')
   )
 $$;
 
@@ -218,6 +231,28 @@ begin
 end $$;
 
 
+
+/* Every CLOSED entry the row already had, carried forward. Matched on
+   (userId, assignedAt) — the identity of a run of work — so an entry the
+   client's mirror never knew about survives, and one it does know about is
+   not duplicated. */
+create or replace function public.rally_keep_closed_history(p_derived jsonb, p_prior jsonb)
+returns jsonb
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(p_derived, '[]'::jsonb) || coalesce((
+    select jsonb_agg(o)
+      from jsonb_array_elements(coalesce(p_prior->'entries', '[]'::jsonb)) o
+     where o->>'unassignedAt' is not null
+       and not exists (
+         select 1 from jsonb_array_elements(coalesce(p_derived, '[]'::jsonb)) d
+          where d->>'userId' = o->>'userId'
+            and d->>'assignedAt' = o->>'assignedAt')), '[]'::jsonb)
+$$;
+
 /* Keep the v41 provenance a v40 mirror cannot express.
 
    data.assignments carries five fields. An entry may also hold
@@ -235,8 +270,17 @@ immutable
 security invoker
 set search_path = ''
 as $$
+  /* The legacy mirror owns exactly two fields — who, and whether the run is
+     still open — so only those two are overlaid onto the prior entry.
+     Merging the whole derived object would let its NULL assignedBy (v40
+     writes a name there, not a uuid) clobber the real uuid the ledger
+     holds, quietly erasing who made every assignment on the first upsert
+     from an un-upgraded phone. */
   select coalesce(jsonb_agg(
-           case when pr.e is null then d.e else pr.e || d.e end), '[]'::jsonb)
+           case when pr.e is null then d.e
+                else pr.e || jsonb_build_object(
+                       'name', d.e->'name',
+                       'unassignedAt', coalesce(d.e->'unassignedAt', 'null'::jsonb)) end), '[]'::jsonb)
     from jsonb_array_elements(coalesce(p_derived, '[]'::jsonb)) d(e)
     left join lateral (
       select p.e from jsonb_array_elements(coalesce(p_prior->'entries', '[]'::jsonb)) p(e)
@@ -340,8 +384,21 @@ begin
        viaOperation, the assignedBy uuid, userIdResolved) survives an upsert
        from a phone that has never heard of any of it. */
     v_entries := public.rally_legacy_to_entries(new.data, new.created_at, coalesce(v_old, '{"entries": []}'::jsonb));
+    /* UNION with the closed history already on the row, never replace it.
+
+       A client's mirror is only as complete as the last copy it pulled. A
+       phone that has been offline pushes a mirror missing whatever closed
+       entries it never saw — and a derivation that simply replaced the
+       ledger would drop them, which I4 then correctly refuses with 42501.
+       That refusal is permanent: the row dead-letters, and it dead-letters
+       again on every retry, for a client that did nothing wrong.
+
+       So closed history is additive here. The mirror decides who is OPEN;
+       it is not allowed to decide what happened. */
     new.assignees := jsonb_build_object('entries',
-      public.rally_sort_entries(public.rally_merge_provenance(v_entries, v_old)));
+      public.rally_sort_entries(
+        public.rally_keep_closed_history(
+          public.rally_merge_provenance(v_entries, v_old), v_old)));
   else
     /* SERVER AUTHORITY: the ledger is truth. A client-sent data.assignments
        or data.assignedTo is IGNORED — not refused, ignored, so a v40 phone's
@@ -447,3 +504,71 @@ drop trigger if exists territories_assignment on public.territories;
 create trigger territories_assignment
   before insert or update on public.territories
   for each row execute function public.territories_assignment();
+
+-- --------------------------------------------------- the activation gate ---
+
+/* SERVER AUTHORITY MAY NOT BE SWITCHED ON OVER AN UNRESOLVED CURRENT
+   ASSIGNMENT.
+
+   `open_assignees` is uuid[], so an entry naming a rep who cannot be
+   resolved to a profile on this team CANNOT appear in it. For HISTORY that
+   is exactly right — a closed entry is a fact about who worked a hood and
+   is kept verbatim forever, resolvable or not. For a LIVE hood's CURRENT
+   assignee it is not: the moment clients start trusting the server's
+   ledger, that hood reads as one nobody works, and a rep loses their turf
+   to a data problem nobody looked at.
+
+   The preflight ENUMERATES these. This makes it a RULE rather than a
+   report, because a report can be skipped and this cannot. */
+create or replace function public.rally_unresolved_live_assignments()
+returns bigint
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select count(*) from public.territories t
+   where t.deleted_at is null and t.archived = false
+     and exists (
+       /* the ledger once it exists, the v40 mirror before the backfill has
+          run — the gate must be right at every point in the staged order */
+       select 1 from jsonb_array_elements(
+           case when jsonb_array_length(coalesce(t.assignees->'entries', '[]'::jsonb)) > 0
+                then t.assignees->'entries'
+                else coalesce(t.data->'assignments', '[]'::jsonb) end) e
+        where e->>'unassignedAt' is null
+          and coalesce(e->>'userId', '') <> ''
+          and not exists (
+            select 1 from public.profiles p
+             where (e->>'userId') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+               and p.id = (e->>'userId')::uuid
+               and p.team_id = t.team_id))
+$$;
+
+comment on function public.rally_unresolved_live_assignments() is
+  'Live hoods whose CURRENT assignee resolves to no rep on their team. Must be 0 before assignment_server_authoritative may be turned on.';
+
+create or replace function public.rally_config_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare v_bad bigint;
+begin
+  if new.assignment_server_authoritative
+     and (tg_op = 'INSERT' or not coalesce(old.assignment_server_authoritative, false)) then
+    v_bad := public.rally_unresolved_live_assignments();
+    if v_bad > 0 then
+      raise exception 'v41: % live hood(s) still name a CURRENT assignee that is no rep on their team. Run db/preflight/v41-preflight.sql, fix them, then activate.', v_bad
+        using errcode = '23514';
+    end if;
+  end if;
+  new.updated_at := now();
+  return new;
+end $$;
+
+drop trigger if exists rally_config_guard on public.rally_config;
+create trigger rally_config_guard
+  before insert or update on public.rally_config
+  for each row execute function public.rally_config_guard();

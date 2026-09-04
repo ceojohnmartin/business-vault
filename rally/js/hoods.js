@@ -450,7 +450,10 @@
     let t;
     try {
       if (newRepName) {
-        const u = await STORE.addUser({ name: newRepName, role: "rep" });
+        // a retry must not mint a SECOND rep with the same name
+        const existing = STORE.users.find((u) =>
+          u.name.trim().toLowerCase() === newRepName.toLowerCase());
+        const u = existing || await STORE.addUser({ name: newRepName, role: "rep" });
         // ADDED to the set, not swapped in: naming a new rep on a hood that
         // already has one is how a second person joins it
         if (assignSet.indexOf(u.id) < 0) assignSet = assignSet.concat([u.id]);
@@ -463,10 +466,16 @@
           name, homes, points: pending,
           createdBy: (STORE.currentUser() || {}).id || null,
         });
+        /* THE HOOD NOW EXISTS. If the assignment below fails, a retry must
+           EDIT this hood, not mint a second one beside it — the toast said
+           "couldn't save", but the turf is already on the map. */
+        editingId = t.id;
       }
       if (t) await STORE.setAssignees(t, assignSet);
-    } catch (_) {
-      toast("Couldn't save the hood — try again");
+    } catch (err) {
+      // the reason, when there is one — a rep with no account can never be
+      // given turf, and "try again" is a loop with no exit
+      toast((err && err.message) || "Couldn't save the hood — try again");
       return;
     }
     // the confirmed door import runs against the freshly saved territory,

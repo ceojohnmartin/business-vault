@@ -154,9 +154,15 @@
       target = { kind: "vertex", i: what.i + 1 };
     }
     dragging = { target, moved: false, snapped: null };
+    MMAP.setDragPan(false);
+    /* Both enders are removed explicitly rather than each being `once`.
+       With `once` only the one that actually fires is cleaned up, so every
+       drag leaves the other bound to the window for the life of the
+       session — and a stray pointercancel later (iOS raises them freely)
+       would then abort an unrelated drag mid-gesture. */
     window.addEventListener("pointermove", onDrag, { passive: false });
-    window.addEventListener("pointerup", endDrag, { once: true });
-    window.addEventListener("pointercancel", endDrag, { once: true });
+    window.addEventListener("pointerup", endDrag);
+    window.addEventListener("pointercancel", endDrag);
     if (what.kind === "insert") repaint();
   }
 
@@ -180,6 +186,9 @@
 
   function endDrag() {
     window.removeEventListener("pointermove", onDrag);
+    window.removeEventListener("pointerup", endDrag);
+    window.removeEventListener("pointercancel", endDrag);
+    MMAP.setDragPan(true);
     if (dragging && dragging.snapped) {
       toast(dragging.snapped === "vertex" ? "Snapped to the neighbour's corner"
                                           : "Snapped to the neighbour's edge");
@@ -191,13 +200,20 @@
      corner by the same offset, so the outline keeps its exact form — a
      rotation or a scale would be a redraw, and this is a move. */
   function beginShapeDrag(e) {
-    if (!live) return;
+    if (!live) return false;
     const wrap = $("#mapwrap").getBoundingClientRect();
     const start = toLngLat(e.clientX - wrap.left, e.clientY - wrap.top);
     if (!MGEOM.pointInRing(live.points, start[0], start[1])) return false;
     e.preventDefault();
+    /* THE MAP MUST HOLD STILL. Otherwise its drag-pan runs alongside this
+       one and keeps the grabbed ground under the finger, so the offset is
+       always zero, the hood never moves, and the map slides away instead.
+       Stopping the pointer event does not stop it: the engine listens for
+       mousedown and touchstart, which are different events. */
+    MMAP.setDragPan(false);
     const origin = live.points.map((p) => [p[0], p[1]]);
     const move = (ev) => {
+      if (!live) return up();          // the editor closed mid-gesture
       ev.preventDefault();
       const now = toLngLat(ev.clientX - wrap.left, ev.clientY - wrap.top);
       const dx = now[0] - start[0], dy = now[1] - start[1];
@@ -208,9 +224,18 @@
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      MMAP.setDragPan(true);
+      if (live) live.shapeDrag = null;
     };
+    /* Held on `live` so close() can end a gesture the browser never
+       finished — a pointercancel that the OS swallows would otherwise leave
+       `move` bound to the window, and from then on every unrelated pointer
+       movement would drag the hood. */
+    live.shapeDrag = up;
     window.addEventListener("pointermove", move, { passive: false });
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
     return true;
   }
 
@@ -229,11 +254,13 @@
 
     const bar = document.createElement("div");
     bar.className = "vx-bar";
+    // btn-gold / btn-ghost are the classes app.css actually defines;
+    // `primary` and `ghost` alone render as unstyled full-width text
     bar.innerHTML = `<div class="vx-msg"></div>
       <div class="vx-btns">
-        <button class="btn ghost" id="vx-cancel" type="button">Cancel</button>
-        <button class="btn ghost" id="vx-revert" type="button">Undo all</button>
-        <button class="btn primary" id="vx-save" type="button">Save outline</button>
+        <button class="btn btn-ghost" id="vx-cancel" type="button">Cancel</button>
+        <button class="btn btn-ghost" id="vx-revert" type="button">Undo all</button>
+        <button class="btn btn-gold" id="vx-save" type="button">Save outline</button>
       </div>`;
     $("#mapwrap").appendChild(bar);
 
@@ -265,6 +292,9 @@
 
   function close(quiet) {
     if (!live) return;
+    if (live.shapeDrag) live.shapeDrag();
+    if (dragging) endDrag();
+    MMAP.setDragPan(true);
     clearHandles();
     if (live.bar) live.bar.remove();
     $("#mapwrap").removeEventListener("pointerdown", onShapePointer, true);
@@ -277,7 +307,9 @@
   async function save() {
     const v = verdict();
     if (!v.ok) { toast("Fix the outline first — " + String(v.msg).replace(/<[^>]+>/g, "")); return; }
-    if (!(await MTURF.gate("changing an outline"))) return;
+    // guarded the same way open() is: this module must not assume its
+    // sibling loaded, and the order of two script tags is not a contract
+    if (window.MTURF && !(await MTURF.gate("changing an outline"))) return;
     const t = live.hood;
     const before = live.original;
     const next = MGEOM.validate(live.points).points;

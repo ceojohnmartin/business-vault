@@ -121,10 +121,19 @@ declare
   v_geom   extensions.geometry;
   v_reason text;
 begin
-  -- a tombstoned or archived hood is not somewhere anyone is sent to work;
-  -- its outline is history and is left exactly as it is
+  -- a tombstoned hood is not somewhere anyone is sent to work; its outline
+  -- is history and is left exactly as it is. Becoming live again is a
+  -- different question, and is answered by the liveness test below.
   if new.deleted_at is not null then
+    /* Stored only when it is VALID, so the invariant "geom is never an
+       invalid geometry" holds on every row in the table rather than only on
+       the live ones. A tombstoned hood with a broken outline keeps NULL,
+       is enumerated by the preflight, and cannot be un-deleted back into
+       live turf without fixing the ring. */
     new.geom := public.rally_ring_to_geom(new.polygon);
+    if new.geom is not null and not extensions.st_isvalid(new.geom) then
+      new.geom := null;
+    end if;
     return new;
   end if;
 
@@ -134,7 +143,9 @@ begin
     -- An EXISTING row whose ring was already degenerate keeps its NULL and
     -- is surfaced by the preflight instead of blocking every unrelated
     -- write to it. A row arriving with a NEW degenerate ring is refused.
-    if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon then
+    if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon
+       and old.deleted_at is not distinct from new.deleted_at
+       and old.archived is not distinct from new.archived then
       new.geom := null;
       return new;
     end if;
@@ -148,10 +159,19 @@ begin
 
   if not extensions.st_isvalid(v_geom) then
     v_reason := extensions.st_isvalidreason(v_geom);
-    -- an existing invalid row keeps its NULL geom rather than becoming
-    -- unwritable; the preflight enumerates it and 0015 refuses to arm
-    -- while any live hood still has one
-    if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon then
+    /* An existing invalid row keeps its NULL geom rather than becoming
+       unwritable — the preflight enumerates it and 0016 refuses to arm
+       while any live hood still has one.
+
+       The escape is granted ONLY while the row's liveness is unchanged. A
+       hood inserted tombstoned with a bad ring and then un-deleted would
+       otherwise walk straight through both checks and go live with a NULL
+       geom: invisible to the GiST index, and therefore never compared
+       against anything. That is a hole in the overlap invariant, opened by
+       two ordinary writes. */
+    if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon
+       and old.deleted_at is not distinct from new.deleted_at
+       and old.archived is not distinct from new.archived then
       new.geom := null;
       return new;
     end if;

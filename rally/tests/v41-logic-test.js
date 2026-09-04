@@ -393,6 +393,27 @@ if (on()) {
   t.cycleStartedAt = null;
   check("C14 on the first cycle every not-home counts", S.nhDepth(nh3, t) === 4);
 
+  /* A dnk_clear is a record of an administrative act, not something that
+     happened at the door. Returning it as an outcome would ask the map for
+     a pin image that does not exist — which renders as NOTHING, so the door
+     would silently disappear from the map the moment a manager cleared it
+     on a hood that had had a cycle started. */
+  t.cycleStartedAt = C;
+  const cleared = door(110, 10, [[C + HOUR, "dnk"], [C + 2 * HOUR, "dnk_clear"]]);
+  check("C17 a cleared door does NOT read as 'dnk_clear'",
+    S.effectiveDisposition(cleared, t) !== "dnk_clear",
+    S.effectiveDisposition(cleared, t));
+  check("C18 it reads as a real outcome the map can paint",
+    ["unworked", "nothome", "goback", "notint", "sold", "dnk"]
+      .indexOf(S.effectiveDisposition(cleared, t)) >= 0,
+    S.effectiveDisposition(cleared, t));
+  t.cycleStartedAt = null;
+  check("C19 and on the first cycle too",
+    ["unworked", "nothome", "goback", "notint", "sold", "dnk"]
+      .indexOf(S.effectiveDisposition(cleared, t)) >= 0,
+    S.effectiveDisposition(cleared, t));
+  t.cycleStartedAt = C;
+
   // callbacks survive
   t.cycleStartedAt = C;
   const cb = door(100, 10, [[T0 + DAY, "goback"]], { callbackAt: C + 5 * DAY });
@@ -572,6 +593,41 @@ if (on()) {
   });
   check("M-I the first cycle anchors at -infinity, NOT at the hood's createdAt",
     m.pct === 100, "got " + m.pct);
+}
+
+
+// ================================================================ S scale
+section("S — cost at a real book's size");
+if (on()) {
+  reset();
+  const HOODS = 60, DOORS = 3000;
+  for (let i = 0; i < HOODS; i++) {
+    const cx = (i % 10) * 220, cy = Math.floor(i / 10) * 220;
+    hood("H" + i, rect(cx, cy, cx + 200, cy + 200));
+  }
+  for (let i = 0; i < DOORS; i++) {
+    const h = i % HOODS, cx = (h % 10) * 220, cy = Math.floor(h / 10) * 220;
+    door(cx + 10 + (i % 18) * 10, cy + 10 + ((Math.floor(i / 18)) % 18) * 10,
+      [[T0, "nothome"], [T0 + HOUR, "notint"]]);
+  }
+  const t0 = Date.now();
+  const f = S.doorFacts();
+  let total = 0, identity = true;
+  S.territories.forEach((t) => {
+    const m = S.routeMetrics(t, f);
+    total += m.inventory;
+    if (m.worked + m.remaining !== m.actionable) identity = false;
+  });
+  const ms = Date.now() - t0;
+  check("S1 every door lands in exactly one hood", total === DOORS, "counted " + total);
+  check("S2 the identity holds across all " + HOODS + " hoods", identity);
+  /* The grouping is what keeps this linear in doors. Scanning every door
+     per hood is O(hoods x doors) — 180,000 passes here — and would be a
+     visible hitch every time the Route tab painted. */
+  check("S3 metrics for " + HOODS + " hoods over " + DOORS + " doors stay well under a frame budget",
+    ms < 400, ms + " ms");
+  console.log("    (" + ms + " ms for " + HOODS + " hoods / " + DOORS + " doors / " +
+    S.events.length + " events)");
 }
 
 (async () => {

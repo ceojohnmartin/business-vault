@@ -88,6 +88,12 @@
        a fact about a device, never about the data, and a restored device
        must prove everything again. */
     "syncReconcile",
+    /* v41: what the SERVER told THIS device it owns. Carrying it in a
+       backup would move one device's answer onto another — and, worse,
+       could restore a stale `false` onto a device that had already latched
+       true, which is the one downgrade the latch exists to make impossible.
+       A restored device asks the server itself on its next cycle. */
+    "syncCaps",
     /* A Smart Split PROPOSAL belongs to the device that made it and to the
        moment it made it. Carried into a backup it would arrive somewhere
        else describing an operation that has since committed, been refused,

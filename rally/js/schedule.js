@@ -20,6 +20,9 @@
   }
 
   function render() {
+    // turf first: a rep opens Route to find out where to go next, and the
+    // day's booked visits are the answer to a different question
+    try { if (window.MTURF) MTURF.render(); } catch (_) {}
     const wrap = $("#sched-list");
     const unscheduled = STORE.customers.filter(
       (c) => !STORE.nextAppointment(c) && !STORE.lastServiced(c));

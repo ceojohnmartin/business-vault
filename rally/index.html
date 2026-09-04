@@ -119,6 +119,9 @@
   <!-- ================= SCHEDULE ================= -->
   <div class="screen" id="screen-schedule">
     <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Route</span></div>
+    <!-- turf progress leads the Route tab: where to go next comes before
+         what is already booked -->
+    <div id="sched-turf" hidden></div>
     <div id="sched-list"></div>
   </div>
 
@@ -486,6 +489,21 @@
   <!-- ================= SHEETS ================= -->
   <div class="sheet-veil" id="veil"></div>
 
+  <!-- WHO WORKS A HOOD — a SET, not a person. Several reps may hold one
+       hood at once; the history below is the ledger, and nothing in it is
+       ever deleted. -->
+  <div class="sheet" id="turf-assign-sheet">
+    <div class="grab"></div>
+    <h3>Who works <span id="turf-assign-title">this hood</span>?</h3>
+    <div class="reasons" id="turf-assign-chips"></div>
+    <div class="dim" id="turf-assign-note" style="font-size:12.5px;margin-top:6px"></div>
+    <div id="turf-assign-history"></div>
+    <div class="sheet-cta">
+      <button class="btn ghost" id="turf-assign-cancel" type="button">Cancel</button>
+      <button class="btn primary" id="turf-assign-save" type="button">Save</button>
+    </div>
+  </div>
+
   <div class="sheet" id="knock-sheet">
     <div class="grab"></div>
     <h2 id="knock-title">Log this door</h2>
@@ -542,6 +560,11 @@
         <div class="lead-opp" id="lead-opp" hidden></div></div>
       <span class="badge" id="lead-badge"></span>
     </div>
+    <!-- Clearing a do-not-knock is never a disposition tap. It is an
+         explicit, recorded act, and the server refuses every other route to
+         it — including an ordinary edit by a manager. -->
+    <button class="btn btn-ghost" id="lead-clear-dnk" style="margin-bottom:10px" hidden>
+      Clear the do-not-knock on this door</button>
 
     <!-- the fast path: outcome in one tap, next door -->
     <div class="pq-row" id="prop-quick">
@@ -601,6 +624,7 @@
       <input id="hood-homes" type="number" inputmode="numeric" min="0" placeholder="e.g. 184"></div>
     <div class="field"><label>Assigned rep</label>
       <div class="reasons" id="hood-reps"></div>
+    <div class="dim" id="hood-reps-note" style="font-size:12.5px;margin:-4px 0 8px" hidden></div>
       <div id="hood-newrep-wrap" hidden style="margin-top:8px">
         <input id="hood-newrep" placeholder="New rep's name" autocomplete="off"
           style="width:100%;background:var(--s1);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;font-size:15px">
@@ -616,6 +640,9 @@
       <button class="btn btn-ghost" id="hd-redraw" style="margin-bottom:10px" hidden>✏️ Edit the area</button>
     </div>
     <div id="hood-history"></div>
+    <!-- the outline is edited ON THE MAP: corners you can drag, a shape you
+         can move, and a live warning if it lands on a neighbour -->
+    <button class="btn btn-ghost" id="hood-edit-shape" style="margin-bottom:10px" hidden>📐 Reshape this hood on the map</button>
     <div id="hood-split-wrap" hidden>
       <button class="btn btn-ghost" id="hood-split" style="margin-bottom:10px">✂️ Smart Split — cut into balanced hoods</button>
       <div class="reasons" id="hood-split-n" hidden></div>
@@ -824,32 +851,35 @@
 
 </div>
 
-<script src="vendor/maplibre-gl.js?v=40"></script>
-<script>window.RALLY_BUILD = "v40";</script>
-<script src="js/db.js?v=40"></script>
-<script src="js/geo.js?v=40"></script>
-<script src="js/data.js?v=40"></script>
-<script src="js/ui.js?v=40"></script>
-<script src="js/store.js?v=40"></script>
-<script src="js/cloud-config.js?v=40"></script>
-<script src="js/cloud.js?v=40"></script>
-<script src="js/sync.js?v=40"></script>
-<script src="js/realtime.js?v=40"></script>
-<script src="js/auth.js?v=40"></script>
-<script src="js/gate.js?v=40"></script>
-<script src="js/property.js?v=40"></script>
-<script src="js/crm.js?v=40"></script>
-<script src="js/contract.js?v=40"></script>
-<script src="js/map.js?v=40"></script>
-<script src="js/hoods.js?v=40"></script>
-<script src="js/customers.js?v=40"></script>
-<script src="js/route.js?v=40"></script>
-<script src="js/street.js?v=40"></script>
-<script src="js/select.js?v=40"></script>
-<script src="js/home.js?v=40"></script>
-<script src="js/schedule.js?v=40"></script>
-<script src="js/stats.js?v=40"></script>
-<script src="js/vault.js?v=40"></script>
-<script src="js/app.js?v=40"></script>
+<script src="vendor/maplibre-gl.js?v=41"></script>
+<script>window.RALLY_BUILD = "v41";</script>
+<script src="js/db.js?v=41"></script>
+<script src="js/geom.js?v=41"></script>
+<script src="js/geo.js?v=41"></script>
+<script src="js/data.js?v=41"></script>
+<script src="js/ui.js?v=41"></script>
+<script src="js/store.js?v=41"></script>
+<script src="js/cloud-config.js?v=41"></script>
+<script src="js/cloud.js?v=41"></script>
+<script src="js/sync.js?v=41"></script>
+<script src="js/realtime.js?v=41"></script>
+<script src="js/auth.js?v=41"></script>
+<script src="js/gate.js?v=41"></script>
+<script src="js/property.js?v=41"></script>
+<script src="js/crm.js?v=41"></script>
+<script src="js/contract.js?v=41"></script>
+<script src="js/map.js?v=41"></script>
+<script src="js/hoods.js?v=41"></script>
+<script src="js/customers.js?v=41"></script>
+<script src="js/route.js?v=41"></script>
+<script src="js/street.js?v=41"></script>
+<script src="js/select.js?v=41"></script>
+<script src="js/home.js?v=41"></script>
+<script src="js/turf.js?v=41"></script>
+<script src="js/turfedit.js?v=41"></script>
+<script src="js/schedule.js?v=41"></script>
+<script src="js/stats.js?v=41"></script>
+<script src="js/vault.js?v=41"></script>
+<script src="js/app.js?v=41"></script>
 </body>
 </html>

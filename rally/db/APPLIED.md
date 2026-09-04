@@ -21,6 +21,47 @@ Fill these in yourself after running each verification query.
 | `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 7, 8, 9 PASS |
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
 | `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 01:05:18 UTC (APPLY_v39_1.sql; the rebuild stamped every customer row at that instant) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
+| `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS only; touches no RALLY object | **NOT APPLIED** | — |
+| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **NOT APPLIED** | — |
+| `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **NOT APPLIED** | — |
+| `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **NOT APPLIED** | — |
+| `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **NOT APPLIED** | — |
+| `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **NOT APPLIED** | — |
+| `0014_turf_rpcs.sql` | **v41 STAGE B** — `save_territory`, `set_territory_assignments`, `start_territory_cycle`, `clear_pin_dnk` | **NOT APPLIED** | — |
+| `0015_smart_split_v41.sql` | **v41 STAGE B** — split children inherit the complete current assignee set | **NOT APPLIED** | — |
+| `0016_turf_overlap.sql` | **v41 STAGE C** — the deferred overlap constraint + team advisory lock | **NOT APPLIED** | — |
+
+## v41 — authored, proven locally, NOT applied anywhere
+
+**Nothing in 0008–0016 has been run against the live project, and v41 has not
+been published.** Production is still Build v40 on `main` at `437893e`, with
+0001–0007 live. The whole v41 set is proven only against a throwaway local
+PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
+
+### The staged order, and the STOP gate on each stage
+
+| Stage | Files | Gate before the NEXT stage |
+|---|---|---|
+| **0** | `0008` | Run the discovery query in that file and **record the PostGIS schema below**. Supabase's default is `extensions`; that is an inference until the query says so. |
+| **0.5** | `db/preflight/v41-preflight.sql` — read-only, creates no durable object | **Review every section.** It reports unusable outlines, existing overlaps, the full assignment census across live/archived/tombstoned/split-parent hoods, unresolvable assignees, duplicate open entries, and the do-not-knock and unlinked-customer counts. |
+| **A** | `0009` → `0010` → `0011` → `0012` → `0013` | All five backfill proofs in 0011 must pass (they abort the transaction otherwise). The do-not-knock trigger is armed here on purpose: it protects v40 phones too. |
+| **B** | `0014` → `0015` | The v41 client must be deployed and its `applyTerritories` server-owned merge live BEFORE the flip, or the server would own a field no device can receive. |
+| **C** | `0016`, then — **separately** — the flip | 0016 refuses to arm while any live hood has an unusable outline. The flip is not a file: it is one reviewed statement, `update public.rally_config set assignment_server_authoritative = true;`, run only when the readiness gate is met. |
+
+### PostGIS schema, discovered (fill in before applying 0009)
+
+| Question | Expected | Actual | Confirmed by |
+|---|---|---|---|
+| `select n.nspname from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'postgis'` | `extensions` (inference) | **NOT RUN** | — |
+
+### Local proof, 2026-09-04
+
+- `sh rally/db/test/run-v41-tests.sh` — 87 SQL checks, the no-shape-changing-repair
+  grep over `db/migrations/`, and `turf-race-test.sh` (6 checks including the
+  negative control that proves the advisory lock, not merely the check).
+- `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
+  re-run with 0008–0016 applied: RLS 282, RACE 11, SPLIT RACE 11, MIRROR 182,
+  PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
 
 ## What production actually runs
 

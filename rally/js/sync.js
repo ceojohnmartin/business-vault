@@ -59,6 +59,19 @@
      team, under THIS rule version. { v, team, state: "started" | "done" }. */
   const K_RECONCILE = "syncReconcile";
   const RECONCILE_V = 1;
+  /* v41 — what the SERVER says it owns. Today the only entry is
+     `assignmentServerAuthoritative`: once the office activates it, the
+     territories.assignees ledger is assignment truth and a client's
+     data.assignments is a mirror the server overwrites.
+
+     LATCHED, and latched in ONE DIRECTION ONLY. `false` is the more
+     permissive state — the one in which this device may still author
+     assignment truth — so a `false` arriving after a `true` is treated as a
+     stale or failed read, never as a fact. Downgrading would be a privilege
+     escalation, which is precisely what the activation exists to end. Only
+     a full erase clears it, and it lives in vault.js's PRIVATE_KV so a
+     restored backup cannot carry a stale value in either direction. */
+  const K_CAPS = "syncCaps";
   const PUSH_BATCH = 200;
   const PULL_PAGE = 500;
   const EPOCH = "1970-01-01T00:00:00+00:00";
@@ -92,6 +105,9 @@
   let timer = null, kickT = null;
   let profileWait = 0;         // next allowed profile re-fetch when team-less
   let profileCache = null;
+  let caps = {};               // latched server capabilities (see K_CAPS)
+  let capWait = 0;             // rate limit on the pre-mutation re-check
+  const capability = (name) => caps[name] === true;
 
   const S = () => window.STORE;
   const teamId = () =>
@@ -255,6 +271,34 @@
     return ref;
   }
 
+  /* Read what the server says it owns, and latch anything it has taken.
+
+     A missing function (a project that has not run the v41 migrations yet)
+     is not an answer — it leaves the latch exactly as it was, which for a
+     fresh device means "the office has not activated this", the correct and
+     conservative reading. Only an explicit `true` ever changes anything
+     here, and once written it is never unwritten. */
+  let capsAbsent = false;      // this project has not run the v41 migrations
+  async function syncCapabilities() {
+    if (capsAbsent) return false;
+    let r = null;
+    try { r = await MCLOUD.api("/rest/v1/rpc/rally_capabilities", { method: "POST", body: {} }); }
+    catch (_) { return false; }
+    /* A project that has not run the v41 migrations has no such function,
+       and PostgREST answers 404. That is a fact about the DEPLOYMENT, not a
+       transient failure: it cannot become true again without a migration,
+       and a migration means a reload. So ask ONCE per session rather than
+       logging a 404 on every cycle for the life of the app. */
+    if (r && r.status === 404) { capsAbsent = true; return false; }
+    if (!r || !r.ok || !r.data || typeof r.data !== "object") return false;
+    let changed = false;
+    Object.keys(r.data).forEach((k) => {
+      if (r.data[k] === true && caps[k] !== true) { caps[k] = true; changed = true; }
+    });
+    if (changed) await MDB.kvSet(K_CAPS, caps).catch(() => {});
+    return changed;
+  }
+
   async function syncProfiles() {
     const r = await MCLOUD.api("/rest/v1/profiles?select=id,team_id,role,name,email,disabled");
     if (!r.ok || !Array.isArray(r.data)) return false;
@@ -414,6 +458,15 @@
          neither belongs in the team's copy of the record. */
       delete data.pendingSplit;
       delete data.splitInto;
+      /* v41 SERVER-OWNED state does not travel inside `data`. The assignee
+         ledger, its revision and the cycle boundary are COLUMNS the server
+         authors; a client copy riding in the jsonb would be a second,
+         stale answer to a question the server has already settled. The v40
+         mirrors (assignedTo, assignments) DO go up — they are what a phone
+         that has not upgraded reads. */
+      delete data.assignees;
+      delete data.assigneesRev;
+      delete data.cycleStartedAt;
       if (data.assignedTo) data.assignedTo = toProfile(data.assignedTo) || data.assignedTo;
       (data.assignments || []).forEach((a) => {
         if (a.userId) a.userId = toProfile(a.userId) || a.userId;
@@ -701,7 +754,15 @@
 
       let r;
       try {
-        r = await MCLOUD.api("/rest/v1/rpc/smart_split_territory", {
+        /* WHICH SPLIT FUNCTION. The v41 wrapper adds one thing: every child
+           inherits the parent's COMPLETE current assignee set, derived
+           server-side inside the same transaction. Which one exists is a
+           fact the server states in its capabilities — chosen from that,
+           never from calling one and catching the failure, because a
+           404-and-fall-back would also fall back on a network blip and
+           quietly split a hood without carrying its reps across. */
+        const fn = capability("turfRpc") ? "smart_split_territory_v41" : "smart_split_territory";
+        r = await MCLOUD.api("/rest/v1/rpc/" + fn, {
           method: "POST",
           body: { p_parent_id: rec.parentId, p_operation_id: e.id,
                   p_children: children },
@@ -804,6 +865,61 @@
     data.assignedTo = localizeRef(data.assignedTo);
     (data.assignments || []).forEach((a) => { a.userId = localizeRef(a.userId); });
     return data;
+  }
+
+  /* ---------- v41: the SERVER-OWNED territory fields ----------
+
+     A field the SERVER authors does not move the record's client clock, so
+     record last-write-wins cannot see it: applyTerritories builds the local
+     record from row.data alone and returns early on cmp === "same", which
+     would discard an assignment the office just made and a cycle the office
+     just started. These two fields are therefore merged from their own
+     COLUMNS, independently of that decision.
+
+     This is an ALLOWLIST of exactly two fields, and it must stay one. The
+     failure it is one step away from — "the server row wins outright" —
+     would destroy every offline edit a leader made to a hood's name,
+     outline or door count, which the merge engine is specifically built to
+     preserve. Nothing here touches a client-authored field, and `geom` is
+     deliberately absent: the device's business state is `points`.
+
+     Both merges are MONOTONE, so a stale page replayed from an earlier
+     cursor position cannot undo a newer one:
+       - assignees advances only on a HIGHER assignees_rev
+       - cycle_started_at advances only FORWARD (the RPC refuses to move it
+         back, so a lower value is always the older page) */
+  function localizeAssignees(a) {
+    const entries = (a && Array.isArray(a.entries) ? a.entries : []).map((e) => {
+      const o = Object.assign({}, e);
+      o.userId = localizeRef(o.userId);
+      if (o.assignedBy) o.assignedBy = localizeRef(o.assignedBy);
+      return o;
+    });
+    return { entries };
+  }
+
+  function mergeServerOwned(rec, row) {
+    let changed = false;
+    const s = S();
+    /* Only once the office has ACTIVATED server authority. Before that the
+       ledger is still client-authored and the ordinary clock decides — so
+       an early or partial deployment cannot have the server quietly
+       overwrite a leader's local assignment. */
+    if (row.assignees && typeof row.assignees === "object" &&
+        capability("assignmentServerAuthoritative")) {
+      const rev = Number(row.assignees_rev || 0);
+      if (rev > Number(rec.assigneesRev || 0)) {
+        rec.assignees = localizeAssignees(row.assignees);
+        rec.assigneesRev = rev;
+        if (s && s.assigneeMirrors) s.assigneeMirrors(rec);
+        changed = true;
+      }
+    }
+    if (row.cycle_started_at) {
+      const at = Date.parse(row.cycle_started_at);
+      if (at && at > (rec.cycleStartedAt || 0)) { rec.cycleStartedAt = at; changed = true; }
+    }
+    return changed;
   }
 
   /* A delivered LIVE row whose id this device has a pending tombstone for.
@@ -938,6 +1054,25 @@
         puts.push(pin);
         changed++;
       } // else: pure echo — touch nothing, repaint nothing
+      /* DO-NOT-KNOCK IS EXEMPT FROM RECORD LAST-WRITE-WINS.
+
+         The merged history already unions every knock, so the do-not-knock
+         FACT always survives a merge. What record LWW controls is the
+         scalar every screen paints from — and a peer whose clock happens to
+         be ahead could otherwise carry a later ordinary outcome over the
+         top of it, making a black door render as knockable. So the scalar
+         is put back from the evidence, on every branch, whatever the clock
+         said. A device with a ten-year-fast clock cannot un-black a door;
+         the worst it does is win the other fields.
+
+         Nothing here CLEARS a do-not-knock. Only an explicit leadership
+         clear_pin_dnk writes the dnk_clear this reads. */
+      if (s.dnkFromHistory && pin.disposition !== "dnk" &&
+          s.dnkFromHistory(pin.history) !== null) {
+        pin.disposition = "dnk";
+        if (puts.indexOf(pin) < 0) puts.push(pin);
+        changed++;
+      }
       claimRepair(row, pin, intents);
     }
     if (puts.length) await MDB.bulkPut("pins", puts);
@@ -1066,13 +1201,30 @@
            them the server's copy simply wins, which also repairs whatever
            divergence a refused local edit left behind. */
         const mayWrite = !S().canManageTerritories || S().canManageTerritories();
-        if (cmp === "older" && !dirty && mayWrite) { queue("territories", t.id); continue; }
-        if (cmp === "same" || (cmp !== "newer" && dirty)) continue;
+        /* The server-owned merge runs on EVERY branch, including the two
+           that return early. Those early returns are exactly where the
+           v40 engine dropped an assignment or a cycle boundary the office
+           had just authored, because neither moves the record's clock. */
+        if (cmp === "older" && !dirty && mayWrite) {
+          if (mergeServerOwned(t, row)) { puts.push(t); changed++; }
+          queue("territories", t.id);
+          continue;
+        }
+        if (cmp === "same" || (cmp !== "newer" && dirty)) {
+          if (mergeServerOwned(t, row)) { puts.push(t); changed++; }
+          continue;
+        }
+        // patchInPlace deletes every key the incoming data lacks, so the
+        // server-owned fields are re-applied AFTER it, never before
         patchInPlace(t, data);
+        mergeServerOwned(t, row);
         puts.push(t);
         changed++;
       } else {
         if (pendingDeleteFor("territories", row.id, intents)) continue;
+        // a hood arriving for the FIRST time must take them too, or its
+        // assignment and cycle would not land until the next server edit
+        mergeServerOwned(data, row);
         s.territories.push(data);
         puts.push(data);
         changed++;
@@ -1326,6 +1478,9 @@
       try { if (window.MREALTIME) MREALTIME.ensure(team); } catch (_) {}
       let usersChanged = false;
       try { usersChanged = await syncProfiles(); } catch (_) {}
+      // BEFORE the pull, so a page delivered this cycle is merged under the
+      // authority the server actually has rather than the one it had last time
+      try { if (await syncCapabilities()) usersChanged = true; } catch (_) {}
       // PULL FIRST: the team's newer records land and retire stale outbox
       // entries BEFORE this device pushes — so a week-old restored backup
       // (or any stale phone) can never roll the whole server back
@@ -1417,6 +1572,7 @@
     const box = await MDB.getAll("outbox").catch(() => []);
     box.forEach(noteQueued);
     reconcile = await MDB.kvGet(K_RECONCILE, null);
+    caps = (await MDB.kvGet(K_CAPS, null)) || {};
     // a refusal from a previous session is still a refusal
     const dead = (await MDB.kvGet("syncDead", null)) || [];
     deadCount = dead.length;
@@ -1475,6 +1631,13 @@
     await MDB.kvSet("syncTeam", null);
     await MDB.kvSet("syncDead", null);
     await MDB.kvSet(K_RECONCILE, null);
+    /* A full erase is the ONE thing that clears the capability latch. It is
+       not a downgrade: the device is being emptied, and the next cycle asks
+       the server again from scratch. Everything short of an erase — a stale
+       read, a failed request, a project mid-migration — leaves a latched
+       true exactly as it was. */
+    caps = {}; capWait = 0; capsAbsent = false;
+    await MDB.kvSet(K_CAPS, null);
     deadCount = 0; deadTables = {}; lastRefusal = null;
   }
 
@@ -1505,9 +1668,23 @@
   // everything the server has refused on this device, for the More screen
   const refusals = async () => (await MDB.kvGet("syncDead", null)) || [];
 
+  /* The pre-mutation re-check (v41). While the latch is false, a leader
+     about to touch turf asks the server ONCE more, so an activation that
+     happened since this session started is picked up without a reload.
+     Once latched, this costs nothing and never asks again. Rate-limited,
+     because a leader tapping through several hoods should not fire a
+     request per tap. */
+  async function recheckCapability(name) {
+    if (capability(name)) return true;
+    if (!eligible() || Date.now() < capWait) return capability(name);
+    capWait = Date.now() + 15e3;
+    try { await syncCapabilities(); } catch (_) {}
+    return capability(name);
+  }
+
   window.MSYNC = {
     start, queue, queueSplit, syncNow: cycle, wake, status, reset,
-    isDirty, refusals,
+    isDirty, refusals, capability, recheckCapability,
     // the store's atomic delete paths: build the tombstone rows, register
     // them before the transaction, unregister on abort, nudge a push after
     tombstoneEntry, register, unregister, kick,

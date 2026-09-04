@@ -11,8 +11,12 @@ total=0; failed=0
 # `v40` is the release-gate suite for the v40 compatibility work (atomic
 # deletes, pending tombstones, reconciliation, proven identities); it opens
 # dozens of browser contexts and is the slowest suite in the battery.
-for f in smoke auth facade flow2 doors-fix sync realtime cloud-auth font-boot \
-         backup-secrets role attribution payment-honesty v40 mixed-version \
+# `v41-logic` is pure computation (geometry, cycle derivation, Route metric
+# sets) and runs in plain node — no browser, so it is first and fastest.
+# `v41` and `v41-ui` are the v41 release gates: the server-owned merge, the
+# capability latch, do-not-knock authority, and the turf screens.
+for f in v41-logic smoke auth facade flow2 doors-fix sync realtime cloud-auth font-boot \
+         backup-secrets role attribution payment-honesty v40 v41 v41-ui mixed-version \
          upgrade-transition mixed-version@v37 upgrade-transition@v37 smart-split torture; do
   base="${f%@v37}"
   t="$DIR/$base.js"; [ -f "$t" ] || t="$DIR/$base-test.js"
@@ -33,5 +37,5 @@ for f in smoke auth facade flow2 doors-fix sync realtime cloud-auth font-boot \
   fi
 done
 echo "----------------------------------------"
-printf 'TOTAL %d checks across 20 suite runs, %d suite(s) failing\n' "$total" "$failed"
+printf 'TOTAL %d checks across 23 suite runs, %d suite(s) failing\n' "$total" "$failed"
 [ "$failed" = "0" ] || exit 1

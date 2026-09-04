@@ -601,23 +601,52 @@ reset role;
 select set_config('request.jwt.claims', '', false);
 
 -- ============ 14. no SECOND reachable path to a territory mutation
--- Territory ownership lives ONLY in public.territories (assignedTo and the
--- assignments[] history are inside its data column) — there is no separate
--- assignment table and no assignment column anywhere else.
+-- Territory ownership lives ONLY in public.territories. v41 promoted it from
+-- the data column to a real ledger (assignees / assignees_rev /
+-- open_assignees), so assignment COLUMNS now exist — but only there, and
+-- only as server-owned state no client can write.
+-- rally_config.assignment_server_authoritative is a boolean ACTIVATION FLAG,
+-- not a place a rep could be assigned to a hood, and it is unreachable to
+-- every client (asserted immediately below). Everything else must be absent.
 select t_assert(
   (select count(*) from information_schema.columns
      where table_schema = 'public'
+       and table_name not in ('territories', 'rally_config')
        and (column_name ilike '%assign%' or column_name ilike '%territory_owner%')) = 0,
   'no table outside territories carries a territory-assignment column');
 
--- authenticated may UPDATE exactly four tables, and nothing new slipped in
+select t_assert(
+  not has_table_privilege('authenticated', 'public.rally_config', 'SELECT')
+  and not has_table_privilege('authenticated', 'public.rally_config', 'UPDATE')
+  and not has_table_privilege('anon', 'public.rally_config', 'SELECT'),
+  'the activation flag is readable and writable by no client at all');
+
+select t_assert(
+  (select count(*) from information_schema.columns c
+     where c.table_schema = 'public' and c.table_name = 'territories'
+       and c.column_name ilike '%assign%'
+       and (has_column_privilege('authenticated', 'public.territories', c.column_name, 'INSERT')
+         or has_column_privilege('authenticated', 'public.territories', c.column_name, 'UPDATE'))) = 0,
+  'every assignment column on territories is server-owned — no client may write one');
+
+-- v41 replaced the table-wide UPDATE on territories with COLUMN grants (see
+-- 0012), so territories drops out of this list by design. Anything else
+-- appearing here is a table that quietly gained a blanket write.
 select t_assert(
   (select coalesce(string_agg(distinct table_name, ',' order by table_name), '')
      from information_schema.role_table_grants
     where grantee = 'authenticated' and table_schema = 'public'
       and privilege_type = 'UPDATE')
-  = 'customers,files,pins,territories',
-  'authenticated holds table-wide UPDATE on exactly the four expected tables');
+  = 'customers,files,pins',
+  'authenticated holds table-wide UPDATE on exactly the three expected tables');
+
+select t_assert(
+  (select coalesce(string_agg(distinct column_name, ',' order by column_name), '')
+     from information_schema.column_privileges
+    where grantee = 'authenticated' and table_schema = 'public'
+      and table_name = 'territories' and privilege_type = 'UPDATE')
+  = 'archived,created_by,data,deleted_at,homes,id,name,polygon,team_id',
+  'and on territories exactly the nine payload columns, no more');
 
 -- profiles is reachable only through a single-column grant, so role, team_id
 -- and disabled cannot be written from a client at all — the reason a rep
@@ -641,13 +670,41 @@ select t_assert(
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
       and p.prorettype <> 'trigger'::regtype
-      and p.provolatile = 'v') = 'smart_split_territory',
-  'the ONLY writable SECURITY DEFINER function in public is smart_split_territory');
--- and it is not reachable by anon or by a bare PUBLIC grant
+      and p.provolatile = 'v')
+  = 'clear_pin_dnk,rally_split_inherit,save_territory,set_territory_assignments,'
+    || 'smart_split_territory,smart_split_territory_v41,start_territory_cycle',
+  'the writable SECURITY DEFINER functions in public are exactly the named turf operations');
+
+/* v41 added six. Each is a deliberate door and each is named above, but
+   being named is not enough — every one must be shut to anon, and the two
+   that are pure internals must be shut to authenticated as well. */
 select t_assert(
   (select not has_function_privilege('anon',
      'public.smart_split_territory(text,text,jsonb)', 'execute')),
   'anon cannot execute the smart split function');
+select t_assert(
+  not has_function_privilege('anon', 'public.smart_split_territory_v41(text,text,jsonb)', 'execute')
+  and not has_function_privilege('anon', 'public.set_territory_assignments(text,uuid[],text)', 'execute')
+  and not has_function_privilege('anon', 'public.save_territory(text,text,jsonb,integer,boolean,uuid[],text)', 'execute')
+  and not has_function_privilege('anon', 'public.start_territory_cycle(text,timestamptz,text)', 'execute')
+  and not has_function_privilege('anon', 'public.clear_pin_dnk(text,text,text)', 'execute')
+  and not has_function_privilege('anon', 'public.rally_split_inherit(text,text[],text)', 'execute'),
+  'anon cannot execute any v41 turf operation');
+select t_assert(
+  not has_function_privilege('authenticated', 'public.rally_split_inherit(text,text[],text)', 'execute'),
+  'rally_split_inherit is an internal of the split RPC and is not callable by a client');
+select t_assert(
+  has_function_privilege('authenticated', 'public.set_territory_assignments(text,uuid[],text)', 'execute')
+  and has_function_privilege('authenticated', 'public.clear_pin_dnk(text,text,text)', 'execute'),
+  'the turf operations a leader needs ARE reachable by authenticated');
+select t_assert(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.prosecdef
+      and p.proname in ('set_territory_assignments','save_territory','start_territory_cycle',
+                        'clear_pin_dnk','rally_split_inherit','smart_split_territory_v41',
+                        'rally_capabilities','rally_require_leader','rally_my_team')
+      and not (coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=%')) = 0,
+  'every v41 SECURITY DEFINER function pins its search_path');
 
 -- the trigger functions are not reachable as RPCs even though PostgREST
 -- exposes the schema: Postgres refuses to call them outside a trigger
@@ -941,12 +998,18 @@ select t_assert(
    which is a door that bypasses RLS — so the checks it makes on the way in
    are the entire authorization story, and they are taken apart here. */
 
--- a disposable parent for team A, and one for team B
+/* A disposable parent for team A, and one for team B.
+
+   The two team-A parents sit on SEPARATE ground. They used to share it,
+   which was harmless before v41 and is now refused by the turf overlap
+   constraint (0016) — correctly, since two live hoods covering the same
+   street is exactly what that invariant exists to prevent. Team B's parent
+   may sit wherever it likes: the invariant is scoped per team. */
 insert into public.territories (team_id, id, name, polygon) values
   ('11111111-1111-4111-a111-111111111111', 'split-parent',  'Big Hood',
    '[[0,0],[4,0],[4,4],[0,4]]'::jsonb),
   ('11111111-1111-4111-a111-111111111111', 'split-parent-2','Second Hood',
-   '[[0,0],[4,0],[4,4],[0,4]]'::jsonb),
+   '[[10,0],[14,0],[14,4],[10,4]]'::jsonb),
   ('22222222-2222-4222-a222-222222222222', 'split-parent-b','Team B Hood',
    '[[0,0],[4,0],[4,4],[0,4]]'::jsonb);
 

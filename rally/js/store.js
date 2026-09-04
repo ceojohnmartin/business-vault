@@ -330,11 +330,15 @@
   S.deleteUser = async function (id) {
     S.users = S.users.filter((u) => u.id !== id);
     await MDB.del("users", id);
-    // their hoods go back to the pool; history keeps the record
+    /* Their hoods go back to the pool; history keeps the record. With
+       several current reps on a hood, removing ONE leaves the others
+       assigned — the whole point of the set model — so this closes only
+       this person's open entry and recomputes the current set from what
+       is left. */
     await Promise.all(S.territories.map((t) => {
-      if (t.assignedTo !== id) return null;
-      t.assignedTo = null;
-      (t.assignments || []).forEach((a) => { if (a.userId === id && !a.unassignedAt) a.unassignedAt = Date.now(); });
+      const cur = S.currentAssignees(t);
+      if (cur.indexOf(id) < 0) return null;
+      S.applyAssigneeSet(t, cur.filter((x) => x !== id));
       if (window.MSYNC) MSYNC.queue("territories", t.id);
       return MDB.put("territories", t);
     }));
@@ -368,16 +372,13 @@
     // a callback either gets a fresh time or is cleared by the new outcome
     pin.callbackAt = disposition === "goback" ? (callbackAt || pin.callbackAt || null) : null;
     const me = S.currentUser();
-    // credit the knock to a LIVE territory: a stale id from a deleted or
-    // split hood must not siphon this work into a ghost
-    const liveTid = (() => {
-      const t0 = pin.territoryId &&
-        S.territories.find((t) => t.id === pin.territoryId && S.isLive(t));
-      if (t0) return t0.id;
-      const t1 = S.territories.find((t) => S.isLive(t) && t.points && t.points.length >= 3 &&
-        S.inHood(t, pin.lng, pin.lat));
-      return t1 ? t1.id : null;
-    })();
+    /* Credit the knock to the door's CANONICAL hood. One definition
+       (S.hoodOf) now answers this for the knock log, the Route metrics and
+       the Schedule alike — before v41 the knock log trusted any live
+       stamp while the metrics used containment, so a polygon edit could
+       leave a door counted in one hood and credited to another. */
+    const live = S.hoodOf(pin);
+    const liveTid = live ? live.id : null;
     if (pin.territoryId && liveTid !== pin.territoryId) pin.territoryId = liveTid;
     const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition, reason: reason || null, dm: !!dm,
       repId: me ? me.id : null,
@@ -564,6 +565,17 @@
     // the only thing that later tells a refused tombstone from one for a row
     // the server never had
     const gone = S.pins.find((p) => p.id === id) || null;
+    /* A do-not-knock door may not be erased by a rep. This guard is UX: it
+       gives the rep a reason instead of a silent server correction. The
+       AUTHORITY is the pins trigger, which neutralises the tombstone for a
+       non-leadership caller whatever client sent it, plus the append-only
+       events log, which no client can touch at all. */
+    if (gone && S.isCurrentDnk(gone) && !S.canManageTerritories()) {
+      try {
+        MUI.toast("This door is marked do-not-knock — a manager has to clear it first");
+      } catch (_) {}
+      return false;
+    }
     const ids = gone ? S.pinIdentities(gone) : [id];
     const evs = S.events.filter((e) => e.pinId === id);
     const entries = window.MSYNC
@@ -725,7 +737,14 @@
     t.id = MDB.uid();
     t.createdAt = Date.now();
     t.updatedAt = Date.now(); // territories need a clock for sync LWW
-    t.assignments = t.assignments || [];
+    /* Assignment truth is a SET from the moment the hood exists. `entries`
+       is the ledger; `assignments` and `assignedTo` below are the derived
+       v40 mirrors, written by the same code that the server trigger
+       mirrors, so an optimistic local hood is shaped exactly like one that
+       came back from the server. */
+    t.assignees = t.assignees || { entries: [] };
+    t.assigneesRev = t.assigneesRev || 0;
+    S.assigneeMirrors(t);
     S.territories.push(t);
     await MDB.put("territories", t);
     if (window.MSYNC) MSYNC.queue("territories", t.id);
@@ -787,43 +806,33 @@
     return true;
   };
 
-  // Assignment is history, never an overwrite: the old rep's run is closed
-  // out and the new one opened, so "who worked this hood when" survives.
-  S.assignTerritory = async function (t, userId) {
-    if (t.assignedTo === userId) return t;
-    const now = Date.now();
-    t.assignments = t.assignments || [];
-    t.assignments.forEach((a) => { if (!a.unassignedAt) a.unassignedAt = now; });
-    t.assignedTo = userId || null;
-    if (userId) {
-      const u = S.userById(userId);
-      t.assignments.push({
-        userId, name: u ? u.name : "?",
-        assignedBy: (S.currentUser() || {}).name || "",
-        assignedAt: now, unassignedAt: null,
-      });
-    }
-    t.updatedAt = now;
-    await MDB.put("territories", t);
-    if (window.MSYNC) MSYNC.queue("territories", t.id);
-    return t;
+  /* Assignment is history, never an overwrite: a departing rep's run is
+     closed out and the arriving one opened, so "who worked this hood when"
+     survives forever. ONE hood may hold SEVERAL current reps, so the whole
+     operation is expressed as a desired CURRENT SET and the diff against
+     the open entries is what creates and closes history.
+
+     Single-assignee callers keep working unchanged — this is that same
+     operation with a one-element set. */
+  S.assignTerritory = function (t, userId) {
+    return S.setAssignees(t, userId ? [userId] : []);
   };
 
+  /* A hood with several current reps takes the FIRST open assignee's colour.
+     Deterministic (S.firstOpenAssignee orders by assignedAt then userId), so
+     two devices paint the same hood the same colour, and the leader panel
+     shows the full set beside it rather than hiding the others. */
   S.hoodColor = (t) => {
-    const u = t.assignedTo && S.userById(t.assignedTo);
+    const u = S.firstOpenAssignee(t) && S.userById(S.firstOpenAssignee(t));
     return u ? u.color : (t.color || "#8A93A6"); // unassigned = neutral
   };
 
-  // ray-cast point-in-polygon on the hood's [lng,lat] ring
+  /* Ray-cast point-in-polygon on the hood's [lng,lat] ring. The algorithm
+     lives in MGEOM so that membership, the overlap advisory and the server's
+     own containment reasoning are all the same test — a door that counts as
+     inside for the metrics must be inside for everything else too. */
   S.inHood = function (t, lng, lat) {
-    const pts = t.points || [];
-    let inside = false;
-    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-      const xi = pts[i][0], yi = pts[i][1], xj = pts[j][0], yj = pts[j][1];
-      if (((yi > lat) !== (yj > lat)) &&
-          (lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)) inside = !inside;
-    }
-    return inside;
+    return MGEOM.pointInRing((t && t.points) || [], lng, lat);
   };
 
   // Live territory numbers, straight from the pins inside the polygon.
@@ -865,8 +874,12 @@
   S.isLive = (t) => !!t && !t.archived && !t.splitInto;
   S.activeTerritories = () => S.territories.filter(S.isLive);
 
-  // hoods belonging to a user (for rep mode and the manager panel)
-  S.hoodsOf = (userId) => S.territories.filter((t) => S.isLive(t) && t.assignedTo === userId);
+  /* Hoods belonging to a user (rep mode, the manager panel, Route).
+     ONE hood may have SEVERAL current reps, so this is a set membership
+     test, never a scalar comparison — John and Jake both get the hood in
+     their list, and removing Jake leaves John's list untouched. */
+  S.hoodsOf = (userId) =>
+    S.territories.filter((t) => S.isLive(t) && S.currentAssignees(t).indexOf(userId) >= 0);
 
   // every interaction that happened inside a hood, joined through pins
   S.eventsInHood = function (t) {
@@ -1275,6 +1288,571 @@
   };
 
   S.queuedCount = () => S.customers.filter((c) => c.status === "queued").length;
+
+  /* ==================================================================
+     V41 — TURF OPERATIONS
+     ==================================================================
+
+     Three ideas live here, and each has exactly one definition so that no
+     two screens can disagree about the same hood:
+
+       1. ASSIGNMENT IS A SET.  One hood may have several current reps.
+          `t.assignees.entries` is the ledger; `t.assignments` and
+          `t.assignedTo` are derived v40 mirrors written by the same rule
+          the server trigger uses.
+       2. MEMBERSHIP IS CANONICAL.  S.hoodOf answers "which hood is this
+          door in?" for the knock log, the metrics and the Schedule alike.
+       3. A CYCLE IS A BOUNDARY, NOT AN EDIT.  Clear Outcomes moves one
+          monotonic timestamp. It never touches a pin, a knock, a note, a
+          customer or an assignment.
+
+     None of this is authority. The server owns assignment history, DNK and
+     overlap; these functions render the same answers offline and let a
+     leader see what a mutation will do before the server confirms it.  */
+
+  // ---------- assignment: the entry ledger ----------
+
+  /* The entries for a hood, in canonical order. A hood that has never been
+     through the v41 migration has only the v40 mirrors, so those are read
+     back into entry shape — the SAME reconstruction the server backfill
+     performs, which is what lets a client and a server that have not yet
+     met agree about who is assigned. */
+  S.assigneeEntries = function (t) {
+    if (!t) return [];
+    const src = t.assignees && Array.isArray(t.assignees.entries)
+      ? t.assignees.entries
+      : legacyEntries(t);
+    return src.slice().sort(cmpEntry);
+  };
+
+  function legacyEntries(t) {
+    const list = Array.isArray(t.assignments) ? t.assignments.filter(Boolean) : [];
+    if (list.length) return list;
+    // the oldest shape of all: a scalar assignee and no history at all
+    if (t.assignedTo) {
+      return [{ userId: t.assignedTo, name: "", assignedBy: null,
+        assignedAt: t.createdAt || 0, unassignedAt: null, synthesizedFrom: "assignedTo" }];
+    }
+    return [];
+  }
+
+  /* Total order: assignedAt, then userId. The tiebreak is not decoration —
+     two reps assigned by ONE action share a millisecond, and without it
+     `assignedTo` (the first open entry) would differ between devices and
+     the v40 mirror would flap on every sync. */
+  function cmpEntry(a, b) {
+    const ta = a.assignedAt || 0, tb = b.assignedAt || 0;
+    if (ta !== tb) return ta - tb;
+    return String(a.userId || "").localeCompare(String(b.userId || ""));
+  }
+
+  const isOpen = (e) => !!e && (e.unassignedAt === null || e.unassignedAt === undefined);
+
+  // the current reps, deduplicated, in canonical order
+  S.currentAssignees = function (t) {
+    const out = [];
+    S.assigneeEntries(t).forEach((e) => {
+      if (isOpen(e) && e.userId && out.indexOf(e.userId) < 0) out.push(e.userId);
+    });
+    return out;
+  };
+
+  S.firstOpenAssignee = (t) => S.currentAssignees(t)[0] || null;
+
+  S.assigneeHistory = function (t) {
+    return S.assigneeEntries(t).map((e) => Object.assign({}, e, {
+      name: e.name || (S.userById(e.userId) || {}).name || "",
+      open: isOpen(e),
+    }));
+  };
+
+  /* Recompute the two v40 mirrors from the ledger. This is the client half
+     of the same rule the server's assignment trigger applies, so a hood
+     edited offline is byte-shaped like one the server just corrected and
+     the echo compares equal instead of fighting. */
+  S.assigneeMirrors = function (t) {
+    const entries = S.assigneeEntries(t);
+    t.assignees = { entries };
+    t.assignedTo = S.firstOpenAssignee(t);
+    t.assignments = entries.map((e) => ({
+      userId: e.userId,
+      name: e.name || (S.userById(e.userId) || {}).name || "",
+      // v40 renders assignedBy as a NAME. Handing it a UUID would put a
+      // raw id in the history UI of every phone that has not upgraded.
+      assignedBy: e.assignedByName || (S.userById(e.assignedBy) || {}).name || "",
+      assignedAt: e.assignedAt || 0,
+      unassignedAt: isOpen(e) ? null : e.unassignedAt,
+    }));
+    return t;
+  };
+
+  /* Diff the desired current set against the open entries and write the
+     difference as history. Purely local — it produces exactly what the
+     server's set_territory_assignments would, so the optimistic view and
+     the confirmed one match.
+
+     Never deletes or reopens an entry: the only transition it can make is
+     open -> closed, plus appending new open entries. */
+  S.applyAssigneeSet = function (t, userIds, opts) {
+    const o = opts || {};
+    const now = o.at || Date.now();
+    const want = [];
+    (userIds || []).forEach((id) => { if (id && want.indexOf(id) < 0) want.push(id); });
+    const entries = S.assigneeEntries(t).map((e) => Object.assign({}, e));
+    const by = (S.currentUser() || {});
+    let changed = false;
+
+    entries.forEach((e) => {
+      if (isOpen(e) && want.indexOf(e.userId) < 0) { e.unassignedAt = now; changed = true; }
+    });
+    const stillOpen = entries.filter(isOpen).map((e) => e.userId);
+    want.forEach((id) => {
+      if (stillOpen.indexOf(id) >= 0) return; // already current: not a second entry
+      const u = S.userById(id);
+      entries.push({
+        userId: id,
+        name: u ? u.name : "",
+        assignedBy: by.id || null,
+        assignedByName: by.name || "",
+        assignedAt: now,
+        unassignedAt: null,
+      });
+      changed = true;
+    });
+    if (!changed && !o.force) return false;
+    t.assignees = { entries: entries.sort(cmpEntry) };
+    S.assigneeMirrors(t);
+    t.updatedAt = now;
+    return true;
+  };
+
+  /* Write a new CURRENT SET.
+
+     Once the office has activated server authority the ledger is not ours
+     to move: an ordinary upsert carrying data.assignments is ignored by
+     design, so the change has to go through the RPC or it would look saved
+     and silently not be. The client states WHO SHOULD BE ASSIGNED; the
+     server owns every timestamp, every open/closed transition and the
+     history that results.
+
+     Applied locally FIRST so the screen responds at once, and rolled back
+     if the server refuses — a leader must never be shown an assignment the
+     team does not have. Before activation (and with no cloud at all) the
+     ordinary outbox path is still the truth, exactly as in v40. */
+  S.setAssignees = async function (t, userIds) {
+    const before = JSON.parse(JSON.stringify(t.assignees || { entries: [] }));
+    const beforeRev = t.assigneesRev || 0;
+    if (!S.applyAssigneeSet(t, userIds)) return t;
+
+    const authoritative = !!(window.MSYNC && MSYNC.capability &&
+      MSYNC.capability("assignmentServerAuthoritative"));
+    const cloud = !!(window.MCLOUD && MCLOUD.enabled());
+
+    if (authoritative && cloud) {
+      // the wire speaks profile uuids; a rep with no server identity yet
+      // cannot be given turf, and saying so beats a silent partial save
+      const profiles = [];
+      for (const id of userIds || []) {
+        const pid = MSYNC.profileOf ? MSYNC.profileOf(id) : null;
+        if (!pid) {
+          t.assignees = before; t.assigneesRev = beforeRev; S.assigneeMirrors(t);
+          throw new Error("that rep has no account yet — they can't be given turf");
+        }
+        profiles.push(pid);
+      }
+      try {
+        const res = await rpc("set_territory_assignments", {
+          p_territory_id: t.id, p_assignees: profiles, p_operation_id: MDB.uid(),
+        });
+        if (res && typeof res.assignees_rev === "number") t.assigneesRev = res.assignees_rev;
+      } catch (err) {
+        t.assignees = before; t.assigneesRev = beforeRev; S.assigneeMirrors(t);
+        await MDB.put("territories", t).catch(() => {});
+        throw err;
+      }
+      await MDB.put("territories", t);
+      return t;
+    }
+
+    await MDB.put("territories", t);
+    if (window.MSYNC) MSYNC.queue("territories", t.id);
+    return t;
+  };
+
+  // ---------- canonical hood membership ----------
+
+  S.hoodContains = function (t, pin) {
+    return !!(t && t.points && t.points.length >= 3 && pin &&
+      typeof pin.lng === "number" && typeof pin.lat === "number" &&
+      S.inHood(t, pin.lng, pin.lat));
+  };
+
+  /* THE definition of which hood a door belongs to.
+
+     A stamped id is trusted only while it names a live hood that still
+     CONTAINS the door: v41 lets a leader move a boundary, so a stamp can
+     go stale geometrically as well as by deletion, and a door left behind
+     by an edit must follow the polygon rather than keep crediting work to
+     a hood it no longer sits in.
+
+     When no live polygon contains the door, a live stamp still beats
+     nothing — a door just outside its hood through GPS drift keeps its
+     home instead of becoming an orphan that flickers between hoods. */
+  S.hoodOf = function (pin) {
+    if (!pin) return null;
+    const stamped = pin.territoryId
+      ? S.territories.find((t) => t.id === pin.territoryId && S.isLive(t)) : null;
+    if (stamped && S.hoodContains(stamped, pin)) return stamped;
+    const found = S.territories.find((t) => S.isLive(t) && S.hoodContains(t, pin));
+    return found || stamped || null;
+  };
+
+  // ---------- door facts: one pass, then O(1) per door ----------
+
+  /* Everything the cycle rules need about a door, indexed by pin id.
+     Built in one pass over events and customers so a 1,200-door hood costs
+     one traversal rather than a scan per door.
+
+     `dnkAt` and `soldAt` come from the EVENT log first and fall back to the
+     pin's own history: events are append-only on the server and cannot be
+     edited or deleted by any client, so where both exist the event wins. */
+  S.doorFacts = function () {
+    const facts = new Map();
+    const get = (id) => {
+      let f = facts.get(id);
+      if (!f) {
+        f = { dnkAt: null, dnkClearedAt: null, soldAt: null, lastKnockAt: null,
+          knockTs: [], nhTs: [], cust: null };
+        facts.set(id, f);
+      }
+      return f;
+    };
+    const note = (f, disposition, ts) => {
+      if (!ts) return;
+      if (disposition === "dnk_clear") {
+        if (f.dnkClearedAt === null || ts > f.dnkClearedAt) f.dnkClearedAt = ts;
+        return; // a clear is not a knock
+      }
+      f.knockTs.push(ts);
+      if (f.lastKnockAt === null || ts > f.lastKnockAt) f.lastKnockAt = ts;
+      if (disposition === "dnk" && (f.dnkAt === null || ts > f.dnkAt)) f.dnkAt = ts;
+      if (disposition === "sold" && (f.soldAt === null || ts > f.soldAt)) f.soldAt = ts;
+      if (disposition === "nothome") f.nhTs.push(ts);
+    };
+    /* A knock exists TWICE by design — once in the door's history and once
+       in the append-only event log — so the two sources are unioned on
+       (door, ts, disposition) rather than concatenated. Counting a knock
+       twice would double every not-home depth and every worked total. */
+    const seen = new Set();
+    const once = (id, disposition, ts) => {
+      const k = id + "|" + ts + "|" + disposition;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    };
+    S.pins.forEach((p) => {
+      const f = get(p.id);
+      (p.history || []).forEach((h) => {
+        if (once(p.id, h.disposition, h.ts)) note(f, h.disposition, h.ts);
+      });
+    });
+    const alias = new Map();
+    S.pins.forEach((p) => (p.aka || []).forEach((a) => alias.set(a, p.id)));
+    S.events.forEach((e) => {
+      const id = facts.has(e.pinId) ? e.pinId : (alias.get(e.pinId) || e.pinId);
+      if (!facts.has(id)) return; // an event whose door is gone
+      if (!once(id, e.disposition, e.ts)) return;
+      note(get(id), e.disposition, e.ts);
+    });
+    facts.forEach((f) => {
+      f.knockTs.sort((a, b) => a - b);
+      f.nhTs.sort((a, b) => a - b);
+    });
+    S.customers.forEach((c) => {
+      if (!c || !c.pinId) return;
+      const f = facts.get(c.pinId);
+      if (!f) return;
+      // the most recently signed linked customer represents the door
+      const at = S.custSignedAt(c);
+      if (!f.cust || (at || 0) > (S.custSignedAt(f.cust) || 0)) f.cust = c;
+    });
+    return facts;
+  };
+
+  const factFor = (facts, pin) =>
+    (facts && facts.get(pin.id)) ||
+    { dnkAt: null, dnkClearedAt: null, soldAt: null, lastKnockAt: null,
+      knockTs: [], nhTs: [], cust: null };
+
+  /* A door is CURRENTLY do-not-knock when it carries a dnk that no explicit
+     leadership clear has superseded. `pin.disposition === 'dnk'` alone is
+     not enough: a later ordinary knock overwrites the scalar while the
+     do-not-knock fact stands, and no ordinary edit — by anyone, of any
+     role — may clear black. Only clear_pin_dnk writes a dnk_clear. */
+  /* Sentinel for "this fact is true but we cannot date it" — a door whose
+     scalar says dnk but whose knock that set it never reached this device.
+     Real clocks are ms since 1970 and always vastly greater, so 0 can never
+     be mistaken for a genuine timestamp. UNKNOWN is deliberately NOT the
+     same as absent: an undateable do-not-knock is still a do-not-knock. */
+  S.TS_UNKNOWN = 0;
+
+  S.dnkAtOf = function (pin, facts) {
+    const f = factFor(facts || S.doorFacts(), pin);
+    const raw = f.dnkAt !== null ? f.dnkAt
+      : (pin.disposition === "dnk" ? S.TS_UNKNOWN : null);
+    if (raw === null) return null;
+    if (f.dnkClearedAt !== null && f.dnkClearedAt >= raw) return null;
+    return raw;
+  };
+
+  S.isCurrentDnk = function (pin, facts) {
+    return !!pin && S.dnkAtOf(pin, facts) !== null;
+  };
+
+  /* The same verdict from ONE door's history alone, with no index to build.
+     The sync engine calls this once per delivered row, where walking every
+     event for every row would be quadratic. It works because a dnk_clear is
+     written into the door's history as well as the event log, exactly like
+     a knock — so the history union that already carries knocks across
+     devices carries the clear too. */
+  S.dnkFromHistory = function (history) {
+    let dnkAt = null, clearedAt = null;
+    (history || []).forEach((h) => {
+      if (!h) return;
+      if (h.disposition === "dnk") { if (dnkAt === null || h.ts > dnkAt) dnkAt = h.ts; }
+      else if (h.disposition === "dnk_clear") {
+        if (clearedAt === null || h.ts > clearedAt) clearedAt = h.ts;
+      }
+    });
+    if (dnkAt === null) return null;
+    if (clearedAt !== null && clearedAt >= dnkAt) return null;
+    return dnkAt;
+  };
+
+  // an active or frozen linked customer — a signed household, not a prospect
+  S.activeCustomerOf = function (pin, facts) {
+    const c = factFor(facts || S.doorFacts(), pin).cust;
+    if (!c) return null;
+    const acct = c.acct || "active";
+    return acct === "canceled" ? null : c;
+  };
+
+  // ---------- the cycle boundary ----------
+
+  /* null means FIRST CYCLE — conceptually -infinity, i.e. all history is in
+     the window. It does NOT mean "since the hood was created": a Smart
+     Split child is created long after the knocks on the doors it inherits,
+     so anchoring at createdAt would show a fully-worked child as 0%. */
+  S.cycleStart = (t) => (t && t.cycleStartedAt) || null;
+  const inWindow = (ts, C) => ts !== null && ts !== undefined && (C === null || ts >= C);
+  const beforeWindow = (ts, C) => C !== null && ts !== null && ts !== undefined && ts < C;
+
+  /* What colour a door should read on the map for this hood's current
+     cycle. Clear Outcomes writes NO pins, so the reset is expressed here:
+     everything worked before the boundary reads unworked again, while the
+     two facts that outlive a cycle keep their colour.
+
+       BLACK  do-not-knock — never cleared by a boundary
+       GREEN  a signed, non-cancelled household — still their customer
+       else   the last outcome AT OR AFTER the boundary, or unworked */
+  S.effectiveDisposition = function (pin, t, facts) {
+    const f = facts || S.doorFacts();
+    if (S.isCurrentDnk(pin, f)) return "dnk";
+    if (S.activeCustomerOf(pin, f)) return "sold";
+    const C = S.cycleStart(t || S.hoodOf(pin));
+    if (C === null) return pin.disposition || "unworked";
+    let best = null;
+    (pin.history || []).forEach((h) => {
+      if (h.ts >= C && (!best || h.ts >= best.ts)) best = h;
+    });
+    return best ? best.disposition : "unworked";
+  };
+
+  /* Not-home depth for the CURRENT cycle: 1 -> yellow, 2 -> darker,
+     3+ -> near orange. Counted from post-boundary knocks only, so a fresh
+     cycle starts every door back at zero without touching a single pin. */
+  S.nhDepth = function (pin, t, facts) {
+    const f = factFor(facts || S.doorFacts(), pin);
+    const C = S.cycleStart(t || S.hoodOf(pin));
+    let n = 0;
+    f.nhTs.forEach((ts) => { if (C === null || ts >= C) n++; });
+    return n;
+  };
+
+  // ---------- Route metrics ----------
+
+  /* Disjoint sets, computed once per door. Every inventory door lands in
+     exactly one of PRIOR_NON_PROSPECT / WORKED / REMAINING, so
+     WORKED + REMAINING = ACTIONABLE is an identity rather than an
+     arithmetic hope — nothing is ever subtracted twice because nothing is
+     subtracted at all.
+
+     EVIDENCE RULES. A signed household and a do-not-knock door must never
+     appear as remaining prospect turf, and that has to hold when the
+     timestamp evidence is missing. So an UNKNOWN signedAt or dnkAt is
+     treated as PRIOR: the door leaves the denominator conservatively
+     instead of being offered to a rep to knock. Incomplete evidence can
+     cost a door its place in the percentage; it can never turn a customer
+     back into a prospect.
+
+     FIRST CYCLE (C = null): nothing is "before" the window, so a customer
+     or a do-not-knock with a KNOWN timestamp counts as worked — the work
+     that produced it really did happen inside the window. */
+  S.routeMetrics = function (t, facts) {
+    const f = facts || S.doorFacts();
+    const C = S.cycleStart(t);
+    const m = {
+      inventory: 0, actionable: 0, worked: 0, remaining: 0, pct: null,
+      priorCustomers: 0, priorDnk: 0, priorUnknown: 0,
+      salesThisCycle: 0, salesUnknown: 0, dnkThisCycle: 0,
+      callbacks: 0, lastWorked: null, cycleStartedAt: C,
+    };
+    S.pins.forEach((pin) => {
+      const hood = S.hoodOf(pin);
+      if (!hood || hood.id !== t.id) return;
+      m.inventory++;
+      const fact = factFor(f, pin);
+      const dnkAt = S.dnkAtOf(pin, f);
+      const cust = S.activeCustomerOf(pin, f);
+      const signedAt = cust ? S.custSignedAt(cust) : null;
+
+      /* SALES ANALYTICS FIRST, and for EVERY inventory door — including the
+         ones the prospect arithmetic is about to exclude. Counting sales
+         inside the actionable branch would let a customer with an
+         undateable signature disappear from the sales figure as well as
+         from the denominator, which is exactly the corruption these two
+         numbers are kept apart to prevent. */
+      if (inWindow(fact.soldAt, C)) m.salesThisCycle++;
+      else if (cust && inWindow(signedAt, C)) m.salesUnknown++;
+
+      // --- PRIOR NON-PROSPECT: out of the denominator entirely ---
+      const custPrior = !!cust && (signedAt === null || beforeWindow(signedAt, C));
+      const dnkPrior = dnkAt !== null && (dnkAt === S.TS_UNKNOWN || beforeWindow(dnkAt, C));
+      if (custPrior || dnkPrior) {
+        if (custPrior) m.priorCustomers++;
+        else m.priorDnk++;
+        if ((custPrior && signedAt === null) || (dnkPrior && dnkAt === S.TS_UNKNOWN)) m.priorUnknown++;
+        return;
+      }
+
+      // --- ACTIONABLE: worked this cycle, or still to do ---
+      m.actionable++;
+      if (pin.callbackAt) m.callbacks++;
+      const knocked = fact.knockTs.some((ts) => inWindow(ts, C));
+      const soldNow = !!cust && inWindow(signedAt, C);
+      const dnkNow = dnkAt !== null && dnkAt !== S.TS_UNKNOWN && inWindow(dnkAt, C);
+      if (knocked || soldNow || dnkNow) {
+        m.worked++;
+        if (fact.lastKnockAt !== null &&
+            (m.lastWorked === null || fact.lastKnockAt > m.lastWorked)) {
+          m.lastWorked = fact.lastKnockAt;
+        }
+      } else {
+        m.remaining++;
+      }
+      if (dnkNow) m.dnkThisCycle++;
+    });
+    m.pct = m.actionable > 0 ? Math.round((m.worked / m.actionable) * 100) : null;
+    return m;
+  };
+
+  // ---------- capability gate for leadership turf work ----------
+
+  /* Leadership turf management may require connectivity, and on a v41
+     client it does. Until this device has SEEN the server say assignment
+     authority is live, a new turf mutation made offline would be written
+     under legacy rules with nothing able to correct it — so it is refused
+     with a reason instead. Rep field work is untouched and stays fully
+     offline-first: knocks, notes, callbacks, outcomes and customers never
+     ask this question. */
+  S.turfGate = function (opts) {
+    const o = opts || {};
+    if (!S.canManageTerritories()) {
+      return { ok: false, code: "role", reason: "Turf is managed by a leader or manager." };
+    }
+    const cloud = !!(window.MCLOUD && MCLOUD.enabled());
+    if (!cloud) return { ok: true, code: "solo" }; // no team server: nothing to disagree with
+    const offline = navigator.onLine === false;
+    /* Some operations ARE a server call — starting a cycle, clearing a
+       do-not-knock, moving the assignment ledger. Being latched does not
+       make those possible offline; it only means the device knows who owns
+       the answer. So they refuse rather than pretend. */
+    if (o.needsServer && offline) {
+      return { ok: false, code: "offline",
+        reason: "Connect to manage turf — this change is confirmed by the server." };
+    }
+    if (window.MSYNC && MSYNC.capability && MSYNC.capability("assignmentServerAuthoritative")) {
+      return { ok: true, code: "authoritative" };
+    }
+    if (offline) {
+      return { ok: false, code: "offline",
+        reason: "Connect to manage turf — turf changes are confirmed by the server." };
+    }
+    return { ok: true, code: "online" };
+  };
+
+  /* ---------- the two server-confirmed turf operations ----------
+
+     Both go through an RPC whenever there is a team server, because both
+     are decisions the server records and no client may author. With no
+     cloud configured at all there is nobody to ask, so the device is the
+     record and they apply locally. */
+
+  const rpc = async (name, body) => {
+    const r = await MCLOUD.api("/rest/v1/rpc/" + name, { method: "POST", body });
+    if (!r || !r.ok) {
+      const msg = (r && r.data && (r.data.message || r.data.hint)) || ("rpc " + name + " failed");
+      throw new Error(msg);
+    }
+    return r.data;
+  };
+
+  /* CLEAR OUTCOMES — move one monotonic boundary. Writes no pins: every
+     door that appears to reset is derived from this timestamp at read
+     time. Instant on a hood of any size, and nothing it does can be lost. */
+  S.startCycle = async function (t, at) {
+    const when = at || Date.now();
+    if (window.MCLOUD && MCLOUD.enabled()) {
+      const res = await rpc("start_territory_cycle", {
+        p_territory_id: t.id,
+        p_at: new Date(when).toISOString(),
+        p_operation_id: MDB.uid(),
+      });
+      const server = res && res.cycle_started_at ? Date.parse(res.cycle_started_at) : when;
+      // MONOTONE: the server refuses a backwards boundary, so its answer is
+      // never older than ours — but take the max anyway rather than trust it
+      t.cycleStartedAt = Math.max(t.cycleStartedAt || 0, server);
+    } else {
+      t.cycleStartedAt = Math.max(t.cycleStartedAt || 0, when);
+    }
+    await MDB.put("territories", t);
+    return t;
+  };
+
+  /* CLEAR A DO-NOT-KNOCK — the ONLY route that clears black. The server
+     writes an indelible event; here the same clear is appended to the
+     door's history so the ordinary history union carries it to every other
+     device, including one too old to know what a dnk_clear is. */
+  S.clearPinDnk = async function (pin, reason) {
+    const now = Date.now();
+    if (window.MCLOUD && MCLOUD.enabled()) {
+      await rpc("clear_pin_dnk", {
+        p_pin_id: pin.id, p_reason: reason, p_operation_id: MDB.uid(),
+      });
+    }
+    const entry = { ts: now, disposition: "dnk_clear", reason, dm: false, note: "" };
+    pin.history = (pin.history || []).concat([entry]);
+    pin.disposition = "unworked";
+    pin.updatedAt = now;
+    const ev = { id: MDB.uid(), ts: now, pinId: pin.id, disposition: "dnk_clear",
+      reason, dm: false, repId: (S.currentUser() || {}).id || null,
+      territoryId: (S.hoodOf(pin) || {}).id || null };
+    S.events.push(ev);
+    await MDB.put("pins", pin);
+    await MDB.put("events", ev);
+    if (window.MSYNC) { MSYNC.queue("pins", pin.id); MSYNC.queue("events", ev.id); }
+    return pin;
+  };
 
   window.STORE = S;
 })();

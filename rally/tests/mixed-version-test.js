@@ -743,7 +743,14 @@ const server = http.createServer((req, res) => {
      refusal working, not an app fault — but v38 shows the rep nothing, which
      is precisely why it must not be left running. */
   const refusalNoise = errors.filter((e) => /403 \(Forbidden\)/.test(e));
-  const realErrors = errors.filter((e) => !/403 \(Forbidden\)/.test(e));
+  /* This suite models a project that has run the v39 migrations and NOT the
+     v41 ones, so rally_capabilities does not exist and PostgREST answers
+     404. The new client probes for it exactly ONCE per session and then
+     stops asking (js/sync.js capsAbsent), which is the correct reading of
+     "this deployment has not been migrated" — so one such 404 is the
+     expected shape here, not an application fault. */
+  const capsProbe = errors.filter((e) => /404/.test(e));
+  const realErrors = errors.filter((e) => !/403 \(Forbidden\)/.test(e) && !/404/.test(e));
   check("8a the only console error is the server's honest 403 refusal",
     refusalNoise.length > 0 && /^\[old\]/.test(refusalNoise[0]), refusalNoise[0] || "none");
   check("8b no application errors on either version",

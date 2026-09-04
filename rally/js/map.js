@@ -14,6 +14,12 @@
 
   let map = null;
   const clickHandlers = []; // MMAP.onMapClick registrations, first-consume-wins
+  /* MMAP.onMapMove registrations. The vertex editor draws its handles as
+     HTML over the canvas, so it needs to know when the camera moved in
+     order to re-pin them — without that, a pan would leave every handle
+     floating where the corner used to be. It is a notification, not a
+     hook: nothing here can steer the camera. */
+  const moveHandlers = [];
   let tempMarker = null;
   let puck = null;
   let selectedPinId = "";
@@ -221,21 +227,52 @@
     return ctx.getImageData(0, 0, S, S);
   }
 
+  /* NOT-HOME DEPTH. A door nobody answered once and a door nobody answered
+     four times are not the same prospect, and a rep walking past should be
+     able to tell without opening anything. So not-home darkens toward
+     orange with each attempt IN THE CURRENT CYCLE — a fresh pass starts
+     every door back at one. Two extra images, keyed like any other. */
+  const NH_DEPTH = { nothome2: "#E39A00", nothome3: "#D97A16" };
+
   function registerPinImages() {
     Object.keys(D).forEach((k) => {
       const id = "pin-" + k;
       if (!map.hasImage(id)) map.addImage(id, makePinImage(D[k].color), { pixelRatio: 2 });
     });
+    Object.keys(NH_DEPTH).forEach((k) => {
+      const id = "pin-" + k;
+      if (!map.hasImage(id)) map.addImage(id, makePinImage(NH_DEPTH[k]), { pixelRatio: 2 });
+    });
   }
 
+  /* THE ONE PLACE A DOOR'S COLOUR IS DECIDED.
+
+     What is painted is the EFFECTIVE outcome, not the stored scalar: after
+     a Clear Outcomes the doors worked before the boundary read unworked
+     again, while a do-not-knock stays black and a signed household stays
+     green. Nothing was rewritten to make that happen — the boundary is one
+     timestamp and this is derived from it at paint time, which is why the
+     reset is instant on a hood of any size and why it cannot be half-done.
+
+     The door facts index is built ONCE per repaint and shared across every
+     pin; building it per pin would be quadratic on a real book. */
   function pinsGeoJSON() {
+    const facts = STORE.doorFacts ? STORE.doorFacts() : null;
+    const key = (p) => {
+      if (!facts) return p.disposition;
+      const hood = STORE.hoodOf(p);
+      const eff = STORE.effectiveDisposition(p, hood, facts);
+      if (eff !== "nothome") return eff;
+      const n = STORE.nhDepth(p, hood, facts);
+      return n >= 3 ? "nothome3" : n === 2 ? "nothome2" : "nothome";
+    };
     return {
       type: "FeatureCollection",
       features: STORE.pins.map((p) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         properties: {
-          id: p.id, disposition: p.disposition,
+          id: p.id, disposition: key(p),
           cbdue: p.callbackAt && p.callbackAt <= Date.now() ? 1 : 0,
         },
       })),
@@ -716,9 +753,15 @@
 
     map.on("dragstart", () => { $("#hood-menu").hidden = true; clearEmphasis(); });
 
+    /* "move", not "moveend": a handle that only catches up when the pan
+       STOPS visibly slides away from its corner for the whole gesture. */
+    map.on("move", () => {
+      for (const h of moveHandlers) { try { h(); } catch (_) {} }
+    });
     let saveT = null;
     map.on("moveend", () => {
       updateHoodStrip();
+      for (const h of moveHandlers) { try { h(); } catch (_) {} }
       clearTimeout(saveT);
       saveT = setTimeout(() => {
         const c = map.getCenter();
@@ -1110,9 +1153,27 @@
     setSelected(pin.id);
     $("#lead-addr").textContent = pin.address || "Address pending…";
     $("#lead-coords").textContent = pin.lat.toFixed(5) + ", " + pin.lng.toFixed(5);
-    const d = D[pin.disposition] || D.unworked;
+    /* The badge shows the EFFECTIVE outcome, so it agrees with the pin on
+       the map. A door read as unworked after a fresh pass must not open a
+       sheet still calling it "Not interested". */
+    const facts = STORE.doorFacts ? STORE.doorFacts() : null;
+    const eff = facts ? STORE.effectiveDisposition(pin, STORE.hoodOf(pin), facts) : pin.disposition;
+    const d = D[eff] || D.unworked;
+    const nh = facts && eff === "nothome" ? STORE.nhDepth(pin, STORE.hoodOf(pin), facts) : 0;
     $("#lead-badge").innerHTML =
-      `<span class="sw ${pin.disposition}"></span>${d.label}${pin.reason ? " · " + esc(pin.reason) : ""}${pin.dm ? " · DM ✓" : ""}`;
+      `<span class="sw ${eff}"></span>${d.label}${nh > 1 ? " ×" + nh : ""}` +
+      `${pin.reason && eff === pin.disposition ? " · " + esc(pin.reason) : ""}${pin.dm ? " · DM ✓" : ""}`;
+    /* The do-not-knock escape hatch: leadership only, and only on a door
+       that actually carries one. A rep never sees it. */
+    const dnkBtn = $("#lead-clear-dnk");
+    if (dnkBtn) {
+      const isDnk = facts ? STORE.isCurrentDnk(pin, facts) : pin.disposition === "dnk";
+      dnkBtn.hidden = !isDnk || !STORE.canManageTerritories();
+      dnkBtn.onclick = async () => {
+        MUI.tick();
+        if (window.MTURF && await MTURF.clearDnk(pin)) { MUI.closeSheet(); }
+      };
+    }
     const cb = $("#lead-cb");
     cb.hidden = !pin.callbackAt;
     if (pin.callbackAt) {
@@ -1309,6 +1370,7 @@
     unproject: (x, y) => { if (!map) return null; const ll = map.unproject([x, y]); return { lng: ll.lng, lat: ll.lat }; },
     jumpTo: (lng, lat, zoom) => { if (map) map.jumpTo({ center: [lng, lat], zoom: zoom != null ? zoom : map.getZoom() }); },
     onMapClick: (fn) => { if (typeof fn === "function") clickHandlers.push(fn); },
+    onMapMove: (fn) => { if (typeof fn === "function") moveHandlers.push(fn); },
     setDraftRing,
   };
 })();

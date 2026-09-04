@@ -1,0 +1,112 @@
+-- RALLY v41 — STAGE B part 2. Smart Split inherits the COMPLETE current
+-- assignee set.
+--
+-- 0005 is not reopened: it stays exactly as certified, and this file adds
+-- the assignment contract as a separate, additive step that the RPC calls
+-- at the end of its own transaction. Everything therefore commits or rolls
+-- back together with the audit claim, the parent retirement and the child
+-- creation — including a deferred overlap failure from 0016, which fires at
+-- COMMIT and takes the whole operation with it.
+--
+-- THE CONTRACT
+--   * every child receives a NEW OPEN entry per CURRENT parent assignee,
+--     carrying userId, name, assignedBy, assignedByName, assignedAt,
+--     inheritedFromTerritoryId and viaSplit = the operation id
+--   * CLOSED parent history is NOT copied into children — a child inherits
+--     who works it now, not who worked its parent two seasons ago
+--   * the parent's own open entries are explicitly CLOSED at the split
+--     instant, and the parent keeps its ENTIRE history
+--   * the parent is tombstoned by 0005, as before
+--
+-- Derived entirely server-side. The client sends child polygons; it does
+-- not and cannot author an assignment entry.
+
+create or replace function public.rally_split_inherit(
+  p_parent_id text,
+  p_child_ids text[],
+  p_operation_id text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_team   uuid;
+  v_parent public.territories%rowtype;
+  v_at     bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
+  v_open   uuid[];
+  v_child  text;
+begin
+  select team_id into v_team from public.profiles where id = v_uid;
+  if v_team is null then return; end if;
+
+  select * into v_parent from public.territories
+   where team_id = v_team and id = p_parent_id;
+  if not found then return; end if;
+
+  -- the parent's CURRENT set, validated: an unresolved legacy assignee is
+  -- history and is not carried forward as a new open assignment
+  select coalesce(array_agg(distinct p.id), '{}'::uuid[]) into v_open
+    from jsonb_array_elements(public.rally_open_entries(v_parent.assignees)) e
+    join public.profiles p
+      on p.id = (case when e->>'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+                      then (e->>'userId')::uuid end)
+   where p.team_id = v_team and not coalesce(p.disabled, false);
+
+  -- each child gets FRESH open entries — never a copy of closed history
+  foreach v_child in array coalesce(p_child_ids, '{}'::text[]) loop
+    update public.territories t
+       set assignees = public.rally_diff_assignees(
+             coalesce(t.assignees, '{"entries": []}'::jsonb), v_open, v_team, v_uid, v_at,
+             jsonb_build_object('inheritedFromTerritoryId', p_parent_id,
+                                'viaSplit', p_operation_id))
+     where t.team_id = v_team and t.id = v_child;
+  end loop;
+
+  /* The parent's open entries close AT THE SPLIT INSTANT. Its whole
+     history stays: the hood is retired, and who worked it is part of the
+     record of the turf those children came from. */
+  update public.territories t
+     set assignees = jsonb_build_object('entries', public.rally_sort_entries((
+           select coalesce(jsonb_agg(
+                    case when e->>'unassignedAt' is null
+                         then jsonb_set(e, '{unassignedAt}', to_jsonb(v_at))
+                         else e end), '[]'::jsonb)
+             from jsonb_array_elements(coalesce(t.assignees->'entries', '[]'::jsonb)) e)))
+   where t.team_id = v_team and t.id = p_parent_id
+     and exists (select 1 from jsonb_array_elements(coalesce(t.assignees->'entries', '[]'::jsonb)) e
+                  where e->>'unassignedAt' is null);
+end $$;
+
+revoke execute on function public.rally_split_inherit(text, text[], text) from public;
+
+/* Wire it into the certified RPC without editing 0005: the v41 function
+   wraps it, so the whole operation is still one transaction and 0005's
+   idempotency, its parent row lock and its capability checks all still run
+   exactly as certified. */
+create or replace function public.smart_split_territory_v41(
+  p_parent_id    text,
+  p_operation_id text,
+  p_children     jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_res jsonb;
+  v_ids text[];
+begin
+  v_res := public.smart_split_territory(p_parent_id, p_operation_id, p_children);
+  if coalesce(v_res->>'status', '') = 'already_committed' then
+    return v_res;   -- a retry must not re-inherit and re-close
+  end if;
+  select coalesce(array_agg(value #>> '{}'), '{}'::text[]) into v_ids
+    from jsonb_array_elements(coalesce(v_res->'child_ids', '[]'::jsonb));
+  perform public.rally_split_inherit(p_parent_id, v_ids, p_operation_id);
+  return v_res || jsonb_build_object('assignment_inherited', true);
+end $$;
+
+revoke execute on function public.smart_split_territory_v41(text, text, jsonb) from public;
+grant execute on function public.smart_split_territory_v41(text, text, jsonb) to authenticated;

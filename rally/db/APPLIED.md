@@ -24,9 +24,11 @@ Fill these in yourself after running each verification query.
 
 ## What production actually runs
 
-**Client:** GitHub Pages serves `origin/main` byte-for-byte. On 2026-09-02
-13:33 UTC `main` became `95e2fb4` — **Build v39** (Pages run #100, every
-served file byte-identical to the tree). Before that it was `c623c6f`, Build
+**Client:** GitHub Pages serves `origin/main` byte-for-byte. On 2026-09-03
+20:54 UTC `main` became `d954bb6` — **Build v40** (Pages run #101; the served
+`index.html`, `sw.js` and `js/sync.js` were checked over the network after the
+run). Before that, from 2026-09-02 13:33 UTC, `main` was `95e2fb4` — **Build
+v39** (Pages run #100, every served file byte-identical to the tree). Before that it was `c623c6f`, Build
 v37; v38 (`813a056`) was a branch build that was never published, so the real
 upgrade was **v37 → v39**, and the physical-iPhone certification of that jump
 passed the same day (data survived; the reliable update procedure on iOS is
@@ -73,7 +75,8 @@ production change is involved, and v40 is client-only.
 
 ### STEP 5 blocker: records the OLD build synced carry no `serverAt` (client)
 
-**Status: fixed in v40. Not deployed.**
+**Status: fixed in v40. Published 2026-09-03, certified on the phone 2026-09-04.
+Closed.**
 
 v39 gates two things on `serverAt`, its own evidence that a record is a
 server fact: a Smart Split is sent only once the parent hood has it, and a
@@ -92,6 +95,13 @@ the real function in `verify-production` probes 8 and 9. The fix is on the
 client, and it is v40.
 
 ## v40 — proving the book once (client only)
+
+> **Published and certified.** `main` became `d954bb6` on 2026-09-03 20:54 UTC
+> (GitHub Pages run #101), and the live origin serves Build v40. The real-iPhone
+> certification passed in full on 2026-09-04 — every step, including the Smart
+> Split that v39 could not complete, and the offline delete that must not
+> resurrect. Results are recorded in `IPHONE-CERT.md`. **The STEP 5 blocker is
+> closed.**
 
 **Nothing in v40 touches the database.** No SQL, no migration, no RLS
 change, no change to `smart_split_territory()` or 0005, no change to the

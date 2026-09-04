@@ -301,6 +301,12 @@ Anything odd, slow, ugly or surprising — however small:
 
 # RALLY v40 — real-iPhone certification
 
+> ## ✅ CERTIFIED — 2026-09-04
+>
+> Run on John's iPhone against production, immediately after v40 was published
+> (`main` = `d954bb6`, GitHub Pages run #101, 2026-09-03 20:54 UTC). Every step
+> below passed. Results are recorded at the end of this section.
+
 v40 is a **client-only** release. No migration, no Supabase change, no RLS
 change, no change to `smart_split_territory()`, no change to the payment
 boundary. Publishing it is merging the branch; rolling it back is republishing
@@ -422,3 +428,73 @@ Anything odd, slow, ugly or surprising — however small:
 
 **Do not treat v40 as certified until this comes back.** Anything in 2.3,
 3.2, 4.2, 4.4, 4.6 or section 5 going wrong is a blocker, not a note.
+
+
+---
+
+## v40 certification result — 2026-09-04
+
+**Outcome: PASS.** Certified on John's iPhone against the production origin
+`https://ceojohnmartin.github.io/business-vault/rally/`, on the published build
+`d954bb6` (Pages run #101).
+
+### Pre-flight, verified in the repo before publishing
+
+| | |
+|---|---|
+| Production before | `main` = `95e2fb4`, Build v39 |
+| Published | fast-forward to `d954bb6`, Build v40 |
+| Served after publish | `index.html` → `RALLY_BUILD = "v40"`; `sw.js` → `CACHE = "rally-v40"`; `js/sync.js` carries the reconciliation marker |
+| App-code changes in the publish | **only** from `d954bb6` — the earlier branch commits touched SQL files, tests and docs, and changed nothing the browser runs |
+| Database | untouched. `0007` had already been applied to production on 2026-09-03; only the file joined `main` |
+
+### Results
+
+| Step | Item | Result |
+|---|---|---|
+| 1.1 | Baseline build badge `v39` | PASS |
+| 1.2 | Baseline sync line `synced` (0 pending, 0 refused) | PASS |
+| 1.3 | Baseline inventory: hoods present, 1 customer | PASS |
+| 2.2–2.3 | Force-close/reopen took the update; badge `v40`; data intact | PASS |
+| 2.4 | Stayed `v40` across two further reopens | PASS |
+| 3.2–3.3 | Clean and `synced` after the one-time proof; nothing missing | PASS |
+| 4.1–4.3 | **Smart Split online: children appeared, "waiting on the team" cleared, parent retired, doors re-homed** | **PASS** |
+| 4.4 | Split survived a force-close and reopen | PASS |
+| 4.5 | Offline split held as an unconfirmed proposal across an offline reopen; parent set aside, never shown beside its children | PASS |
+| 4.6–4.7 | Reconnect committed it; ended `synced` | PASS |
+| 5.1–5.2 | Online delete stayed deleted across a reopen | PASS |
+| 5.3–5.5 | **Offline delete of a server-known door: gone at every checkpoint, including after reconnect when the server re-delivered the live row** | **PASS** |
+| 7.1 | No card number / expiry / CVV / routing / account field anywhere in the PAYMENT tab (screenshot evidence) | PASS |
+| 7.2 | Disclosure line present verbatim (screenshot evidence) | PASS |
+| 7.3 | Survived a full phone power-off; still `v40`, still signed in, still `synced` | PASS |
+
+### What this run did and did not establish
+
+**It established**, on real hardware against the real database: that a v39 device
+takes the v40 update on one force-close/reopen and stays on it; that the book is
+proven and the device ends clean; that Smart Split commits end-to-end both online
+and offline-then-reconnected; that a split survives a force-close; that a delete
+survives a force-close, an offline period, and — the important one — the moment
+the server sends the still-live row back; and that the payment boundary is
+exactly where v39 left it.
+
+**It did not directly establish** the v37-legacy hood case, for two honest
+reasons. `ZZ Test Hood` from the v39 run no longer existed, so the split was run
+on real turf (`Hood 4`, then its child `Hood 4 A`) with John's explicit
+authorisation. And by the time Step 4 finished, the one-time proof had already
+run, so every hood on the device carried server evidence and the legacy and
+non-legacy paths had converged. Whether reconciliation actually found anything to
+prove on that phone is not observable from the checklist, and does not need to
+be: the end state is what is being certified. **The v37-specific case — a hood
+the v37 build synced being unsplittable — is proven fixed against the real v37
+tree in `tests/upgrade-transition-test.js` §8 (8c/8d/8e green) and §9.**
+
+Most steps were confirmed verbally by the operator; items 7.1 and 7.2 carry
+screenshot evidence.
+
+### Turf left behind
+
+`Hood 4` was permanently replaced by `Hood 4 B` and by `Hood 4 A A` / `Hood 4 A B`
+(the child of the offline split). Together they cover exactly the area `Hood 4`
+did; doors kept their full knock history. They are working turf and should not be
+deleted. Both `ZZ DELETE ME` test doors were removed by the test itself.

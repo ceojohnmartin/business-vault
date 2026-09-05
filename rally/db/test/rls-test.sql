@@ -672,10 +672,18 @@ select t_assert(
       and p.prorettype <> 'trigger'::regtype
       and p.provolatile = 'v')
   = 'clear_pin_dnk,rally_split_inherit,save_territory,set_territory_assignments,'
-    || 'smart_split_territory,smart_split_territory_v41,start_territory_cycle',
+    || 'smart_split_territory,smart_split_territory_core,smart_split_territory_v41,start_territory_cycle',
   'the writable SECURITY DEFINER functions in public are exactly the named turf operations');
+/* 0015 renamed the certified 0005 body to smart_split_territory_core so that
+   BOTH public names run the wrapper that strips client-planted assignments
+   and derives the inheritance. The core is a door only the wrapper may
+   open: it must be shut to every client role. */
+select t_assert(
+  not has_function_privilege('authenticated', 'public.smart_split_territory_core(text,text,jsonb)', 'execute')
+  and not has_function_privilege('anon', 'public.smart_split_territory_core(text,text,jsonb)', 'execute'),
+  'the renamed split core is not callable by any client role');
 
-/* v41 added six. Each is a deliberate door and each is named above, but
+/* v41 added seven. Each is a deliberate door and each is named above, but
    being named is not enough — every one must be shut to anon, and the two
    that are pure internals must be shut to authenticated as well. */
 select t_assert(

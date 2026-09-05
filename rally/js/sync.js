@@ -1701,5 +1701,8 @@
     tombstoneEntry, register, unregister, kick,
     // read-only view of the identity bridge, for diagnostics and tests
     profileOf: (localId) => toProfile(localId),
+    // the server's ledger speaks profile uuids; this is the ONE translation
+    // to this device's user ids, shared by the pull and by setAssignees
+    localizeAssignees,
   };
 })();

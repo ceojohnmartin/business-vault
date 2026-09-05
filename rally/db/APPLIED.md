@@ -28,7 +28,7 @@ Fill these in yourself after running each verification query.
 | `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **NOT APPLIED** | — |
 | `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **NOT APPLIED** | — |
 | `0014_turf_rpcs.sql` | **v41 STAGE B** — `save_territory`, `set_territory_assignments`, `start_territory_cycle`, `clear_pin_dnk` | **NOT APPLIED** | — |
-| `0015_smart_split_v41.sql` | **v41 STAGE B** — split children inherit the complete current assignee set | **NOT APPLIED** | — |
+| `0015_smart_split_v41.sql` | **v41 STAGE B** — the certified 0005 body is RENAMED to `smart_split_territory_core` (no client may execute it); BOTH public names run the wrapper that strips client-planted assignments from the children and derives the inheritance server-side | **NOT APPLIED** | — |
 | `0016_turf_overlap.sql` | **v41 STAGE C** — the deferred overlap constraint + team advisory lock | **NOT APPLIED** | — |
 
 ## v41 — authored, proven locally, NOT applied anywhere
@@ -56,11 +56,15 @@ PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 
 ### Local proof, 2026-09-04
 
-- `sh rally/db/test/run-v41-tests.sh` — 114 SQL checks, the staged-order gate
-  (`turfRpc` false after Stage A and true after Stage B), the
-  no-shape-changing-repair grep over `db/migrations/`, and
-  `turf-race-test.sh` (6 checks including the negative control that proves
-  the advisory lock, not merely the check).
+- `sh rally/db/test/run-v41-tests.sh` — 135 SQL checks over a database that
+  was SEEDED with v40-shaped hoods before 0009–0011 ran (live, bare-scalar,
+  archived, tombstoned and duplicate-open — `db/test/v41-backfill-seed.sql`),
+  so the backfill's proofs run over real rows; the staged-order gate
+  (`turfRpc` false after Stage A and true after Stage B); the
+  no-shape-changing-repair grep over `db/migrations/`; and
+  `turf-race-test.sh` (6 checks, deterministic: each session forces its
+  deferred check with SET CONSTRAINTS ALL IMMEDIATE, and the negative
+  control proves the advisory lock, not merely the check).
 - `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
   re-run with 0008–0016 applied: RLS 282, RACE 11, SPLIT RACE 11, MIRROR 182,
   PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.

@@ -759,6 +759,51 @@
     if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;
   };
+  /* CREATE A HOOD WITH ITS FIRST REPS — one decision, one server call.
+
+     Under server authority, creating through the ordinary upsert and then
+     assigning through the RPC was two steps with a race between them: the
+     upsert waits in the outbox for the next cycle while the RPC fires at
+     once, reaches a server that has never heard of the hood, and fails.
+     save_territory records the row, the ledger the server authors for it
+     and the rev, atomically. The id is minted by the caller when it wants
+     a retry to land on the SAME hood (save_territory is an upsert on id),
+     and here otherwise. With no server authority the legacy path stands:
+     the row goes up through the outbox and the assignment follows it. */
+  S.createTerritory = async function (t, userIds) {
+    const authoritative = !!(window.MSYNC && MSYNC.capability &&
+      MSYNC.capability("assignmentServerAuthoritative"));
+    const cloud = !!(window.MCLOUD && MCLOUD.enabled());
+    if (!(authoritative && cloud)) {
+      const made = await S.addTerritory(t);
+      if (userIds && userIds.length) await S.setAssignees(made, userIds);
+      return made;
+    }
+    const profiles = [];
+    for (const id of userIds || []) {
+      const pid = MSYNC.profileOf ? MSYNC.profileOf(id) : null;
+      if (!pid) throw new Error("that rep has no account yet — they can't be given turf");
+      profiles.push(pid);
+    }
+    t.id = t.id || MDB.uid();
+    t.createdAt = t.createdAt || Date.now();
+    t.updatedAt = Date.now();
+    const res = await rpc("save_territory", {
+      p_id: t.id, p_name: t.name || "", p_polygon: t.points || [],
+      p_homes: t.homes == null ? null : t.homes, p_archived: false,
+      p_assignees: profiles, p_operation_id: MDB.uid(),
+    });
+    // the server's ledger and rev are the record; nothing here is queued,
+    // because the row already exists where it counts and the pull will
+    // confirm it
+    t.assignees = res && res.assignees && MSYNC.localizeAssignees
+      ? MSYNC.localizeAssignees(res.assignees) : { entries: [] };
+    t.assigneesRev = res && typeof res.assignees_rev === "number" ? res.assignees_rev : 0;
+    S.assigneeMirrors(t);
+    if (!S.territories.some((x) => x.id === t.id)) S.territories.push(t);
+    await MDB.put("territories", t);
+    return t;
+  };
   S.updateTerritory = async function (t) {
     t.updatedAt = Date.now();
     await MDB.put("territories", t);
@@ -1365,10 +1410,25 @@
      two reps assigned by ONE action share a millisecond, and without it
      `assignedTo` (the first open entry) would differ between devices and
      the v40 mirror would flap on every sync. */
+  /* The tiebreak is on the SERVER'S key. Two reps assigned in one call share
+     an assignedAt, and which of them becomes data.assignedTo is decided by
+     userId order — on the server, by the profile uuid. This device holds
+     LOCAL ids for the same people, and local ids do not sort like the
+     uuids they stand for; comparing them would make this device's mirror
+     disagree with the server's (and every other device's) whenever the
+     timestamps tie. So the comparison is on the profile uuid whenever one
+     is known, in plain code-unit order — which for lowercase hex uuids is
+     the same order PostgreSQL's text sort gives. */
+  const entryKey = (e) => {
+    const id = String((e && e.userId) || "");
+    const pid = window.MSYNC && MSYNC.profileOf ? MSYNC.profileOf(id) : null;
+    return pid || id;
+  };
   function cmpEntry(a, b) {
     const ta = a.assignedAt || 0, tb = b.assignedAt || 0;
     if (ta !== tb) return ta - tb;
-    return String(a.userId || "").localeCompare(String(b.userId || ""));
+    const ka = entryKey(a), kb = entryKey(b);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
   }
 
   const isOpen = (e) => !!e && (e.unassignedAt === null || e.unassignedAt === undefined);
@@ -1501,6 +1561,19 @@
         const res = await rpc("set_territory_assignments", {
           p_territory_id: t.id, p_assignees: profiles, p_operation_id: MDB.uid(),
         });
+        /* ADOPT THE SERVER'S LEDGER. The optimistic entries above carry this
+           device's clock and this device's idea of who assigned; the server
+           authored the real ones — its assignedAt for both reps in one call
+           is one instant, so "first open assignee" is decided by the uuid
+           tiebreak, not by which entry this loop happened to push first.
+           Keeping the local guesses would leave the two ledgers disagreeing
+           about the mirror until the next assignment change, because the
+           rev taken below is already the server's and the pull merges only
+           on a HIGHER one. */
+        if (res && res.assignees && window.MSYNC && MSYNC.localizeAssignees) {
+          t.assignees = MSYNC.localizeAssignees(res.assignees);
+          S.assigneeMirrors(t);
+        }
         if (res && typeof res.assignees_rev === "number") t.assigneesRev = res.assignees_rev;
       } catch (err) {
         restore();

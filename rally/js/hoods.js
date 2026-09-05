@@ -15,6 +15,7 @@
      may be worked by several people at once, and picking a second rep adds
      them rather than replacing the first. */
   let assignSet = [];
+  let draftId = null;       // the id a NEW hood will be created under — kept across retries
   let preAssign = null;     // "Give area" flow: the rep the new hood is for
 
   // ---------- draft rendering (dot mode) ----------
@@ -327,7 +328,7 @@
       toast("Split failed — try a simpler shape");
       return;
     }
-    editingId = null; pending = null;
+    editingId = null; pending = null; draftId = null;
     MMAP.refreshHoods();
     closeSheet();
     renderHoodList();
@@ -443,6 +444,16 @@
 
   async function saveHoodInner() {
     const creating = !editingId;
+    /* Creating a hood — or moving who works one — is confirmed by the
+       server whenever there is one. Offline, that is a clean "Connect to
+       manage turf", not an RPC error after the sheet has closed. A plain
+       rename keeps working offline: it is a client-authored field. */
+    if (window.MTURF) {
+      const cur = creating ? [] : STORE.currentAssignees(
+        STORE.territories.find((x) => x.id === editingId) || {});
+      const moving = creating || assignSet.slice().sort().join() !== cur.slice().sort().join();
+      if (!(await MTURF.gate(creating ? "creating a hood" : "changing who works it", moving))) return;
+    }
     const name = $("#hood-name").value.trim() || "Hood " + (STORE.territories.length + 1);
     const homes = Math.max(0, Math.min(100000, Number($("#hood-homes").value) || 0)) || null;
     // a typed-but-unadded new rep still counts — nobody loses that keystroke
@@ -462,16 +473,24 @@
         t = STORE.territories.find((x) => x.id === editingId);
         if (t) { t.name = name; t.homes = homes; await STORE.updateTerritory(t); }
       } else {
-        t = await STORE.addTerritory({
-          name, homes, points: pending,
+        /* ONE id per draft, minted before the first attempt and kept across
+           retries: save_territory is an upsert on the id, so a retry after a
+           dropped response lands on the SAME hood instead of drawing a
+           second one over it. */
+        draftId = draftId || MDB.uid();
+        t = await STORE.createTerritory({
+          id: draftId, name, homes, points: pending,
           createdBy: (STORE.currentUser() || {}).id || null,
-        });
-        /* THE HOOD NOW EXISTS. If the assignment below fails, a retry must
-           EDIT this hood, not mint a second one beside it — the toast said
-           "couldn't save", but the turf is already on the map. */
+        }, assignSet);
+        /* THE HOOD NOW EXISTS. Should anything after this fail, a retry
+           must EDIT this hood, not mint a second one beside it — the toast
+           said "couldn't save", but the turf is already on the map. */
         editingId = t.id;
+        draftId = null;
       }
-      if (t) await STORE.setAssignees(t, assignSet);
+      // a NEW hood was created with its reps in one call above; an EDITED
+      // one has its reps moved through the assignment RPC here
+      if (t && !creating) await STORE.setAssignees(t, assignSet);
     } catch (err) {
       // the reason, when there is one — a rep with no account can never be
       // given turf, and "try again" is a loop with no exit

@@ -81,10 +81,55 @@ end $$;
 
 revoke execute on function public.rally_split_inherit(text, text[], text) from public;
 
-/* Wire it into the certified RPC without editing 0005: the v41 function
-   wraps it, so the whole operation is still one transaction and 0005's
-   idempotency, its parent row lock and its capability checks all still run
-   exactly as certified. */
+/* WIRING, and why the certified 0005 body is RENAMED rather than wrapped
+   alongside.
+
+   0005's smart_split_territory is granted to `authenticated`, and it
+   inserts each child with whatever `data` the caller supplied. Left as an
+   entry point of its own, a leader calling it directly — or any v40 phone,
+   which knows no other name — would split a hood on a path where the
+   children's assignment is whatever the CLIENT put in data.assignments: a
+   cross-team profile, a disabled rep, a string that is not a uuid, and no
+   inheritance at all. That is precisely the client-authored assignment
+   this stage exists to end.
+
+   So the certified body keeps its behaviour and loses its public name. It
+   becomes smart_split_territory_core, executable by nobody but its owner,
+   and BOTH public names — the v41 one clients switch to when turfRpc is
+   true, and the 0005 one v40 phones keep calling — run the same wrapper:
+   strip every client-supplied assignment field from the children, run the
+   core (idempotency, parent row lock, capability checks, all as
+   certified), then derive the inheritance server-side. One transaction,
+   whichever name was called. */
+do $$
+begin
+  if to_regprocedure('public.smart_split_territory_core(text,text,jsonb)') is null then
+    alter function public.smart_split_territory(text, text, jsonb)
+      rename to smart_split_territory_core;
+  end if;
+end $$;
+revoke all on function public.smart_split_territory_core(text, text, jsonb)
+  from public, anon, authenticated;
+
+/* A child arrives as {id, name, polygon, data}. The client may describe the
+   child; it may not assign it. */
+create or replace function public.rally_split_strip_children(p_children jsonb)
+returns jsonb
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(
+           case when jsonb_typeof(c->'data') = 'object'
+                then jsonb_set(c, '{data}',
+                       (c->'data') - 'assignments' - 'assignedTo' - 'assignees'
+                                   - 'assigneesRev' - 'cycleStartedAt')
+                else c end
+           order by ord), '[]'::jsonb)
+    from jsonb_array_elements(coalesce(p_children, '[]'::jsonb)) with ordinality t(c, ord)
+$$;
+
 create or replace function public.smart_split_territory_v41(
   p_parent_id    text,
   p_operation_id text,
@@ -98,7 +143,8 @@ declare
   v_res jsonb;
   v_ids text[];
 begin
-  v_res := public.smart_split_territory(p_parent_id, p_operation_id, p_children);
+  v_res := public.smart_split_territory_core(
+             p_parent_id, p_operation_id, public.rally_split_strip_children(p_children));
   if coalesce(v_res->>'status', '') = 'already_committed' then
     return v_res;   -- a retry must not re-inherit and re-close
   end if;
@@ -108,5 +154,22 @@ begin
   return v_res || jsonb_build_object('assignment_inherited', true);
 end $$;
 
-revoke execute on function public.smart_split_territory_v41(text, text, jsonb) from public;
+/* The 0005 name, kept for every phone that has not upgraded: same
+   signature, same response shape plus `assignment_inherited`, same
+   server-derived assignment. A v40 client ignores the extra key. */
+create or replace function public.smart_split_territory(
+  p_parent_id    text,
+  p_operation_id text,
+  p_children     jsonb)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select public.smart_split_territory_v41(p_parent_id, p_operation_id, p_children)
+$$;
+
+revoke all on function public.smart_split_territory_v41(text, text, jsonb) from public, anon;
 grant execute on function public.smart_split_territory_v41(text, text, jsonb) to authenticated;
+revoke all on function public.smart_split_territory(text, text, jsonb) from public, anon;
+grant execute on function public.smart_split_territory(text, text, jsonb) to authenticated;

@@ -40,12 +40,23 @@
   /* A local plane anchored at lat0. x grows east, y grows north, both in
      metres. Inverse included because the snap helpers hand coordinates back
      to the drawing code, which speaks lng/lat. */
-  function project(lat0) {
+  /* `origin` is optional and matters more than it looks. Without one, x and
+     y are absolute metres from the equator and the prime meridian — four
+     to seven million — and the rounding in products of numbers that size
+     is ~1e-8: three exactly collinear corners no longer test as collinear
+     against any tolerance small enough to mean anything. Anchoring the
+     plane at one of the ring's own corners keeps every coordinate in the
+     hundreds or thousands, where the same test is honest. Translation
+     changes no area, no intersection and no distance. The one-argument
+     form is kept for callers that only want the scale (snap radii, the
+     tests' metre fixtures). */
+  function project(lat0, origin) {
     const k = Math.cos(lat0 * D2R) * R * D2R;
     const m = R * D2R;
+    const ox = origin ? origin[0] : 0, oy = origin ? origin[1] : 0;
     return {
-      toXY: (lng, lat) => [lng * k, lat * m],
-      toLngLat: (x, y) => [x / k, y / m],
+      toXY: (lng, lat) => [(lng - ox) * k, (lat - oy) * m],
+      toLngLat: (x, y) => [x / k + ox, y / m + oy],
     };
   }
 
@@ -56,10 +67,16 @@
   };
 
   // [[lng,lat],...] -> [[x,y],...] in metres, about the ring's own latitude
+  // and anchored at its first corner
   function toPlane(ring, proj) {
-    const pr = proj || project(ringLat0(ring));
+    const pr = proj || project(ringLat0(ring), ring[0]);
     return { pts: ring.map((p) => pr.toXY(p[0], p[1])), proj: pr };
   }
+
+  /* Collinearity tolerance for the local plane, in m². A corner one
+     millimetre off a hundred-metre edge gives a cross product of 0.1; the
+     rounding noise on genuinely collinear local coordinates is ~1e-9. */
+  const COL_EPS = 1e-6;
 
   // ---------- normalization: the three shape-preserving transforms ----------
 
@@ -134,7 +151,7 @@
       return [p3[0] + t * (p4[0] - p3[0]), p3[1] + t * (p4[1] - p3[1])];
     }
     const on = (a, b, c) => // c collinear with ab AND inside its span
-      Math.abs(d(a, b, c)) < EPS &&
+      Math.abs(d(a, b, c)) < COL_EPS &&
       Math.min(a[0], b[0]) - EPS <= c[0] && c[0] <= Math.max(a[0], b[0]) + EPS &&
       Math.min(a[1], b[1]) - EPS <= c[1] && c[1] <= Math.max(a[1], b[1]) + EPS;
     if (on(p3, p4, p1) && !same(p1, p3) && !same(p1, p4)) return p1;
@@ -181,6 +198,30 @@
        a signed area of exactly zero, so an area-first order would tell the
        leader their outline "encloses no area" when the real and fixable
        problem is that it crosses itself. The more specific diagnosis wins. */
+    /* A corner visited TWICE with other corners in between is a pinch — a
+       figure-eight tied at a point rather than crossed. The edge test below
+       cannot see it, because the two edges meeting there share an endpoint
+       exactly as adjacent edges legitimately do; PostGIS calls it a Ring
+       Self-intersection and refuses it, so the client must say so first. */
+    const seen = new Map();
+    for (let i = 0; i < pts.length; i++) {
+      const key = pts[i][0] + "," + pts[i][1];
+      if (seen.has(key)) {
+        return { ok: false, code: "self_intersection", points: pts, at: [pts[i][0], pts[i][1]],
+          reason: "The outline passes through the same corner twice, near " +
+            pts[i][1].toFixed(6) + ", " + pts[i][0].toFixed(6) +
+            ". Move one of them so the boundary never touches itself." };
+      }
+      seen.set(key, i);
+    }
+    /* A ring whose longitudes span more than half the globe is not a hood;
+       it is an outline straddling the antimeridian, which this planar
+       arithmetic cannot measure. Refused rather than silently mismeasured. */
+    const bb = bbox(pts);
+    if (bb.e - bb.w > 180) {
+      return { ok: false, code: "antimeridian", points: pts,
+        reason: "This outline spans the 180° meridian, which RALLY cannot measure." };
+    }
     const x = selfIntersection(pts);
     if (x) {
       return { ok: false, code: "self_intersection", points: pts, at: x.at,
@@ -216,16 +257,25 @@
 
   function pointInTri(p, a, b, c) {
     const d1 = cross3(a, b, p), d2 = cross3(b, c, p), d3 = cross3(c, a, p);
-    const neg = d1 < -EPS || d2 < -EPS || d3 < -EPS;
-    const pos = d1 > EPS || d2 > EPS || d3 > EPS;
+    const neg = d1 < -COL_EPS || d2 < -COL_EPS || d3 < -COL_EPS;
+    const pos = d1 > COL_EPS || d2 > COL_EPS || d3 > COL_EPS;
     return !(neg && pos);
   }
+
+  // a triangle that encloses no area contributes nothing and must never be
+  // handed to the clipper: a clip region with no interior is "everything"
+  // to Sutherland-Hodgman, and would return the whole subject as overlap
+  const realTri = (t) => Math.abs(cross3(t[0], t[1], t[2])) > COL_EPS;
 
   /* Simple-polygon ear clipping in the plane. The input is assumed simple
      (validate() has said so) and CCW. Returns a triangle list that exactly
      partitions the interior, which is what makes the pairwise-intersection
      sum below exact rather than approximate. */
-  function triangulate(pts) {
+  function triangulate(raw) {
+    /* Normalized first, always. A repeated corner is not a corner; left in,
+       it blocks every ear (a duplicate tests as "inside" each candidate)
+       and the scan stalls on a ring that is perfectly simple. */
+    const pts = normalizeRing(raw).points;
     const n = pts.length;
     if (n < 3) return [];
     const idx = [];
@@ -240,7 +290,7 @@
         const i1 = idx[k];
         const i2 = idx[(k + 1) % idx.length];
         const a = pts[i0], b = pts[i1], c = pts[i2];
-        if (cross3(a, b, c) <= EPS) continue; // reflex or degenerate
+        if (cross3(a, b, c) <= COL_EPS) continue; // reflex or degenerate
         let clean = true;
         for (const m of idx) {
           if (m === i0 || m === i1 || m === i2) continue;
@@ -252,20 +302,30 @@
         clipped = true;
         break;
       }
-      if (!clipped) break; // numerically stuck: keep what we have, fan the rest
+      if (clipped) continue;
+      /* No ear. On a simple ring that can only mean a corner sitting on the
+         straight line between its neighbours — a zero-area "ear" the scan
+         skips — so drop such corners (they change no area) and go again.
+         Fanning a concave remainder instead would emit triangles that
+         overlap each other and reach outside the ring, and the overlap
+         sum below would count that phantom ground as a collision. */
+      const before = idx.length;
+      for (let k = idx.length - 1; k >= 0 && idx.length > 3; k--) {
+        const a = pts[idx[(k + idx.length - 1) % idx.length]];
+        const b = pts[idx[k]];
+        const c = pts[idx[(k + 1) % idx.length]];
+        if (Math.abs(cross3(a, b, c)) <= COL_EPS) idx.splice(k, 1);
+      }
+      if (idx.length === before) break; // genuinely stuck: partial, never a phantom
     }
     if (idx.length === 3) tris.push([pts[idx[0]], pts[idx[1]], pts[idx[2]]]);
-    else if (idx.length > 3) { // fallback fan — only reachable on a stuck ring
-      for (let k = 1; k + 1 < idx.length; k++) {
-        tris.push([pts[idx[0]], pts[idx[k]], pts[idx[k + 1]]]);
-      }
-    }
-    return tris;
+    return tris.filter(realTri);
   }
 
   // ---------- convex clipping (Sutherland-Hodgman) ----------
 
   function clipConvex(subject, clip) {
+    if (!clip || clip.length < 3 || Math.abs(signedAreaPlane(clip)) <= COL_EPS) return [];
     let out = subject;
     for (let i = 0; i < clip.length && out.length; i++) {
       const a = clip[i], b = clip[(i + 1) % clip.length];
@@ -303,11 +363,14 @@
      and therefore read 0 — which is the whole point: two hoods traced to
      the same street centreline are adjacent, not overlapping, and the
      invariant must not call them a collision. */
-  function overlapM2(ringA, ringB) {
-    if (!ringA || !ringB || ringA.length < 3 || ringB.length < 3) return 0;
+  function overlapM2(rawA, rawB) {
+    // the STORED rings, as drawn — normalized here because a neighbour's
+    // repeated corner must not be able to manufacture a collision
+    const ringA = normalizeRing(rawA).points, ringB = normalizeRing(rawB).points;
+    if (ringA.length < 3 || ringB.length < 3) return 0;
     if (!bboxHit(bbox(ringA), bbox(ringB))) return 0;
     // ONE plane for both rings, or their coordinates would not be comparable
-    const proj = project((ringLat0(ringA) + ringLat0(ringB)) / 2);
+    const proj = project((ringLat0(ringA) + ringLat0(ringB)) / 2, ringA[0]);
     const A = toPlane(ringA, proj).pts;
     const B = toPlane(ringB, proj).pts;
     const ta = triangulate(A).map(ccw);

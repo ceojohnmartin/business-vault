@@ -232,10 +232,16 @@ end $$;
 
 
 
-/* Every CLOSED entry the row already had, carried forward. Matched on
-   (userId, assignedAt) — the identity of a run of work — so an entry the
-   client's mirror never knew about survives, and one it does know about is
-   not duplicated. */
+/* Every CLOSED entry the row already had, carried forward. Matched on the
+   FULL closed triple (userId, assignedAt, unassignedAt) — exactly what I4
+   will look for — so an entry the client's mirror never knew about
+   survives, and one it does know about is not duplicated.
+
+   Matching on (userId, assignedAt) alone was a hole: a derived entry with
+   that identity but a DIFFERENT close state counted as "already present",
+   the closed run was not carried forward, and I4 then refused the row.
+   rally_merge_provenance below no longer produces such an entry, and this
+   function no longer trusts that it cannot. */
 create or replace function public.rally_keep_closed_history(p_derived jsonb, p_prior jsonb)
 returns jsonb
 language sql
@@ -250,7 +256,8 @@ as $$
        and not exists (
          select 1 from jsonb_array_elements(coalesce(p_derived, '[]'::jsonb)) d
           where d->>'userId' = o->>'userId'
-            and d->>'assignedAt' = o->>'assignedAt')), '[]'::jsonb)
+            and d->>'assignedAt' = o->>'assignedAt'
+            and d->>'unassignedAt' = o->>'unassignedAt')), '[]'::jsonb)
 $$;
 
 /* Keep the v41 provenance a v40 mirror cannot express.
@@ -276,11 +283,24 @@ as $$
      writes a name there, not a uuid) clobber the real uuid the ledger
      holds, quietly erasing who made every assignment on the first upsert
      from an un-upgraded phone. */
+  /* CLOSED STAYS CLOSED. A run the ledger has already closed is history,
+     and history is immutable (I4). A mirror that still shows that run as
+     open is simply STALE — a phone that pulled before the unassign, or has
+     been offline since — and stale is not an instruction to reopen. Were
+     the mirror allowed to win here, the reopened entry would fail I4 and
+     the row would be refused: a rename from a phone that had not pulled
+     for an hour would dead-letter, permanently, for every hood that had
+     ever changed hands. So the prior's unassignedAt is kept whenever it is
+     set; the mirror may only decide the open/closed state of a run the
+     ledger still holds OPEN. Reassigning that rep later is a NEW entry
+     with a new assignedAt, exactly as the client already writes it. */
   select coalesce(jsonb_agg(
            case when pr.e is null then d.e
                 else pr.e || jsonb_build_object(
                        'name', d.e->'name',
-                       'unassignedAt', coalesce(d.e->'unassignedAt', 'null'::jsonb)) end), '[]'::jsonb)
+                       'unassignedAt', case when pr.e->>'unassignedAt' is not null
+                                            then pr.e->'unassignedAt'
+                                            else coalesce(d.e->'unassignedAt', 'null'::jsonb) end) end), '[]'::jsonb)
     from jsonb_array_elements(coalesce(p_derived, '[]'::jsonb)) d(e)
     left join lateral (
       select p.e from jsonb_array_elements(coalesce(p_prior->'entries', '[]'::jsonb)) p(e)

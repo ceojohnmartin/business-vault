@@ -46,6 +46,8 @@ const mock = {
   users: {}, profiles: {}, access: {},
   tables: { pins: new Map(), events: new Map(), territories: new Map(), customers: new Map() },
   clock: Date.parse("2026-09-04T00:00:00Z"),
+  lastTerritoryPush: new Map(),   // id -> the data.assignedTo / assignments a CLIENT sent
+  territoryUpserts: new Map(),    // id -> number of CLIENT upserts of that hood
   caps: { assignmentServerAuthoritative: false, turfRpc: true, postgis: true },
   capsStatus: 200,
   capCalls: 0,
@@ -135,32 +137,89 @@ function handleRpc(req, res, u, body, me) {
     return j(res, 200, mock.caps);
   }
   const leader = ["leader", "manager", "owner"].includes(me.role) && !me.disabled;
-  if (name === "set_territory_assignments") {
-    if (!leader) return j(res, 403, { code: "42501", message: "turf: requires leader" });
-    const row = mock.tables.territories.get(TEAM + "|" + body.p_territory_id);
-    if (!row) return j(res, 400, { message: "turf: hood not found" });
+  /* 0014's rally_diff_assignees: the caller says WHO SHOULD BE ASSIGNED,
+     the server closes what is no longer wanted and opens what is new, at
+     one instant, and bumps the rev only when something actually moved. */
+  const applyDesired = (row, want, opId) => {
     const at = nowMs();
-    const want = body.p_assignees || [];
     const entries = ((row.assignees && row.assignees.entries) || []).map((e) => Object.assign({}, e));
-    entries.forEach((e) => { if (e.unassignedAt == null && want.indexOf(e.userId) < 0) e.unassignedAt = at; });
+    let changed = false;
+    entries.forEach((e) => {
+      if (e.unassignedAt == null && want.indexOf(e.userId) < 0) { e.unassignedAt = at; changed = true; }
+    });
     const stillOpen = entries.filter((e) => e.unassignedAt == null).map((e) => e.userId);
     want.forEach((uid) => {
       if (stillOpen.indexOf(uid) >= 0) return;
       entries.push({ userId: uid, name: (mock.profiles[uid] || {}).name || "",
         assignedBy: me.id, assignedByName: me.name || "", assignedAt: at, unassignedAt: null,
-        viaOperation: body.p_operation_id });
+        viaOperation: opId });
+      changed = true;
     });
     row.assignees = { entries };
-    row.assignees_rev = (row.assignees_rev || 0) + 1;
+    if (changed) row.assignees_rev = (row.assignees_rev || 0) + 1;
+    return changed;
+  };
+  const validDesired = (want) => want.every((uid) => {
+    const p = mock.profiles[uid];
+    return p && p.team_id === me.team_id && !p.disabled;
+  });
+  if (name === "set_territory_assignments") {
+    if (!leader) return j(res, 403, { code: "42501", message: "turf: requires leader" });
+    const row = mock.tables.territories.get(TEAM + "|" + body.p_territory_id);
+    if (!row) return j(res, 400, { message: "turf: hood not found" });
+    const want = body.p_assignees || [];
+    if (!validDesired(want)) return j(res, 403, { code: "42501", message: "turf: not an active member of this team" });
+    applyDesired(row, want, body.p_operation_id);
     mirror(row);
     row.updated_at = tick();
-    return j(res, 200, { status: "ok", territory_id: row.id, assignees: row.assignees });
+    return j(res, 200, { status: "ok", territory_id: row.id, assignees: row.assignees,
+      assignees_rev: row.assignees_rev });
+  }
+  if (name === "save_territory") {
+    if (!leader) return j(res, 403, { code: "42501", message: "turf: requires leader" });
+    const key = TEAM + "|" + body.p_id;
+    let row = mock.tables.territories.get(key);
+    const created = !row;
+    const at = nowMs();
+    if (!row) {
+      row = { team_id: TEAM, id: body.p_id, name: body.p_name || "", polygon: body.p_polygon || [],
+        homes: body.p_homes == null ? null : body.p_homes, archived: !!body.p_archived,
+        created_by: me.id, deleted_at: null,
+        data: { id: body.p_id, name: body.p_name || "", points: body.p_polygon || [],
+                homes: body.p_homes == null ? null : body.p_homes, createdAt: at, updatedAt: at },
+        assignees: { entries: [] }, assignees_rev: 1, cycle_started_at: null,
+        created_at: tick(), updated_at: tick() };
+      mock.tables.territories.set(key, row);
+    } else {
+      if (row.deleted_at) return j(res, 400, { code: "55000", message: "turf: hood has been deleted" });
+      if (body.p_name != null) { row.name = body.p_name; row.data.name = body.p_name; }
+      if (body.p_polygon != null) { row.polygon = body.p_polygon; row.data.points = body.p_polygon; }
+      if (body.p_homes != null) { row.homes = body.p_homes; row.data.homes = body.p_homes; }
+      if (body.p_archived != null) row.archived = !!body.p_archived;
+      row.data.updatedAt = at;
+    }
+    if (Array.isArray(body.p_assignees)) {
+      if (!validDesired(body.p_assignees)) return j(res, 403, { code: "42501", message: "turf: not an active member of this team" });
+      applyDesired(row, body.p_assignees, body.p_operation_id);
+    }
+    mock.territoryRpcCreates = (mock.territoryRpcCreates || 0) + (created ? 1 : 0);
+    mirror(row);
+    row.updated_at = tick();
+    return j(res, 200, { status: created ? "created" : "updated", territory_id: row.id,
+      assignees: row.assignees, assignees_rev: row.assignees_rev });
   }
   if (name === "start_territory_cycle") {
     if (!leader) return j(res, 403, { code: "42501", message: "turf: requires leader" });
     const row = mock.tables.territories.get(TEAM + "|" + body.p_territory_id);
     if (!row) return j(res, 400, { message: "turf: hood not found" });
-    const at = body.p_at || new Date(nowMs()).toISOString();
+    let at = body.p_at || new Date(nowMs()).toISOString();
+    /* 0014 clamps a future boundary to the server's WALL CLOCK (+5 min):
+       the boundary is monotone, so a far-future value would have no way
+       back. Real time, not mock.clock — that counter only orders
+       updated_at strings and sits a day behind the devices' own clocks,
+       which stamp every knock with Date.now(). */
+    const cap = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    if (at > cap) at = cap;
     if (row.cycle_started_at && at <= row.cycle_started_at) {
       return j(res, 200, { status: "already_current", cycle_started_at: row.cycle_started_at });
     }
@@ -222,12 +281,19 @@ function handleRest(req, res, u, body) {
       if (row.team_id !== me.team_id) return j(res, 401, { code: "42501", message: "rls" });
       const key = row.team_id + "|" + row.id;
       if (table === "pins") mock.pinUpserts.set(row.id, (mock.pinUpserts.get(row.id) || 0) + 1);
+      if (table === "territories") {
+        mock.territoryUpserts.set(row.id, (mock.territoryUpserts.get(row.id) || 0) + 1);
+        mock.lastTerritoryPush.set(row.id, {
+          assignedTo: row.data ? row.data.assignedTo : undefined,
+          assignments: row.data ? row.data.assignments : undefined });
+      }
       /* 0013's forged-clear guard. A dnk_clear EVENT written by a client is
          dropped; a dnk_clear the client added to a pin's HISTORY is stripped
          unless the server already had it. Without this the mock would be
          more permissive than the real server and the client below would
          never actually be constrained. */
-      if (table === "events" && (row.disposition === "dnk_clear" || row.type === "dnk_clear")
+      if (table === "events" && (row.disposition === "dnk_clear" || row.type === "dnk_clear"
+          || (row.data && row.data.disposition === "dnk_clear"))
           && !mock.serverAuthoredClears.has(row.id)) {
         mock.forgedEventsDropped++;
         continue;
@@ -593,8 +659,27 @@ const server = http.createServer((req, res) => {
       const srv = mock.tables.territories.get(TEAM + "|h-assign");
       check("A2 both reach the server's ledger",
         openEntries(srv.assignees).length === 2, JSON.stringify(srv.assignees));
-      check("A3 and the v40 mirror names the first of them",
-        srv.data.assignedTo === firstOpen(srv.assignees));
+      /* Computed by the TEST, not by the mock's own helper: both reps were
+         assigned in one call and share an assignedAt, so the tiebreak is the
+         lower userId. Checked on what the CLIENT uploaded, because that is
+         the mirror a v40 phone will read, and on the server's stored row. */
+      const expectFirst = [john, jake].sort()[0];
+      const localFirst = await d.page.evaluate(() => {
+        const t = STORE.territories.find((x) => x.id === "h-assign");
+        return MSYNC.profileOf(t.assignedTo);
+      });
+      check("A3 the DEVICE's v40 mirror names the first of them (lowest id at equal time) — " +
+        "it adopted the server's ledger, not its own optimistic clock",
+        localFirst === expectFirst, "device says " + localFirst + ", want " + expectFirst);
+      const pushed = mock.lastTerritoryPush.get("h-assign") || {};
+      check("A3a and what the device UPLOADED says the same",
+        pushed.assignedTo === expectFirst, "client sent " + pushed.assignedTo + ", want " + expectFirst);
+      check("A3b and the server's stored mirror agrees",
+        srv.data.assignedTo === expectFirst, srv.data.assignedTo);
+      check("A3c the client's uploaded assignments carry both reps",
+        Array.isArray(pushed.assignments) && pushed.assignments.length === 2 &&
+        pushed.assignments.every((e) => [john, jake].includes(e.userId)),
+        JSON.stringify(pushed.assignments));
       check("A4 the mirror carries EVERY entry, not just the open ones",
         srv.data.assignments.length === openEntries(srv.assignees).length);
 
@@ -655,6 +740,98 @@ const server = http.createServer((req, res) => {
       });
       check("Y7 an OLDER boundary is refused by the server",
         mock.tables.territories.get(TEAM + "|h-cycle").cycle_started_at === at);
+
+      /* A boundary a year ahead is CLAMPED by the server, and the device
+         must take the server's answer — not its own request. A client that
+         kept its own value would read every knock as pre-boundary for a
+         year, and the monotone merge could never pull it back. */
+      const clamped = await d.page.evaluate(async () => {
+        const t = STORE.territories.find((x) => x.id === "h-cycle");
+        await STORE.startCycle(t, Date.now() + 365 * 24 * 3600 * 1000);
+        return t.cycleStartedAt;
+      });
+      const srvAt = Date.parse(mock.tables.territories.get(TEAM + "|h-cycle").cycle_started_at);
+      check("Y8 a far-future boundary is clamped by the server",
+        srvAt < Date.now() + 10 * 60 * 1000 && srvAt > Date.parse(at),
+        new Date(srvAt).toISOString());
+      check("Y9 and the device adopts the SERVER's clamped value, not its own request",
+        clamped === srvAt, "local " + new Date(clamped).toISOString() + " server " + new Date(srvAt).toISOString());
+      await d.ctx.close();
+    }
+
+    // ========================================================== N create
+    section("N — a new hood and its reps are ONE server call");
+    if (on()) {
+      mock.caps.assignmentServerAuthoritative = true;
+      const d = await device("boss@v41.com");
+      await syncUntil(d, () => STORE.users.length >= 3, 4);
+      const made = await d.page.evaluate(async ([a, b, ring]) => {
+        const local = (pid) => (STORE.users.find((u) => u.profileId === pid) || {}).id;
+        const t = await STORE.createTerritory({ id: "h-born", name: "Born Hood",
+          points: ring.map((p) => [p[0] + 4, p[1]]) }, [local(a), local(b)]);
+        return { id: t.id, entries: STORE.assigneeEntries(t).length,
+          open: STORE.currentAssignees(t).length, rev: t.assigneesRev,
+          first: MSYNC.profileOf(t.assignedTo), pending: MSYNC.status().pending };
+      }, [john, jake, RING]);
+      const srv = mock.tables.territories.get(TEAM + "|h-born");
+      check("N1 the hood exists on the server, created by the RPC, not by an upsert",
+        !!srv && (mock.territoryRpcCreates || 0) >= 1 && !(mock.territoryUpserts.get("h-born") > 0),
+        JSON.stringify({ srv: !!srv, rpc: mock.territoryRpcCreates, upserts: mock.territoryUpserts.get("h-born") }));
+      check("N2 with BOTH reps open on the server's ledger, authored by the server",
+        openEntries(srv.assignees).length === 2 &&
+        openEntries(srv.assignees).every((e) => e.assignedBy === boss),
+        JSON.stringify(srv.assignees));
+      check("N3 the device holds the server's ledger and rev, and queued nothing",
+        made.entries === 2 && made.open === 2 && made.rev === srv.assignees_rev && made.pending === 0,
+        JSON.stringify(made));
+      check("N4 and its v40 mirror already names the same first rep the server does",
+        made.first === [john, jake].sort()[0] && srv.data.assignedTo === made.first, made.first);
+      // a retry after a dropped response lands on the SAME hood
+      const again = await d.page.evaluate(async ([a, b, ring]) => {
+        const local = (pid) => (STORE.users.find((u) => u.profileId === pid) || {}).id;
+        const t = await STORE.createTerritory({ id: "h-born", name: "Born Hood",
+          points: ring.map((p) => [p[0] + 4, p[1]]) }, [local(a), local(b)]);
+        return { hoods: STORE.territories.filter((x) => x.id === "h-born").length, rev: t.assigneesRev };
+      }, [john, jake, RING]);
+      check("N5 a retry with the same id is an UPDATE: one hood, same ledger, same rev",
+        again.hoods === 1 && again.rev === srv.assignees_rev &&
+        [...mock.tables.territories.keys()].filter((k) => k.endsWith("|h-born")).length === 1,
+        JSON.stringify(again));
+      // the pull confirms it without disturbing it
+      await syncUntil(d, () => true, 2);
+      const after = await d.page.evaluate(() => {
+        const t = STORE.territories.find((x) => x.id === "h-born");
+        return { entries: STORE.assigneeEntries(t).length, open: STORE.currentAssignees(t).length,
+          rev: t.assigneesRev, name: t.name };
+      });
+      check("N6 after a pull the device still shows both reps and the same rev",
+        after.entries === 2 && after.open === 2 && after.rev === srv.assignees_rev && after.name === "Born Hood",
+        JSON.stringify(after));
+      // a rep with no account cannot be given turf, and nothing is created
+      const refused = await d.page.evaluate(async (ring) => {
+        try {
+          await STORE.createTerritory({ id: "h-ghost", name: "Ghost", points: ring.map((p) => [p[0] + 5, p[1]]) },
+            ["no-such-local-user"]);
+          return "created";
+        } catch (e) { return e.message; }
+      }, RING);
+      check("N7 a rep with no account refuses the create with a reason, and no hood is made",
+        /no account/.test(refused) && !mock.tables.territories.get(TEAM + "|h-ghost") &&
+        await d.page.evaluate(() => !STORE.territories.some((x) => x.id === "h-ghost")), refused);
+      /* OFFLINE, the answer is a clean state, not an RPC error after the
+         sheet has closed: creating a hood is confirmed by the server, so
+         with no server in reach the gate says so and nothing is attempted. */
+      await d.ctx.setOffline(true);
+      const gated = await d.page.evaluate(async () => {
+        const ok = await MTURF.gate("creating a hood", true);
+        return { ok, toast: document.querySelector("#toast").textContent };
+      });
+      check("N8 offline, creating a hood is refused with a clean 'Connect to manage turf'",
+        gated.ok === false && /Connect to manage turf/.test(gated.toast), JSON.stringify(gated));
+      const renameOk = await d.page.evaluate(async () => MTURF.gate("renaming a hood", false));
+      check("N9 while a plain rename — a client-authored field — is still allowed offline once " +
+        "the capability is latched", renameOk === true);
+      await d.ctx.setOffline(false);
       await d.ctx.close();
     }
 
@@ -719,7 +896,19 @@ const server = http.createServer((req, res) => {
       /* AND THEN STOPS. A correction a device re-pushes on every cycle is
          worse than no correction: it is a permanent loop against the
          server. Three quiet cycles must add no new uploads. */
+      /* POSITIVE CONTROL FIRST. "No uploads in three quiet cycles" is only
+         evidence if the device CAN upload: one legitimate local edit to the
+         same door must move the counter, or a dead push path would pass
+         this by doing nothing at all. */
+      const at0 = mock.pinUpserts.get(pid) || 0;
+      await d.page.evaluate(async (id) => {
+        const p = STORE.pins.find((x) => x.id === id);
+        await STORE.addNote(p, "positive control: the push path is live");
+      }, pid);
+      await sync(d);
       const at1 = mock.pinUpserts.get(pid) || 0;
+      check("D5a the device's push path is live (a real edit uploads)", at1 === at0 + 1,
+        "uploads went " + at0 + " -> " + at1);
       await sync(d); await sync(d); await sync(d);
       const at2 = mock.pinUpserts.get(pid) || 0;
       check("D5 and does NOT re-push it forever", at2 === at1,

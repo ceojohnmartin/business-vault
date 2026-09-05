@@ -32,19 +32,35 @@ begin
 end $$;
 grant execute on procedure t_as(uuid) to public;
 
--- did a statement raise? (used for every "must be refused" case)
-create or replace function t_raises(sql text, label text) returns void
+/* Did a statement raise — FOR THE RIGHT REASON?
+
+   `exception when others` alone would let a typo pass: a misspelled
+   function, a renamed trigger or a missing column all raise, and a test
+   that only asks "did it raise?" then reports PASS for a refusal that never
+   ran. So the SQLSTATE is inspected. A class of states that can only mean
+   the TEST is broken (undefined function/table/column/object, syntax,
+   ambiguity) is always a FAIL. When the caller names the state it expects,
+   only that state passes. */
+create or replace function t_raises(sql text, label text, expect text default null) returns void
 language plpgsql as $$
+declare v_state text; v_msg text;
 begin
   begin
     execute sql;
   exception when others then
+    get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text;
+    if v_state in ('42883','42P01','42704','42703','42601','42P02','42702','42725','42P18','42846') then
+      raise exception 'FAIL: % (the statement is BROKEN, not refused: % %)', label, v_state, v_msg;
+    end if;
+    if expect is not null and v_state <> expect then
+      raise exception 'FAIL: % (refused with % "%", expected %)', label, v_state, v_msg, expect;
+    end if;
     raise notice 'PASS: %', label;
     return;
   end;
   raise exception 'FAIL: % (the statement was ACCEPTED)', label;
 end $$;
-grant execute on function t_raises(text, text) to public;
+grant execute on function t_raises(text, text, text) to public;
 
 
 /* A DEFERRED constraint fires at COMMIT, so `execute` returns cleanly and
@@ -58,11 +74,20 @@ grant execute on function t_raises(text, text) to public;
    concurrent case that deferral alone cannot solve. */
 create or replace function t_raises_deferred(sql text, label text) returns void
 language plpgsql as $$
+declare v_state text; v_msg text;
 begin
+  /* OUTSIDE the guard on purpose. If the constraint trigger does not exist
+     under this name, this statement raises 42704 and the whole suite stops
+     — which is the correct outcome, because every refusal below would
+     otherwise be reported without the statement under test ever running. */
+  set constraints public.territories_no_overlap immediate;
   begin
-    set constraints public.territories_no_overlap immediate;
     execute sql;
   exception when others then
+    get stacked diagnostics v_state = returned_sqlstate, v_msg = message_text;
+    if v_state <> '23514' then
+      raise exception 'FAIL: % (refused with % "%", not the overlap check)', label, v_state, v_msg;
+    end if;
     raise notice 'PASS: %', label;
     return;
   end;
@@ -232,8 +257,13 @@ select t_raises($$update public.territories
   'A17 wiping the ledger is refused even as superuser (I4 holds against every path)');
 
 call t_as(:LEAD);
-select t_assert((select assignees_rev from public.territories where id='h1') >= 4,
-  'A18 assignees_rev advanced monotonically with each change');
+select t_assert((select assignees_rev from public.territories where id='h1') = 5,
+  'A18 assignees_rev is exactly the number of ledger changes so far (5)');
+-- and a write that does not touch the ledger leaves it alone: an
+-- unconditional bump would make every echo look like a new assignment
+select save_territory('h1', 'Hood 1 renamed again', null, null, null, null, null);
+select t_assert((select assignees_rev from public.territories where id='h1') = 5,
+  'A19 a write that changes nothing in the ledger does NOT bump assignees_rev');
 reset role;
 
 \echo '== R — a rep may not manage turf'
@@ -450,6 +480,18 @@ select t_assert((select count(*) from public.events where id = 'honest-1') = 1
             and (select count(*) from public.events where id = 'forged-2') = 0,
   'D18 the honest knock beside it still commits — the forgery is dropped, not refused');
 
+/* THE ARM THE CLIENT ACTUALLY READS. A device rebuilds each event from
+   row.data, not from the columns — so a forgery that keeps the columns
+   honest ('knock') and hides dnk_clear inside data alone would pass a
+   guard that looked only at the columns, and every device that pulled it
+   would read the door as cleared while the server's own row stayed black. */
+insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+values (:TEAM, 'forged-3', 'p-forge', 'knock', 'knock', 9999999999997, null,
+        jsonb_build_object('id','forged-3','ts',9999999999997::bigint,'pinId','p-forge',
+                           'disposition','dnk_clear'));
+select t_assert((select count(*) from public.events where id = 'forged-3') = 0,
+  'D25 a dnk_clear hidden in data alone — honest columns — is dropped too');
+
 -- the pin's own history
 update public.pins set data = jsonb_set(data, '{history}',
   (data->'history') || jsonb_build_object('ts', 9999999999999::bigint, 'disposition','dnk_clear'))
@@ -582,12 +624,21 @@ reset role;
 do $$
 declare v_plan text;
 begin
+  /* With a handful of rows the planner would pick a sequential scan over
+     ANY index, so "is the index in the plan" says nothing on its own.
+     Forbidding seq scans for this one statement asks the real question:
+     is the partial index USABLE with the literal live predicate? If the
+     predicate were written any other way, or the index were gone, the
+     plan below would still be a Seq Scan and this fails. */
+  set local enable_seqscan = off;
   execute 'explain (costs off) select 1 from public.territories
             where deleted_at is null and archived = false
               and geom operator(extensions.&&)
                   extensions.st_setsrid(extensions.st_makeenvelope(0,39,1,41), 4326)'
     into v_plan;
-  perform t_assert(v_plan is not null, 'O11 the live-predicate bbox query plans');
+  perform t_assert(v_plan like '%territories_geom_live_gist%',
+    'O11 the live-predicate bbox query USES the partial GiST index (' || v_plan || ')');
+  reset enable_seqscan;
 end $$;
 
 \echo '== S — Smart Split inherits the COMPLETE assignee set'
@@ -625,6 +676,35 @@ select t_assert((select jsonb_array_length(assignees->'entries') from public.ter
   'S9 no CLOSED parent history was copied into the child');
 select t_assert((smart_split_territory_v41('sp', 'split-1', '[]'::jsonb)->>'status') = 'already_committed',
   'S10 a retry does not re-inherit');
+
+/* THE 0005 NAME IS THE SAME OPERATION. A v40 phone knows only
+   smart_split_territory; a leader can call it directly. Both must inherit
+   server-side, and neither may plant an assignment through the child's
+   data — a cross-team profile, a disabled rep, a string that is not a uuid. */
+select t_upsert_territory(:TEAM, 'sp2', 'Splitme 2', t_rect(40000, 0, 40200, 100));
+select set_territory_assignments('sp2', array[:JOHN]::uuid[], 'op-sp2');
+select smart_split_territory('sp2', 'split-2', jsonb_build_array(
+  jsonb_build_object('id','sp2-a','name','Split 2A','polygon', t_rect(40000, 0, 40100, 100),
+    'data', jsonb_build_object('id','sp2-a','name','Split 2A',
+      'assignedTo', :OTHER,
+      'assignments', jsonb_build_array(
+        jsonb_build_object('userId', :OTHER, 'name','Other Team','assignedAt',1::bigint,'unassignedAt',null),
+        jsonb_build_object('userId', 'not-a-uuid-at-all', 'name','?','assignedAt',2::bigint,'unassignedAt',null)))),
+  jsonb_build_object('id','sp2-b','name','Split 2B','polygon', t_rect(40100, 0, 40200, 100),
+    'data', jsonb_build_object('id','sp2-b','name','Split 2B','assignedTo', :GONE))));
+select t_assert((select open_assignees from public.territories where id='sp2-a') = array[:JOHN]::uuid[]
+            and (select open_assignees from public.territories where id='sp2-b') = array[:JOHN]::uuid[],
+  'S11 the 0005 NAME inherits the parent''s current set into both children');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id in ('sp2-a','sp2-b') and e->>'userId' in (:OTHER, :GONE, 'not-a-uuid-at-all')) = 0,
+  'S12 and NOTHING the client planted in the children''s data became an assignment entry');
+select t_assert((select data->>'assignedTo' from public.territories where id='sp2-a') = :JOHN,
+  'S13 the child''s v40 mirror is rebuilt from the inherited ledger, not from what was sent');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='sp2' and e->>'unassignedAt' is null) = 0,
+  'S14 the parent''s open entries are closed on this path too');
+select t_raises('select smart_split_territory_core(''sp2'', ''split-x'', ''[]''::jsonb)',
+  'S15 the certified core body is not callable by a client at all', '42501');
 reset role;
 
 \echo '== X — the defects adversarial review found, as permanent gates'
@@ -671,6 +751,51 @@ select t_assert((select count(*) from public.territories t, jsonb_array_elements
    where t.id='x-stale' and e->>'userId' = :SAM and e->>'assignedBy' = :LEAD) = 1,
   'X5 and a v40-shaped upsert does NOT clobber it with the name it carries');
 
+/* THE STALE MIRROR THAT SAYS A CLOSED RUN IS STILL OPEN. X2 covered a
+   mirror that OMITS closed history. The ordinary shape of staleness is
+   different: a phone that pulled BEFORE the unassign carries the run as
+   open, because that is what it was told. Merging that as "reopen" would
+   fail I4 and refuse the whole row — a rename from a phone an hour behind
+   would dead-letter, permanently, on every hood that had ever changed
+   hands. Closed stays closed; the rename lands. */
+select (select e->>'unassignedAt' from public.territories t,
+          jsonb_array_elements(t.assignees->'entries') e
+         where t.id='x-stale' and e->>'userId' = :JAKE) as jake_closed_at \gset
+select t_upsert_territory(:TEAM, 'x-stale', 'Renamed by a stale phone', t_rect(30000, 0, 30100, 100),
+  jsonb_build_object('id','x-stale','updatedAt', 1700000300000::bigint,
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId', :JOHN, 'name','John','assignedBy','Lead Two',
+        'assignedAt', 1700000000000::bigint, 'unassignedAt', 1700000100000::bigint),
+      jsonb_build_object('userId', :JAKE, 'name','Jake','assignedBy','Lead Two',
+        'assignedAt', 1700000200000::bigint, 'unassignedAt', null))));
+select t_assert((select name from public.territories where id='x-stale') = 'Renamed by a stale phone',
+  'X13 a mirror carrying a since-closed run as OPEN is ACCEPTED — the rename lands, nothing dead-letters');
+select t_assert((select e->>'unassignedAt' from public.territories t,
+          jsonb_array_elements(t.assignees->'entries') e
+         where t.id='x-stale' and e->>'userId' = :JAKE) = :'jake_closed_at',
+  'X13b and the closed run stays CLOSED at the moment it closed — history is not reopened by staleness');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='x-stale' and e->>'userId' = :JAKE) = 1,
+  'X13c with exactly one entry for that rep — not a closed one plus a reopened copy');
+/* Under LEGACY authority the mirror still decides the OPEN set: the stale
+   phone did not know about Sam, so Sam is unassigned by this write. That is
+   the v40 last-writer rule, and it is precisely what the activation flag
+   exists to end — asserted here so the semantics are on record, not
+   discovered in production. */
+select t_assert((select open_assignees from public.territories where id='x-stale') = '{}'::uuid[],
+  'X13d (legacy authority) the stale mirror still decides the open set — the flag is what ends this');
+
+-- taking a hood back: the desired set is EMPTY, and that must be legal
+select set_territory_assignments('x-stale', array[:SAM]::uuid[], 'op-x3');
+select t_assert((select open_assignees from public.territories where id='x-stale') = array[:SAM]::uuid[],
+  'X14 Sam is back on the hood');
+select set_territory_assignments('x-stale', '{}'::uuid[], 'op-x4');
+select t_assert((select open_assignees from public.territories where id='x-stale') = '{}'::uuid[],
+  'X14b assigning NOBODY is an ordinary operation, not "the same rep twice"');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='x-stale' and e->>'userId' = :SAM and e->>'unassignedAt' is not null) >= 1,
+  'X14c and Sam''s run is CLOSED, not deleted');
+
 -- the cycle boundary must not be settable to a far-future time: it is
 -- monotone, so there would be no way back
 select start_territory_cycle('x-stale', '2099-01-01T00:00:00Z'::timestamptz, 'op-x2');
@@ -712,6 +837,49 @@ select t_assert((select deleted_at is not null from public.territories where id=
 reset role;
 
 \echo '== B — the backfill proofs held on real data'
+
+/* THE ROWS BELOW WERE INSERTED BY db/test/v41-backfill-seed.sql AFTER 0008
+   AND BEFORE 0009 — v40-shaped, with the assignment only in data — so 0011
+   really ran over them. Every assertion compares against the SEEDED value,
+   never against another derived field. */
+\set BF_TEAM  '''dddddddd-4444-4444-a444-444444444444'''
+\set BF_JOHN  '''00000000-0000-4000-d000-000000000001'''
+\set BF_JAKE  '''00000000-0000-4000-d000-000000000002'''
+\set BF_GHOST '''00000000-0000-4000-d000-0000000000ff'''
+
+select t_assert((select jsonb_array_length(assignees->'entries') from public.territories where id='bf-live') = 2
+            and (select open_assignees from public.territories where id='bf-live') = array[:BF_JOHN]::uuid[],
+  'B3 a live hood: both seeded entries in the ledger, only the open one in the mirror');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-live' and e->>'userId' = :BF_JAKE
+     and (e->>'assignedAt')::bigint = 1700000000000 and (e->>'unassignedAt')::bigint = 1700000100000) = 1,
+  'B3b the seeded CLOSED entry survives with its exact (assignedAt, unassignedAt)');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-bare' and e->>'userId' = :BF_JAKE and e->>'synthesizedFrom' = 'assignedTo'
+     and (e->>'assignedAt')::bigint = 1690000000000 and e->>'unassignedAt' is null) = 1
+            and (select open_assignees from public.territories where id='bf-bare') = array[:BF_JAKE]::uuid[],
+  'B4 a bare v40 assignedTo is SYNTHESIZED into one open entry, dated by the row''s own createdAt');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-arch' and e->>'userId' = :BF_GHOST and e->>'userIdResolved' = 'false'
+     and (e->>'unassignedAt')::bigint = 1600001000000) = 1
+            and (select open_assignees from public.territories where id='bf-arch') = '{}'::uuid[]
+            and (select archived from public.territories where id='bf-arch'),
+  'B5 an ARCHIVED hood keeps its unresolvable closed entry, tagged, out of the uuid[] mirror');
+select t_assert((select jsonb_array_length(assignees->'entries') from public.territories where id='bf-tomb') = 1
+            and (select deleted_at is not null from public.territories where id='bf-tomb'),
+  'B6 a TOMBSTONED hood keeps its history and stays tombstoned');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-dup') = 2
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-dup' and e->>'unassignedAt' is null and (e->>'assignedAt')::bigint = 1700000500000) = 1
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-dup' and (e->>'assignedAt')::bigint = 1700000000000
+     and (e->>'unassignedAt')::bigint = 1700000500000) = 1,
+  'B7 duplicate OPEN entries: the newest stays open, the older is closed at that instant, both survive');
+select t_assert((select data->>'note' from public.territories where id='bf-live') = 'keep me'
+            and (select jsonb_array_length(data->'assignments') from public.territories where id='bf-live') = 2
+            and (select data->>'assignedTo' from public.territories where id='bf-live') = :BF_JOHN,
+  'B8 data outside the two mirrors is untouched, and the mirrors are rebuilt from the ledger');
 
 select t_assert((select count(*) from public.territories
   where data->>'assignedTo' is distinct from coalesce(rally_first_open_assignee(assignees), null)) = 0,

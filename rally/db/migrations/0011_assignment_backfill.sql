@@ -17,6 +17,31 @@
 -- `data` is not modified except for the two mirrors the trigger owns, and
 -- the assertions below prove it byte for byte.
 
+/* DUPLICATE OPEN ENTRIES, resolved IN THE SAME STATEMENT that first writes
+   the ledger. The assignment trigger asserts I1 (one open entry per rep) on
+   every write, so a hood that holds two open entries for one rep would
+   abort the backfill before any later clean-up step could run — on real
+   data, which the preflight shows can hold exactly that. The resolution is
+   deterministic, enumerated below, and DELETES NOTHING: the entry with the
+   greatest assignedAt (tiebreak: greatest userId) stays open and the others
+   are closed at that same instant. Session-local (pg_temp): the migration
+   leaves no durable helper behind. */
+create function pg_temp.rally_close_duplicate_opens(p_entries jsonb)
+returns jsonb language sql immutable as $$
+  with keep as (
+    select e->>'userId' u, max((e->>'assignedAt')::bigint) ka
+      from jsonb_array_elements(coalesce(p_entries, '[]'::jsonb)) e
+     where e->>'unassignedAt' is null
+     group by 1)
+  select coalesce(jsonb_agg(
+           case when e->>'unassignedAt' is null and (e->>'assignedAt')::bigint < k.ka
+                then jsonb_set(e, '{unassignedAt}', to_jsonb(k.ka))
+                else e end
+           order by (e->>'assignedAt')::bigint, e->>'userId'), '[]'::jsonb)
+    from jsonb_array_elements(coalesce(p_entries, '[]'::jsonb)) e
+    left join keep k on k.u = e->>'userId'
+$$;
+
 do $$
 declare
   v_before_entries   bigint;
@@ -45,6 +70,16 @@ begin
 
   select coalesce(sum(n_entries), 0) into v_before_entries from _v41_before;
   select count(*) filter (where bare_scalar) into v_synth from _v41_before;
+  select count(*) into v_dup from (
+    select b.team_id, b.id from _v41_before b,
+      lateral (select e->>'userId' u
+                 from jsonb_array_elements(b.entries) e
+                where e->>'unassignedAt' is null
+                group by 1 having count(*) > 1) d
+    group by 1, 2) x;
+  if v_dup > 0 then
+    raise notice 'v41 backfill: % hood(s) hold duplicate open assignees; closing all but the newest', v_dup;
+  end if;
 
   -- ------------------------------------------------------------ backfill ---
   -- The ledger is built by the SAME reconstruction the trigger and the
@@ -52,7 +87,8 @@ begin
   update public.territories t
      set assignees = jsonb_build_object('entries',
            public.rally_sort_entries(
-             public.rally_legacy_to_entries(t.data, t.created_at, t.assignees)))
+             pg_temp.rally_close_duplicate_opens(
+               public.rally_legacy_to_entries(t.data, t.created_at, t.assignees))))
    where jsonb_array_length(coalesce(t.assignees->'entries', '[]'::jsonb)) = 0;
 
   -- Tag what could not be resolved. Kept, never removed.
@@ -68,44 +104,6 @@ begin
                                then (e->>'userId')::uuid end)
               and p.team_id = t.team_id))
    where jsonb_array_length(coalesce(t.assignees->'entries', '[]'::jsonb)) > 0;
-
-  /* DUPLICATE OPEN ENTRIES. A hood that somehow holds two open entries for
-     one rep cannot satisfy I1, and blocking forever on real data is not an
-     option — so the resolution is deterministic, enumerated, and DELETES
-     NOTHING: the entry with the greatest assignedAt (tiebreak: greatest
-     userId) stays open and the others are closed at that same instant. Both
-     entries survive; only the open/closed flag moves, so the current SET is
-     unchanged and proof 2 below still holds exactly. */
-  select count(*) into v_dup from (
-    select t.team_id, t.id from public.territories t,
-      lateral (select e->>'userId' u
-                 from jsonb_array_elements(t.assignees->'entries') e
-                where e->>'unassignedAt' is null
-                group by 1 having count(*) > 1) d
-    group by 1, 2) x;
-
-  if v_dup > 0 then
-    raise notice 'v41 backfill: % hood(s) had duplicate open assignees; closing all but the newest', v_dup;
-    update public.territories t
-       set assignees = jsonb_build_object('entries', (
-             with keep as (
-               select e->>'userId' u,
-                      max((e->>'assignedAt')::bigint) ka
-                 from jsonb_array_elements(t.assignees->'entries') e
-                where e->>'unassignedAt' is null
-                group by 1)
-             select coalesce(jsonb_agg(
-                 case when e->>'unassignedAt' is null
-                       and (e->>'assignedAt')::bigint < k.ka
-                      then jsonb_set(e, '{unassignedAt}', to_jsonb(k.ka))
-                      else e end
-                 order by (e->>'assignedAt')::bigint, e->>'userId'), '[]'::jsonb)
-               from jsonb_array_elements(t.assignees->'entries') e
-               left join keep k on k.u = e->>'userId'))
-     where exists (select 1 from jsonb_array_elements(t.assignees->'entries') e
-                    where e->>'unassignedAt' is null
-                    group by e->>'userId' having count(*) > 1);
-  end if;
 
   -- rebuild the derived mirrors for every row, through the same code the
   -- trigger uses (this UPDATE fires it)

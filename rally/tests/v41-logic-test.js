@@ -227,6 +227,76 @@ if (on()) {
   near("G33 tangent 40-gons overlap by 0", G.overlapM2(ring(0, 0, 100, 40), ring(200, 0, 100, 40)), 0, 1e-6);
   near("G34 identical 40-gons overlap fully",
     G.overlapM2(ring(0, 0, 100, 40), ring(0, 0, 100, 40)), G.areaM2(ring(0, 0, 100, 40)), 1);
+
+  /* THE STORED RING IS WHAT IT IS. Hoods reach overlapM2 exactly as they
+     were drawn and synced, and nothing on the write path removes a corner
+     tapped twice. A neighbour's repeated corner must not be able to
+     manufacture a collision the leader editing THIS hood cannot fix. */
+  const P = at(100, 0);
+  const adj3 = [P, P, P, at(200, 0), at(200, 100), at(100, 100)];       // corner recorded 3x
+  near("G35 a neighbour with a TRIPLED corner still overlaps an adjacent hood by 0",
+    G.overlapM2(sq, adj3), 0, 1e-6);
+  const closedDup = [P, at(200, 0), at(200, 100), at(100, 100), P, P];   // closed AND doubled
+  near("G36 a ring stored closed and ending on a doubled corner overlaps by 0",
+    G.overlapM2(sq, closedDup), 0, 1e-6);
+  near("G37 and a tripled corner does not change the hood's own area",
+    G.areaM2(adj3), 10000, 1);
+  // a concave ring with its first corner doubled: the true area, no phantom
+  const concDup = [at(0, 0), at(0, 0), at(20, 40), at(30, 20), at(50, 50), at(50, 0)];
+  near("G38 a concave ring with a doubled corner measures its true area (1400 m2)",
+    G.areaM2(concDup), 1400, 1);
+  near("G39 and overlaps a big probe by exactly that area — no double-counted fan",
+    G.overlapM2(rect(-100, -100, 200, 200), concDup), 1400, 1);
+  // a degenerate clip region is EMPTY, not "everything"
+  const pt = [[5, 5], [5, 5], [5, 5]];
+  check("G40 a point-triangle clips a subject to nothing",
+    G.clipConvex([[0, 0], [10, 0], [0, 10]], pt).length === 0);
+  // randomized: a clean hood beside a neighbour with one corner doubled or
+  // tripled, thousands of times, must never read as a collision
+  let phantom = 0, trials = 0;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  for (let i = 0; i < 2000; i++) {
+    const w = rnd(30, 300), h = rnd(30, 300), x0 = rnd(-5000, 5000), y0 = rnd(-5000, 5000);
+    const clean = rect(x0, y0, x0 + w, y0 + h);
+    const nb = rect(x0 + w, y0, x0 + 2 * w, y0 + h);                 // exactly adjacent
+    const k = Math.floor(rnd(0, 4)), reps = 1 + Math.floor(rnd(1, 3));
+    const dupd = nb.slice(0, k).concat(Array(reps).fill(nb[k]), nb.slice(k + 1));
+    trials++;
+    if (G.overlapM2(clean, dupd) > 1e-6) phantom++;
+  }
+  check("G41 " + trials + " random adjacent hoods with a repeated corner: ZERO phantom overlaps",
+    phantom === 0, phantom + " phantom(s)");
+
+  /* TOUCHING IS NOT VALID. A corner resting on a non-adjacent edge, and a
+     corner visited twice, are both refused by PostGIS as a ring
+     self-intersection — so the client must refuse them first, at every
+     latitude, or Save is offered and the server then says no. */
+  const touch = [at(0, 0), at(40, 20), at(20, 10), at(10, 10)];       // corner 2 lies on edge 0
+  check("G42 a corner resting on a non-adjacent edge is refused (lat 40)",
+    G.validate(touch).code === "self_intersection", G.validate(touch).code);
+  const P2 = at(0, 0);
+  const pinch = [P2, at(100, 0), at(100, 100), P2, at(-100, 100), at(-100, 0)];
+  check("G43 a pinched figure-eight (the same corner twice) is refused",
+    G.validate(pinch).code === "self_intersection", G.validate(pinch).code);
+  check("G44 and the refusal says where", /same corner twice/.test(G.validate(pinch).reason || ""));
+  // the same touch at other latitudes — the collinearity test must not depend
+  // on how far from the equator the hood is
+  const touchAt = (lat) => {
+    const pr = G.project(lat);
+    const a = (x, y) => { const ll = pr.toLngLat(x, y); return [ll[0], ll[1] + lat]; };
+    return [a(0, 0), a(40, 20), a(20, 10), a(10, 10)];
+  };
+  check("G45 the same touching ring is refused at lat 33.4, 51.5 and 60",
+    [33.4, 51.5, 60].every((lat) => G.validate(touchAt(lat)).code === "self_intersection"),
+    [33.4, 51.5, 60].map((lat) => G.validate(touchAt(lat)).code).join(","));
+  check("G46 while a clean square at lat 60 is still valid", G.validate(touchAt(60).slice(0, 1)
+    .concat([[touchAt(60)[0][0] + 0.001, touchAt(60)[0][1]],
+             [touchAt(60)[0][0] + 0.001, touchAt(60)[0][1] + 0.001],
+             [touchAt(60)[0][0], touchAt(60)[0][1] + 0.001]])).ok);
+  // an outline straddling the antimeridian is refused, not mismeasured
+  const seam = [[179.999, 40], [-179.9995, 40], [-179.9995, 40.001], [179.999, 40.001]];
+  check("G47 a ring across the 180° meridian is refused", G.validate(seam).code === "antimeridian",
+    G.validate(seam).code);
 }
 
 // ============================================================= H membership
@@ -388,8 +458,12 @@ if (on()) {
   check("C10 one post-boundary not-home is depth 1", S.nhDepth(nh1, t) === 1);
   check("C11 two is depth 2", S.nhDepth(nh2, t) === 2);
   check("C12 three is depth 3", S.nhDepth(nh3, t) === 3, "got " + S.nhDepth(nh3, t));
-  check("C13 a pre-boundary not-home does not count toward depth",
-    S.nhDepth(nh3, t) === 3);
+  // the same door with the boundary moved past two of its knocks: only the
+  // one after it counts — depth follows the boundary, not the door
+  t.cycleStartedAt = C + 2 * HOUR + 1;
+  check("C13 moving the boundary past two of the knocks leaves a depth of 1",
+    S.nhDepth(nh3, t) === 1, "got " + S.nhDepth(nh3, t));
+  t.cycleStartedAt = C;
   t.cycleStartedAt = null;
   check("C14 on the first cycle every not-home counts", S.nhDepth(nh3, t) === 4);
 
@@ -610,6 +684,15 @@ if (on()) {
     door(cx + 10 + (i % 18) * 10, cy + 10 + ((Math.floor(i / 18)) % 18) * 10,
       [[T0, "nothome"], [T0 + HOUR, "notint"]]);
   }
+  /* THE COST IS COUNTED, NOT TIMED. A wall-clock budget flakes under load
+     and — worse — passed with the memo guards removed, when the grouping
+     recomputed sixty times. What the design promises is that membership is
+     resolved ONCE per door for a whole metrics pass, so that is what is
+     asserted: the number of hood-membership resolutions, which is exact
+     on any machine. The milliseconds are printed for information only. */
+  const realHoodOf = S.hoodOf;
+  let resolutions = 0;
+  S.hoodOf = function () { resolutions++; return realHoodOf.apply(this, arguments); };
   const t0 = Date.now();
   const f = S.doorFacts();
   let total = 0, identity = true;
@@ -619,15 +702,16 @@ if (on()) {
     if (m.worked + m.remaining !== m.actionable) identity = false;
   });
   const ms = Date.now() - t0;
+  S.hoodOf = realHoodOf;
   check("S1 every door lands in exactly one hood", total === DOORS, "counted " + total);
   check("S2 the identity holds across all " + HOODS + " hoods", identity);
   /* The grouping is what keeps this linear in doors. Scanning every door
-     per hood is O(hoods x doors) — 180,000 passes here — and would be a
-     visible hitch every time the Route tab painted. */
-  check("S3 metrics for " + HOODS + " hoods over " + DOORS + " doors stay well under a frame budget",
-    ms < 400, ms + " ms");
-  console.log("    (" + ms + " ms for " + HOODS + " hoods / " + DOORS + " doors / " +
-    S.events.length + " events)");
+     per hood is O(hoods x doors) — 180,000 resolutions here — and would be
+     a visible hitch every time the Route tab painted. */
+  check("S3 membership is resolved at most ONCE per door across all " + HOODS + " hoods",
+    resolutions <= DOORS, resolutions + " resolutions for " + DOORS + " doors");
+  console.log("    (" + ms + " ms, " + resolutions + " membership resolutions, for " + HOODS +
+    " hoods / " + DOORS + " doors / " + S.events.length + " events)");
 }
 
 (async () => {

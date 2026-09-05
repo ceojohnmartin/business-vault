@@ -13,8 +13,15 @@ export PGUSER="${PGUSER:-postgres}"
 psql -q -v ON_ERROR_STOP=1 -d postgres -c "drop database if exists $DB" \
      -c "create database $DB"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/supabase-shim.sql"
+# v40-SHAPED ROWS GO IN BEFORE THE v41 MIGRATIONS. Applying 0009-0011 to an
+# empty table proves nothing about the backfill: its five proofs pass over
+# zero rows whatever the code does. The seed inserts hoods whose assignment
+# lives only in data.assignments — live, bare-scalar, archived, tombstoned
+# and duplicate-open — so section B can compare the ledger against what
+# was actually seeded.
 for m in "$DIR"/../migrations/*.sql; do
   psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$m"
+  case "$m" in *0008_*) psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/v41-backfill-seed.sql";; esac
 done
 
 OUT="$(psql -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/v41-test.sql" 2>&1)" || {

@@ -150,7 +150,10 @@ begin
         using errcode = '42501';
     end if;
   end loop;
-  if array_length(p_ids, 1) is distinct from
+  /* cardinality, not array_length: array_length of an EMPTY array is NULL,
+     and NULL is distinct from 0 — which made "assign nobody" (the ordinary
+     way a hood is taken back) read as "the same rep twice". */
+  if cardinality(coalesce(p_ids, '{}'::uuid[])) <>
      (select count(distinct x) from unnest(coalesce(p_ids, '{}'::uuid[])) x) then
     raise exception 'turf: the same rep appears twice in one assignment'
       using errcode = '22023';

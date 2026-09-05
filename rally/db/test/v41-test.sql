@@ -558,9 +558,9 @@ select t_upsert_territory(:TEAM, 'g1', 'Dupes', jsonb_build_array(
   jsonb_build_array(5,40), jsonb_build_array(5,40),
   jsonb_build_array(5.001,40), jsonb_build_array(5.001,40.001),
   jsonb_build_array(5,40.001), jsonb_build_array(5,40)));
-select t_assert((select extensions.st_npoints(geom) from public.territories where id='g1') = 5,
+select t_assert((select gis.st_npoints(geom) from public.territories where id='g1') = 5,
   'G4 duplicate and closing corners are dropped; the 4 real ones survive (+1 closing)');
-select t_assert((select extensions.st_isvalid(geom) from public.territories where id='g1'),
+select t_assert((select gis.st_isvalid(geom) from public.territories where id='g1'),
   'G5 the stored polygon is valid');
 
 -- no repair function anywhere in the migration set is asserted by the runner
@@ -633,8 +633,8 @@ begin
   set local enable_seqscan = off;
   execute 'explain (costs off) select 1 from public.territories
             where deleted_at is null and archived = false
-              and geom operator(extensions.&&)
-                  extensions.st_setsrid(extensions.st_makeenvelope(0,39,1,41), 4326)'
+              and geom operator(gis.&&)
+                  gis.st_setsrid(gis.st_makeenvelope(0,39,1,41), 4326)'
     into v_plan;
   perform t_assert(v_plan like '%territories_geom_live_gist%',
     'O11 the live-predicate bbox query USES the partial GiST index (' || v_plan || ')');

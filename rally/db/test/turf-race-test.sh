@@ -139,7 +139,7 @@ begin
   select t.* into v_other from public.territories t
    where t.team_id = new.team_id and t.id <> new.id
      and t.deleted_at is null and t.archived = false and t.geom is not null
-     and t.geom operator(extensions.&&) new.geom
+     and t.geom operator(gis.&&) new.geom
      and public.rally_overlap_m2(t.geom, new.geom) > public.rally_overlap_tolerance_m2()
    limit 1;
   if found then raise exception 'overlaps' using errcode = '23514'; end if;

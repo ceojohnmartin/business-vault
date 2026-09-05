@@ -21,7 +21,7 @@ Fill these in yourself after running each verification query.
 | `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 7, 8, 9 PASS |
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
 | `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 01:05:18 UTC (APPLY_v39_1.sql; the rebuild stamped every customer row at that instant) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
-| `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS only; touches no RALLY object | **NOT APPLIED** | — |
+| `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS in the dedicated `gis` schema; touches no RALLY object | **PARTIALLY APPLIED** — `create schema gis` + `create extension postgis with schema gis` ran as CUTOVER STEP 0A, 2026-09-05. The `grant usage on schema gis to authenticated` line is **NOT APPLIED** (Stage A gate). | STEP 0A read-only VERIFY: PostGIS 3.3.7, schema `gis`, extension owner `supabase_admin`, schema owner `postgres`, CREATE/USAGE for public/authenticated false/false, 876 extension objects, 0 outside `gis`, every v41 object count in `public` = 0, `smart_split_territory` present, PostgreSQL 17.6 |
 | `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **NOT APPLIED** | — |
 | `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **NOT APPLIED** | — |
 | `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **NOT APPLIED** | — |
@@ -42,32 +42,67 @@ PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 
 | Stage | Files | Gate before the NEXT stage |
 |---|---|---|
-| **0** | `0008` | Run the discovery query in that file and **record the PostGIS schema below**. Supabase's default is `extensions`; that is an inference until the query says so. |
+| **0** | `0008` | **DONE for the schema + extension (CUTOVER 0A).** The USAGE grant in 0008 is the remaining line and is applied with Stage A. Schema is `gis`, recorded below. |
 | **0.5** | `db/preflight/v41-preflight.sql` — read-only, creates no durable object | **Review every section.** It reports unusable outlines, existing overlaps, the full assignment census across live/archived/tombstoned/split-parent hoods, unresolvable assignees, duplicate open entries, and the do-not-knock and unlinked-customer counts. |
 | **A** | `0009` → `0010` → `0011` → `0012` → `0013` | All five backfill proofs in 0011 must pass (they abort the transaction otherwise). The do-not-knock trigger is armed here on purpose: it protects v40 phones too. |
 | **B** | `0014` → `0015` | The v41 client must be deployed and its `applyTerritories` server-owned merge live BEFORE the flip, or the server would own a field no device can receive. |
 | **C** | `0016`, then — **separately** — the flip | 0016 refuses to arm while any live hood has an unusable outline. The flip is not a file: it is one reviewed statement, `update public.rally_config set assignment_server_authoritative = true;`. It is also GATED: `rally_config_guard` refuses it while any live hood still names a current assignee who is no rep on their team, because that hood would read as unassigned the moment clients trust the server's ledger. |
 
-### PostGIS schema, discovered (fill in before applying 0009)
+### PostGIS schema — DECIDED and DISCOVERED (CUTOVER STEP 0 / 0A, 2026-09-05)
 
-| Question | Expected | Actual | Confirmed by |
-|---|---|---|---|
-| `select n.nspname from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'postgis'` | `extensions` (inference) | **NOT RUN** | — |
+| Question | Answer | Confirmed by |
+|---|---|---|
+| Was PostGIS already installed? | **No** (available: 3.3.7) | STEP 0 read-only status query |
+| Did `gis` / `extensions` exist? | `gis` absent · `extensions` present (platform namespace) | STEP 0 |
+| Chosen installation schema | **`gis`** — dedicated, not `public`, not `extensions` | owner decision, STEP 0A |
+| Installed version / schema | **3.3.7 / `gis`** | STEP 0A VERIFY row 2a/2b |
+| Extension owner / schema owner | `supabase_admin` / `postgres` | STEP 0A VERIFY 2c/4b |
+| Relocatable | `false` — the schema choice is one-way | STEP 0A VERIFY 2d |
+| Extension objects outside `gis` | **0** of 876 | STEP 0A VERIFY 5b |
+| v41 objects in `public` after 0A | columns 0 · tables 0 · functions 0 · triggers 0 · indexes 0 | STEP 0A VERIFY 6 |
+| PostgreSQL server | 17.6 | STEP 0A VERIFY 9 |
 
-### Local proof, 2026-09-04
+Every v41 file (0009, 0016, the preflight, the SQL tests, the race test)
+qualifies PostGIS as **`gis.`**. The earlier authored form said `extensions.`
+and was rewritten on 2026-09-05 before any of it touched production; the
+local proofs below were re-run after the rewrite with PostGIS homed in `gis`.
 
-- `sh rally/db/test/run-v41-tests.sh` — 135 SQL checks over a database that
-  was SEEDED with v40-shaped hoods before 0009–0011 ran (live, bare-scalar,
-  archived, tombstoned and duplicate-open — `db/test/v41-backfill-seed.sql`),
-  so the backfill's proofs run over real rows; the staged-order gate
-  (`turfRpc` false after Stage A and true after Stage B); the
-  no-shape-changing-repair grep over `db/migrations/`; and
-  `turf-race-test.sh` (6 checks, deterministic: each session forces its
-  deferred check with SET CONSTRAINTS ALL IMMEDIATE, and the negative
-  control proves the advisory lock, not merely the check).
+Residual difference between the local proof and production: local is
+PostgreSQL 16.13 / PostGIS 3.4.2 (3.3.7 is not packaged for the local host);
+production is 17.6 / 3.3.7. Every PostGIS symbol v41 uses was audited against
+3.3.7 (newest is `ST_ForcePolygonCCW`, 2.4.0) and nothing PostgreSQL-17-
+specific is used.
+
+### Local proof — re-run 2026-09-05 with PostGIS homed in `gis`
+
+Every database proof below was re-run AFTER the `extensions.` → `gis.` rewrite,
+on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
+0008 into `gis` (verified per test database: `3.4.2 in gis`).
+
+- `sh rally/db/test/run-v41-tests.sh` — 135 SQL checks, the staged-order gate
+  (`turfRpc` false after Stage A, true after Stage B), the
+  no-shape-changing-repair grep over `db/migrations/`, `turf-race-test.sh`
+  (6 checks including the negative control that proves the advisory lock,
+  not merely the check), and `preflight-test.sh` (35 checks: both preflight
+  forms against a seeded Stage-0 database, byte-identical ring readers, and
+  negative controls proving an overlapping pair, a self-crossing outline and a
+  live hood with a ghost CURRENT assignee are each detected and counted by
+  the verdict rows).
 - `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
-  re-run with 0008–0016 applied: RLS 282, RACE 11, SPLIT RACE 11, MIRROR 182,
+  re-run with 0008–0016 applied: RLS 283, RACE 11, SPLIT RACE 11, MIRROR 182,
   PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
+- `sh rally/tests/run-all.sh` — the browser battery, 24 suite runs, 1,212
+  checks, 0 failing (unchanged by the rewrite: no client file references a
+  PostGIS schema).
+
+### The preflight, for the Supabase SQL Editor
+
+`db/preflight/v41-preflight.editor.sql` is the form to paste into the editor:
+one final SELECT returning `section | key | detail`, every section present
+(an empty one prints `(none)`), and three `Z verdict` rows naming what blocks
+Stage A, Stage C (0016 arming) and the activation flip. It creates nothing
+durable (one `pg_temp` helper) and writes no row. `db/preflight/v41-preflight.sql`
+is the psql form of the same survey; `preflight-test.sh` keeps the two in step.
 
 ## What production actually runs
 

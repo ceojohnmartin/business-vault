@@ -1,36 +1,52 @@
 -- RALLY v41 — STAGE 0. PostGIS, and nothing else.
 --
 -- This file deliberately touches NO RALLY object: no column, no index, no
--- function, no grant, no row. It exists on its own because the read-only
--- preflight that decides whether any of the rest may run is itself written
--- in PostGIS predicates — it measures existing overlaps and tests existing
--- polygons for validity — so the extension has to exist BEFORE the survey
--- that gates the migration. Running the survey first was impossible, which
--- is the ordering defect this split fixes.
+-- function, no row. It exists on its own because the read-only preflight
+-- that decides whether any of the rest may run is itself written in PostGIS
+-- predicates — it measures existing overlaps and tests existing polygons for
+-- validity — so the extension has to exist BEFORE the survey that gates the
+-- migration. Running the survey first was impossible, which is the ordering
+-- defect this split fixes.
 --
--- Purely additive and reversible while nothing depends on it:
---     drop extension postgis;
+-- THE SCHEMA IS `gis`, CHOSEN DELIBERATELY. Not `public`, not `extensions`,
+-- and not whatever a platform default happens to be. It was decided at
+-- CUTOVER STEP 0 (2026-09-05) after a read-only survey of the live project:
+-- PostGIS was absent, `gis` did not exist, `extensions` existed as the
+-- platform's own namespace. A dedicated schema keeps PostGIS's ~900 objects
+-- out of the RALLY namespace and out of the platform's, and — because
+-- PostGIS is NOT relocatable (extrelocatable = false) — the choice is
+-- one-way: there is no ALTER EXTENSION ... SET SCHEMA later.
 --
--- ---------------------------------------------------------------------
--- AFTER APPLYING THIS FILE, RUN THE DISCOVERY QUERY BELOW AND RECORD ITS
--- ANSWER IN db/APPLIED.md BEFORE APPLYING 0009. Every later file qualifies
--- its PostGIS references against that schema name by hand, because those
--- files run with `search_path = ''` and nothing is resolved implicitly.
+-- Every later file qualifies its PostGIS references as `gis.` BY HAND,
+-- because those files run with `search_path = ''` and resolve nothing
+-- implicitly. If the discovery query below ever reports a different schema,
+-- stop and fix the files, never the path.
 --
---   select e.extname, n.nspname as postgis_schema, e.extversion
+--   select e.extname, n.nspname as postgis_schema, e.extversion,
+--          r.rolname as extension_owner, e.extrelocatable
 --     from pg_extension e
 --     join pg_namespace n on n.oid = e.extnamespace
+--     join pg_roles     r on r.oid = e.extowner
 --    where e.extname = 'postgis';
 --
--- Supabase's documented default is the `extensions` schema, and the local
--- test harness reproduces that — but a platform upgrade may relocate it, so
--- this is DISCOVERED, never assumed, and re-checked after any such upgrade.
--- ---------------------------------------------------------------------
+-- PRODUCTION STATE. The schema and the extension were installed by CUTOVER
+-- STEP 0A on 2026-09-05 — PostGIS 3.3.7 in `gis`, extension owner
+-- supabase_admin, schema owner postgres, verified read-only afterwards
+-- (876 extension objects, 0 outside gis, every v41 object count in public
+-- still 0). The two CREATE statements below are therefore no-ops there. The
+-- USAGE grant is the ONE line of this file still pending for production; it
+-- belongs to the Stage A gate, not to Stage 0.
+--
+-- Purely additive and reversible while nothing depends on it:
+--     drop extension postgis; drop schema gis;
 
-create schema if not exists extensions;
-create extension if not exists postgis with schema extensions;
+create schema if not exists gis;
+create extension if not exists postgis with schema gis;
 
--- `authenticated` needs to RESOLVE the geography/geometry types to read the
--- territories table at all once 0009 adds the column. This grants the right
--- to name things in the schema; it grants no table and no data.
-grant usage on schema extensions to authenticated;
+-- `authenticated` needs to RESOLVE the geometry type and the PostGIS
+-- functions once 0009 adds the column: its SECURITY INVOKER trigger runs as
+-- the client role on every territory upsert and names gis.* by hand. This
+-- grants the right to NAME things in the schema; it grants no table, no
+-- data, and no CREATE. Nothing in gis is exposed through PostgREST, whose
+-- schema list does not include it.
+grant usage on schema gis to authenticated;

@@ -44,7 +44,7 @@
    not collision. It is applied to a DERIVED intersection, never to stored
    turf: this is a measurement filter, not a repair. */
 create or replace function public.rally_overlap_m2(
-  a extensions.geometry, b extensions.geometry)
+  a gis.geometry, b gis.geometry)
 returns double precision
 language sql
 immutable
@@ -53,14 +53,14 @@ set search_path = ''
 as $$
   select case
     when a is null or b is null then 0::double precision
-    when not extensions.st_intersects(a, b) then 0::double precision
-    else coalesce(extensions.st_area(
-           extensions.st_collectionextract(extensions.st_intersection(a, b), 3)::extensions.geography),
+    when not gis.st_intersects(a, b) then 0::double precision
+    else coalesce(gis.st_area(
+           gis.st_collectionextract(gis.st_intersection(a, b), 3)::gis.geography),
          0::double precision)
   end
 $$;
 
-comment on function public.rally_overlap_m2(extensions.geometry, extensions.geometry) is
+comment on function public.rally_overlap_m2(gis.geometry, gis.geometry) is
   'Interior overlap in square metres. Shared edges and point touches measure 0. The single definition used by the preflight, the constraint and the tests.';
 
 create or replace function public.rally_overlap_tolerance_m2()
@@ -108,7 +108,7 @@ begin
      and t.id <> new.id
      and t.deleted_at is null and t.archived = false     -- the LIVE predicate, literally
      and t.geom is not null
-     and t.geom operator(extensions.&&) new.geom          -- bbox prefilter, GiST-usable
+     and t.geom operator(gis.&&) new.geom          -- bbox prefilter, GiST-usable
      and public.rally_overlap_m2(t.geom, new.geom) > v_tol
    order by public.rally_overlap_m2(t.geom, new.geom) desc
    limit 1;
@@ -150,7 +150,7 @@ begin
       on a.team_id = b.team_id and a.id < b.id
      where a.deleted_at is null and a.archived = false and a.geom is not null
        and b.deleted_at is null and b.archived = false and b.geom is not null
-       and a.geom operator(extensions.&&) b.geom
+       and a.geom operator(gis.&&) b.geom
        and public.rally_overlap_m2(a.geom, b.geom) > public.rally_overlap_tolerance_m2()) z;
   if v_bad > 0 then
     raise exception 'v41 overlap: % live pair(s) already overlap. Arming now would make both hoods of every pair unwritable. Run db/preflight/v41-preflight.sql, resolve them, then re-apply.', v_bad;

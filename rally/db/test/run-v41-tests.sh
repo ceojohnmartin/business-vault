@@ -39,7 +39,7 @@ printf 'v41 SQL       %3d checks  ok\n' "$N"
 # future edit that reaches for ST_MakeValid has to delete this check first.
 # Matches a CALL, not a mention: the files explain at length why these are
 # forbidden, and the explanation must not trip the check that enforces it.
-BAD="$(grep -rilE '(extensions\.|public\.)?st_(makevalid|buffer|snaptogrid|simplify)[[:space:]]*\(' "$DIR"/../migrations/ || true)"
+BAD="$(grep -rilE '(gis\.|extensions\.|public\.)?st_(makevalid|buffer|snaptogrid|simplify)[[:space:]]*\(' "$DIR"/../migrations/ || true)"
 if [ -n "$BAD" ]; then
   echo "v41 SQL: FAILED — a shape-changing repair appears in: $BAD"; exit 1
 fi
@@ -70,3 +70,12 @@ fi
 echo "v41 staged     turfRpc false after Stage A, true after Stage B  ok"
 
 sh "$DIR/turf-race-test.sh"
+
+# THE PREFLIGHT IS PROVEN, NOT TRUSTED. Both forms — psql and Supabase SQL
+# Editor — run against a seeded Stage-0 database (shim + 0001..0008 + the v40
+# seed), their ring readers must be byte-identical, and negative controls
+# prove that an overlapping pair, a self-crossing outline and a live hood with
+# a ghost CURRENT assignee are each detected and counted by the verdict rows.
+PF="$(sh "$DIR/preflight-test.sh" 2>&1)" || {
+  printf '%s\n' "$PF" | grep -E "FAIL|ERROR" | head -10; echo "PREFLIGHT: FAILED"; exit 1; }
+printf '%s\n' "$PF" | tail -1

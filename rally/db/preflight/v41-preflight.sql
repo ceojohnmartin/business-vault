@@ -21,6 +21,15 @@
 -- same ordering mistake in miniature.
 --
 --   psql -f db/preflight/v41-preflight.sql
+--
+-- PostGIS is addressed as `gis.` — the schema chosen at CUTOVER STEP 0A —
+-- and nothing here resolves through search_path.
+--
+-- SUPABASE SQL EDITOR: use db/preflight/v41-preflight.editor.sql instead.
+-- The editor cannot run the \echo lines below and shows only the LAST
+-- statement's result, so that file asks the same questions folded into one
+-- SELECT (section | key | detail). db/test/preflight-test.sh runs BOTH
+-- forms against a seeded Stage-0 database and checks they agree.
 
 \pset pager off
 \timing off
@@ -34,12 +43,12 @@ set client_min_messages = notice;
 -- purpose — a survey that measured different geometry from the constraint
 -- would be measuring the wrong thing.
 create or replace function pg_temp.ring_to_geom(p_ring jsonb)
-returns extensions.geometry
+returns gis.geometry
 language plpgsql immutable as $$
 declare
-  v_pts extensions.geometry[] := '{}';
+  v_pts gis.geometry[] := '{}';
   v_elem jsonb; v_x double precision; v_y double precision;
-  v_prev extensions.geometry; v_g extensions.geometry; v_n int;
+  v_prev gis.geometry; v_g gis.geometry; v_n int;
 begin
   if p_ring is null or jsonb_typeof(p_ring) <> 'array' then return null; end if;
   for v_elem in select value from jsonb_array_elements(p_ring) loop
@@ -49,19 +58,19 @@ begin
       v_y := (v_elem->>1)::double precision;
     exception when others then continue; end;
     if v_x is null or v_y is null or v_x <> v_x or v_y <> v_y then continue; end if;
-    v_g := extensions.st_setsrid(extensions.st_makepoint(v_x, v_y), 4326);
-    if v_prev is not null and extensions.st_equals(v_prev, v_g) then continue; end if;
+    v_g := gis.st_setsrid(gis.st_makepoint(v_x, v_y), 4326);
+    if v_prev is not null and gis.st_equals(v_prev, v_g) then continue; end if;
     v_pts := array_append(v_pts, v_g); v_prev := v_g;
   end loop;
   v_n := coalesce(array_length(v_pts, 1), 0);
-  while v_n > 1 and extensions.st_equals(v_pts[1], v_pts[v_n]) loop
+  while v_n > 1 and gis.st_equals(v_pts[1], v_pts[v_n]) loop
     v_pts := v_pts[1 : v_n - 1]; v_n := v_n - 1;
   end loop;
   if v_n < 3 then return null; end if;
   v_pts := array_append(v_pts, v_pts[1]);
-  return extensions.st_forcepolygonccw(
-           extensions.st_setsrid(
-             extensions.st_makepolygon(extensions.st_makeline(v_pts)), 4326));
+  return gis.st_forcepolygonccw(
+           gis.st_setsrid(
+             gis.st_makepolygon(gis.st_makeline(v_pts)), 4326));
 exception when others then return null;
 end $$;
 
@@ -92,7 +101,7 @@ select case when deleted_at is not null then 'tombstoned'
        count(*)                                              as hoods,
        count(*) filter (where geom is null and n_points > 0) as unusable_outline,
        count(*) filter (where geom is not null
-                          and not extensions.st_isvalid(geom))as invalid_geometry,
+                          and not gis.st_isvalid(geom))as invalid_geometry,
        count(*) filter (where n_points = 0)                   as no_outline_at_all
   from rings
  group by 1 order by 1;
@@ -103,13 +112,13 @@ select t.team_id, t.id, t.name,
        jsonb_array_length(coalesce(t.polygon, '[]'::jsonb)) as points,
        case when pg_temp.ring_to_geom(t.polygon) is null
             then 'fewer than 3 distinct corners'
-            else extensions.st_isvalidreason(pg_temp.ring_to_geom(t.polygon))
+            else gis.st_isvalidreason(pg_temp.ring_to_geom(t.polygon))
        end as reason
   from public.territories t
  where t.deleted_at is null and t.archived = false
    and jsonb_array_length(coalesce(t.polygon, '[]'::jsonb)) > 0
    and (pg_temp.ring_to_geom(t.polygon) is null
-     or not extensions.st_isvalid(pg_temp.ring_to_geom(t.polygon)))
+     or not gis.st_isvalid(pg_temp.ring_to_geom(t.polygon)))
  order by 1, 2;
 
 -- ------------------------------------------------------------- 2. overlap ---
@@ -124,16 +133,16 @@ with live as (
    where t.deleted_at is null and t.archived = false
 )
 select a.team_id, a.id as hood_a, a.name as name_a, b.id as hood_b, b.name as name_b,
-       round(extensions.st_area(
-         extensions.st_collectionextract(
-           extensions.st_intersection(a.geom, b.geom), 3)::extensions.geography)::numeric, 2) as overlap_m2
+       round(gis.st_area(
+         gis.st_collectionextract(
+           gis.st_intersection(a.geom, b.geom), 3)::gis.geography)::numeric, 2) as overlap_m2
   from live a join live b
     on a.team_id = b.team_id and a.id < b.id
  where a.geom is not null and b.geom is not null
-   and extensions.st_intersects(a.geom, b.geom)
-   and extensions.st_area(
-         extensions.st_collectionextract(
-           extensions.st_intersection(a.geom, b.geom), 3)::extensions.geography) > 1.0
+   and gis.st_intersects(a.geom, b.geom)
+   and gis.st_area(
+         gis.st_collectionextract(
+           gis.st_intersection(a.geom, b.geom), 3)::gis.geography) > 1.0
  order by overlap_m2 desc;
 
 -- ------------------------------------------------------ 3. assignments ---

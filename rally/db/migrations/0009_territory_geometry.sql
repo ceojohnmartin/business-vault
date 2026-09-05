@@ -26,7 +26,7 @@
 -- Additive. Reversible: drop the trigger, the index and the column.
 
 alter table public.territories
-  add column if not exists geom extensions.geometry(Polygon, 4326);
+  add column if not exists geom gis.geometry(Polygon, 4326);
 
 comment on column public.territories.geom is
   'Derived from polygon jsonb by territories_derive_geom. Server-owned: no client grant. NULL means the stored ring is degenerate or invalid — see db/preflight/v41-preflight.sql.';
@@ -38,19 +38,19 @@ comment on column public.territories.geom is
    decides whether that is a refusal (a new write) or a NULL geom (an
    existing row the backfill must not fail on). */
 create or replace function public.rally_ring_to_geom(p_ring jsonb)
-returns extensions.geometry
+returns gis.geometry
 language plpgsql
 immutable
 security invoker
 set search_path = ''
 as $$
 declare
-  v_pts   extensions.geometry[] := '{}';
+  v_pts   gis.geometry[] := '{}';
   v_elem  jsonb;
   v_x     double precision;
   v_y     double precision;
-  v_prev  extensions.geometry;
-  v_g     extensions.geometry;
+  v_prev  gis.geometry;
+  v_g     gis.geometry;
   v_n     int;
 begin
   if p_ring is null or jsonb_typeof(p_ring) <> 'array' then return null; end if;
@@ -71,10 +71,10 @@ begin
        or v_y = 'Infinity'::double precision or v_y = '-Infinity'::double precision then
       continue;
     end if;
-    v_g := extensions.st_setsrid(extensions.st_makepoint(v_x, v_y), 4326);
+    v_g := gis.st_setsrid(gis.st_makepoint(v_x, v_y), 4326);
     -- TRANSFORM 2: drop a vertex identical to the one before it. A
     -- zero-length edge contributes nothing to the boundary.
-    if v_prev is not null and extensions.st_equals(v_prev, v_g) then
+    if v_prev is not null and gis.st_equals(v_prev, v_g) then
       continue;
     end if;
     v_pts := array_append(v_pts, v_g);
@@ -83,7 +83,7 @@ begin
 
   -- a ring stored closed: drop the repeat, since TRANSFORM 1 re-adds it
   v_n := coalesce(array_length(v_pts, 1), 0);
-  while v_n > 1 and extensions.st_equals(v_pts[1], v_pts[v_n]) loop
+  while v_n > 1 and gis.st_equals(v_pts[1], v_pts[v_n]) loop
     v_pts := v_pts[1 : v_n - 1];
     v_n := v_n - 1;
   end loop;
@@ -92,9 +92,9 @@ begin
 
   -- TRANSFORM 1: close the ring.  TRANSFORM 3: force CCW.
   v_pts := array_append(v_pts, v_pts[1]);
-  return extensions.st_forcepolygonccw(
-           extensions.st_setsrid(
-             extensions.st_makepolygon(extensions.st_makeline(v_pts)), 4326));
+  return gis.st_forcepolygonccw(
+           gis.st_setsrid(
+             gis.st_makepolygon(gis.st_makeline(v_pts)), 4326));
 exception when others then
   return null;
 end $$;
@@ -118,7 +118,7 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_geom   extensions.geometry;
+  v_geom   gis.geometry;
   v_reason text;
 begin
   -- a tombstoned hood is not somewhere anyone is sent to work; its outline
@@ -131,7 +131,7 @@ begin
        is enumerated by the preflight, and cannot be un-deleted back into
        live turf without fixing the ring. */
     new.geom := public.rally_ring_to_geom(new.polygon);
-    if new.geom is not null and not extensions.st_isvalid(new.geom) then
+    if new.geom is not null and not gis.st_isvalid(new.geom) then
       new.geom := null;
     end if;
     return new;
@@ -157,8 +157,8 @@ begin
       using errcode = '22023';
   end if;
 
-  if not extensions.st_isvalid(v_geom) then
-    v_reason := extensions.st_isvalidreason(v_geom);
+  if not gis.st_isvalid(v_geom) then
+    v_reason := gis.st_isvalidreason(v_geom);
     /* An existing invalid row keeps its NULL geom rather than becoming
        unwritable — the preflight enumerates it and 0016 refuses to arm
        while any live hood still has one.

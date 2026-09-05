@@ -90,9 +90,14 @@ begin
      including one that slipped past 0009's derivation. A hood with no
      outline at all is a legal draft and is simply not turf yet. */
   if new.geom is null then
-    if jsonb_array_length(coalesce(new.polygon, '[]'::jsonb)) > 0 then
-      raise exception '% has an outline this map cannot use, so it cannot be made active turf',
-        coalesce(nullif(new.name, ''), new.id) using errcode = '23514';
+    /* "Has an outline the map cannot use" is exactly what the ring reader's
+       problem text means, so ask it — never jsonb_array_length on the raw
+       column, which is jsonb and may be an object, a string or a JSON null
+       on a legacy row, and would abort this trigger on an unrelated write. */
+    if public.rally_ring_problem(new.polygon) is not null then
+      raise exception '% has an outline this map cannot use (%), so it cannot be made active turf',
+        coalesce(nullif(new.name, ''), new.id), public.rally_ring_problem(new.polygon)
+        using errcode = '23514';
     end if;
     return null;
   end if;
@@ -135,7 +140,7 @@ declare v_bad bigint;
 begin
   select count(*) into v_bad from public.territories
    where deleted_at is null and archived = false and geom is null
-     and jsonb_array_length(coalesce(polygon, '[]'::jsonb)) > 0;
+     and public.rally_ring_problem(polygon) is not null;
   if v_bad > 0 then
     raise exception 'v41 overlap: % live hood(s) have an unusable outline and would be unprotected. Run db/preflight/v41-preflight.sql, fix them, then re-apply.', v_bad;
   end if;

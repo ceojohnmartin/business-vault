@@ -79,15 +79,17 @@ Every database proof below was re-run AFTER the `extensions.` → `gis.` rewrite
 on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
 0008 into `gis` (verified per test database: `3.4.2 in gis`).
 
-- `sh rally/db/test/run-v41-tests.sh` — 135 SQL checks, the staged-order gate
+- `sh rally/db/test/run-v41-tests.sh` — 155 SQL checks, the staged-order gate
   (`turfRpc` false after Stage A, true after Stage B), the
   no-shape-changing-repair grep over `db/migrations/`, `turf-race-test.sh`
   (6 checks including the negative control that proves the advisory lock,
-  not merely the check), and `preflight-test.sh` (35 checks: both preflight
-  forms against a seeded Stage-0 database, byte-identical ring readers, and
-  negative controls proving an overlapping pair, a self-crossing outline and a
-  live hood with a ghost CURRENT assignee are each detected and counted by
-  the verdict rows).
+  not merely the check), and `preflight-test.sh` (93 checks: both preflight
+  forms against a seeded Stage-0 database, the ring reader byte-identical to
+  0009's `rally_ring_read`, static reading rules, and — with every one of the
+  33 malformed fixtures in `v41-preflight-fixtures.sql` loaded at once — no
+  abort and a named finding for each; plus negative controls proving an
+  overlapping pair, a self-crossing outline and a live hood with a ghost
+  CURRENT assignee are detected and counted by the verdict rows).
 - `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
   re-run with 0008–0016 applied: RLS 283, RACE 11, SPLIT RACE 11, MIRROR 182,
   PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
@@ -95,14 +97,35 @@ on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
   checks, 0 failing (unchanged by the rewrite: no client file references a
   PostGIS schema).
 
-### The preflight, for the Supabase SQL Editor
+### The preflight, for the Supabase SQL Editor — TOTAL over legacy JSON
 
 `db/preflight/v41-preflight.editor.sql` is the form to paste into the editor:
 one final SELECT returning `section | key | detail`, every section present
 (an empty one prints `(none)`), and three `Z verdict` rows naming what blocks
 Stage A, Stage C (0016 arming) and the activation flip. It creates nothing
 durable (one `pg_temp` helper) and writes no row. `db/preflight/v41-preflight.sql`
-is the psql form of the same survey; `preflight-test.sh` keeps the two in step.
+is a psql wrapper (`\ir`) over the same text, so there is one survey.
+
+**Total by construction (2026-09-05).** The first editor form aborted on 8 of
+25 malformed shapes (assignments as object/string/number/JSON null,
+assignedAt as text or decimal, polygon as object or string — evidence in the
+session log). Now: no array function without a `jsonb_typeof` guard, no
+`::uuid`/`::bigint` outside a regex-guarded CASE, no geography cast on a ring
+the reader has not proven finite and in range, and the reader is 0009's twin.
+Every malformed row is a NAMED FINDING; the Stage A verdict counts the ones
+0010/0011 would still abort on (a non-integer assignedAt/unassignedAt, a
+non-integer createdAt on a bare-scalar hood, a territory whose data is not an
+object) — those are decided by the owner with the list in hand, never by the
+migration failing halfway.
+
+**The migrations were made total the same way, where a client write could
+otherwise dead-letter on a legacy shape:** 0009's reader refuses (never
+trims) an unreadable ring and names the corner; 0010's activation gate and
+its Authoritative-Correction Stamp read client JSON through guards; 0011's
+snapshot reads a non-array `assignments` as none; 0013's history readers,
+ts parse and mirror writes are total over a non-object `data` / non-array
+`history`; 0014's `clear_pin_dnk` likewise; 0016 asks `rally_ring_problem`
+instead of measuring the raw column.
 
 ## What production actually runs
 

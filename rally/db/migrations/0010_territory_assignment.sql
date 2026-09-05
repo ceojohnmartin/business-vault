@@ -462,7 +462,10 @@ begin
   if (v_auth or v_via_rpc) and tg_op = 'UPDATE'
      and (new.data->'assignments' is distinct from v_sent_a
           or new.data->'assignedTo' is distinct from v_sent_to) then
-    v_incoming := coalesce((new.data->>'updatedAt')::bigint, 0);
+    -- data.updatedAt is client JSON: cast it only once an anchored regex
+    -- has proven the cast cannot fail; anything else reads as 0
+    v_incoming := case when (new.data->>'updatedAt') ~ '^-?[0-9]{1,18}$'
+                       then (new.data->>'updatedAt')::bigint else 0 end;
     new.data := jsonb_set(new.data, '{updatedAt}',
                           to_jsonb(greatest(v_now_ms, v_incoming + 1)));
   end if;
@@ -555,7 +558,10 @@ as $$
        select 1 from jsonb_array_elements(
            case when jsonb_array_length(coalesce(t.assignees->'entries', '[]'::jsonb)) > 0
                 then t.assignees->'entries'
-                else coalesce(t.data->'assignments', '[]'::jsonb) end) e
+                -- the v40 mirror is client JSON: read it only when it IS an array
+                when jsonb_typeof(t.data->'assignments') = 'array'
+                then t.data->'assignments'
+                else '[]'::jsonb end) e
         where e->>'unassignedAt' is null
           and coalesce(e->>'userId', '') <> ''
           and not exists (

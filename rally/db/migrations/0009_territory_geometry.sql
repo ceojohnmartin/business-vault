@@ -16,7 +16,9 @@
 --
 -- Anything still invalid after those is REFUSED, with ST_IsValidReason in
 -- the message so the leader is told what is wrong with the outline rather
--- than merely that it failed.
+-- than merely that it failed. A ring the reader cannot READ — a corner that
+-- is not a pair, a coordinate that is not a number or is off the planet —
+-- is refused the same way, with the corner named; it is never trimmed.
 --
 -- geometry(Polygon,4326) is the AUTHORITATIVE spatial column: construction,
 -- validity, bbox && and intersection topology are all planar operations
@@ -33,12 +35,34 @@ comment on column public.territories.geom is
 
 -- --------------------------------------------------------------- helpers ---
 
-/* The ring, normalized by the three shape-preserving transforms only.
-   Returns NULL when fewer than 3 distinct corners survive — a caller
-   decides whether that is a refusal (a new write) or a NULL geom (an
-   existing row the backfill must not fail on). */
-create or replace function public.rally_ring_to_geom(p_ring jsonb)
-returns gis.geometry
+/* THE RING READER. One function, two answers: the geometry when the ring
+   can be used, and otherwise WHY it cannot, in words a leader can act on.
+   They are produced by the same loop, so they can never disagree.
+
+   TOTAL OVER ARBITRARY JSON. The column is jsonb, and jsonb is not a
+   contract: a legacy row may hold an object, a string, a number, a JSON
+   null, corners that are not pairs, coordinates that are strings, or
+   coordinates outside the planet. None of that may abort a write, a
+   backfill, a constraint check or a survey. Every such ring is answered
+   with problem <> null and geom = null, and the caller decides what that
+   means (a refusal for a new write, a NULL geom for an existing row, a
+   named finding for the preflight).
+
+   NO REPAIR. An earlier draft skipped a corner it could not read and built
+   the polygon from the rest. That is a repair — it changes the footprint
+   the leader drew — so it is gone: a ring with an unreadable corner is
+   unusable as a whole. The only transforms are still the three that cannot
+   move a vertex: close the ring, drop a consecutive duplicate, force CCW.
+
+   COORDINATE RANGE is checked here, before any geometry exists, because
+   the geography cast in 0016's overlap measurement refuses latitudes
+   outside [-90, 90] and would otherwise abort an unrelated neighbour's
+   write. A JSON number is never NaN or infinite; a numeric too large for
+   float8 fails the cast and lands in the exception arm below. */
+create or replace function public.rally_ring_read(
+  p_ring jsonb,
+  out geom gis.geometry,
+  out problem text)
 language plpgsql
 immutable
 security invoker
@@ -47,29 +71,42 @@ as $$
 declare
   v_pts   gis.geometry[] := '{}';
   v_elem  jsonb;
+  v_i     int := 0;
   v_x     double precision;
   v_y     double precision;
   v_prev  gis.geometry;
   v_g     gis.geometry;
   v_n     int;
 begin
-  if p_ring is null or jsonb_typeof(p_ring) <> 'array' then return null; end if;
+  geom := null;
+  problem := null;
+  -- no outline at all is not a problem: a hood may be drawn later
+  if p_ring is null or jsonb_typeof(p_ring) = 'null' then return; end if;
+  if jsonb_typeof(p_ring) <> 'array' then
+    problem := 'the outline is a JSON ' || jsonb_typeof(p_ring) || ', not an array of corners';
+    return;
+  end if;
+  if jsonb_array_length(p_ring) = 0 then return; end if;
 
   for v_elem in select value from jsonb_array_elements(p_ring) loop
+    v_i := v_i + 1;
     if jsonb_typeof(v_elem) <> 'array' or jsonb_array_length(v_elem) < 2 then
-      continue;
+      problem := format('corner %s is not a [longitude, latitude] pair', v_i);
+      return;
     end if;
-    begin
-      v_x := (v_elem->>0)::double precision;
-      v_y := (v_elem->>1)::double precision;
-    exception when others then
-      continue;
-    end;
-    if v_x is null or v_y is null
-       or v_x <> v_x or v_y <> v_y            -- NaN
-       or v_x = 'Infinity'::double precision or v_x = '-Infinity'::double precision
-       or v_y = 'Infinity'::double precision or v_y = '-Infinity'::double precision then
-      continue;
+    if jsonb_typeof(v_elem->0) <> 'number' or jsonb_typeof(v_elem->1) <> 'number' then
+      problem := format('corner %s has a coordinate that is not a number: %s', v_i, left(v_elem::text, 60));
+      return;
+    end if;
+    v_x := (v_elem->>0)::double precision;
+    v_y := (v_elem->>1)::double precision;
+    if v_x < -180 or v_x > 180 then
+      problem := format('corner %s longitude %s is outside [-180, 180]', v_i, v_x);
+      return;
+    end if;
+    if v_y < -90 or v_y > 90 then
+      problem := format('corner %s latitude %s is outside [-90, 90]', v_i, v_y);
+      return;
     end if;
     v_g := gis.st_setsrid(gis.st_makepoint(v_x, v_y), 4326);
     -- TRANSFORM 2: drop a vertex identical to the one before it. A
@@ -88,29 +125,49 @@ begin
     v_n := v_n - 1;
   end loop;
 
-  if v_n < 3 then return null; end if;
+  if v_n < 3 then
+    problem := format('a hood needs at least 3 distinct corners — this outline has %s', v_n);
+    return;
+  end if;
 
   -- TRANSFORM 1: close the ring.  TRANSFORM 3: force CCW.
   v_pts := array_append(v_pts, v_pts[1]);
-  return gis.st_forcepolygonccw(
-           gis.st_setsrid(
-             gis.st_makepolygon(gis.st_makeline(v_pts)), 4326));
+  geom := gis.st_forcepolygonccw(
+            gis.st_setsrid(
+              gis.st_makepolygon(gis.st_makeline(v_pts)), 4326));
+  return;
 exception when others then
-  return null;
+  geom := null;
+  problem := 'the outline could not be read: ' || sqlerrm;
+  return;
 end $$;
 
+comment on function public.rally_ring_read(jsonb) is
+  'Total over any jsonb. geom when the ring is usable, else problem says why. Shape-preserving only: close ring, drop consecutive duplicates, force CCW. Never repairs.';
+
+create or replace function public.rally_ring_to_geom(p_ring jsonb)
+returns gis.geometry
+language sql immutable security invoker set search_path = ''
+as $$ select (public.rally_ring_read(p_ring)).geom $$;
+
+create or replace function public.rally_ring_problem(p_ring jsonb)
+returns text
+language sql immutable security invoker set search_path = ''
+as $$ select (public.rally_ring_read(p_ring)).problem $$;
+
 comment on function public.rally_ring_to_geom(jsonb) is
-  'Shape-preserving only: close ring, drop consecutive duplicates, force CCW. Never repairs.';
+  'Shape-preserving only: close ring, drop consecutive duplicates, force CCW. Never repairs. NULL when rally_ring_problem() has something to say.';
 
 -- ------------------------------------------------------------- the trigger ---
 
-/* Derive geom on every write, and REFUSE an invalid new outline.
+/* Derive geom on every write, and REFUSE an unusable or invalid new outline.
 
    The refusal is deliberately asymmetric with the do-not-knock trigger in
-   0012, which neutralises rather than refuses. The difference is that an
+   0013, which neutralises rather than refuses. The difference is that an
    invalid polygon has NO correct interpretation the server could
    substitute, whereas a do-not-knock override has exactly one. Where there
-   is a right answer, apply it; where there is not, say so. */
+   is a right answer, apply it; where there is not, say so — and say WHAT,
+   because "invalid" is not something a leader can act on. */
 create or replace function public.territories_derive_geom()
 returns trigger
 language plpgsql
@@ -118,8 +175,9 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_geom   gis.geometry;
-  v_reason text;
+  v_geom    gis.geometry;
+  v_problem text;
+  v_reason  text;
 begin
   -- a tombstoned hood is not somewhere anyone is sent to work; its outline
   -- is history and is left exactly as it is. Becoming live again is a
@@ -137,23 +195,23 @@ begin
     return new;
   end if;
 
-  v_geom := public.rally_ring_to_geom(new.polygon);
+  select r.geom, r.problem into v_geom, v_problem from public.rally_ring_read(new.polygon) r;
 
   if v_geom is null then
-    -- An EXISTING row whose ring was already degenerate keeps its NULL and
+    -- An EXISTING row whose ring was already unusable keeps its NULL and
     -- is surfaced by the preflight instead of blocking every unrelated
-    -- write to it. A row arriving with a NEW degenerate ring is refused.
+    -- write to it. A row arriving with a NEW unusable ring is refused.
     if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon
        and old.deleted_at is not distinct from new.deleted_at
        and old.archived is not distinct from new.archived then
       new.geom := null;
       return new;
     end if;
-    if new.polygon is null or jsonb_array_length(coalesce(new.polygon, '[]'::jsonb)) = 0 then
+    if v_problem is null then
       new.geom := null;              -- a hood with no outline yet is legal
       return new;
     end if;
-    raise exception 'turf: a hood needs at least 3 distinct corners'
+    raise exception 'turf: %', v_problem
       using errcode = '22023';
   end if;
 

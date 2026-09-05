@@ -36,9 +36,17 @@ immutable
 security invoker
 set search_path = ''
 as $$
+  /* TOTAL over client JSON: history may not be an array, an element may
+     not be an object, and ts may be a sentence. None of that may abort a
+     write — a legacy door must still be writable — so the array is read
+     only when it is one, and ts is cast only when an anchored regex has
+     proven the cast cannot fail. An unreadable ts counts as 0. */
   with h as (
-    select coalesce((e->>'ts')::bigint, 0) ts, e->>'disposition' d
-      from jsonb_array_elements(coalesce(p_data->'history', '[]'::jsonb)) e
+    select case when (e->>'ts') ~ '^-?[0-9]{1,18}$' then (e->>'ts')::bigint else 0 end ts,
+           e->>'disposition' d
+      from jsonb_array_elements(
+             case when jsonb_typeof(p_data->'history') = 'array'
+                  then p_data->'history' else '[]'::jsonb end) e
   ), k as (
     select max(ts) filter (where d = 'dnk')       as dnk_at,
            max(ts) filter (where d = 'dnk_clear') as clear_at
@@ -73,13 +81,18 @@ security invoker
 set search_path = ''
 as $$
   select case
-    when jsonb_typeof(coalesce(p_new->'history', '[]'::jsonb)) <> 'array' then p_new
+    -- a scalar data, or a history that is not an array, carries no clear to
+    -- strip — and jsonb_set cannot set a path in a scalar
+    when jsonb_typeof(p_new) <> 'object'
+      or jsonb_typeof(coalesce(p_new->'history', '[]'::jsonb)) <> 'array' then p_new
     else jsonb_set(p_new, '{history}', coalesce((
       select jsonb_agg(h order by ord)
         from jsonb_array_elements(p_new->'history') with ordinality t(h, ord)
        where h->>'disposition' is distinct from 'dnk_clear'
           or exists (
-            select 1 from jsonb_array_elements(coalesce(p_old->'history', '[]'::jsonb)) o
+            select 1 from jsonb_array_elements(
+                     case when jsonb_typeof(p_old->'history') = 'array'
+                          then p_old->'history' else '[]'::jsonb end) o
              where o->>'disposition' = 'dnk_clear'
                and o->>'ts' = h->>'ts')
     ), '[]'::jsonb))
@@ -166,8 +179,13 @@ begin
     new.disposition := 'dnk';
     v_touched := true;
   end if;
-  if coalesce(new.data->>'disposition', '') is distinct from 'dnk' then
-    new.data := jsonb_set(coalesce(new.data, '{}'::jsonb), '{disposition}', '"dnk"'::jsonb);
+  if jsonb_typeof(new.data) is distinct from 'object' then
+    /* a legacy row whose data is not an object cannot carry the mirror or
+       the history; the COLUMN is still protected above and below, and the
+       preflight names the row. jsonb_set would abort on a scalar. */
+    null;
+  elsif coalesce(new.data->>'disposition', '') is distinct from 'dnk' then
+    new.data := jsonb_set(new.data, '{disposition}', '"dnk"'::jsonb);
     v_touched := true;
   end if;
 
@@ -182,10 +200,10 @@ begin
      every other device. Notes, later knocks, callbacks, the address and the
      coordinates from this write are all KEPT: they are real work, and the
      point is to protect one fact, not to reject a rep's afternoon. */
-  if public.rally_dnk_from_history(new.data) is null then
+  if jsonb_typeof(new.data) = 'object' and public.rally_dnk_from_history(new.data) is null then
     v_hist := coalesce(new.data->'history', '[]'::jsonb);
     if jsonb_typeof(v_hist) <> 'array' then v_hist := '[]'::jsonb; end if;
-    new.data := jsonb_set(coalesce(new.data, '{}'::jsonb), '{history}',
+    new.data := jsonb_set(new.data, '{history}',
       v_hist || jsonb_build_object(
         'ts', coalesce(public.rally_dnk_from_history(old.data), v_now_ms),
         'disposition', 'dnk', 'reason', null, 'dm', false,
@@ -199,8 +217,9 @@ begin
      knockable forever. Stamped ONLY when something was actually corrected,
      because an unconditional stamp makes every echo look newer to a device
      whose clock runs behind and it re-pushes the row on every cycle. */
-  if v_touched then
-    v_incoming := coalesce((new.data->>'updatedAt')::bigint, 0);
+  if v_touched and jsonb_typeof(new.data) = 'object' then
+    v_incoming := case when (new.data->>'updatedAt') ~ '^-?[0-9]{1,18}$'
+                       then (new.data->>'updatedAt')::bigint else 0 end;
     new.data := jsonb_set(new.data, '{updatedAt}', to_jsonb(greatest(v_now_ms, v_incoming + 1)));
   end if;
 

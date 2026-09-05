@@ -433,6 +433,39 @@ call t_as(:JOHN);
 select t_raises('select clear_pin_dnk(''p-black'', ''owner asked'', ''clr-1'')',
   'D8 a rep cannot call clear_pin_dnk');
 reset role;
+
+/* TOTAL OVER LEGACY JSON. A door whose history is not an array, whose data
+   is not an object, or whose knock ts is a sentence must still be WRITABLE
+   — a rep's afternoon cannot dead-letter on a row shape nobody chose — and
+   still protected. */
+insert into public.pins (team_id, id, lat, lng, disposition, data) values
+  (:TEAM, 'p-hist-obj', 40.0006, 0.0006, 'dnk',
+   jsonb_build_object('id','p-hist-obj','disposition','dnk','history', jsonb_build_object('oops', true))),
+  (:TEAM, 'p-data-str', 40.0007, 0.0007, 'dnk', '"not an object"'::jsonb),
+  (:TEAM, 'p-ts-text',  40.0008, 0.0008, 'dnk',
+   jsonb_build_object('id','p-ts-text','disposition','dnk',
+     'history', jsonb_build_array(jsonb_build_object('ts','yesterday','disposition','dnk'))));
+call t_as(:JOHN);
+update public.pins set disposition = 'nothome' where id = 'p-hist-obj';
+select t_assert((select disposition from public.pins where id='p-hist-obj') = 'dnk',
+  'D20 a black door whose history is an OBJECT is still protected — and the write did not abort');
+select t_assert((select jsonb_typeof(data->'history') from public.pins where id='p-hist-obj') = 'array',
+  'D21 the unreadable history is replaced by the restored do-not-knock knock');
+update public.pins set disposition = 'nothome' where id = 'p-data-str';
+select t_assert((select disposition from public.pins where id='p-data-str') = 'dnk',
+  'D22 a black door whose data is a STRING is still protected at the column');
+select t_assert((select data from public.pins where id='p-data-str') = '"not an object"'::jsonb,
+  'D23 and its data is left exactly as it was (no jsonb_set on a scalar)');
+update public.pins set disposition = 'nothome',
+  data = jsonb_set(data, '{disposition}', '"nothome"') where id = 'p-ts-text';
+select t_assert((select disposition from public.pins where id='p-ts-text') = 'dnk',
+  'D24 a black door whose knock ts is a SENTENCE is still protected');
+select t_assert(public.rally_dnk_from_history('{"history": "none"}'::jsonb) is null
+            and public.rally_dnk_from_history('"x"'::jsonb) is null
+            and public.rally_dnk_from_history('{"history":[{"ts":"x","disposition":"dnk"}]}'::jsonb) = 0
+            and public.rally_dnk_from_history('{"history":[7, "k", null]}'::jsonb) is null,
+  'D25 rally_dnk_from_history is total: non-array history is no history, an unreadable ts is 0, a non-object knock is skipped');
+reset role;
 call t_as(:LEAD);
 select t_raises('select clear_pin_dnk(''p-black'', '''', ''clr-1'')',
   'D9 clearing without a reason is refused');
@@ -562,6 +595,46 @@ select t_assert((select gis.st_npoints(geom) from public.territories where id='g
   'G4 duplicate and closing corners are dropped; the 4 real ones survive (+1 closing)');
 select t_assert((select gis.st_isvalid(geom) from public.territories where id='g1'),
   'G5 the stored polygon is valid');
+
+/* TOTAL OVER ARBITRARY JSON, AND NEVER A REPAIR. A ring the reader cannot
+   read is refused as a whole, with the corner named. An earlier draft
+   skipped the corner it could not read and built the polygon from the rest
+   — a repair, because it changes the footprint the leader drew. */
+select t_raises(
+  'select t_upsert_territory('''||:TEAM||''', ''bad3'', ''Off planet E'', ''[[200,40],[200.001,40],[200.001,40.001],[200,40.001]]''::jsonb)',
+  'G6 a longitude outside [-180, 180] is refused', '22023');
+select t_raises(
+  'select t_upsert_territory('''||:TEAM||''', ''bad4'', ''Off planet N'', ''[[5,95],[5.001,95],[5.001,95.001],[5,95.001]]''::jsonb)',
+  'G7 a latitude outside [-90, 90] is refused', '22023');
+select t_raises(
+  'select t_upsert_territory('''||:TEAM||''', ''bad5'', ''String corner'', ''[[5,40],["5.001",40],[5.001,40.001],[5,40.001]]''::jsonb)',
+  'G8 a coordinate stored as a string is refused, not coerced', '22023');
+select t_raises(
+  'select t_upsert_territory('''||:TEAM||''', ''bad6'', ''Junk corner'', ''[[5,40],7,[5.001,40.001],[5,40.001]]''::jsonb)',
+  'G9 a corner that is not a pair is refused — the ring is NOT trimmed to the corners that parse', '22023');
+select t_raises(
+  'select t_upsert_territory('''||:TEAM||''', ''bad7'', ''Object outline'', ''{"lng":5,"lat":40}''::jsonb)',
+  'G10 an outline that is an object is refused', '22023');
+select t_assert((select count(*) from public.territories where id in ('bad3','bad4','bad5','bad6','bad7')) = 0,
+  'G11 and none of them was stored');
+select t_assert(public.rally_ring_problem('[[5,40],7,[5.001,40.001],[5,40.001]]'::jsonb)
+                = 'corner 2 is not a [longitude, latitude] pair',
+  'G12 the reason names the corner');
+select t_assert(public.rally_ring_problem('[[5,40],[5.001,95],[5.001,40.001],[5,40.001]]'::jsonb)
+                = 'corner 2 latitude 95 is outside [-90, 90]',
+  'G13 and the value that is off the planet');
+select t_assert(public.rally_ring_problem('{"a":1}'::jsonb) = 'the outline is a JSON object, not an array of corners',
+  'G14 an outline that is an object is a named problem, not an error');
+select t_assert(public.rally_ring_problem('[[0,40],[1e400,40],[0.001,40.001],[0,40.001]]'::jsonb) like 'the outline could not be read:%',
+  'G15 a number too large for float8 is a named problem, not an error');
+select t_assert(public.rally_ring_problem('null'::jsonb) is null and public.rally_ring_to_geom('null'::jsonb) is null
+            and public.rally_ring_problem('[]'::jsonb) is null and public.rally_ring_problem(null) is null,
+  'G16 a JSON-null, empty or SQL-null outline is simply no outline');
+select t_upsert_territory(:TEAM, 'g2', 'Undrawn', 'null'::jsonb);
+select t_assert((select geom is null from public.territories where id = 'g2'),
+  'G17 and a hood with no outline is stored, legally, with no geom');
+select t_assert(public.rally_ring_problem('[[5,40],[5.001,40],[5.001,40.001],[5,40.001]]'::jsonb) is null,
+  'G18 a good ring has no problem');
 
 -- no repair function anywhere in the migration set is asserted by the runner
 reset role;
@@ -859,6 +932,11 @@ select t_assert((select count(*) from public.territories t, jsonb_array_elements
      and (e->>'assignedAt')::bigint = 1690000000000 and e->>'unassignedAt' is null) = 1
             and (select open_assignees from public.territories where id='bf-bare') = array[:BF_JAKE]::uuid[],
   'B4 a bare v40 assignedTo is SYNTHESIZED into one open entry, dated by the row''s own createdAt');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-asg-obj' and e->>'userId' = :BF_JAKE and e->>'synthesizedFrom' = 'assignedTo'
+     and e->>'unassignedAt' is null) = 1
+            and (select open_assignees from public.territories where id='bf-asg-obj') = array[:BF_JAKE]::uuid[],
+  'B4b a hood whose assignments was an OBJECT did not abort the backfill: 0010 read it as no history array and synthesized from assignedTo');
 select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
    where t.id='bf-arch' and e->>'userId' = :BF_GHOST and e->>'userIdResolved' = 'false'
      and (e->>'unassignedAt')::bigint = 1600001000000) = 1

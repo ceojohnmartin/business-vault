@@ -52,10 +52,17 @@ declare
   v_dup              bigint;
 begin
   -- ------------------------------------------------------------ snapshot ---
+  /* data.assignments is CLIENT JSON. A legacy row may hold an object, a
+     string, a number or a JSON null there; 0010's reader treats every
+     non-array as "no history array" (and synthesizes from assignedTo when
+     there is one), so the snapshot reads it the same way rather than
+     aborting the backfill on the row the preflight already reported. */
   create temporary table _v41_before on commit drop as
     select team_id, id,
-           jsonb_array_length(coalesce(data->'assignments', '[]'::jsonb)) as n_entries,
-           coalesce(data->'assignments', '[]'::jsonb) as entries,
+           case when jsonb_typeof(data->'assignments') = 'array'
+                then jsonb_array_length(data->'assignments') else 0 end as n_entries,
+           case when jsonb_typeof(data->'assignments') = 'array'
+                then data->'assignments' else '[]'::jsonb end            as entries,
            coalesce(data->>'assignedTo', '')          as assigned_to,
            /* `updatedAt` is excluded on purpose. The assignment trigger's
               correction stamp moves the record clock whenever it rewrites a
@@ -64,7 +71,8 @@ begin
               every real dataset while proving nothing about loss. What must
               be byte-identical is the CONTENT outside the two mirrors. */
            md5((data - 'assignedTo' - 'assignments' - 'updatedAt')::text) as rest_md5,
-           (coalesce(data->'assignments', '[]'::jsonb) = '[]'::jsonb
+           ((jsonb_typeof(data->'assignments') is distinct from 'array'
+             or data->'assignments' = '[]'::jsonb)
             and coalesce(data->>'assignedTo', '') <> '')  as bare_scalar
       from public.territories;
 

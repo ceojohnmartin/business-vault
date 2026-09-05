@@ -57,6 +57,12 @@ insert into public.territories (team_id, id, name, polygon, archived, deleted_at
      'assignments', jsonb_build_array(
        jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
          'assignedBy','BF Lead','assignedAt',1650000000000::bigint,'unassignedAt',1650001000000::bigint)))),
+  -- LIVE, assignments is an OBJECT (client JSON is not a contract): 0010's
+  -- reader treats it as no history array and synthesizes from assignedTo
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-asg-obj', 'BF Assignments Object',
+   pg_temp.bf_rect(91000, 0, 91100, 100), false, null,
+   jsonb_build_object('id','bf-asg-obj','assignedTo','00000000-0000-4000-d000-000000000002',
+     'assignments', jsonb_build_object('userId','00000000-0000-4000-d000-000000000002'))),
   -- LIVE, with the SAME rep open twice — an I1 violation real data can hold
   ('dddddddd-4444-4444-a444-444444444444', 'bf-dup', 'BF Duplicate',
    pg_temp.bf_rect(90800, 0, 90900, 100), false, null,

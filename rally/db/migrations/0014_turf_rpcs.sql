@@ -401,15 +401,20 @@ begin
   v_hist := coalesce(v_p.data->'history', '[]'::jsonb);
   if jsonb_typeof(v_hist) <> 'array' then v_hist := '[]'::jsonb; end if;
 
+  /* TOTAL over legacy JSON: a door whose data is not an object gets a fresh
+     object (jsonb_set cannot set a path in a scalar), and updatedAt is cast
+     only once an anchored regex has proven the cast cannot fail. */
   update public.pins
      set disposition = 'unworked',
-         data = jsonb_set(jsonb_set(jsonb_set(v_p.data,
+         data = jsonb_set(jsonb_set(jsonb_set(
+                  case when jsonb_typeof(v_p.data) = 'object' then v_p.data else '{}'::jsonb end,
                   '{history}', v_hist || jsonb_build_object(
                      'ts', v_at, 'disposition', 'dnk_clear',
                      'reason', p_reason, 'dm', false, 'note', '')),
                   '{disposition}', '"unworked"'::jsonb),
                   '{updatedAt}', to_jsonb(greatest(v_at,
-                     coalesce((v_p.data->>'updatedAt')::bigint, 0) + 1)))
+                     case when (v_p.data->>'updatedAt') ~ '^-?[0-9]{1,18}$'
+                          then (v_p.data->>'updatedAt')::bigint else 0 end + 1)))
    where team_id = v_team and id = p_pin_id;
 
   return jsonb_build_object('status', 'ok', 'pin_id', p_pin_id, 'cleared_at', v_at);

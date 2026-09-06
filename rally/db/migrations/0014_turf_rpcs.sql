@@ -88,8 +88,7 @@ begin
 
   select coalesce(array_agg(distinct x), '{}'::uuid[]) into v_open
     from jsonb_array_elements(public.rally_open_entries(p_prior)) e2,
-         lateral (select case when e2->>'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-                              then (e2->>'userId')::uuid end x) s
+         lateral (select public.rally_uid_uuid(e2->>'userId') x) s
    where x is not null;
 
   /* Close every open entry the desired set no longer names. An UNRESOLVED
@@ -99,15 +98,18 @@ begin
      as always — closing an entry is not deleting it. */
   for e in select value from jsonb_array_elements(coalesce(p_prior->'entries', '[]'::jsonb)) loop
     if e->>'unassignedAt' is null then
-      u := case when e->>'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-                then (e->>'userId')::uuid end;
+      u := public.rally_uid_uuid(e->>'userId');
       if u is null or not (coalesce(p_desired, '{}'::uuid[]) @> array[u]) then
         /* The operation id is stamped on entries this call CLOSED as well
            as on the ones it opened. Without it a close-only operation —
            "take Jake off this hood" — leaves no trace to be idempotent
            against, and a replayed request would re-close whoever was
            assigned in the meantime. */
-        v_out := v_out || (jsonb_set(e, '{unassignedAt}', to_jsonb(p_at))
+        /* never before it opened: a legacy entry may carry an assignedAt in
+           the future (a device clock that was wrong), and I3 would refuse
+           the close forever — so it closes at the later of now and then */
+        v_out := v_out || (jsonb_set(e, '{unassignedAt}',
+                   to_jsonb(greatest(p_at, coalesce(public.rally_ms(e->>'assignedAt'), p_at))))
                  || coalesce(p_extra, '{}'::jsonb));
         continue;
       end if;

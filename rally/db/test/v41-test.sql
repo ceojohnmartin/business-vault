@@ -967,4 +967,131 @@ select t_assert((select count(*) from public.territories t
      <> jsonb_array_length(coalesce(t.assignees->'entries','[]'::jsonb))) = 0,
   'B2 the assignments mirror holds exactly the ledger''s entries');
 
+-- ---------------------------------------------------------------------------
+-- THE READER'S OWN CASES (seeded by v41-backfill-seed.sql; 0011 ran over them)
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e where t.id='bf-dup-same') = 2
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='bf-dup-same' and e->>'unassignedAt' is null) = 1
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='bf-dup-same' and (e->>'closedByDedupe')::boolean and (e->>'unassignedAt')::bigint = 1700000000000) = 1,
+  'B10 the same rep OPEN twice with the SAME assignedAt: one stays open, the other is closed at that instant and tagged — nothing deleted');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-i3' and (e->>'unassignedAt')::bigint = 1700000100000 and (e->>'assignedAt')::bigint = 1700000100000
+     and (e->>'unassignedAtRaw')::bigint = 1700000000000) = 1,
+  'B11 a run that ended before it started is clamped to its start, and the raw end is kept beside it');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-noat' and e->>'unassignedAt' is null and (e->>'assignedAtSynthesized')::boolean
+     and (e->>'assignedAt')::bigint = (extract(epoch from t.created_at) * 1000)::bigint) = 1
+            and (select open_assignees from public.territories where id='bf-noat') = array[:BF_JOHN]::uuid[],
+  'B12 an open entry with no assignedAt is dated by the row''s own clock and tagged as synthesized');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-created0' and (e->>'assignedAt')::bigint = 1 and e->>'synthesizedFrom' = 'assignedTo') = 1
+            and (select open_assignees from public.territories where id='bf-created0') = array[:BF_JAKE]::uuid[],
+  'B13 a bare-scalar hood with createdAt 0 is dated 1, never 0 — the backfill did not abort on I2');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-36hex' and e->>'userId' = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' and e->>'userIdResolved' = 'false') = 1
+            and (select open_assignees from public.territories where id='bf-36hex') = '{}'::uuid[]
+            and (select data->>'assignedTo' from public.territories where id='bf-36hex') = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+  'B14 a uuid-LENGTH id that is not a uuid is kept as unresolved history and never cast');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-upper' and e->>'userId' = :BF_JOHN and e->>'unassignedAt' is null) = 1
+            and (select open_assignees from public.territories where id='bf-upper') = array[:BF_JOHN]::uuid[]
+            and (select data->>'assignedTo' from public.territories where id='bf-upper') = :BF_JOHN,
+  'B15 an UPPER-CASE uuid is one rep in canonical spelling, in the ledger, the uuid[] mirror and the scalar');
+select t_assert((select jsonb_array_length(assignees->'entries') from public.territories where id='bf-junk') = 1
+            and (select jsonb_array_length(data->'assignments') from public.territories where id='bf-junk') = 1
+            and (select open_assignees from public.territories where id='bf-junk') = array[:BF_JAKE]::uuid[],
+  'B16 elements that carry no assignment (a string, a number, a null, an object with no userId) are dropped; the one real entry survives');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-plus' and (e->>'assignedAt')::bigint = 1700000000000 and not (e ? 'assignedAtRaw')) = 1,
+  'B17 a timestamp with a leading + is read as int8 reads it — no synthesis, no raw tag');
+select t_assert((select archived and geom is null and deleted_at is null from public.territories where id='bf-arch-bow'),
+  'B18 an ARCHIVED hood with a bowtie ring stays archived with a NULL geom — the backfill did not refuse it');
+
+-- ------------------------------------------------ a broken ring and liveness
+call t_as('00000000-0000-4000-d000-000000000003');
+select t_raises('update public.territories set archived = false where id = ''bf-arch-bow''',
+  'G19 bringing a hood with a broken ring BACK INTO live turf is refused until the ring is fixed', '22023');
+update public.territories set deleted_at = now() where id = 'bf-arch-bow';
+select t_assert((select deleted_at is not null from public.territories where id='bf-arch-bow'),
+  'G20 retiring it (tombstone) is allowed with the ring untouched — the other direction is always open');
+select t_raises(
+  'select t_upsert_territory('''||:TEAM||''', ''bad8'', ''Half planet'', ''[[0,0],[180,0],[180,1],[0,1]]''::jsonb)',
+  'G21 an outline 180 degrees of longitude wide is refused before any geometry exists', '22023');
+select t_assert(public.rally_ring_problem('[[-100,0],[100,0],[100,1],[-100,1]]'::jsonb) like 'the outline spans 200 degrees%',
+  'G22 and the reason says how wide it is — such an edge is antipodal, and the geography measurement would refuse it with an internal error');
+reset role;
+
+-- --------------------------------- the reader on the client's upsert path
+-- Under SERVER authority the INSERT arm of a PostgREST upsert still derives
+-- a ledger from the payload before the conflict is detected; it must never
+-- refuse a legacy shape the backfill was able to read.
+update public.rally_config set assignment_server_authoritative = true;
+call t_as('00000000-0000-4000-d000-000000000003');
+select t_upsert_territory('dddddddd-4444-4444-a444-444444444444'::uuid, 'bf-dup-same', 'BF Dup Same renamed',
+  (select polygon from public.territories where id='bf-dup-same'),
+  jsonb_build_object('id','bf-dup-same','updatedAt',1700000000001::bigint,'assignedTo',:BF_JOHN,
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+select t_assert((select name from public.territories where id='bf-dup-same') = 'BF Dup Same renamed'
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='bf-dup-same' and e->>'unassignedAt' is null) = 1,
+  'X20 under server authority a v40 upsert carrying the same rep open twice is ACCEPTED — the rename lands and the ledger stays I1-clean');
+reset role;
+update public.rally_config set assignment_server_authoritative = false;
+call t_as('00000000-0000-4000-d000-000000000003');
+-- Under LEGACY authority the same stale mirror (both copies still open) is
+-- the phone's word on who is open. The ledger already holds the survivor
+-- open and its twin closed at that same instant: the merge must pair each
+-- derived copy with ITS prior — the open with the open, the dedupe-closed
+-- with the dedupe-closed — never both with whichever sorted first, which
+-- would either strip the closedByDedupe tag or close the rep's real run.
+select t_upsert_territory('dddddddd-4444-4444-a444-444444444444'::uuid, 'bf-dup-same', 'BF Dup Same stale',
+  (select polygon from public.territories where id='bf-dup-same'),
+  jsonb_build_object('id','bf-dup-same','updatedAt',1700000000001::bigint,'assignedTo',:BF_JOHN,
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+select t_assert((select name from public.territories where id='bf-dup-same') = 'BF Dup Same stale'
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='bf-dup-same') = 2
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='bf-dup-same' and e->>'unassignedAt' is null and (e->>'assignedAt')::bigint = 1700000000000) = 1
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='bf-dup-same' and (e->>'closedByDedupe')::boolean and (e->>'unassignedAt')::bigint = 1700000000000) = 1
+            and (select open_assignees from public.territories where id='bf-dup-same') = array[:BF_JOHN]::uuid[],
+  'X20a under legacy authority a STALE mirror with the same rep open twice at one instant keeps the survivor open and the dedupe-closed twin tagged — the merge pairs each copy with its own prior');
+select t_upsert_territory('dddddddd-4444-4444-a444-444444444444'::uuid, 'bf-dup-same', 'BF Dup Same again',
+  (select polygon from public.territories where id='bf-dup-same'),
+  jsonb_build_object('id','bf-dup-same','updatedAt',1700000000002::bigint,'assignedTo',:BF_JOHN,
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt','last tuesday','unassignedAt','soon'))));
+select t_assert((select name from public.territories where id='bf-dup-same') = 'BF Dup Same again'
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='bf-dup-same' and e->>'unassignedAt' is null) = 1,
+  'X20b under legacy authority the same shape, with an unreadable timestamp beside it, is accepted and normalised');
+reset role;
+
+-- the activation guard REFUSES by name — it never casts a device-local id
+update public.territories set archived = false where id = 'bf-36hex';
+select t_raises('update public.rally_config set assignment_server_authoritative = true',
+  'X21 a LIVE hood whose CURRENT assignee is a uuid-length non-uuid blocks the flip with the designed refusal, not a cast error', '23514');
+update public.territories set archived = true where id = 'bf-36hex';
+
+-- a future-dated open entry can still be closed
+insert into public.territories (team_id, id, name, polygon, data) values
+  (:TEAM, 'x-fut', 'Future', t_rect(60000, 0, 60100, 100),
+   jsonb_build_object('id','x-fut','assignedTo',:JOHN,
+     'assignments', jsonb_build_array(jsonb_build_object('userId',:JOHN,'name','John','assignedBy','Lead',
+       'assignedAt',2000000000000::bigint,'unassignedAt',null))));
+call t_as(:LEAD);
+select set_territory_assignments('x-fut', array[:JAKE]::uuid[], 'op-fut');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='x-fut' and e->>'userId' = :JOHN and (e->>'unassignedAt')::bigint = 2000000000000) = 1
+            and (select open_assignees from public.territories where id='x-fut') = array[:JAKE]::uuid[],
+  'X22 an open entry dated in the future closes AT that instant, never before it — the reassignment is not refused');
+reset role;
+
 \echo 'v41 SQL: all checks passed'

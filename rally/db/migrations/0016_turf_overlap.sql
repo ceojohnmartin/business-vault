@@ -94,9 +94,16 @@ begin
        problem text means, so ask it — never jsonb_array_length on the raw
        column, which is jsonb and may be an object, a string or a JSON null
        on a legacy row, and would abort this trigger on an unrelated write. */
-    if public.rally_ring_problem(new.polygon) is not null then
+    if public.rally_ring_problem(new.polygon) is not null
+       or public.rally_ring_to_geom(new.polygon) is not null then
+      /* the second arm is a ring the reader CAN read but PostGIS calls
+         invalid (a bowtie, a spike): 0009 stored NULL for it. Live with a
+         NULL geom is invisible to the index, so it is not allowed to be
+         live at all. */
       raise exception '% has an outline this map cannot use (%), so it cannot be made active turf',
-        coalesce(nullif(new.name, ''), new.id), public.rally_ring_problem(new.polygon)
+        coalesce(nullif(new.name, ''), new.id),
+        coalesce(public.rally_ring_problem(new.polygon),
+                 gis.st_isvalidreason(public.rally_ring_to_geom(new.polygon)))
         using errcode = '23514';
     end if;
     return null;
@@ -140,7 +147,8 @@ declare v_bad bigint;
 begin
   select count(*) into v_bad from public.territories
    where deleted_at is null and archived = false and geom is null
-     and public.rally_ring_problem(polygon) is not null;
+     and (public.rally_ring_problem(polygon) is not null
+          or public.rally_ring_to_geom(polygon) is not null);   -- unreadable OR invalid
   if v_bad > 0 then
     raise exception 'v41 overlap: % live hood(s) have an unusable outline and would be unprotected. Run db/preflight/v41-preflight.sql, fix them, then re-apply.', v_bad;
   end if;

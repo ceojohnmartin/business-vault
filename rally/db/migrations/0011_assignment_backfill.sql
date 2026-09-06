@@ -14,33 +14,21 @@
 -- mirror simply cannot hold it, which is the mirror's problem, not the
 -- ledger's.
 --
+-- ONE READER. The ledger is built by public.rally_legacy_to_entries — the
+-- same normaliser the assignment trigger applies to every client upsert and
+-- the preflight applies to every row it surveys — so what the survey showed
+-- the operator is exactly what this file writes. That reader is TOTAL over
+-- legacy JSON and produces a ledger that satisfies I1..I3 by construction:
+-- an unreadable timestamp is synthesised and tagged with its raw value, a
+-- run that "ends before it starts" is clamped and tagged, a rep open twice
+-- keeps the last entry open and the others closed (tagged closedByDedupe),
+-- and an element that carries no assignment at all (not an object, no
+-- userId) is dropped — the preflight lists those first. So this file can
+-- no longer abort on the shape of history nobody chose; it can only abort
+-- on its own PROOFS, which is what the proofs are for.
+--
 -- `data` is not modified except for the two mirrors the trigger owns, and
 -- the assertions below prove it byte for byte.
-
-/* DUPLICATE OPEN ENTRIES, resolved IN THE SAME STATEMENT that first writes
-   the ledger. The assignment trigger asserts I1 (one open entry per rep) on
-   every write, so a hood that holds two open entries for one rep would
-   abort the backfill before any later clean-up step could run — on real
-   data, which the preflight shows can hold exactly that. The resolution is
-   deterministic, enumerated below, and DELETES NOTHING: the entry with the
-   greatest assignedAt (tiebreak: greatest userId) stays open and the others
-   are closed at that same instant. Session-local (pg_temp): the migration
-   leaves no durable helper behind. */
-create function pg_temp.rally_close_duplicate_opens(p_entries jsonb)
-returns jsonb language sql immutable as $$
-  with keep as (
-    select e->>'userId' u, max((e->>'assignedAt')::bigint) ka
-      from jsonb_array_elements(coalesce(p_entries, '[]'::jsonb)) e
-     where e->>'unassignedAt' is null
-     group by 1)
-  select coalesce(jsonb_agg(
-           case when e->>'unassignedAt' is null and (e->>'assignedAt')::bigint < k.ka
-                then jsonb_set(e, '{unassignedAt}', to_jsonb(k.ka))
-                else e end
-           order by (e->>'assignedAt')::bigint, e->>'userId'), '[]'::jsonb)
-    from jsonb_array_elements(coalesce(p_entries, '[]'::jsonb)) e
-    left join keep k on k.u = e->>'userId'
-$$;
 
 do $$
 declare
@@ -49,21 +37,27 @@ declare
   v_synth            bigint;
   v_bad              bigint;
   v_unresolved       bigint;
-  v_dup              bigint;
 begin
   -- ------------------------------------------------------------ snapshot ---
   /* data.assignments is CLIENT JSON. A legacy row may hold an object, a
-     string, a number or a JSON null there; 0010's reader treats every
+     string, a number or a JSON null there; the reader treats every
      non-array as "no history array" (and synthesizes from assignedTo when
-     there is one), so the snapshot reads it the same way rather than
-     aborting the backfill on the row the preflight already reported. */
+     there is one), so the snapshot reads it the same way. */
   create temporary table _v41_before on commit drop as
-    select team_id, id,
-           case when jsonb_typeof(data->'assignments') = 'array'
-                then jsonb_array_length(data->'assignments') else 0 end as n_entries,
-           case when jsonb_typeof(data->'assignments') = 'array'
-                then data->'assignments' else '[]'::jsonb end            as entries,
+    select team_id, id, created_at,
+           /* the entries the READER will keep: objects with a usable userId.
+              A non-object element or an entry with no userId carries no
+              assignment and is dropped by rally_legacy_to_entries; counting
+              it here would make PROOF 1 fail on the row the preflight
+              already listed. */
+           (select count(*)
+              from jsonb_array_elements(case when jsonb_typeof(data->'assignments') = 'array'
+                                             then data->'assignments' else '[]'::jsonb end) e
+             where jsonb_typeof(e) = 'object' and coalesce(btrim(e->>'userId'), '') <> '') as n_entries,
            coalesce(data->>'assignedTo', '')          as assigned_to,
+           /* what the reader makes of this row BEFORE anything is written:
+              the yardstick for PROOFs 2-4 */
+           public.rally_legacy_to_entries(data, created_at, '{"entries": []}'::jsonb) as norm,
            /* `updatedAt` is excluded on purpose. The assignment trigger's
               correction stamp moves the record clock whenever it rewrites a
               mirror — which is exactly what this backfill makes it do — so
@@ -71,32 +65,25 @@ begin
               every real dataset while proving nothing about loss. What must
               be byte-identical is the CONTENT outside the two mirrors. */
            md5((data - 'assignedTo' - 'assignments' - 'updatedAt')::text) as rest_md5,
+           /* the reader's own definition of the oldest shape: no usable
+              history array, and a scalar assignee to synthesize from */
            ((jsonb_typeof(data->'assignments') is distinct from 'array'
-             or data->'assignments' = '[]'::jsonb)
-            and coalesce(data->>'assignedTo', '') <> '')  as bare_scalar
+             or jsonb_array_length(data->'assignments') = 0)
+            and jsonb_typeof(data) = 'object'
+            and coalesce(btrim(data->>'assignedTo'), '') <> '')  as bare_scalar
       from public.territories;
 
   select coalesce(sum(n_entries), 0) into v_before_entries from _v41_before;
   select count(*) filter (where bare_scalar) into v_synth from _v41_before;
-  select count(*) into v_dup from (
-    select b.team_id, b.id from _v41_before b,
-      lateral (select e->>'userId' u
-                 from jsonb_array_elements(b.entries) e
-                where e->>'unassignedAt' is null
-                group by 1 having count(*) > 1) d
-    group by 1, 2) x;
-  if v_dup > 0 then
-    raise notice 'v41 backfill: % hood(s) hold duplicate open assignees; closing all but the newest', v_dup;
-  end if;
 
   -- ------------------------------------------------------------ backfill ---
-  -- The ledger is built by the SAME reconstruction the trigger and the
-  -- client use, so a device that has never met this server already agrees.
+  -- The ledger is built by the SAME reader the trigger and the preflight
+  -- use, so a device that has never met this server already agrees, and a
+  -- survey the operator reviewed is what gets written.
   update public.territories t
      set assignees = jsonb_build_object('entries',
            public.rally_sort_entries(
-             pg_temp.rally_close_duplicate_opens(
-               public.rally_legacy_to_entries(t.data, t.created_at, t.assignees))))
+             public.rally_legacy_to_entries(t.data, t.created_at, t.assignees)))
    where jsonb_array_length(coalesce(t.assignees->'entries', '[]'::jsonb)) = 0;
 
   -- Tag what could not be resolved. Kept, never removed.
@@ -108,8 +95,7 @@ begin
              order by (e->>'assignedAt')::bigint, e->>'userId'), '[]'::jsonb)
              from jsonb_array_elements(t.assignees->'entries') e
              left join public.profiles p
-               on p.id = (case when e->>'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-                               then (e->>'userId')::uuid end)
+               on p.id = public.rally_uid_uuid(e->>'userId')
               and p.team_id = t.team_id))
    where jsonb_array_length(coalesce(t.assignees->'entries', '[]'::jsonb)) > 0;
 
@@ -118,8 +104,10 @@ begin
   update public.territories set assignees = assignees;
 
   -- ------------------------------------------------------------- PROOF 1 ---
-  -- entry count preserved, plus exactly the synthesized entries the survey
-  -- named. Stated with its correction term, because plain equality is false.
+  -- every entry the reader keeps is in the ledger, plus exactly the
+  -- synthesized entries the survey named. Stated with its correction term,
+  -- because plain equality is false. Elements the reader drops (not an
+  -- object, no userId) are on neither side — the preflight lists them.
   select coalesce(sum(jsonb_array_length(coalesce(assignees->'entries', '[]'::jsonb))), 0)
     into v_after_entries from public.territories;
   if v_after_entries <> v_before_entries + v_synth then
@@ -128,30 +116,35 @@ begin
   end if;
 
   -- ------------------------------------------------------------- PROOF 2 ---
-  -- the CURRENT open set is identical, row for row (the duplicate-open
-  -- resolution changes multiplicity, never membership)
+  -- the CURRENT open set is identical, row for row, in CANONICAL ids: the
+  -- set the reader makes of the raw mirror (dedupe changes multiplicity,
+  -- never membership; a synthesized bare-scalar assignee counts) equals the
+  -- set the ledger holds open after the whole trigger path ran
   select count(*) into v_bad from (
     select b.team_id, b.id
       from _v41_before b
       join public.territories t on t.team_id = b.team_id and t.id = b.id
      where (select coalesce(array_agg(distinct x order by x), '{}')
-              from jsonb_array_elements(b.entries) e, lateral (select e->>'userId' x) s
+              from jsonb_array_elements(b.norm) e, lateral (select e->>'userId' x) s
              where e->>'unassignedAt' is null)
         is distinct from
            (select coalesce(array_agg(distinct x order by x), '{}')
               from jsonb_array_elements(t.assignees->'entries') e, lateral (select e->>'userId' x) s
-             where e->>'unassignedAt' is null)
-       and not b.bare_scalar) z;
+             where e->>'unassignedAt' is null)) z;
   if v_bad > 0 then
     raise exception 'v41 backfill PROOF 2 failed: % hood(s) changed their current assignee set', v_bad;
   end if;
 
   -- ------------------------------------------------------------- PROOF 3 ---
-  -- every CLOSED entry survives with the same (userId, assignedAt, unassignedAt)
+  -- every CLOSED entry the reader produced from the raw mirror survives the
+  -- trigger path (provenance merge, closed-history union, sort) with the
+  -- same (userId, assignedAt, unassignedAt). A proof about the PIPELINE:
+  -- the reader's own normalisation of a raw timestamp is what the preflight
+  -- shows the operator, entry by entry, with the raw value beside it.
   select count(*) into v_bad from (
     select b.team_id, b.id, e->>'userId' u, e->>'assignedAt' a, e->>'unassignedAt' ua
       from _v41_before b
-      cross join lateral jsonb_array_elements(b.entries) e
+      cross join lateral jsonb_array_elements(b.norm) e
      where e->>'unassignedAt' is not null
     except
     select t.team_id, t.id, e->>'userId', e->>'assignedAt', e->>'unassignedAt'
@@ -163,23 +156,28 @@ begin
   end if;
 
   /* ------------------------------------------------------------- PROOF 4 ---
-     The deterministic mirror is correct — checked against the BEFORE
-     snapshot, not by re-deriving it from the same function that wrote it.
-     Re-deriving would compare the trigger to itself and pass no matter what
-     either of them did. A row whose scalar CHANGED is legitimate only where
-     the census already named it (assignedTo disagreed with the open set, or
-     duplicate opens were resolved); anything else is a silent reassignment. */
+     The deterministic mirror is correct: data.assignedTo equals the first
+     open entry (assignedAt, userId) of what the reader made of the raw
+     mirror — checked against the BEFORE snapshot, not against the ledger
+     the trigger just wrote. And the scalar MOVED only where it disagreed
+     with that (the census names those rows); anywhere else a changed scalar
+     is a silent reassignment. */
   select count(*) into v_bad from _v41_before b
     join public.territories t on t.team_id = b.team_id and t.id = b.id
    where coalesce(t.data->>'assignedTo', '') is distinct from coalesce((
            select e->>'userId'
-             from jsonb_array_elements(b.entries) e
+             from jsonb_array_elements(b.norm) e
             where e->>'unassignedAt' is null
-            order by (e->>'assignedAt')::bigint, e->>'userId' limit 1), '')
-     and not b.bare_scalar
+            order by (e->>'assignedAt')::bigint, e->>'userId' limit 1), '');
+  if v_bad > 0 then
+    raise exception 'v41 backfill PROOF 4 failed: % hood(s) have an assignedTo mirror that is not the first open entry', v_bad;
+  end if;
+  select count(*) into v_bad from _v41_before b
+    join public.territories t on t.team_id = b.team_id and t.id = b.id
+   where coalesce(t.data->>'assignedTo', '') is distinct from coalesce(b.assigned_to, '')
      and coalesce(b.assigned_to, '') = coalesce((
            select e->>'userId'
-             from jsonb_array_elements(b.entries) e
+             from jsonb_array_elements(b.norm) e
             where e->>'unassignedAt' is null
             order by (e->>'assignedAt')::bigint, e->>'userId' limit 1), '');
   if v_bad > 0 then

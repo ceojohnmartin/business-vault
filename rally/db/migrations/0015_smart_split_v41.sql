@@ -50,8 +50,7 @@ begin
   select coalesce(array_agg(distinct p.id), '{}'::uuid[]) into v_open
     from jsonb_array_elements(public.rally_open_entries(v_parent.assignees)) e
     join public.profiles p
-      on p.id = (case when e->>'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-                      then (e->>'userId')::uuid end)
+      on p.id = public.rally_uid_uuid(e->>'userId')
    where p.team_id = v_team and not coalesce(p.disabled, false);
 
   -- each child gets FRESH open entries — never a copy of closed history

@@ -73,3 +73,64 @@ insert into public.territories (team_id, id, name, polygon, archived, deleted_at
          'assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
        jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
          'assignedBy','BF Lead','assignedAt',1700000500000::bigint,'unassignedAt',null))));
+
+-- ---------------------------------------------------------------------------
+-- THE READER'S OWN CASES, seeded so 0011 runs over them and section B can
+-- assert what the ledger became. Each is a shape the attack lenses found
+-- real data can hold; none may abort the backfill.
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  -- one rep OPEN twice with the SAME assignedAt: the last stays open, the first is closed by dedupe
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-dup-same', 'BF Dup Same',
+   pg_temp.bf_rect(91200, 0, 91300, 100), false, null,
+   jsonb_build_object('id','bf-dup-same','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null)))),
+  -- a run that ends before it starts: clamped, raw kept
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-i3', 'BF Ends Before Starts',
+   pg_temp.bf_rect(91400, 0, 91500, 100), false, null,
+   jsonb_build_object('id','bf-i3','assignedTo','',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000002','name','BF Jake',
+       'assignedBy','BF Lead','assignedAt',1700000100000::bigint,'unassignedAt',1700000000000::bigint)))),
+  -- an OPEN entry with no assignedAt: synthesized from the row clock, tagged
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-noat', 'BF No assignedAt',
+   pg_temp.bf_rect(91600, 0, 91700, 100), false, null,
+   jsonb_build_object('id','bf-noat','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
+       'assignedBy','BF Lead','unassignedAt',null)))),
+  -- bare scalar with createdAt 0: synthesized assignedAt is 1, never 0
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-created0', 'BF createdAt Zero',
+   pg_temp.bf_rect(91800, 0, 91900, 100), false, null,
+   jsonb_build_object('id','bf-created0','createdAt',0,'assignedTo','00000000-0000-4000-d000-000000000002')),
+  -- a uuid-LENGTH id that is not a uuid: kept as unresolved history, never
+  -- cast. ARCHIVED, because a live hood whose only open entry resolves to
+  -- nobody is an activation blocker by design (section X un-archives it to
+  -- prove the flip refuses)
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-36hex', 'BF 36-hex',
+   pg_temp.bf_rect(92000, 0, 92100, 100), true, null,
+   jsonb_build_object('id','bf-36hex','assignedTo','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','name','Nobody',
+       'assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null)))),
+  -- an UPPER-CASE uuid: one rep, canonical id
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-upper', 'BF Upper',
+   pg_temp.bf_rect(92200, 0, 92300, 100), false, null,
+   jsonb_build_object('id','bf-upper','assignedTo','00000000-0000-4000-D000-000000000001',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-D000-000000000001','name','BF John',
+       'assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null)))),
+  -- junk elements beside one real entry: the junk carries no assignment
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-junk', 'BF Junk Elements',
+   pg_temp.bf_rect(92400, 0, 92500, 100), false, null,
+   jsonb_build_object('id','bf-junk','assignedTo','00000000-0000-4000-d000-000000000002',
+     'assignments', jsonb_build_array('john', 7, null, jsonb_build_object('name','x'),
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000002','name','BF Jake','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null)))),
+  -- a timestamp int8 accepts that a naive regex would refuse
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-plus', 'BF Plus Sign',
+   pg_temp.bf_rect(92600, 0, 92700, 100), false, null,
+   jsonb_build_object('id','bf-plus','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
+       'assignedBy','BF Lead','assignedAt','+1700000000000','unassignedAt',null)))),
+  -- an ARCHIVED hood whose ring is a bowtie: 0009 stores NULL geom and lets it
+  -- stay archived; it may be tombstoned but not brought back live (section G)
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-arch-bow', 'BF Archived Bowtie',
+   '[[0.9,40],[0.901,40.001],[0.901,40],[0.9,40.001]]'::jsonb, true, null,
+   jsonb_build_object('id','bf-arch-bow','assignedTo',''));

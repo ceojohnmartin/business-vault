@@ -86,6 +86,64 @@ $$;
 revoke execute on function public.rally_capabilities() from public;
 grant execute on function public.rally_capabilities() to authenticated;
 
+-- ------------------------------------------------------ the total readers ---
+
+/* THREE SMALL FUNCTIONS THAT CANNOT FAIL, and that every reader of client
+   JSON goes through. jsonb is not a contract: a timestamp may be a
+   sentence, a userId may be a device-local string or an upper-case uuid,
+   and none of that may abort a write, a backfill, a guard or a survey.
+
+   rally_ms      — a millisecond timestamp from text, or NULL. Accepts
+                   exactly what bigint's own input accepts (surrounding
+                   whitespace, a leading sign, up to 19 digits inside the
+                   bigint range) and nothing else; never raises.
+   rally_uid     — a userId in canonical form: a uuid-shaped id is
+                   lower-cased (uuids are case-insensitive by definition, so
+                   this is a spelling, not a change of identity); anything
+                   else is kept verbatim as unresolved history.
+   rally_uid_uuid — the uuid of a canonical id, or NULL — the ONLY way a
+                   userId is ever cast. The regex is the strict 8-4-4-4-12
+                   form, so the cast inside the CASE cannot fail, and CASE
+                   is what PostgreSQL documents as forcing evaluation order
+                   (an AND is not: the planner may hoist the cast into an
+                   index condition ahead of the test). */
+create or replace function public.rally_ms(p text)
+returns bigint
+language plpgsql
+immutable
+security invoker
+set search_path = ''
+as $$
+begin
+  if p is null then return null; end if;
+  if btrim(p, E' \t\r\n') !~ '^[+-]?[0-9]{1,19}$' then return null; end if;
+  return btrim(p, E' \t\r\n')::bigint;
+exception when others then
+  return null;          -- 19 digits past the bigint range
+end $$;
+
+create or replace function public.rally_uid(p text)
+returns text
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select case when p ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+              then lower(p) else p end
+$$;
+
+create or replace function public.rally_uid_uuid(p text)
+returns uuid
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select case when p ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+              then lower(p)::uuid end
+$$;
+
 -- --------------------------------------------------------- ledger helpers ---
 
 /* The canonical order: assignedAt, then userId. The tiebreak is not
@@ -100,7 +158,13 @@ immutable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(e order by (e->>'assignedAt')::bigint, e->>'userId'), '[]'::jsonb)
+  /* The third key makes the order TOTAL. Two entries of one rep may share
+     an assignedAt — a duplicate the reader closed at the very instant it
+     opened (closedByDedupe) sits beside the survivor — and PostgreSQL's
+     sort is not stable, so without it the ledger's byte order could differ
+     from one write to the next for no reason. Open first, then by close. */
+  select coalesce(jsonb_agg(e order by (e->>'assignedAt')::bigint, e->>'userId',
+                                     (e->>'unassignedAt')::bigint nulls first), '[]'::jsonb)
     from jsonb_array_elements(coalesce(p_entries, '[]'::jsonb)) e
 $$;
 
@@ -138,9 +202,7 @@ set search_path = ''
 as $$
   select coalesce(array_agg(distinct p.id), '{}'::uuid[])
     from jsonb_array_elements(public.rally_open_entries(p_assignees)) e
-    join public.profiles p
-      on p.id = (case when e->>'userId' ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-                      then (e->>'userId')::uuid end)
+    join public.profiles p on p.id = public.rally_uid_uuid(e->>'userId')
    where p.team_id = p_team
 $$;
 
@@ -165,8 +227,8 @@ as $$
                              then null else (e->>'unassignedAt')::bigint end)
       order by (e->>'assignedAt')::bigint, e->>'userId'), '[]'::jsonb)
     from jsonb_array_elements(coalesce(p_assignees->'entries', '[]'::jsonb)) e
-    left join public.profiles pu on pu.id = (case when e->>'userId' ~ '^[0-9a-fA-F-]{36}$' then (e->>'userId')::uuid end)
-    left join public.profiles pb on pb.id = (case when e->>'assignedBy' ~ '^[0-9a-fA-F-]{36}$' then (e->>'assignedBy')::uuid end)
+    left join public.profiles pu on pu.id = public.rally_uid_uuid(e->>'userId')
+    left join public.profiles pb on pb.id = public.rally_uid_uuid(e->>'assignedBy')
 $$;
 
 -- --------------------------------------------------------- the invariants ---
@@ -294,19 +356,41 @@ as $$
      set; the mirror may only decide the open/closed state of a run the
      ledger still holds OPEN. Reassigning that rep later is a NEW entry
      with a new assignedAt, exactly as the client already writes it. */
+  /* (userId, assignedAt) is NOT unique. A rep may hold two entries at one
+     instant: the survivor of a duplicate open, and the copy the reader
+     closed at that same instant (closedByDedupe). Matching the derived
+     entry to "any prior with that key" would pair BOTH derived entries
+     with the same prior — and depending on which one the sort happened to
+     put first, either the dedupe tag is lost or the open run is closed by
+     a stale phone that touched nothing. So each side is ranked within its
+     (userId, assignedAt) group — open first, then by close — and the n-th
+     derived entry pairs with the n-th prior entry, once. */
+  with d as (
+    select t.e, t.ord,
+           row_number() over (partition by t.e->>'userId', t.e->>'assignedAt'
+                              order by (t.e->>'unassignedAt' is null) desc,
+                                       public.rally_ms(t.e->>'unassignedAt'), t.ord) as rn
+      from jsonb_array_elements(coalesce(p_derived, '[]'::jsonb)) with ordinality t(e, ord)
+  ),
+  pr as (
+    select t.e,
+           row_number() over (partition by t.e->>'userId', t.e->>'assignedAt'
+                              order by (t.e->>'unassignedAt' is null) desc,
+                                       public.rally_ms(t.e->>'unassignedAt'), t.ord) as rn
+      from jsonb_array_elements(coalesce(p_prior->'entries', '[]'::jsonb)) with ordinality t(e, ord)
+  )
   select coalesce(jsonb_agg(
            case when pr.e is null then d.e
                 else pr.e || jsonb_build_object(
                        'name', d.e->'name',
                        'unassignedAt', case when pr.e->>'unassignedAt' is not null
                                             then pr.e->'unassignedAt'
-                                            else coalesce(d.e->'unassignedAt', 'null'::jsonb) end) end), '[]'::jsonb)
-    from jsonb_array_elements(coalesce(p_derived, '[]'::jsonb)) d(e)
-    left join lateral (
-      select p.e from jsonb_array_elements(coalesce(p_prior->'entries', '[]'::jsonb)) p(e)
-       where p.e->>'userId' = d.e->>'userId'
-         and p.e->>'assignedAt' = d.e->>'assignedAt'
-       limit 1) pr on true
+                                            else coalesce(d.e->'unassignedAt', 'null'::jsonb) end) end
+           order by d.ord), '[]'::jsonb)
+    from d
+    left join pr on pr.e->>'userId' = d.e->>'userId'
+                and pr.e->>'assignedAt' = d.e->>'assignedAt'
+                and pr.rn = d.rn
 $$;
 
 -- ------------------------------------------------------------- the trigger ---
@@ -464,8 +548,7 @@ begin
           or new.data->'assignedTo' is distinct from v_sent_to) then
     -- data.updatedAt is client JSON: cast it only once an anchored regex
     -- has proven the cast cannot fail; anything else reads as 0
-    v_incoming := case when (new.data->>'updatedAt') ~ '^-?[0-9]{1,18}$'
-                       then (new.data->>'updatedAt')::bigint else 0 end;
+    v_incoming := coalesce(public.rally_ms(new.data->>'updatedAt'), 0);
     new.data := jsonb_set(new.data, '{updatedAt}',
                           to_jsonb(greatest(v_now_ms, v_incoming + 1)));
   end if;
@@ -480,6 +563,30 @@ end $$;
 
    Closed history already in the ledger is carried forward: the legacy
    mirror only ever holds what the writing client knew. */
+/* THE LEGACY READER IS THE NORMALISER. It turns whatever a v40 mirror (or
+   a hand-edited row, or a restore) holds into a ledger that satisfies
+   I1..I3 BY CONSTRUCTION, so that neither the backfill nor a client
+   upsert can ever be refused for the shape of history nobody chose:
+
+     - an element that is not an object, or has no usable userId, carries
+       no assignment and is dropped (the survey lists it first);
+     - userId is canonical (rally_uid): uuid-shaped ids lower-cased, any
+       other id kept verbatim as unresolved history;
+     - assignedAt: parsed by rally_ms; missing or unreadable → the row's
+       own created_at (tagged assignedAtSynthesized / assignedAtRaw so
+       nothing is silently rewritten); never <= 0 (→ 1);
+     - unassignedAt: absent → OPEN; present but unreadable → CLOSED at
+       assignedAt (a v40 client reads any non-null value as closed; the raw
+       value is kept in unassignedAtRaw); earlier than assignedAt → clamped
+       to assignedAt, raw kept;
+     - the row's created_at fallback is total too: an infinite or pre-epoch
+       clock reads as 1;
+     - I1: one OPEN entry per rep — the LAST one in the mirror's order
+       survives, the others are closed at the survivor's assignedAt (never
+       before their own), tagged closedByDedupe.
+
+   Every rewrite keeps the raw value beside it. History is never deleted to
+   make an invariant hold; it is made readable and marked. */
 create or replace function public.rally_legacy_to_entries(p_data jsonb, p_created timestamptz, p_prior jsonb)
 returns jsonb
 language plpgsql
@@ -488,40 +595,108 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_src  jsonb := coalesce(p_data->'assignments', '[]'::jsonb);
-  v_out  jsonb := '[]'::jsonb;
-  e      jsonb;
-  v_at   bigint;
+  v_src        jsonb;
+  v_out        jsonb := '[]'::jsonb;
+  e            jsonb;
+  v_e          jsonb;
+  v_uid        text;
+  v_by         text;
+  v_raw_at     text;
+  v_raw_un     text;
+  v_at         bigint;
+  v_un         bigint;
+  v_created_ms bigint;
 begin
-  if jsonb_typeof(v_src) <> 'array' or jsonb_array_length(v_src) = 0 then
-    -- the oldest shape of all: a scalar assignee and no history
-    if coalesce(p_data->>'assignedTo', '') <> '' then
+  -- the row clock, total: an infinite or pre-epoch created_at reads as 1
+  begin
+    v_created_ms := case when p_created is null or p_created = 'infinity'::timestamptz
+                               or p_created = '-infinity'::timestamptz
+                         then (extract(epoch from now()) * 1000)::bigint
+                         else (extract(epoch from p_created) * 1000)::bigint end;
+  exception when others then
+    v_created_ms := (extract(epoch from now()) * 1000)::bigint;
+  end;
+  if v_created_ms <= 0 then v_created_ms := 1; end if;
+
+  v_src := case when jsonb_typeof(p_data) = 'object' then p_data->'assignments' end;
+  if v_src is null or jsonb_typeof(v_src) <> 'array' or jsonb_array_length(v_src) = 0 then
+    -- the oldest shape of all: a scalar assignee and no history array
+    if jsonb_typeof(p_data) = 'object' and coalesce(btrim(p_data->>'assignedTo'), '') <> '' then
+      v_at := coalesce(public.rally_ms(p_data->>'createdAt'), v_created_ms);
+      if v_at <= 0 then v_at := 1; end if;
       return jsonb_build_array(jsonb_build_object(
-        'userId', p_data->>'assignedTo', 'name', '',
+        'userId', public.rally_uid(p_data->>'assignedTo'), 'name', '',
         'assignedBy', null, 'assignedByName', '',
-        'assignedAt', coalesce((p_data->>'createdAt')::bigint,
-                               (extract(epoch from coalesce(p_created, now())) * 1000)::bigint),
+        'assignedAt', v_at,
         'unassignedAt', null, 'synthesizedFrom', 'assignedTo'));
     end if;
     return coalesce(p_prior->'entries', '[]'::jsonb);
   end if;
 
   for e in select value from jsonb_array_elements(v_src) loop
-    if coalesce(e->>'userId', '') = '' then continue; end if;
-    v_at := coalesce((e->>'assignedAt')::bigint,
-                     (extract(epoch from coalesce(p_created, now())) * 1000)::bigint);
+    if jsonb_typeof(e) <> 'object' then continue; end if;
+    v_uid := e->>'userId';
+    if coalesce(btrim(v_uid), '') = '' then continue; end if;
+    v_raw_at := e->>'assignedAt';
+    v_raw_un := e->>'unassignedAt';
+    v_at := coalesce(public.rally_ms(v_raw_at), v_created_ms);
     if v_at <= 0 then v_at := 1; end if;
-    v_out := v_out || jsonb_build_object(
-      'userId', e->>'userId',
+    v_un := case when v_raw_un is null then null
+                 else coalesce(public.rally_ms(v_raw_un), v_at) end;
+    if v_un is not null and v_un < v_at then v_un := v_at; end if;
+    v_by := e->>'assignedBy';
+    v_e := jsonb_build_object(
+      'userId', public.rally_uid(v_uid),
       'name', coalesce(e->>'name', ''),
-      -- v40 wrote a display NAME here; keep it, and leave assignedBy null
-      'assignedBy', case when e->>'assignedBy' ~ '^[0-9a-fA-F-]{36}$' then e->>'assignedBy' end,
-      'assignedByName', case when e->>'assignedBy' ~ '^[0-9a-fA-F-]{36}$' then '' else coalesce(e->>'assignedBy', '') end,
+      -- v40 wrote a display NAME here; a uuid is kept as the assigner's id
+      'assignedBy', case when public.rally_uid_uuid(v_by) is not null then public.rally_uid(v_by) end,
+      'assignedByName', case when public.rally_uid_uuid(v_by) is not null then '' else coalesce(v_by, '') end,
       'assignedAt', v_at,
-      'unassignedAt', case when e->>'unassignedAt' is null then null else (e->>'unassignedAt')::bigint end);
+      'unassignedAt', v_un);
+    if v_raw_at is null then
+      v_e := v_e || jsonb_build_object('assignedAtSynthesized', true);
+    elsif public.rally_ms(v_raw_at) is distinct from v_at then
+      v_e := v_e || jsonb_build_object('assignedAtRaw', e->'assignedAt');
+    end if;
+    if v_raw_un is not null and public.rally_ms(v_raw_un) is distinct from v_un then
+      v_e := v_e || jsonb_build_object('unassignedAtRaw', e->'unassignedAt');
+    end if;
+    v_out := v_out || v_e;
   end loop;
-  return v_out;
+  return public.rally_close_duplicate_opens(v_out);
 end $$;
+
+/* I1 BY CONSTRUCTION. One OPEN entry per rep: the last one in the array
+   survives; every earlier open entry for the same rep is closed at the
+   survivor's assignedAt — never before its own, so I3 still holds — and
+   tagged closedByDedupe. Nothing is deleted. Operates on NORMALISED entries
+   (bigint timestamps, canonical ids). */
+create or replace function public.rally_close_duplicate_opens(p_entries jsonb)
+returns jsonb
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  with x as (
+    select e, ord,
+           e->>'unassignedAt' is null as is_open,
+           case when e->>'unassignedAt' is null
+                then row_number() over (partition by e->>'userId', (e->>'unassignedAt' is null)
+                                        order by (e->>'assignedAt')::bigint desc, ord desc) end as rn,
+           max((e->>'assignedAt')::bigint) filter (where e->>'unassignedAt' is null)
+             over (partition by e->>'userId') as survivor_at
+      from jsonb_array_elements(coalesce(p_entries, '[]'::jsonb)) with ordinality t(e, ord)
+  )
+  select coalesce(jsonb_agg(
+           case when is_open and rn > 1
+                then jsonb_set(e, '{unassignedAt}',
+                       to_jsonb(greatest((e->>'assignedAt')::bigint, survivor_at)))
+                     || '{"closedByDedupe": true}'::jsonb
+                else e end
+           order by ord), '[]'::jsonb)
+    from x
+$$;
 
 drop trigger if exists territories_assignment on public.territories;
 create trigger territories_assignment
@@ -553,21 +728,19 @@ as $$
   select count(*) from public.territories t
    where t.deleted_at is null and t.archived = false
      and exists (
-       /* the ledger once it exists, the v40 mirror before the backfill has
-          run — the gate must be right at every point in the staged order */
+       /* the ledger once it exists; before the backfill, the v40 mirror
+          read through THE SAME normaliser the backfill will use — so a
+          bare-scalar hood's synthesized assignee counts, and a device-local
+          id is a text that never reaches a cast */
        select 1 from jsonb_array_elements(
            case when jsonb_array_length(coalesce(t.assignees->'entries', '[]'::jsonb)) > 0
                 then t.assignees->'entries'
-                -- the v40 mirror is client JSON: read it only when it IS an array
-                when jsonb_typeof(t.data->'assignments') = 'array'
-                then t.data->'assignments'
-                else '[]'::jsonb end) e
+                else public.rally_legacy_to_entries(t.data, t.created_at, '{"entries": []}'::jsonb) end) e
         where e->>'unassignedAt' is null
           and coalesce(e->>'userId', '') <> ''
           and not exists (
             select 1 from public.profiles p
-             where (e->>'userId') ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
-               and p.id = (e->>'userId')::uuid
+             where p.id = public.rally_uid_uuid(e->>'userId')
                and p.team_id = t.team_id))
 $$;
 

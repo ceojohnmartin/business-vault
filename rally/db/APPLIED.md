@@ -79,53 +79,114 @@ Every database proof below was re-run AFTER the `extensions.` → `gis.` rewrite
 on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
 0008 into `gis` (verified per test database: `3.4.2 in gis`).
 
-- `sh rally/db/test/run-v41-tests.sh` — 155 SQL checks, the staged-order gate
-  (`turfRpc` false after Stage A, true after Stage B), the
+- `sh rally/db/test/run-v41-tests.sh` — 173 SQL checks over a v40-shaped
+  seed of 15 hoods (live, bare-scalar, archived, tombstoned, duplicate-open at
+  distinct and at the SAME instant, a run that ends before it starts, a
+  missing assignedAt, createdAt 0, a 36-hex non-uuid, an upper-case uuid,
+  junk elements, a `+`-prefixed timestamp, an archived bowtie), the
+  staged-order gate (`turfRpc` false after Stage A, true after Stage B), the
   no-shape-changing-repair grep over `db/migrations/`, `turf-race-test.sh`
   (6 checks including the negative control that proves the advisory lock,
-  not merely the check), and `preflight-test.sh` (93 checks: both preflight
-  forms against a seeded Stage-0 database, the ring reader byte-identical to
-  0009's `rally_ring_read`, static reading rules, and — with every one of the
-  33 malformed fixtures in `v41-preflight-fixtures.sql` loaded at once — no
-  abort and a named finding for each; plus negative controls proving an
-  overlapping pair, a self-crossing outline and a live hood with a ghost
-  CURRENT assignee are detected and counted by the verdict rows).
+  not merely the check), and `preflight-test.sh` (117 checks — see the
+  next section).
 - `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
-  re-run with 0008–0016 applied: RLS 283, RACE 11, SPLIT RACE 11, MIRROR 182,
-  PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
+  re-run with 0008–0016 applied: RLS 283, RACE 11, SPLIT RACE 11, MIRROR 182, PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
 - `sh rally/tests/run-all.sh` — the browser battery, 24 suite runs, 1,212
-  checks, 0 failing (unchanged by the rewrite: no client file references a
-  PostGIS schema).
+  checks, 0 failing (unchanged by this pass: no client file changed).
 
 ### The preflight, for the Supabase SQL Editor — TOTAL over legacy JSON
 
 `db/preflight/v41-preflight.editor.sql` is the form to paste into the editor:
 one final SELECT returning `section | key | detail`, every section present
 (an empty one prints `(none)`), and three `Z verdict` rows naming what blocks
-Stage A, Stage C (0016 arming) and the activation flip. It creates nothing
-durable (one `pg_temp` helper) and writes no row. `db/preflight/v41-preflight.sql`
-is a psql wrapper (`\ir`) over the same text, so there is one survey.
+Stage A, Stage C (0016 arming) and the activation flip. It is READ-ONLY: it
+creates six `pg_temp` functions that die with the session, writes no row, and
+touches no durable object, grant, trigger, policy or migration.
+`db/preflight/v41-preflight.sql` is a psql wrapper (`\ir`) over the same
+text, so there is one survey.
 
-**Total by construction (2026-09-05).** The first editor form aborted on 8 of
-25 malformed shapes (assignments as object/string/number/JSON null,
-assignedAt as text or decimal, polygon as object or string — evidence in the
-session log). Now: no array function without a `jsonb_typeof` guard, no
-`::uuid`/`::bigint` outside a regex-guarded CASE, no geography cast on a ring
-the reader has not proven finite and in range, and the reader is 0009's twin.
-Every malformed row is a NAMED FINDING; the Stage A verdict counts the ones
-0010/0011 would still abort on (a non-integer assignedAt/unassignedAt, a
-non-integer createdAt on a bare-scalar hood, a territory whose data is not an
-object) — those are decided by the owner with the list in hand, never by the
-migration failing halfway.
+**ONE READER (2026-09-06).** Section 3 does not interpret legacy assignment
+data with rules of its own. It runs `public.rally_legacy_to_entries` — the
+normaliser 0010 installs, which the assignment trigger applies to every
+client upsert, 0011 uses to build the ledger, and `rally_config_guard` uses
+to decide the flip — as a `pg_temp` twin, with the four helpers it stands on
+(`rally_ms`, `rally_uid`, `rally_uid_uuid`, `rally_close_duplicate_opens`)
+and 0009's `rally_ring_read`. `preflight-test.sh` proves all six twins
+byte-identical to the migrations' bodies (name aside). So what the survey
+says a row's ledger will be IS what Stage A writes, and what it says would
+block the flip IS what the guard tests.
 
-**The migrations were made total the same way, where a client write could
-otherwise dead-letter on a legacy shape:** 0009's reader refuses (never
-trims) an unreadable ring and names the corner; 0010's activation gate and
-its Authoritative-Correction Stamp read client JSON through guards; 0011's
-snapshot reads a non-array `assignments` as none; 0013's history readers,
-ts parse and mirror writes are total over a non-object `data` / non-array
-`history`; 0014's `clear_pin_dnk` likewise; 0016 asks `rally_ring_problem`
-instead of measuring the raw column.
+**The normaliser is TOTAL and produces I1..I3 by construction.** An
+unreadable or missing `assignedAt` is synthesised from the row's own
+`created_at` (raw value kept in `assignedAtRaw` / tagged
+`assignedAtSynthesized`); an unreadable `unassignedAt` closes the run at its
+start (`unassignedAtRaw`); a run that ends before it starts is clamped; a rep
+open twice keeps the LAST entry open and closes the others at that instant
+(`closedByDedupe`); ids are canonicalised to lower case; an element that is
+not an object, or has no userId, carries no assignment and is dropped (the
+survey lists each one first). Timestamps are read by `rally_ms`, which
+accepts exactly what int8 accepts (whitespace, `+`, 19 digits) and returns
+NULL for everything else — never a cast error. `rally_uid_uuid` is a
+CASE-guarded cast: CASE, not AND, because the planner is free to hoist an
+AND-guarded `::uuid` into an index condition and evaluate it on the
+unguarded value (the activation guard did exactly that on a device-local id
+before this pass). **The only Stage A BLOCKER left is a territory whose
+`data` is not a JSON object.** Everything else is normalised, tagged and
+listed for review.
+
+**The reading rules, enforced by static checks in `preflight-test.sh`:** no
+`jsonb_array_elements` / `jsonb_array_length` over raw JSON without a
+`jsonb_typeof` guard; no `::uuid` in the survey body (only the twin casts);
+no geography cast on a ring the reader has not proven finite, inside
+[-180,180] × [-90,90] and under 180 degrees of longitude wide (an antipodal
+edge makes PostGIS's geography measurement raise an internal error, so the
+reader refuses it by name); every exploded row carries scalars only, never
+the array it came from (a 2,000-entry hood surveys in linear time).
+
+**What the second adversarial pass found and fixed (2026-09-06):** the
+activation guard's `::uuid` hoisted past its regex by the planner; a loose
+36-character regex that let a non-uuid reach a cast; 0016 measuring the raw
+polygon column and aborting on a JSON-null outline; an antipodal live pair
+aborting the geography overlap check; a readable-but-invalid live ring
+(bowtie) that 0016 did not block; an archived broken ring that could not be
+tombstoned (and, once fixed, an un-archive that must be refused until the
+ring is fixed — `v_becoming_live` in 0009's trigger); duplicate-open,
+ends-before-starts, missing-assignedAt and createdAt-0 hoods that made 0011
+abort on its own I1..I3 assertions; a future-dated open entry that
+`set_territory_assignments` could never close (I3) — it now closes at the
+later of now and its start; the backfill's PROOF 1 counting elements the
+reader drops; PROOF 3 comparing raw text instead of the reader's output; a
+quadratic temp footprint on a hood with thousands of entries; and, found by
+the new B10 test, `rally_merge_provenance` pairing BOTH copies of a rep's
+same-instant duplicate with one prior entry (losing the `closedByDedupe` tag
+or, depending on sort order, closing the rep's real run on a stale phone's
+upsert) — it now ranks each side within its (userId, assignedAt) group and
+pairs the n-th derived entry with the n-th prior, once; `rally_sort_entries`
+gained a third key so the ledger's byte order is deterministic.
+
+**`preflight-test.sh` (117 checks, 6 s for the fixture survey):**
+both preflight forms against a seeded Stage-0 database (15 hoods; the census
+row `hoods=15 raw_entries=18 kept=14 dropped_elements=4 ledger_entries=17
+open=11` hand-verified against the seed); the six twins; the static reading
+rules; then, with all **46** malformed fixtures in
+`v41-preflight-fixtures.sql` loaded at once — non-UUID, uuid-length and
+upper-case ids; assignments as object / string / number / JSON null; entries
+that are not objects or have no userId; timestamps that are text, decimals,
+missing, zero, in the future, inverted, duplicated at one instant, or
+int8-tolerant; `data` as string / array / JSON null; polygons as object /
+string / JSON null / empty; corners off the planet on all four sides
+(including overlapping out-of-range pairs); coordinates that are strings,
+"NaN", "Infinity", too big for float8; a corner that is not a pair; an
+antipodal pair; a 2,000-entry hood; four legacy pin shapes — no abort, a
+named finding for each, exactly 3 Stage A blockers (the three
+data-not-object rows), 18 unusable live outlines, 4 ghost assignees;
+**verdict consistency**: after deleting the 3 blockers and archiving the bad
+outlines, 0009–0016 apply over the whole fixture zoo, 0011's five proofs
+hold, and the flip is refused by the guard with the same count (4) the
+survey gave, never with a cast error; and negative controls (an overlapping
+pair, a bowtie, a ghost and a bare-scalar ghost) each detected and counted
+by the verdict rows.
+
 
 ## What production actually runs
 

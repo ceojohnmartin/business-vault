@@ -168,3 +168,80 @@ insert into public.pins (team_id, id, lat, lng, disposition, data) values
      'history', jsonb_build_array(jsonb_build_object('ts','yesterday','disposition','dnk')))),
   ('dddddddd-4444-4444-a444-444444444444', 'pf-pin-hist-str', 40.1004, 0.1004, 'nothome',
    jsonb_build_object('id','pf-pin-hist-str','disposition','nothome','history','none'));
+-- FIXTURE dup_same_assignedat : one rep OPEN twice with the SAME assignedAt (the reader keeps the last, closes the first)
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-dup-same', 'PF dup same assignedAt', pg_temp.pf_rect(103200, 0, 103300, 100), false, null,
+   jsonb_build_object('id','pf-dup-same','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+-- FIXTURE ends_before_starts : unassignedAt earlier than assignedAt (clamped, raw kept)
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-i3', 'PF ends before starts', pg_temp.pf_rect(103400, 0, 103500, 100), false, null,
+   jsonb_build_object('id','pf-i3','assignedTo','',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000002','name','BF Jake',
+       'assignedBy','BF Lead','assignedAt',1700000100000::bigint,'unassignedAt',1700000000000::bigint))));
+-- FIXTURE missing_at_closed : no assignedAt but a closed unassignedAt in the past (synthesised start is later than the end)
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-noat-closed', 'PF missing assignedAt closed', pg_temp.pf_rect(103600, 0, 103700, 100), false, null,
+   jsonb_build_object('id','pf-noat-closed','assignedTo','',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000002','name','BF Jake',
+       'assignedBy','BF Lead','unassignedAt',1600000000000::bigint))));
+-- FIXTURE createdat_zero : bare scalar with createdAt 0 (synthesised assignedAt would be 0 → 1)
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-created-0', 'PF createdAt zero', pg_temp.pf_rect(103800, 0, 103900, 100), false, null,
+   jsonb_build_object('id','pf-created-0','createdAt',0,'assignedTo','00000000-0000-4000-d000-000000000001'));
+-- FIXTURE created_at_epoch : bare scalar, no data.createdAt, the ROW created_at at the epoch
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data, created_at) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-created-epoch', 'PF created_at epoch', pg_temp.pf_rect(104000, 0, 104100, 100), false, null,
+   jsonb_build_object('id','pf-created-epoch','assignedTo','00000000-0000-4000-d000-000000000001'), '1970-01-01T00:00:00Z');
+-- FIXTURE uid_36hex : a userId of 36 hex characters — uuid-LENGTH, not a uuid
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-uid-36hex', 'PF 36-hex userId', pg_temp.pf_rect(104200, 0, 104300, 100), false, null,
+   jsonb_build_object('id','pf-uid-36hex','assignedTo','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','name','Nobody',
+       'assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+-- FIXTURE assignedby_36hex : a valid rep, an assignedBy of 36 hex characters
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-by-36hex', 'PF 36-hex assignedBy', pg_temp.pf_rect(104400, 0, 104500, 100), false, null,
+   jsonb_build_object('id','pf-by-36hex','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
+       'assignedBy','000000000000000000000000000000000000','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+-- FIXTURE mixed_case_dup : the same rep open twice, once UPPER-CASE (one rep, one canonical id)
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-mixedcase', 'PF mixed-case dup', pg_temp.pf_rect(104600, 0, 104700, 100), false, null,
+   jsonb_build_object('id','pf-mixedcase','assignedTo','00000000-0000-4000-D000-000000000001',
+     'assignments', jsonb_build_array(
+       jsonb_build_object('userId','00000000-0000-4000-D000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt',1700000500000::bigint,'unassignedAt',null))));
+-- FIXTURE future_assignedat : an OPEN entry dated 2033
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-future', 'PF future assignedAt', pg_temp.pf_rect(104800, 0, 104900, 100), false, null,
+   jsonb_build_object('id','pf-future','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
+       'assignedBy','BF Lead','assignedAt',2000000000000::bigint,'unassignedAt',null))));
+-- FIXTURE entry_no_userid : an object entry with no userId at all, and one with an empty one
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-nouid', 'PF entry no userId', pg_temp.pf_rect(105000, 0, 105100, 100), false, null,
+   jsonb_build_object('id','pf-nouid','assignedTo','',
+     'assignments', jsonb_build_array(
+       jsonb_build_object('name','Nobody','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+       jsonb_build_object('userId','','name','Blank','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+-- FIXTURE ts_whitespace_plus_19 : timestamps int8 accepts that a naive regex would not — whitespace, a plus sign, 19 digits
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-ts-ok', 'PF whitespace/plus/19-digit', pg_temp.pf_rect(105200, 0, 105300, 100), false, null,
+   jsonb_build_object('id','pf-ts-ok','createdAt','  1690000000000 ','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt','+1700000000000','unassignedAt',null),
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000002','name','BF Jake','assignedBy','BF Lead','assignedAt',1700000000000000000::bigint,'unassignedAt',1700000000000000001::bigint))));
+-- FIXTURE antipodal_pair : two LIVE rings that are valid and in range but 180 degrees wide — an antipodal edge the geography cast refuses
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-anti-a', 'PF antipodal A', '[[0,0],[180,0],[180,1],[0,1]]'::jsonb, false, null, '{"id":"pf-anti-a"}'::jsonb),
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-anti-b', 'PF antipodal B', '[[0,-1],[180,-1],[180,0.5],[0,0.5]]'::jsonb, false, null, '{"id":"pf-anti-b"}'::jsonb);
+-- FIXTURE big_hood : 2,000 assignment entries on one hood (the survey must stay linear)
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data)
+select 'dddddddd-4444-4444-a444-444444444444', 'pf-big', 'PF 2000 entries', pg_temp.pf_rect(105400, 0, 105500, 100), false, null,
+   jsonb_build_object('id','pf-big','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', (select jsonb_agg(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead',
+        'assignedAt', 1600000000000 + i*1000, 'unassignedAt', case when i < 2000 then to_jsonb(1600000000000 + i*1000 + 500) else 'null'::jsonb end))
+        from generate_series(1, 2000) i));

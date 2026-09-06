@@ -74,6 +74,8 @@ declare
   v_i     int := 0;
   v_x     double precision;
   v_y     double precision;
+  v_minx  double precision;
+  v_maxx  double precision;
   v_prev  gis.geometry;
   v_g     gis.geometry;
   v_n     int;
@@ -108,6 +110,8 @@ begin
       problem := format('corner %s latitude %s is outside [-90, 90]', v_i, v_y);
       return;
     end if;
+    v_minx := least(coalesce(v_minx, v_x), v_x);
+    v_maxx := greatest(coalesce(v_maxx, v_x), v_x);
     v_g := gis.st_setsrid(gis.st_makepoint(v_x, v_y), 4326);
     -- TRANSFORM 2: drop a vertex identical to the one before it. A
     -- zero-length edge contributes nothing to the boundary.
@@ -117,6 +121,16 @@ begin
     v_pts := array_append(v_pts, v_g);
     v_prev := v_g;
   end loop;
+
+  /* A hood is a few streets. An outline whose corners are 180 degrees of
+     longitude apart is not turf, and its edges are ANTIPODAL to the sphere
+     — the geography measurement in 0016 refuses such an edge with an
+     internal error rather than an answer, on whichever neighbour's write
+     happens to touch it. Refused here, by name, before any geometry. */
+  if v_maxx - v_minx >= 180 then
+    problem := format('the outline spans %s degrees of longitude — half the planet is not a hood', rtrim(rtrim(round((v_maxx - v_minx)::numeric, 3)::text, '0'), '.'));
+    return;
+  end if;
 
   -- a ring stored closed: drop the repeat, since TRANSFORM 1 re-adds it
   v_n := coalesce(array_length(v_pts, 1), 0);
@@ -178,6 +192,15 @@ declare
   v_geom    gis.geometry;
   v_problem text;
   v_reason  text;
+  /* The escape for an EXISTING broken ring is granted only while the row is
+     not BECOMING live. Archiving or tombstoning a broken hood takes it out
+     of turf and is allowed with the ring untouched; un-archiving or
+     un-deleting it back INTO live turf is refused until the ring is fixed —
+     otherwise a hood could walk into the overlap invariant with a NULL geom
+     the index never sees. */
+  v_becoming_live boolean := tg_op = 'UPDATE'
+    and (new.deleted_at is null and not new.archived)
+    and not (old.deleted_at is null and not old.archived);
 begin
   -- a tombstoned hood is not somewhere anyone is sent to work; its outline
   -- is history and is left exactly as it is. Becoming live again is a
@@ -202,8 +225,7 @@ begin
     -- is surfaced by the preflight instead of blocking every unrelated
     -- write to it. A row arriving with a NEW unusable ring is refused.
     if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon
-       and old.deleted_at is not distinct from new.deleted_at
-       and old.archived is not distinct from new.archived then
+       and not v_becoming_live then
       new.geom := null;
       return new;
     end if;
@@ -226,10 +248,10 @@ begin
        otherwise walk straight through both checks and go live with a NULL
        geom: invisible to the GiST index, and therefore never compared
        against anything. That is a hole in the overlap invariant, opened by
-       two ordinary writes. */
+       two ordinary writes. Retiring the hood (archive, tombstone) is the
+       opposite direction and is always allowed. */
     if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon
-       and old.deleted_at is not distinct from new.deleted_at
-       and old.archived is not distinct from new.archived then
+       and not v_becoming_live then
       new.geom := null;
       return new;
     end if;

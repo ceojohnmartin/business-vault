@@ -220,6 +220,13 @@ insert into public.territories (team_id, id, name, polygon, archived, deleted_at
    jsonb_build_object('id','pf-future','assignedTo','00000000-0000-4000-d000-000000000001',
      'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
        'assignedBy','BF Lead','assignedAt',2000000000000::bigint,'unassignedAt',null))));
+-- FIXTURE assignedat_int8_max : timestamps at the top of the bigint range — rally_ms reads them, nothing may format them as a timestamp
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  ('dddddddd-4444-4444-a444-444444444444', 'pf-int8max', 'PF int8 max', pg_temp.pf_rect(105600, 0, 105700, 100), false, null,
+   jsonb_build_object('id','pf-int8max','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John','assignedBy','BF Lead','assignedAt',9223372036854775807::bigint,'unassignedAt',null),
+       jsonb_build_object('userId','00000000-0000-4000-d000-000000000002','name','BF Jake','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',9223372036854775807::bigint))));
 -- FIXTURE entry_no_userid : an object entry with no userId at all, and one with an empty one
 insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
   ('dddddddd-4444-4444-a444-444444444444', 'pf-nouid', 'PF entry no userId', pg_temp.pf_rect(105000, 0, 105100, 100), false, null,

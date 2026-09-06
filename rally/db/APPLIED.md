@@ -79,20 +79,21 @@ Every database proof below was re-run AFTER the `extensions.` → `gis.` rewrite
 on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
 0008 into `gis` (verified per test database: `3.4.2 in gis`).
 
-- `sh rally/db/test/run-v41-tests.sh` — 173 SQL checks over a v40-shaped
-  seed of 15 hoods (live, bare-scalar, archived, tombstoned, duplicate-open at
+- `sh rally/db/test/run-v41-tests.sh` — 179 SQL checks over a v40-shaped
+  seed of 16 hoods (live, bare-scalar, archived, tombstoned, duplicate-open at
   distinct and at the SAME instant, a run that ends before it starts, a
   missing assignedAt, createdAt 0, a 36-hex non-uuid, an upper-case uuid,
-  junk elements, a `+`-prefixed timestamp, an archived bowtie), the
+  junk elements, a `+`-prefixed timestamp, an assignedAt at the top of the
+  bigint range, an archived bowtie), the
   staged-order gate (`turfRpc` false after Stage A, true after Stage B), the
   no-shape-changing-repair grep over `db/migrations/`, `turf-race-test.sh`
   (6 checks including the negative control that proves the advisory lock,
-  not merely the check), and `preflight-test.sh` (117 checks — see the
+  not merely the check), and `preflight-test.sh` (125 checks — see the
   next section).
 - `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
   re-run with 0008–0016 applied: RLS 283, RACE 11, SPLIT RACE 11, MIRROR 182, PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
-- `sh rally/tests/run-all.sh` — the browser battery, 24 suite runs, 1,212
-  checks, 0 failing (unchanged by this pass: no client file changed).
+- `sh rally/tests/run-all.sh` — the browser battery, re-run PENDING at this commit — result recorded in the next commit (re-run
+  after review round 2; no client file changed).
 
 ### The preflight, for the Supabase SQL Editor — TOTAL over legacy JSON
 
@@ -164,16 +165,62 @@ upsert) — it now ranks each side within its (userId, assignedAt) group and
 pairs the n-th derived entry with the n-th prior, once; `rally_sort_entries`
 gained a third key so the ledger's byte order is deterministic.
 
-**`preflight-test.sh` (117 checks, 6 s for the fixture survey):**
-both preflight forms against a seeded Stage-0 database (15 hoods; the census
-row `hoods=15 raw_entries=18 kept=14 dropped_elements=4 ledger_entries=17
-open=11` hand-verified against the seed); the six twins; the static reading
-rules; then, with all **46** malformed fixtures in
+**Review round 2 (2026-09-06, external review of the editor SQL) — three
+more totality holes, closed:**
+
+1. **AND/OR evaluation order is not promised.** PostgreSQL's expression
+   rules (docs §4.2.14) leave the order of AND/OR operands undefined — in
+   WHERE (the planner reorders quals by cost), in CASE conditions and in
+   PL/pgSQL IFs alike — so `jsonb_typeof(x) <> 'array' OR
+   jsonb_array_length(x) < 2` is not a guard. Every such site is now a
+   nested IF, a CASE branch, or a CASE-built array input: `rally_ring_read`
+   (0009 and its twin), `rally_legacy_to_entries` (0010 and its twin — the
+   twin identity test would have failed on a one-sided fix), 0011's
+   `bare_scalar`, the preflight's `has_outline`, and the do-not-knock
+   census. A static check in `preflight-test.sh` now fails on any
+   `and|or jsonb_array_*` in the preflight, 0009, 0010 or 0011.
+2. **A bigint outruns a timestamp.** `rally_ms` accepts the full int8 range;
+   the future-entry finding formatted `to_timestamp(at_ms/1000)::date`, which
+   raises "timestamp out of range" past the year 294276 — the survey could
+   abort while *describing* a finding. Guarded: dates beyond 9999-12-31
+   print as `beyond the year 9999`. Seed row `bf-int8max` and fixture
+   `pf-int8max` (assignedAt and unassignedAt = 9223372036854775807) prove
+   the whole path: read as-is, listed as a review finding, closable at that
+   instant by `set_territory_assignments` (X23).
+3. **Measurement fails CLOSED.** The survey's overlap measurement is an
+   exception-safe `pg_temp.overlap_m2(a, b) → (m2, problem)`: a pair GEOS or
+   the geography engine cannot measure is a named BLOCKER row in section 2
+   and a separate `unmeasurable pair(s)` term in the Stage C verdict — never
+   an abort, never "zero". 0016's `rally_overlap_m2` now re-raises such a
+   failure as a named 23514 refusal (the write or the arming is refused
+   rather than admitted unmeasured). The test drives the helper with a
+   mixed-SRID pair (a guaranteed engine error) and an antipodal pair.
+4. **Differing multiplicity at one (userId, assignedAt)** — stated and
+   tested (X20c/d/e): with the server holding `[OPEN@T, CLOSED@T]` and a
+   phone sending only `[CLOSED@T]` under legacy authority, the current run
+   CLOSES at T. That is expected: under legacy authority the mirror is the
+   phone's word on who is open, and a mirror without the open copy is an
+   unassign. Identical closed triples are one fact under I4, so the ledger
+   may hold one where it held two. Closed → open resurrection is impossible
+   (X20d: the prior's `unassignedAt` always wins). Under server authority
+   the mirror does not touch the ledger at all (X20e: byte-identical,
+   revision unchanged).
+5. **Section 0 now records `gis.postgis_full_version()`** — the GEOS / PROJ
+   build line — so the production engine can be written beside the local
+   one (3.4.2 with its GEOS) in the PostGIS table above. **Owner: paste that
+   row's value into this file when the production preflight has run.**
+
+**`preflight-test.sh` (125 checks, 4 s for the fixture survey):**
+both preflight forms against a seeded Stage-0 database (16 hoods; the census
+row `hoods=16 raw_entries=19 kept=15 dropped_elements=4 ledger_entries=18
+open=12` hand-verified against the seed); the six twins; the static reading
+rules; then, with all **47** malformed fixtures in
 `v41-preflight-fixtures.sql` loaded at once — non-UUID, uuid-length and
 upper-case ids; assignments as object / string / number / JSON null; entries
 that are not objects or have no userId; timestamps that are text, decimals,
-missing, zero, in the future, inverted, duplicated at one instant, or
-int8-tolerant; `data` as string / array / JSON null; polygons as object /
+missing, zero, in the future, at the top of the bigint range, inverted,
+duplicated at one instant, or int8-tolerant; `data` as string / array / JSON
+null; polygons as object /
 string / JSON null / empty; corners off the planet on all four sides
 (including overlapping out-of-range pairs); coordinates that are strings,
 "NaN", "Infinity", too big for float8; a corner that is not a pair; an

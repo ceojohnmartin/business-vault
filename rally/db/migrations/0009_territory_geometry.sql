@@ -92,7 +92,14 @@ begin
 
   for v_elem in select value from jsonb_array_elements(p_ring) loop
     v_i := v_i + 1;
-    if jsonb_typeof(v_elem) <> 'array' or jsonb_array_length(v_elem) < 2 then
+    /* two IFs, not one OR: PostgreSQL does not promise left-to-right
+       evaluation of AND/OR operands, so the array function may only be
+       reached once the type test has already returned */
+    if jsonb_typeof(v_elem) <> 'array' then
+      problem := format('corner %s is not a [longitude, latitude] pair', v_i);
+      return;
+    end if;
+    if jsonb_array_length(v_elem) < 2 then
       problem := format('corner %s is not a [longitude, latitude] pair', v_i);
       return;
     end if;
@@ -124,9 +131,10 @@ begin
 
   /* A hood is a few streets. An outline whose corners are 180 degrees of
      longitude apart is not turf, and its edges are ANTIPODAL to the sphere
-     — the geography measurement in 0016 refuses such an edge with an
-     internal error rather than an answer, on whichever neighbour's write
-     happens to touch it. Refused here, by name, before any geometry. */
+     — an edge whose great circle is ambiguous, so whatever the geography
+     engine answers for it (PostGIS 3.4.2 returned a number; 3.3.7 is
+     unverified) is not a measurement a turf rule may rest on. Refused
+     here, by name, before any geometry is built. */
   if v_maxx - v_minx >= 180 then
     problem := format('the outline spans %s degrees of longitude — half the planet is not a hood', rtrim(rtrim(round((v_maxx - v_minx)::numeric, 3)::text, '0'), '.'));
     return;

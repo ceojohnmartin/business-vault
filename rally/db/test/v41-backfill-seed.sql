@@ -129,6 +129,13 @@ insert into public.territories (team_id, id, name, polygon, archived, deleted_at
    jsonb_build_object('id','bf-plus','assignedTo','00000000-0000-4000-d000-000000000001',
      'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
        'assignedBy','BF Lead','assignedAt','+1700000000000','unassignedAt',null)))),
+  -- an OPEN entry dated at the top of the bigint range: readable, "in the
+  -- future", and nothing may ever format it as a timestamp
+  ('dddddddd-4444-4444-a444-444444444444', 'bf-int8max', 'BF int8 max',
+   pg_temp.bf_rect(92800, 0, 92900, 100), false, null,
+   jsonb_build_object('id','bf-int8max','assignedTo','00000000-0000-4000-d000-000000000001',
+     'assignments', jsonb_build_array(jsonb_build_object('userId','00000000-0000-4000-d000-000000000001','name','BF John',
+       'assignedBy','BF Lead','assignedAt',9223372036854775807::bigint,'unassignedAt',null)))),
   -- an ARCHIVED hood whose ring is a bowtie: 0009 stores NULL geom and lets it
   -- stay archived; it may be tombstoned but not brought back live (section G)
   ('dddddddd-4444-4444-a444-444444444444', 'bf-arch-bow', 'BF Archived Bowtie',

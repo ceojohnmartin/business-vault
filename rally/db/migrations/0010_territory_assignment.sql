@@ -618,8 +618,17 @@ begin
   end;
   if v_created_ms <= 0 then v_created_ms := 1; end if;
 
-  v_src := case when jsonb_typeof(p_data) = 'object' then p_data->'assignments' end;
-  if v_src is null or jsonb_typeof(v_src) <> 'array' or jsonb_array_length(v_src) = 0 then
+  /* the history array, or NULL when there is none. Both type tests are
+     total on any jsonb (-> on a non-object is NULL, typeof(NULL) is NULL),
+     so the AND here relies on no evaluation order; the array function is
+     reached only in its own IF, after v_src is known to be an array. */
+  v_src := case when jsonb_typeof(p_data) = 'object'
+                 and jsonb_typeof(p_data->'assignments') = 'array'
+                then p_data->'assignments' end;
+  if v_src is not null then
+    if jsonb_array_length(v_src) = 0 then v_src := null; end if;
+  end if;
+  if v_src is null then
     -- the oldest shape of all: a scalar assignee and no history array
     if jsonb_typeof(p_data) = 'object' and coalesce(btrim(p_data->>'assignedTo'), '') <> '' then
       v_at := coalesce(public.rally_ms(p_data->>'createdAt'), v_created_ms);

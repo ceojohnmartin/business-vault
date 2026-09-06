@@ -1094,4 +1094,75 @@ select t_assert((select count(*) from public.territories t, jsonb_array_elements
   'X22 an open entry dated in the future closes AT that instant, never before it — the reassignment is not refused');
 reset role;
 
+-- the top of the bigint range
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-int8max' and (e->>'assignedAt')::bigint = 9223372036854775807 and e->>'unassignedAt' is null and not (e ? 'assignedAtRaw')) = 1
+            and (select open_assignees from public.territories where id='bf-int8max') = array[:BF_JOHN]::uuid[],
+  'B19 an assignedAt at the top of the bigint range is read as-is, open and untagged — nothing formats it as a timestamp');
+call t_as('00000000-0000-4000-d000-000000000003');
+select set_territory_assignments('bf-int8max', array[:BF_JAKE]::uuid[], 'op-int8max');
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+   where t.id='bf-int8max' and e->>'userId' = :BF_JOHN and (e->>'unassignedAt')::bigint = 9223372036854775807) = 1
+            and (select open_assignees from public.territories where id='bf-int8max') = array[:BF_JAKE]::uuid[],
+  'X23 it closes at that same instant, never before it, and the reassignment lands');
+reset role;
+
+-- DIFFERING MULTIPLICITY at one (userId, assignedAt). The server holds
+-- [OPEN@T, CLOSED@T (dedupe twin)]; phones send fewer copies than that.
+update public.rally_config set assignment_server_authoritative = false;
+insert into public.territories (team_id, id, name, polygon, archived, deleted_at, data) values
+  (:BF_TEAM, 'x-mult', 'X Mult', '[[2.0,40],[2.001,40],[2.001,40.001],[2.0,40.001]]'::jsonb, false, null,
+   jsonb_build_object('id','x-mult','assignedTo',:BF_JOHN,
+     'assignments', jsonb_build_array(
+       jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+       jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+select t_assert((select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e where t.id='x-mult') = 2
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e where t.id='x-mult' and e->>'unassignedAt' is null) = 1
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e where t.id='x-mult' and (e->>'closedByDedupe')::boolean) = 1,
+  'X20c-setup the server prior is [OPEN@T, CLOSED@T tagged closedByDedupe]');
+call t_as('00000000-0000-4000-d000-000000000003');
+-- the mirror lists ONLY the closed twin: under legacy authority that is the
+-- phone's word that nobody is open, i.e. an unassign. EXPECTED: the current
+-- run closes at T. Identical closed triples (userId, assignedAt,
+-- unassignedAt) are one fact — I4 keeps history as a set — so the ledger
+-- may hold one such entry where it held two.
+select t_upsert_territory(:BF_TEAM, 'x-mult', 'X Mult c',
+  (select polygon from public.territories where id='x-mult'),
+  jsonb_build_object('id','x-mult','updatedAt',1700000000001::bigint,'assignedTo','',
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',1700000000000::bigint))));
+select t_assert((select name from public.territories where id='x-mult') = 'X Mult c'
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e where t.id='x-mult' and e->>'unassignedAt' is null) = 0
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e
+                  where t.id='x-mult' and e->>'userId' = :BF_JOHN and (e->>'assignedAt')::bigint = 1700000000000 and (e->>'unassignedAt')::bigint = 1700000000000) >= 1
+            and (select open_assignees from public.territories where id='x-mult') = '{}'::uuid[],
+  'X20c under legacy authority a mirror carrying only the closed twin closes the current run at T — expected, it is an unassign — nothing is resurrected and nothing aborts');
+-- the mirror now says OPEN@T against a ledger whose only entries at
+-- (userId, assignedAt) are closed: closed stays closed
+select t_upsert_territory(:BF_TEAM, 'x-mult', 'X Mult d',
+  (select polygon from public.territories where id='x-mult'),
+  jsonb_build_object('id','x-mult','updatedAt',1700000000002::bigint,'assignedTo',:BF_JOHN,
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+select t_assert((select name from public.territories where id='x-mult') = 'X Mult d'
+            and (select count(*) from public.territories t, jsonb_array_elements(t.assignees->'entries') e where t.id='x-mult' and e->>'unassignedAt' is null) = 0
+            and (select open_assignees from public.territories where id='x-mult') = '{}'::uuid[],
+  'X20d a mirror cannot REOPEN a run the ledger closed at the same (userId, assignedAt) — closed→open resurrection stays impossible');
+reset role;
+update public.rally_config set assignment_server_authoritative = true;
+create temp table x_mult_before as select assignees, assignees_rev from public.territories where id='x-mult';
+call t_as('00000000-0000-4000-d000-000000000003');
+select t_upsert_territory(:BF_TEAM, 'x-mult', 'X Mult e',
+  (select polygon from public.territories where id='x-mult'),
+  jsonb_build_object('id','x-mult','updatedAt',1700000000003::bigint,'assignedTo',:BF_JOHN,
+    'assignments', jsonb_build_array(
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null),
+      jsonb_build_object('userId',:BF_JOHN,'name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+reset role;
+select t_assert((select name from public.territories where id='x-mult') = 'X Mult e'
+            and (select assignees from public.territories where id='x-mult') = (select assignees from x_mult_before)
+            and (select assignees_rev from public.territories where id='x-mult') = (select assignees_rev from x_mult_before),
+  'X20e under server authority the mirror does not touch the ledger at all — byte-identical, revision unchanged, the rename lands');
+update public.rally_config set assignment_server_authoritative = false;
+
 \echo 'v41 SQL: all checks passed'

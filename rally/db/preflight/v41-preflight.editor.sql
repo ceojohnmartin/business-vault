@@ -77,7 +77,14 @@ begin
 
   for v_elem in select value from jsonb_array_elements(p_ring) loop
     v_i := v_i + 1;
-    if jsonb_typeof(v_elem) <> 'array' or jsonb_array_length(v_elem) < 2 then
+    /* two IFs, not one OR: PostgreSQL does not promise left-to-right
+       evaluation of AND/OR operands, so the array function may only be
+       reached once the type test has already returned */
+    if jsonb_typeof(v_elem) <> 'array' then
+      problem := format('corner %s is not a [longitude, latitude] pair', v_i);
+      return;
+    end if;
+    if jsonb_array_length(v_elem) < 2 then
       problem := format('corner %s is not a [longitude, latitude] pair', v_i);
       return;
     end if;
@@ -109,9 +116,10 @@ begin
 
   /* A hood is a few streets. An outline whose corners are 180 degrees of
      longitude apart is not turf, and its edges are ANTIPODAL to the sphere
-     — the geography measurement in 0016 refuses such an edge with an
-     internal error rather than an answer, on whichever neighbour's write
-     happens to touch it. Refused here, by name, before any geometry. */
+     — an edge whose great circle is ambiguous, so whatever the geography
+     engine answers for it (PostGIS 3.4.2 returned a number; 3.3.7 is
+     unverified) is not a measurement a turf rule may rest on. Refused
+     here, by name, before any geometry is built. */
   if v_maxx - v_minx >= 180 then
     problem := format('the outline spans %s degrees of longitude — half the planet is not a hood', rtrim(rtrim(round((v_maxx - v_minx)::numeric, 3)::text, '0'), '.'));
     return;
@@ -138,6 +146,35 @@ begin
 exception when others then
   geom := null;
   problem := 'the outline could not be read: ' || sqlerrm;
+  return;
+end $$;
+
+-- ------------------------------------------------------ the measurement
+-- The survey's own overlap measurement, EXCEPTION-SAFE. 0016's
+-- rally_overlap_m2 raises on a pair it cannot measure (refusing the write:
+-- fail closed); a survey must not abort on the same pair, it must name it.
+create or replace function pg_temp.overlap_m2(
+  a gis.geometry,
+  b gis.geometry,
+  out m2 double precision,
+  out problem text)
+language plpgsql
+immutable
+security invoker
+set search_path = ''
+as $$
+begin
+  m2 := null;
+  problem := null;
+  if a is null or b is null then m2 := 0; return; end if;
+  if not gis.st_intersects(a, b) then m2 := 0; return; end if;
+  m2 := coalesce(gis.st_area(
+          gis.st_collectionextract(gis.st_intersection(a, b), 3)::gis.geography),
+        0::double precision);
+  return;
+exception when others then
+  m2 := null;
+  problem := sqlerrm;
   return;
 end $$;
 
@@ -239,8 +276,17 @@ begin
   end;
   if v_created_ms <= 0 then v_created_ms := 1; end if;
 
-  v_src := case when jsonb_typeof(p_data) = 'object' then p_data->'assignments' end;
-  if v_src is null or jsonb_typeof(v_src) <> 'array' or jsonb_array_length(v_src) = 0 then
+  /* the history array, or NULL when there is none. Both type tests are
+     total on any jsonb (-> on a non-object is NULL, typeof(NULL) is NULL),
+     so the AND here relies on no evaluation order; the array function is
+     reached only in its own IF, after v_src is known to be an array. */
+  v_src := case when jsonb_typeof(p_data) = 'object'
+                 and jsonb_typeof(p_data->'assignments') = 'array'
+                then p_data->'assignments' end;
+  if v_src is not null then
+    if jsonb_array_length(v_src) = 0 then v_src := null; end if;
+  end if;
+  if v_src is null then
     -- the oldest shape of all: a scalar assignee and no history array
     if jsonb_typeof(p_data) = 'object' and coalesce(btrim(p_data->>'assignedTo'), '') <> '' then
       v_at := coalesce(pg_temp.ms(p_data->>'createdAt'), v_created_ms);
@@ -302,8 +348,10 @@ rings as (
          case when t.deleted_at is not null then 'tombstoned'
               when t.archived then 'archived' else 'LIVE' end as state,
          case when jsonb_typeof(t.polygon) = 'array' then jsonb_array_length(t.polygon) end as n_points,
-         not (t.polygon is null or jsonb_typeof(t.polygon) = 'null'
-              or (jsonb_typeof(t.polygon) = 'array' and jsonb_array_length(t.polygon) = 0)) as has_outline,
+         case when t.polygon is null then false
+              when jsonb_typeof(t.polygon) = 'null' then false
+              when jsonb_typeof(t.polygon) = 'array' then jsonb_array_length(t.polygon) > 0
+              else true end                                                                as has_outline,
          r.geom, r.problem,
          r.geom is not null and gis.st_isvalid(r.geom) as usable
     from public.territories t
@@ -330,17 +378,17 @@ bad_rings as (
 live as (
   select team_id, id, name, geom from rings where state = 'LIVE' and usable
 ),
+-- the measurement itself is exception-safe (pg_temp.overlap_m2 above): a
+-- pair GEOS or the geography engine cannot measure is a named BLOCKER row,
+-- never an abort and never "zero"
 overlap_pairs as (
   select a.team_id, a.id as hood_a, a.name as name_a, b.id as hood_b, b.name as name_b,
-         round(gis.st_area(
-           gis.st_collectionextract(
-             gis.st_intersection(a.geom, b.geom), 3)::gis.geography)::numeric, 2) as overlap_m2
+         round(o.m2::numeric, 2) as overlap_m2, o.problem
     from live a join live b
       on a.team_id = b.team_id and a.id < b.id
-   where gis.st_intersects(a.geom, b.geom)
-     and gis.st_area(
-           gis.st_collectionextract(
-             gis.st_intersection(a.geom, b.geom), 3)::gis.geography) > 1.0
+     and a.geom operator(gis.&&) b.geom          -- bbox prefilter; cannot fail
+    cross join lateral pg_temp.overlap_m2(a.geom, b.geom) o
+   where o.problem is not null or o.m2 > 1.0
 ),
 -- ---------------------------------------------------------- 3. assignments
 -- EVERY row: live, archived, tombstoned and split parents alike. Scalars
@@ -506,7 +554,10 @@ findings as (
     from dupes
   union all
   select team_id, id, name, id || ' / ' || uid || ' future', 'review',
-         format('open entry assignedAt=%s is in the future (%s) — it can only close at or after that instant', at_ms, to_timestamp(at_ms / 1000.0)::date)
+         format('open entry assignedAt=%s is in the future (%s) — it can only close at or after that instant', at_ms,
+                -- a bigint can exceed what a timestamp can hold; never format one that cannot be
+                case when at_ms <= 253402300799000 then to_timestamp(at_ms / 1000.0)::date::text
+                     else 'beyond the year 9999' end)
     from resolved where is_open and at_ms > (extract(epoch from now()) * 1000)::bigint + 86400000
 ),
 stage_a as (
@@ -525,8 +576,9 @@ dnk as (
          count(*) filter (where p.deleted_at is not null and p.disposition = 'dnk')            as already_tombstoned_black,
          count(*) filter (where jsonb_typeof(p.data) is distinct from 'object')               as data_not_object,
          count(*) filter (where jsonb_typeof(p.data->'history') not in ('array', 'null'))     as history_not_array,
-         count(*) filter (where jsonb_typeof(p.data->'history') = 'array' and exists (
-           select 1 from jsonb_array_elements(p.data->'history') h
+         count(*) filter (where exists (
+           select 1 from jsonb_array_elements(case when jsonb_typeof(p.data->'history') = 'array'
+                                                   then p.data->'history' else '[]'::jsonb end) h
             where h->>'ts' is not null and pg_temp.ms(h->>'ts') is null))                     as history_ts_unparseable
     from public.pins p
 ),
@@ -549,6 +601,10 @@ rows_ as (
     from env
   union all select '0 env', 'postgis', 'NOT INSTALLED — stop; CUTOVER 0A has not happened'
     where not exists (select 1 from env)
+  -- the whole build line (GEOS, PROJ, libxml), so what the local proof ran
+  -- on and what production runs on are recorded side by side
+  union all select '0 env', 'postgis_full_version', gis.postgis_full_version()
+    where exists (select 1 from env)
 
   union all select '1a geometry by state', state,
          format('hoods=%s usable=%s unusable_outline=%s invalid_geometry=%s no_outline_at_all=%s',
@@ -568,7 +624,9 @@ rows_ as (
     where not exists (select 1 from bad_rings where state <> 'LIVE')
 
   union all select '2 live pairs overlapping > 1.0 m² (block 0016)', hood_a || ' × ' || hood_b,
-         format('team=%s %s × %s overlap_m2=%s', team_id, name_a, name_b, overlap_m2)
+         case when problem is not null
+              then format('BLOCKER team=%s %s × %s could not be measured: %s — 0016 refuses such a pair rather than admit it', team_id, name_a, name_b, problem)
+              else format('team=%s %s × %s overlap_m2=%s', team_id, name_a, name_b, overlap_m2) end
     from overlap_pairs
   union all select '2 live pairs overlapping > 1.0 m² (block 0016)', '(none)', ''
     where not exists (select 1 from overlap_pairs)
@@ -625,8 +683,10 @@ rows_ as (
                           blocker_hoods, review_hoods) end
     from stage_a
   union all select 'Z verdict', 'Stage C (0016 arming)',
-         format('%s live hood(s) with unusable or invalid outline + %s overlapping pair(s) must be 0',
-                (select count(*) from bad_rings where state = 'LIVE'), (select count(*) from overlap_pairs))
+         format('%s live hood(s) with unusable or invalid outline + %s overlapping pair(s) + %s unmeasurable pair(s) must be 0',
+                (select count(*) from bad_rings where state = 'LIVE'),
+                (select count(*) from overlap_pairs where problem is null),
+                (select count(*) from overlap_pairs where problem is not null))
   union all select 'Z verdict', 'Activation flip',
          format('%s live hood(s) with an unresolved CURRENT assignee must be 0',
                 (select live_hoods_with_unresolved_current from flip_blockers))

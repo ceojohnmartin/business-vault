@@ -44,6 +44,7 @@ EDITOR_SQL="$DIR/../preflight/v41-preflight.editor.sql"
 PSQL_SQL="$DIR/../preflight/v41-preflight.sql"
 M09="$DIR/../migrations/0009_territory_geometry.sql"
 M10="$DIR/../migrations/0010_territory_assignment.sql"
+M11="$DIR/../migrations/0011_assignment_backfill.sql"
 run_editor() { psql -X -v ON_ERROR_STOP=1 -d "$DB" -tA -F ' | ' -f "$EDITOR_SQL" 2>&1; }
 
 psql -q -v ON_ERROR_STOP=1 -d postgres -c "drop database if exists $DB" -c "create database $DB"
@@ -101,17 +102,35 @@ if awk '
 else
   bad "a ::uuid cast exists in the survey body (above)"
 fi
+# PostgreSQL promises no evaluation order for the operands of AND / OR — not
+# in WHERE, not in a CASE condition, not in a PL/pgSQL IF — so a type test
+# may never "protect" an array function across a boolean operator. The
+# guard must be a CASE branch, a nested IF, or a CASE-built array input.
+if grep -nE "(and|or)[[:space:]]+jsonb_array_(length|elements)" "$EDITOR_SQL" "$M09" "$M10" "$M11"; then
+  bad "an array function still hides behind an AND/OR operand (above)"
+else
+  ok "no array function relies on AND/OR short-circuit in the preflight, 0009, 0010 or 0011"
+fi
+# a bigint out-runs what a timestamp can hold: every to_timestamp of a
+# ledger value is range-guarded
+if grep -n "to_timestamp" "$EDITOR_SQL" | grep -v "253402300799000"; then
+  bad "an unguarded to_timestamp exists in the editor preflight (above)"
+else
+  ok "every to_timestamp in the editor preflight is range-guarded"
+fi
 
 # ------------------------------------------------------- baseline: the seed
 E="$(run_editor)" || { echo "$E" | tail -5; bad "editor-form preflight errored on the seed"; }
 has "$E" "0 env | postgis | schema=gis" "seed: PostGIS reported in gis"
-has "$E" "1a geometry by state | LIVE | hoods=11 usable=11 unusable_outline=0 invalid_geometry=0 no_outline_at_all=0" "seed: 11 live hoods, all usable"
+has "$E" "0 env | postgis_full_version | POSTGIS=\"" "seed: the full PostGIS build line (GEOS, PROJ) is recorded in section 0"
+has "$E" "1a geometry by state | LIVE | hoods=12 usable=12 unusable_outline=0 invalid_geometry=0 no_outline_at_all=0" "seed: 12 live hoods, all usable"
 has "$E" "1a geometry by state | archived | hoods=3 usable=2 unusable_outline=0 invalid_geometry=1" "seed: 3 archived hoods, one with an invalid ring"
 has "$E" "1a geometry by state | tombstoned | hoods=1" "seed: the tombstoned hood is surveyed too"
 has "$E" "1b LIVE hoods to fix before 0016 | (none)" "seed: an empty section prints (none), not nothing"
 has "$E" "| bf-arch-bow | team=dddddddd-4444-4444-a444-444444444444 state=archived name=BF Archived Bowtie corners=4 reason=Self-intersection" "seed: the archived bowtie is listed in 1c with PostGIS's reason"
 has "$E" "2 live pairs overlapping > 1.0 m² (block 0016) | (none)" "seed: no overlap"
-has "$E" "hoods=15 raw_entries=18 kept=14 dropped_elements=4 ledger_entries=17 open=11 " "seed: the census counts every hood in every state through the reader (18 raw elements, 4 of them junk, 14 kept + 3 synthesized = 17)"
+has "$E" "hoods=16 raw_entries=19 kept=15 dropped_elements=4 ledger_entries=18 open=12 " "seed: the census counts every hood in every state through the reader (19 raw elements, 4 of them junk, 15 kept + 3 synthesized = 18)"
+has "$E" "| bf-int8max / 00000000-0000-4000-d000-000000000001 future | review team=dddddddd-4444-4444-a444-444444444444 name=BF int8 max — open entry assignedAt=9223372036854775807 is in the future (beyond the year 9999)" "seed: an assignedAt at the top of the bigint range is a review finding, not a timestamp overflow"
 has "$E" "synthesized_from_assignedTo=3 " "seed: three bare-scalar hoods are synthesized (bf-bare, bf-asg-obj, bf-created0)"
 has "$E" "dedupe_closed=2 " "seed: two duplicate opens are closed by the reader (bf-dup, bf-dup-same)"
 has "$E" "local_device_ids=1 foreign_or_missing_profile=1 " "seed: the 36-hex id and the departed rep are counted, not dropped"
@@ -128,8 +147,16 @@ has "$E" "| bf-created0 / createdAt | normalised team=dddddddd-4444-4444-a444-44
 has "$E" "| bf-junk / entry #4 | dropped team=dddddddd-4444-4444-a444-444444444444 name=BF Junk Elements — entry has no userId — carries no assignment" "seed: the object with no userId is a dropped element"
 lacks "$E" "| bf-plus / " "seed: a leading + is not a finding — int8 reads it"
 lacks "$E" "| bf-upper / entry" "seed: an upper-case uuid is not a finding — it is one rep"
-has "$E" "Z verdict | Stage A (0009-0013) | 0 hood(s) whose data is not a JSON object must be 0 (3f BLOCKER rows); 7 hood(s) have assignment data the reader normalises or drops (3f)" "seed: Stage A verdict — no blocker, seven rows to review"
-has "$E" "Z verdict | Stage C (0016 arming) | 0 live hood(s) with unusable or invalid outline + 0 overlapping pair(s)" "seed: Stage C verdict reads clean (the bowtie is archived)"
+has "$E" "Z verdict | Stage A (0009-0013) | 0 hood(s) whose data is not a JSON object must be 0 (3f BLOCKER rows); 8 hood(s) have assignment data the reader normalises or drops (3f)" "seed: Stage A verdict — no blocker, eight hoods to review"
+has "$E" "Z verdict | Stage C (0016 arming) | 0 live hood(s) with unusable or invalid outline + 0 overlapping pair(s) + 0 unmeasurable pair(s)" "seed: Stage C verdict reads clean (the bowtie is archived)"
+# the survey's overlap measurement is EXCEPTION-SAFE: a pair the engine
+# cannot measure comes back as a problem, never as an abort and never as 0
+P="$(printf '%s\n' "$(cat "$EDITOR_SQL")" \
+  "select 'srid:' || coalesce((pg_temp.overlap_m2(gis.st_geomfromtext('POLYGON((0 0,1 0,1 1,0 1,0 0))',4326), gis.st_geomfromtext('POLYGON((0 0,1 0,1 1,0 1,0 0))',3857))).problem, '<none>');" \
+  "select 'anti:' || coalesce((pg_temp.overlap_m2(gis.st_geomfromtext('POLYGON((-90 0,90 0,90 1,-90 1,-90 0))',4326), gis.st_geomfromtext('POLYGON((-90 0.5,90 0.5,90 1.5,-90 1.5,-90 0.5))',4326))).problem, '<none>');" \
+  | psql -X -v ON_ERROR_STOP=1 -d "$DB" -tA 2>&1)" && ok "the overlap helper survives a pair the engine cannot measure — no abort" || bad "the overlap helper aborted on an unmeasurable pair"
+printf '%s' "$P" | grep -q "^srid:.*SRID" && ok "an unmeasurable pair (mixed SRID) comes back as a named problem, not zero" || bad "the overlap helper did not name the mixed-SRID failure — got: $(printf '%s' "$P" | grep '^srid:')"
+echo "INFO: antipodal-edge probe through the helper → $(printf '%s' "$P" | grep '^anti:')"
 has "$E" "Z verdict | Activation flip | 0 live hood(s)" "seed: flip verdict reads clean"
 n="$(psql -X -d "$DB" -tAc "select count(*) from pg_class where relname='territories_geom_live_gist'")"
 [ "$n" = "0" ] && ok "the preflight created no durable object" || bad "the preflight left a durable object behind"
@@ -210,7 +237,9 @@ has "$E" "| pf-data-str / data | BLOCKER team=dddddddd-4444-4444-a444-4444444444
 has "$E" "| pf-data-arr / data | BLOCKER " "data = array → BLOCKER"
 has "$E" "| pf-data-null / data | BLOCKER " "data = JSON null → BLOCKER"
 has "$E" "Z verdict | Stage A (0009-0013) | 3 hood(s) whose data is not a JSON object must be 0 (3f BLOCKER rows); " "the Stage A verdict counts exactly the three data-not-object hoods as blockers"
-has "$E" "Z verdict | Stage C (0016 arming) | 18 live hood(s) with unusable or invalid outline + 0 overlapping pair(s)" "the Stage C verdict counts the 18 unusable outlines"
+has "$E" "Z verdict | Stage C (0016 arming) | 18 live hood(s) with unusable or invalid outline + 0 overlapping pair(s) + 0 unmeasurable pair(s)" "the Stage C verdict counts the 18 unusable outlines"
+has "$E" "| pf-int8max / 00000000-0000-4000-d000-000000000001 future | review team=dddddddd-4444-4444-a444-444444444444 name=PF int8 max — open entry assignedAt=9223372036854775807 is in the future (beyond the year 9999) — it can only close at or after that instant" "an assignedAt of 9223372036854775807 is a review finding — the survey never formats it as a timestamp"
+lacks "$E" "| pf-int8max / entry #" "and an unassignedAt of 9223372036854775807 is simply a closed entry"
 has "$E" "Z verdict | Activation flip | 4 live hood(s)" "the flip verdict counts the four ghost assignees"
 has "$E" "4 do-not-knock census | totals | pins=4 scalar_dnk=3 has_dnk_knock=1 dnk_with_no_dateable_knock=2 already_tombstoned_black=0 data_not_object=1 history_not_array=2 history_ts_unparseable=1" "pins: history-as-object, data-as-string, ts-as-sentence and history-as-string are each counted"
 P="$(psql -X -v ON_ERROR_STOP=1 -d "$DB" -f "$PSQL_SQL" 2>&1)" || bad "psql-form preflight errored with the malformed fixtures loaded"
@@ -273,7 +302,7 @@ has "$E" "1b LIVE hoods to fix before 0016 | nc-bow" "NEGATIVE CONTROL: the self
 has "$E" "Self-intersection" "NEGATIVE CONTROL: with PostGIS's reason"
 has "$E" "3c ACTIVATION BLOCKER: live hoods with unresolved CURRENT assignee | count | 2 " "NEGATIVE CONTROL: a ghost CURRENT assignee in an entry AND one in a bare scalar both count — the bare scalar is synthesized by the same reader the guard uses"
 has "$E" "3b entries that resolve to no rep (kept as history) | nc-bare-ghost / deadbeef-0000-4000-a000-000000000002" "NEGATIVE CONTROL: and the bare-scalar ghost is named"
-has "$E" "Z verdict | Stage C (0016 arming) | 1 live hood(s) with unusable or invalid outline + 1 overlapping pair(s)" "NEGATIVE CONTROL: the Stage C verdict counts the bowtie and the pair"
+has "$E" "Z verdict | Stage C (0016 arming) | 1 live hood(s) with unusable or invalid outline + 1 overlapping pair(s) + 0 unmeasurable pair(s)" "NEGATIVE CONTROL: the Stage C verdict counts the bowtie and the pair"
 has "$E" "Z verdict | Activation flip | 2 live hood(s)" "NEGATIVE CONTROL: the flip verdict counts both ghosts"
 
 echo "PREFLIGHT: $pass passed, $fail failed"

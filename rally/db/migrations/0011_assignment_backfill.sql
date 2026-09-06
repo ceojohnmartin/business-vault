@@ -67,8 +67,8 @@ begin
            md5((data - 'assignedTo' - 'assignments' - 'updatedAt')::text) as rest_md5,
            /* the reader's own definition of the oldest shape: no usable
               history array, and a scalar assignee to synthesize from */
-           ((jsonb_typeof(data->'assignments') is distinct from 'array'
-             or jsonb_array_length(data->'assignments') = 0)
+           ((case when jsonb_typeof(data->'assignments') = 'array'
+                   then jsonb_array_length(data->'assignments') else 0 end) = 0
             and jsonb_typeof(data) = 'object'
             and coalesce(btrim(data->>'assignedTo'), '') <> '')  as bare_scalar
       from public.territories;

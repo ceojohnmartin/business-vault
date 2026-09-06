@@ -46,19 +46,25 @@
 create or replace function public.rally_overlap_m2(
   a gis.geometry, b gis.geometry)
 returns double precision
-language sql
+language plpgsql
 immutable
 security invoker
 set search_path = ''
 as $$
-  select case
-    when a is null or b is null then 0::double precision
-    when not gis.st_intersects(a, b) then 0::double precision
-    else coalesce(gis.st_area(
+begin
+  if a is null or b is null then return 0; end if;
+  if not gis.st_intersects(a, b) then return 0; end if;
+  return coalesce(gis.st_area(
            gis.st_collectionextract(gis.st_intersection(a, b), 3)::gis.geography),
-         0::double precision)
-  end
-$$;
+         0::double precision);
+exception when others then
+  /* FAIL CLOSED. A pair GEOS or the geography engine cannot measure is not
+     "zero overlap": the write (or the arming) is refused with the reason,
+     never admitted on a guess. The preflight's twin of this measurement
+     lists such a pair as a BLOCKER instead of aborting the survey. */
+  raise exception 'turf overlap could not be measured (%) — refused rather than admitted unmeasured', sqlerrm
+    using errcode = '23514';
+end $$;
 
 comment on function public.rally_overlap_m2(gis.geometry, gis.geometry) is
   'Interior overlap in square metres. Shared edges and point touches measure 0. The single definition used by the preflight, the constraint and the tests.';

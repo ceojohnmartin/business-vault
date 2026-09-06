@@ -71,6 +71,13 @@ echo "v41 staged     turfRpc false after Stage A, true after Stage B  ok"
 
 sh "$DIR/turf-race-test.sh"
 
+# STAGE A IS PROVEN AS THE PASTE THE OWNER RUNS: all-or-nothing, idempotent,
+# verified by db/test/verify-v41-stage-a.editor.sql, v40 still working
+# through it, and reversible by db/ROLLBACK_v41_A.sql.
+SA="$(sh "$DIR/stage-a-test.sh" 2>&1)" || {
+  printf '%s\n' "$SA" | grep -E "FAIL" | head -10; echo "STAGE A: FAILED"; exit 1; }
+printf '%s\n' "$SA" | tail -1
+
 # THE PREFLIGHT IS PROVEN, NOT TRUSTED. Both forms — psql and Supabase SQL
 # Editor — run against a seeded Stage-0 database (shim + 0001..0008 + the v40
 # seed), their ring readers must be byte-identical, and negative controls

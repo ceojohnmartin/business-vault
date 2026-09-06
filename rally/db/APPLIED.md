@@ -22,11 +22,11 @@ Fill these in yourself after running each verification query.
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
 | `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 01:05:18 UTC (APPLY_v39_1.sql; the rebuild stamped every customer row at that instant) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
 | `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS in the dedicated `gis` schema; touches no RALLY object | **PARTIALLY APPLIED** — `create schema gis` + `create extension postgis with schema gis` ran as CUTOVER STEP 0A, 2026-09-05. The `grant usage on schema gis to authenticated` line is **NOT APPLIED** (Stage A gate). | STEP 0A read-only VERIFY: PostGIS 3.3.7, schema `gis`, extension owner `supabase_admin`, schema owner `postgres`, CREATE/USAGE for public/authenticated false/false, 876 extension objects, 0 outside `gis`, every v41 object count in `public` = 0, `smart_split_territory` present, PostgreSQL 17.6 |
-| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **NOT APPLIED** | — |
-| `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **NOT APPLIED** | — |
-| `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **NOT APPLIED** | — |
-| `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **NOT APPLIED** | — |
-| `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **NOT APPLIED** | — |
+| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **READY — in `APPLY_v41_A.sql`, pending the owner's paste** | `stage-a-test.sh` 41 checks; `verify-v41-stage-a.editor.sql` 46 PASS locally |
+| `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **READY — in `APPLY_v41_A.sql`** | as above |
+| `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **READY — in `APPLY_v41_A.sql`** | as above |
+| `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **READY — in `APPLY_v41_A.sql`** | as above |
+| `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **READY — in `APPLY_v41_A.sql`** | as above |
 | `0014_turf_rpcs.sql` | **v41 STAGE B** — `save_territory`, `set_territory_assignments`, `start_territory_cycle`, `clear_pin_dnk` | **NOT APPLIED** | — |
 | `0015_smart_split_v41.sql` | **v41 STAGE B** — the certified 0005 body is RENAMED to `smart_split_territory_core` (no client may execute it); BOTH public names run the wrapper that strips client-planted assignments from the children and derives the inheritance server-side | **NOT APPLIED** | — |
 | `0016_turf_overlap.sql` | **v41 STAGE C** — the deferred overlap constraint + team advisory lock | **NOT APPLIED** | — |
@@ -73,6 +73,79 @@ PostgreSQL 16.13 / PostGIS 3.4.2 (3.3.7 is not packaged for the local host);
 production is 17.6 / 3.3.7. Every PostGIS symbol v41 uses was audited against
 3.3.7 (newest is `ST_ForcePolygonCCW`, 2.4.0) and nothing PostgreSQL-17-
 specific is used.
+
+### STAGE A — the paste, its proof, its verification, its rollback (READY; NOT yet applied)
+
+Approved by the owner on 2026-09-06 after the clean preflight re-run. The
+owner applies it by pasting; no agent has a production connection.
+
+**The paste:** `db/APPLY_v41_A.sql` — `begin;` 0008 (whole file; its one
+live line on production is `grant usage on schema gis to authenticated`)
+→ 0009 → 0010 → 0011 → 0012 → 0013 `commit;`. Regenerated from the
+migration files by `db/build-apply.sh`; the bodies are verbatim.
+
+**The proof:** `sh rally/db/test/stage-a-test.sh` (also run by
+`run-v41-tests.sh`), on a database in production's exact pre-Stage-A state
+(shim, 0001–0007, PostGIS in `gis` WITHOUT the USAGE grant, the v40-shaped
+seed): a copy with a syntax error injected after 0013's last statement
+fails loudly and leaves nothing behind (no column, no table, no trigger, no
+grant, no rewritten row); the real file applies and the verification paste
+reads 0 FAIL; a second run is data-idempotent (ledgers, mirrors, revisions,
+geoms and data outside `updatedAt` byte-identical); v40 still works through
+it (a leader's nine-column PostgREST upsert reassigns a hood via the legacy
+mirror and the ledger follows; a rep knocks; a rep still cannot draw turf;
+a v40 Smart Split through the certified 0005 RPC commits with valid child
+geoms and unassigned children, exactly as v40 produces today); and
+`db/ROLLBACK_v41_A.sql` returns schema and grants to their v40 state with
+data outside the two mirrors byte-identical to before — and the paste
+applies cleanly again afterwards.
+
+**The verification paste:** `db/test/verify-v41-stage-a.editor.sql` —
+one result set, `probe | result | detail`, PASS / `*** FAIL ***` / INFO.
+Sections A (catalog: PostGIS + the grant, the five columns, all 25 Stage A
+functions present and no Stage B/C function, the five triggers enabled and
+no 0016 trigger, both partial indexes, `rally_config` one row with the
+flag FALSE and unreachable by clients, `rally_capabilities()` = flag false
+/ turfRpc false / postgis true, the nine-column INSERT/UPDATE grants and
+nothing server-owned), B (the 0011 proofs restated on the committed state:
+every row has a ledger, no history lost, the scalar / v40-array / uuid[]
+mirrors agree with the ledger on every hood, I1–I3 hold, unresolved entries
+counted, the activation guard would find 0 — without flipping anything),
+C (every live outline has a valid geom; NULL geoms named), D (behavioural,
+rolled back: a leader's v40-shaped upsert commits and leaves the ledger
+untouched; naming `assignees` is refused; a self-crossing new outline is
+refused with the reason; a valid new v40 hood gets geom, ledger and both
+mirrors; a rep cannot draw turf but can knock; the do-not-knock trigger
+neutralises a re-disposition, a tombstone and a forged clear, and skips a
+client `dnk_clear` event). The five 0011 proofs themselves are assertions
+inside the apply transaction — it cannot commit if any fails — so what B
+re-checks is the state they guarantee.
+
+**RUNBOOK (owner):**
+
+1. Preconditions, all done: Step 0A; preflight Stage A CLEAR and Stage C
+   0 + 0 + 0; Hood 2 / Hood 6 A archived and redrawn; approval given.
+2. Maintenance window: no territory administration (assign, draw, split,
+   archive) for the minutes the paste runs. Knocking may continue.
+3. Paste the WHOLE of `db/APPLY_v41_A.sql` into the SQL Editor and run it
+   once. Expected: success with no rows (the last statement is `commit`).
+   The 0011 proof NOTICEs are not shown by the editor; the verification
+   paste re-checks the state they guarantee. On ANY error: nothing was
+   applied (one transaction) — paste the error back, do not retry blindly.
+4. Paste the WHOLE of `db/test/verify-v41-stage-a.editor.sql`. Expected:
+   about 46 rows, 0 `*** FAIL ***`. The B1 INFO row should read
+   `entries=12` (the preflight's kept 12 + synthesized 0). Paste every row
+   back.
+5. v40 smoke on real phones: a leader renames a hood and sees it on a
+   second device; a leader reassigns a hood; a rep knocks a door; no
+   sync refusals shown. Expect one pull wave: every hood row was touched.
+6. STOP. Stage B (0014 → 0015, then the v41 client publish) waits for a
+   separate approval.
+
+**Rollback:** `db/ROLLBACK_v41_A.sql`, one paste, one transaction — only if
+Stage A must be withdrawn before Stage B. Proven above. It drops every
+Stage A object, restores 0001's table-level insert/update grant and revokes
+gis USAGE; `data.assignments` keeps the assignment record in the v40 shape.
 
 ### PRODUCTION PREFLIGHT — run 2026-09-06 (read-only; nothing applied)
 

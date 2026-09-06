@@ -21,30 +21,31 @@ Fill these in yourself after running each verification query.
 | `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 7, 8, 9 PASS |
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
 | `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 01:05:18 UTC (APPLY_v39_1.sql; the rebuild stamped every customer row at that instant) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
-| `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS in the dedicated `gis` schema; touches no RALLY object | **PARTIALLY APPLIED** — `create schema gis` + `create extension postgis with schema gis` ran as CUTOVER STEP 0A, 2026-09-05. The `grant usage on schema gis to authenticated` line is **NOT APPLIED** (Stage A gate). | STEP 0A read-only VERIFY: PostGIS 3.3.7, schema `gis`, extension owner `supabase_admin`, schema owner `postgres`, CREATE/USAGE for public/authenticated false/false, 876 extension objects, 0 outside `gis`, every v41 object count in `public` = 0, `smart_split_territory` present, PostgreSQL 17.6 |
-| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **READY — in `APPLY_v41_A.sql`, pending the owner's paste** | `stage-a-test.sh` 44 checks; `verify-v41-stage-a.editor.sql` 54 PASS locally |
-| `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **READY — in `APPLY_v41_A.sql`** | as above |
-| `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **READY — in `APPLY_v41_A.sql`** | as above |
-| `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **READY — in `APPLY_v41_A.sql`** | as above |
-| `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **READY — in `APPLY_v41_A.sql`** | as above |
+| `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS in the dedicated `gis` schema; touches no RALLY object | **APPLIED** — `create schema gis` + `create extension postgis with schema gis` ran as CUTOVER STEP 0A, 2026-09-05; the `grant usage on schema gis to authenticated` line ran inside the Stage A transaction, 2026-09-06 20:44 UTC. | STEP 0A read-only VERIFY: PostGIS 3.3.7, schema `gis`, extension owner `supabase_admin`, schema owner `postgres`, CREATE/USAGE for public/authenticated false/false, 876 extension objects, 0 outside `gis`, every v41 object count in `public` = 0, `smart_split_territory` present, PostgreSQL 17.6 |
+| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **APPLIED** — 2026-09-06 20:44 UTC, in the ONE Stage A transaction (`APPLY_v41_A.sql` at `04d22d3`, md5-guarded; see STAGE A — APPLIED below) | production `verify-v41-stage-a.editor.sql`: 54 PASS, 4 INFO, 0 FAIL; all 25 function bodies md5-identical to the local proof |
+| `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **APPLIED** — same transaction | as above |
+| `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **APPLIED** — same transaction; the five proofs held (the transaction could not have committed otherwise) and are restated PASS in B2–B6 | as above |
+| `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **APPLIED** — same transaction | as above |
+| `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **APPLIED** — same transaction; trigger armed for v40 phones (D7 PASS on production) | as above |
 | `0014_turf_rpcs.sql` | **v41 STAGE B** — `save_territory`, `set_territory_assignments`, `start_territory_cycle`, `clear_pin_dnk` | **NOT APPLIED** | — |
 | `0015_smart_split_v41.sql` | **v41 STAGE B** — the certified 0005 body is RENAMED to `smart_split_territory_core` (no client may execute it); BOTH public names run the wrapper that strips client-planted assignments from the children and derives the inheritance server-side | **NOT APPLIED** | — |
 | `0016_turf_overlap.sql` | **v41 STAGE C** — the deferred overlap constraint + team advisory lock | **NOT APPLIED** | — |
 
-## v41 — authored, proven locally, NOT applied anywhere
+## v41 — Stage A APPLIED; Stage B, Stage C, the flip and the publish NOT done
 
-**Nothing in 0008–0016 has been run against the live project, and v41 has not
-been published.** Production is still Build v40 on `main` at `437893e`, with
-0001–0007 live. The whole v41 set is proven only against a throwaway local
+**Stage A (0008's grant + 0009–0013) is live on production since 2026-09-06
+20:44 UTC. 0014–0016 have NOT been run, the flag is FALSE, and v41 has not
+been published.** Production phones still run Build v40 from `main` at
+`437893e`, with 0001–0007 and Stage A live. The whole v41 set is proven only against a throwaway local
 PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 
 ### The staged order, and the STOP gate on each stage
 
 | Stage | Files | Gate before the NEXT stage |
 |---|---|---|
-| **0** | `0008` | **DONE for the schema + extension (CUTOVER 0A).** The USAGE grant in 0008 is the remaining line and is applied with Stage A. Schema is `gis`, recorded below. |
+| **0** | `0008` | **DONE.** Schema + extension at CUTOVER 0A; the USAGE grant went in with Stage A. Schema is `gis`, recorded below. |
 | **0.5** | `db/preflight/v41-preflight.sql` — read-only, creates no durable object | **Review every section.** It reports unusable outlines, existing overlaps, the full assignment census across live/archived/tombstoned/split-parent hoods, unresolvable assignees, duplicate open entries, and the do-not-knock and unlinked-customer counts. |
-| **A** | `0009` → `0010` → `0011` → `0012` → `0013` | All five backfill proofs in 0011 must pass (they abort the transaction otherwise). The do-not-knock trigger is armed here on purpose: it protects v40 phones too. |
+| **A** | `0009` → `0010` → `0011` → `0012` → `0013` | **DONE 2026-09-06 (record below).** All five backfill proofs in 0011 must pass (they abort the transaction otherwise). The do-not-knock trigger is armed here on purpose: it protects v40 phones too. |
 | **B** | `0014` → `0015` | The v41 client must be deployed and its `applyTerritories` server-owned merge live BEFORE the flip, or the server would own a field no device can receive. |
 | **C** | `0016`, then — **separately** — the flip | 0016 refuses to arm while any live hood has an unusable outline. The flip is not a file: it is one reviewed statement, `update public.rally_config set assignment_server_authoritative = true;`. It is also GATED: `rally_config_guard` refuses it while any live hood still names a current assignee who is no rep on their team, because that hood would read as unassigned the moment clients trust the server's ledger. |
 
@@ -74,10 +75,13 @@ production is 17.6 / 3.3.7. Every PostGIS symbol v41 uses was audited against
 3.3.7 (newest is `ST_ForcePolygonCCW`, 2.4.0) and nothing PostgreSQL-17-
 specific is used.
 
-### STAGE A — the paste, its proof, its verification, its rollback (READY; NOT yet applied)
+### STAGE A — the paste, its proof, its verification, its rollback (APPLIED 2026-09-06; record in the next section)
 
-Approved by the owner on 2026-09-06 after the clean preflight re-run. The
-owner applies it by pasting; no agent has a production connection.
+Approved by the owner on 2026-09-06 after the clean preflight re-run, and
+applied the same day through the Supabase connector (not the SQL Editor) —
+the transport is recorded in STAGE A — APPLIED below. Everything in this
+section was written before the apply and is kept as the reference for what
+was run.
 
 **The paste:** `db/APPLY_v41_A.sql` — `begin;` 0008 (whole file; its one
 live line on production is `grant usage on schema gis to authenticated`)
@@ -223,6 +227,75 @@ returned 19 rows. Recorded verbatim from the owner's paste:
 outline editor for an existing hood: archive each, draw its replacement with
 "tap corners", assign it), re-run the same preflight, and go to Stage A only
 when Stage C reads 0 + 0 + 0. No SQL touches those rows; no ST_MakeValid.
+
+### PRODUCTION PREFLIGHT — RE-RUN after the in-app fix (read-only)
+
+Same editor form, after the owner archived Hood 2 and Hood 6 A in v40 and
+drew their replacements with "tap corners":
+
+- `1a`: 22 hoods — 16 LIVE, 4 tombstoned, 2 archived. `1b`: (none) — every
+  live outline usable, 16/16.
+- `2`: 0 overlapping pairs, 0 unmeasurable pairs.
+- `3a`: raw_entries=12 kept=12 dropped_elements=0 ledger_entries=12 open=12;
+  every other counter 0. `3b`–`3f`: (none) / 0.
+- `Z verdict`: Stage A CLEAR (0 + 0). **Stage C 0 + 0 + 0.** Flip: 0.
+- The two archived originals (`mteqdmjjcarnneu`, `mtm1yzcf95wxp66`) keep
+  their self-crossing rings; archived, they block nothing.
+
+The owner then approved Stage A only.
+
+### STAGE A — APPLIED to production, 2026-09-06 20:44 UTC
+
+**Transport.** The Supabase connector (`execute_sql`, role `postgres`,
+project `xwjreykfjzvlmgjzfnzt`) became available in the session, so the
+apply was NOT an owner paste. To keep the run byte-faithful to the reviewed
+file, `db/APPLY_v41_A.sql` at `04d22d3` was sent as ONE statement: a `do`
+wrapper holding the whole script in a dollar-quoted string, which
+`raise exception`s unless `md5(btrim(body))` equals the md5 computed from
+the file on disk, and only then `execute`s it. A transcription error in
+transit could therefore only refuse, never apply something else. The
+wrapper's own `begin`/`commit` lines are dropped because a `do` block runs
+inside the statement's transaction — atomicity is preserved (the connector
+runs one statement in one transaction). Result: no error, no rows.
+
+**Production state after the apply (read-only):** `territories` has the
+five new columns (`geom`, `assignees`, `assigned_to`, `assigned_to_all`,
+`assignees_uuid`); `rally_config` one row, flag FALSE; gis USAGE for
+`authenticated` TRUE; the 0001 table-wide INSERT/UPDATE grants replaced by
+the nine-column grants; 5 triggers enabled, 2 partial indexes; 22 hoods;
+ledger entries 12 / open 12 / unresolved 0; 16 live hoods with a valid
+geom; NULL geom only on the two archived originals; guard count 0;
+`rally_capabilities()` = `{postgis true, turfRpc false,
+assignmentServerAuthoritative false}`; anon can execute 0 Stage A
+functions.
+
+**Function-body identity:** the `prosrc` md5 of every one of the 25 Stage A
+functions on production equals the md5 of the same function on the local
+proof database (`stage-a-test.sh`'s post-apply state). What was proven
+locally is byte-for-byte what runs on production.
+
+**Verification paste on production** (`verify-v41-stage-a.editor.sql`,
+sent through the same md5-guarded wrapper): 58 rows — **54 PASS, 4 INFO,
+0 FAIL.** The INFO rows: B1 `hoods=22 entries=12 open=12
+unresolved_tagged=0` (= the preflight census, kept 12 + synthesized 0);
+B5 `0 tagged`; C1 `(none)`; C2 `Hood 6 A [mtm1yzcf95wxp66], Hood 2
+[mteqdmjjcarnneu]` (the expected two). Section D ran its rolled-back
+probes on team `c6c003c8-efc1-4286-a5dd-8b08d4753709`, hood
+`mteqbadr6ixcxzp` "Hood 1"; D9's Smart Split through the certified 0005
+RPC reported `committed` with valid child geoms and unassigned children
+(v40 behaviour) before rolling back; D10 probed the upsert escape on
+`mteqdmjjcarnneu`. Every D probe left no trace (each ends in rollback;
+the post-state counts above were taken afterwards).
+
+**Still owed by the owner (runbook step 5):** the v40 smoke on real
+phones — rename seen on a second device, a reassignment, a rep knock, no
+sync refusals; one pull wave is expected. And the leader briefing above.
+
+**Rollback** remains `db/ROLLBACK_v41_A.sql`, proven; only if Stage A must
+be withdrawn before Stage B.
+
+**NOT done, by instruction:** 0014, 0015, 0016, the activation flip, the
+v41 client publish, the merge to `main`.
 
 ### Local proof — re-run 2026-09-05 with PostGIS homed in `gis`
 

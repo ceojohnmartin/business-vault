@@ -92,8 +92,8 @@ on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
   next section).
 - `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
   re-run with 0008–0016 applied: RLS 283, RACE 11, SPLIT RACE 11, MIRROR 182, PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
-- `sh rally/tests/run-all.sh` — the browser battery, re-run PENDING at this commit — result recorded in the next commit (re-run
-  after review round 2; no client file changed).
+- `sh rally/tests/run-all.sh` — the browser battery, 24 suite runs, 1,212
+  checks, 0 failing (re-run after review round 2; no client file changed).
 
 ### The preflight, for the Supabase SQL Editor — TOTAL over legacy JSON
 

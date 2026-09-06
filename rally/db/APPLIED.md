@@ -61,6 +61,7 @@ PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 | Extension objects outside `gis` | **0** of 876 | STEP 0A VERIFY 5b |
 | v41 objects in `public` after 0A | columns 0 · tables 0 · functions 0 · triggers 0 · indexes 0 | STEP 0A VERIFY 6 |
 | PostgreSQL server | 17.6 | STEP 0A VERIFY 9 |
+| PostGIS build line (production) | PostGIS 3.3.7 · **GEOS 3.14.1 · PROJ 9.7.1** (local proof: PostGIS 3.4.2) | production preflight, `0 env / postgis_full_version`, 2026-09-06 |
 
 Every v41 file (0009, 0016, the preflight, the SQL tests, the race test)
 qualifies PostGIS as **`gis.`**. The earlier authored form said `extensions.`
@@ -72,6 +73,35 @@ PostgreSQL 16.13 / PostGIS 3.4.2 (3.3.7 is not packaged for the local host);
 production is 17.6 / 3.3.7. Every PostGIS symbol v41 uses was audited against
 3.3.7 (newest is `ST_ForcePolygonCCW`, 2.4.0) and nothing PostgreSQL-17-
 specific is used.
+
+### PRODUCTION PREFLIGHT — run 2026-09-06 (read-only; nothing applied)
+
+The editor form at `2725942` ran against production with no SQL error and
+returned 19 rows. Recorded verbatim from the owner's paste:
+
+- `0 env`: schema=gis version=3.3.7 owner=supabase_admin; GEOS 3.14.1, PROJ 9.7.1.
+- `1a`: 18 hoods — 14 LIVE, 4 tombstoned, 0 archived.
+- `1b` (LIVE hoods to fix before 0016): **2** — `mteqdmjjcarnneu` "Hood 2",
+  reason `Self-intersection[-90.8332010941214 30.3209866907733]`; and
+  `mtm1yzcf95wxp66` "Hood 6 A", reason
+  `Self-intersection[-90.7901513465947 30.2953784317262]`. Both outlines are
+  READABLE (every corner a numeric pair, in range) but PostGIS-INVALID: one
+  edge crosses another at the point named. 0009 would store a NULL geom for
+  each; 0016 refuses to arm while either is live.
+- `2`: 0 overlapping pairs, 0 unmeasurable pairs.
+- `3a`: hoods=18 raw_entries=8 kept=8 dropped_elements=0 ledger_entries=8
+  open=8 synthesized_from_assignedTo=0 timestamps_normalised=0
+  dedupe_closed=0 assignments_not_array=0 data_not_object=0
+  updatedAt_unreadable=0 local_device_ids=0 foreign_or_missing_profile=0
+  disabled_users=0 missing_assignedBy=0.
+- `3b`/`3d`/`3e`/`3f`: (none). `3c`: 0.
+- `Z verdict`: **Stage A CLEAR** (0 blockers, 0 to review). Stage C: 2 + 0 + 0.
+  Activation flip: 0.
+
+**Owner's decision:** fix Hood 2 and Hood 6 A in the app first (v40 has no
+outline editor for an existing hood: archive each, draw its replacement with
+"tap corners", assign it), re-run the same preflight, and go to Stage A only
+when Stage C reads 0 + 0 + 0. No SQL touches those rows; no ST_MakeValid.
 
 ### Local proof — re-run 2026-09-05 with PostGIS homed in `gis`
 

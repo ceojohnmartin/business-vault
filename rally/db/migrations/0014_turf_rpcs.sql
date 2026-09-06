@@ -424,14 +424,14 @@ end $$;
 
 -- ------------------------------------------------------------------ grants ---
 
-revoke execute on function public.rally_require_leader()                    from public;
-revoke execute on function public.rally_my_team()                           from public;
-revoke execute on function public.rally_diff_assignees(jsonb, uuid[], uuid, uuid, bigint, jsonb) from public;
-revoke execute on function public.rally_validate_assignees(uuid[], uuid)    from public;
-revoke execute on function public.set_territory_assignments(text, uuid[], text) from public;
-revoke execute on function public.save_territory(text, text, jsonb, integer, boolean, uuid[], text) from public;
-revoke execute on function public.start_territory_cycle(text, timestamptz, text) from public;
-revoke execute on function public.clear_pin_dnk(text, text, text)           from public;
+revoke all on function public.rally_require_leader()                    from public, anon;
+revoke all on function public.rally_my_team()                           from public, anon;
+revoke all on function public.rally_diff_assignees(jsonb, uuid[], uuid, uuid, bigint, jsonb) from public, anon;
+revoke all on function public.rally_validate_assignees(uuid[], uuid)    from public, anon;
+revoke all on function public.set_territory_assignments(text, uuid[], text) from public, anon;
+revoke all on function public.save_territory(text, text, jsonb, integer, boolean, uuid[], text) from public, anon;
+revoke all on function public.start_territory_cycle(text, timestamptz, text) from public, anon;
+revoke all on function public.clear_pin_dnk(text, text, text)           from public, anon;
 
 grant execute on function public.set_territory_assignments(text, uuid[], text) to authenticated;
 grant execute on function public.save_territory(text, text, jsonb, integer, boolean, uuid[], text) to authenticated;

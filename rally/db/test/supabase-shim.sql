@@ -40,6 +40,12 @@ grant execute on function auth.uid() to anon, authenticated;
 -- than passing vacuously.
 grant usage on schema public to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
+-- and on FUNCTIONS: supabase/postgres initial-schema.sql line
+-- `alter default privileges in schema public grant all on functions to
+-- postgres, anon, authenticated, service_role` — every function a migration
+-- creates is anon-executable unless the migration revokes it explicitly
+-- (`from public` alone does not remove an explicit grantee)
+alter default privileges in schema public grant all on functions to anon, authenticated;
 
 -- realtime schema stand-in (Phase 3): the messages table RLS policies
 -- attach to, the topic() helper reading the per-join GUC the way

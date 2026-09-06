@@ -83,7 +83,9 @@ as $$
   )
 $$;
 
-revoke execute on function public.rally_capabilities() from public;
+-- 0005's form: Supabase's default function privileges give anon an
+-- EXPLICIT execute entry at creation, which `from public` leaves in place
+revoke all on function public.rally_capabilities() from public, anon;
 grant execute on function public.rally_capabilities() to authenticated;
 
 -- ------------------------------------------------------ the total readers ---
@@ -775,6 +777,30 @@ begin
   new.updated_at := now();
   return new;
 end $$;
+
+/* GRANTS. Every function above is created under Supabase's default
+   function privileges (EXECUTE to anon, authenticated, service_role). The
+   readers and the ledger helpers are called INSIDE the SECURITY INVOKER
+   assignment trigger as the writing client, so authenticated keeps EXECUTE
+   on them; anon never writes and gets none. The two that must not be
+   client-callable at all: the guard's counter (SECURITY DEFINER, reads
+   every team) and the trigger functions themselves. */
+revoke all on function public.rally_ms(text)                                        from public, anon;
+revoke all on function public.rally_uid(text)                                       from public, anon;
+revoke all on function public.rally_uid_uuid(text)                                  from public, anon;
+revoke all on function public.rally_sort_entries(jsonb)                             from public, anon;
+revoke all on function public.rally_open_entries(jsonb)                             from public, anon;
+revoke all on function public.rally_first_open_assignee(jsonb)                      from public, anon;
+revoke all on function public.rally_open_uuids(jsonb, uuid)                         from public, anon;
+revoke all on function public.rally_mirror_assignments(jsonb)                       from public, anon;
+revoke all on function public.rally_assert_ledger(jsonb, jsonb)                     from public, anon;
+revoke all on function public.rally_keep_closed_history(jsonb, jsonb)               from public, anon;
+revoke all on function public.rally_merge_provenance(jsonb, jsonb)                  from public, anon;
+revoke all on function public.rally_legacy_to_entries(jsonb, timestamptz, jsonb)    from public, anon;
+revoke all on function public.rally_close_duplicate_opens(jsonb)                    from public, anon;
+revoke all on function public.territories_assignment()                              from public, anon, authenticated;
+revoke all on function public.rally_unresolved_live_assignments()                   from public, anon, authenticated;
+revoke all on function public.rally_config_guard()                                  from public, anon, authenticated;
 
 drop trigger if exists rally_config_guard on public.rally_config;
 create trigger rally_config_guard

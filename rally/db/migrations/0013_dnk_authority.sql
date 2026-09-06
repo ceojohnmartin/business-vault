@@ -231,5 +231,12 @@ create trigger pins_protect_dnk
   before insert or update on public.pins
   for each row execute function public.pins_protect_dnk();
 
+-- grants: Supabase's default function privileges (see 0010); the two
+-- readers run inside the SECURITY INVOKER trigger as the writing client
+revoke all on function public.rally_dnk_from_history(jsonb)           from public, anon;
+revoke all on function public.rally_strip_forged_clears(jsonb, jsonb) from public, anon;
+revoke all on function public.events_guard_dnk_clear()                from public, anon, authenticated;
+revoke all on function public.pins_protect_dnk()                      from public, anon, authenticated;
+
 comment on function public.pins_protect_dnk() is
   'Version-blind do-not-knock authority. Neutralises (never refuses) a non-RPC attempt to change a black door away from dnk or to tombstone it, preserves the rest of the write, and stamps data.updatedAt above the incoming value so the client converges.';

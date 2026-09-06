@@ -22,7 +22,7 @@ Fill these in yourself after running each verification query.
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
 | `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 01:05:18 UTC (APPLY_v39_1.sql; the rebuild stamped every customer row at that instant) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
 | `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS in the dedicated `gis` schema; touches no RALLY object | **PARTIALLY APPLIED** — `create schema gis` + `create extension postgis with schema gis` ran as CUTOVER STEP 0A, 2026-09-05. The `grant usage on schema gis to authenticated` line is **NOT APPLIED** (Stage A gate). | STEP 0A read-only VERIFY: PostGIS 3.3.7, schema `gis`, extension owner `supabase_admin`, schema owner `postgres`, CREATE/USAGE for public/authenticated false/false, 876 extension objects, 0 outside `gis`, every v41 object count in `public` = 0, `smart_split_territory` present, PostgreSQL 17.6 |
-| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **READY — in `APPLY_v41_A.sql`, pending the owner's paste** | `stage-a-test.sh` 41 checks; `verify-v41-stage-a.editor.sql` 46 PASS locally |
+| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **READY — in `APPLY_v41_A.sql`, pending the owner's paste** | `stage-a-test.sh` 44 checks; `verify-v41-stage-a.editor.sql` 54 PASS locally |
 | `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **READY — in `APPLY_v41_A.sql`** | as above |
 | `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **READY — in `APPLY_v41_A.sql`** | as above |
 | `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **READY — in `APPLY_v41_A.sql`** | as above |
@@ -125,13 +125,20 @@ re-checks is the state they guarantee.
 
 1. Preconditions, all done: Step 0A; preflight Stage A CLEAR and Stage C
    0 + 0 + 0; Hood 2 / Hood 6 A archived and redrawn; approval given.
-2. Maintenance window: no territory administration (assign, draw, split,
-   archive) for the minutes the paste runs. Knocking may continue.
+2. Maintenance window: every leader phone shows More = synced (0 to sync,
+   0 refused) BEFORE the paste — an offline hood edit still queued on a
+   phone would be discarded on its first pull if the backfill restamped
+   that hood. No territory administration (assign, draw, split, archive)
+   until the post-paste pull completes. Knocking may continue.
 3. Paste the WHOLE of `db/APPLY_v41_A.sql` into the SQL Editor and run it
    once. Expected: success with no rows (the last statement is `commit`).
    The 0011 proof NOTICEs are not shown by the editor; the verification
-   paste re-checks the state they guarantee. On ANY error: nothing was
+   paste re-checks the state they guarantee. On a SQL error: nothing was
    applied (one transaction) — paste the error back, do not retry blindly.
+   On a NON-SQL error (network, timeout, tab reload) the outcome is
+   unknown: run the verification paste first — its section A says whether
+   Stage A committed. Re-running the apply is safe either way (proven
+   data-idempotent; the cost is one more `updated_at` pull wave).
 4. Paste the WHOLE of `db/test/verify-v41-stage-a.editor.sql`. Expected:
    about 46 rows, 0 `*** FAIL ***`. The B1 INFO row should read
    `entries=12` (the preflight's kept 12 + synthesized 0). Paste every row
@@ -141,6 +148,47 @@ re-checks is the state they guarantee.
    sync refusals shown. Expect one pull wave: every hood row was touched.
 6. STOP. Stage B (0014 → 0015, then the v41 client publish) waits for a
    separate approval.
+
+**What changes for v40 phones after Stage A (brief the leaders):**
+
+- A hood whose boundary crosses itself is REFUSED when a v40 phone pushes
+  it (0009: no shape repair, ever). v40 shows only "refused by the server"
+  under More, with no reason; the hood then exists only on that phone and
+  its doors go up without a hood. Before Stage A such a hood synced (and
+  was measured by nobody). Draw with "tap corners"; if More shows a
+  refusal, redraw the hood.
+- A v40 Smart Split whose cut line severs a concave (U/L-shaped) hood into
+  a self-overlapping child is refused whole: the toast says the hood was
+  not split and it stays live, unchanged. Split convex hoods, or wait for
+  the v41 client, which validates children first.
+- An archived hood with an unusable outline (the two originals of Hood 2
+  and Hood 6 A) can still be renamed or touched by a v40 phone; bringing it
+  back live is refused until the ring is fixed (proven on the upsert's
+  INSERT arm too, G23 / D10).
+- One pull wave: every hood row's `updated_at` moves once.
+- Only `authenticated` and the owner may write territories after Stage A:
+  gis USAGE is granted to `authenticated` alone, and 0009's SECURITY
+  INVOKER trigger names `gis.geometry`. A future adapter/service role must
+  first be granted USAGE on `gis` (decision recorded, not broadened).
+
+**Review round 3 (adversarial review of the Stage A artifacts, 2026-09-06)
+— two defects fixed before anything was pasted:**
+
+1. Supabase's project default `alter default privileges in schema public
+   grant all on functions to postgres, anon, authenticated, service_role`
+   (confirmed on production read-only) hands anon EXECUTE on every new
+   public function, and `revoke … from public` does not remove that
+   explicit entry — 0005 already used `from public, anon`. 0009/0010/0013
+   now revoke anon on every Stage A function, and revoke authenticated on
+   the SECURITY DEFINER guard counter and the trigger functions; 0014's
+   revokes were corrected the same way for Stage B. The local shim now
+   models the function default, so `stage-a-test.sh` proves the revokes.
+2. The v40 client's push is `INSERT … ON CONFLICT DO UPDATE`, and a BEFORE
+   INSERT trigger fires on the proposed row BEFORE the conflict is
+   detected. 0009's "existing broken ring keeps its NULL geom" escape was
+   guarded by `tg_op = 'UPDATE'`, so a v40 rename of an archived bowtie
+   would have been refused. The trigger now looks the existing row up by
+   key on the INSERT arm and applies the same rules (G23, D10).
 
 **Rollback:** `db/ROLLBACK_v41_A.sql`, one paste, one transaction — only if
 Stage A must be withdrawn before Stage B. Proven above. It drops every
@@ -182,7 +230,7 @@ Every database proof below was re-run AFTER the `extensions.` → `gis.` rewrite
 on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
 0008 into `gis` (verified per test database: `3.4.2 in gis`).
 
-- `sh rally/db/test/run-v41-tests.sh` — 179 SQL checks over a v40-shaped
+- `sh rally/db/test/run-v41-tests.sh` — 181 SQL checks over a v40-shaped
   seed of 16 hoods (live, bare-scalar, archived, tombstoned, duplicate-open at
   distinct and at the SAME instant, a run that ends before it starts, a
   missing assignedAt, createdAt 0, a 36-hex non-uuid, an upper-case uuid,

@@ -78,7 +78,8 @@ begin
                   where e->>'unassignedAt' is null);
 end $$;
 
-revoke execute on function public.rally_split_inherit(text, text[], text) from public;
+-- an internal (see 0010 on Supabase's default function privileges): shut to every client role
+revoke all on function public.rally_split_inherit(text, text[], text) from public, anon, authenticated;
 
 /* WIRING, and why the certified 0005 body is RENAMED rather than wrapped
    alongside.

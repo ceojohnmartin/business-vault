@@ -309,16 +309,42 @@ declare
   v_geom    gis.geometry;
   v_problem text;
   v_reason  text;
+  /* THE ROW THIS WRITE IS ABOUT. On an UPDATE that is OLD. On the INSERT
+     arm of a PostgREST upsert — INSERT ... ON CONFLICT (team_id, id) DO
+     UPDATE, which is how EVERY client write arrives — this trigger fires on
+     the proposed row BEFORE the conflict is detected, with tg_op = 'INSERT'
+     and no OLD, even though the hood already exists. The existing row is
+     looked up by key so the escapes below judge the write by what is
+     already stored, exactly as the UPDATE arm does; the UPDATE arm then
+     runs too, with the real OLD. (SECURITY INVOKER + table-wide SELECT +
+     0003's team policy: a leader sees their own team's row.) */
+  v_prior_polygon    jsonb;
+  v_prior_live       boolean;
+  v_prior_exists     boolean := false;
   /* The escape for an EXISTING broken ring is granted only while the row is
      not BECOMING live. Archiving or tombstoning a broken hood takes it out
      of turf and is allowed with the ring untouched; un-archiving or
      un-deleting it back INTO live turf is refused until the ring is fixed —
      otherwise a hood could walk into the overlap invariant with a NULL geom
      the index never sees. */
-  v_becoming_live boolean := tg_op = 'UPDATE'
-    and (new.deleted_at is null and not new.archived)
-    and not (old.deleted_at is null and not old.archived);
+  v_becoming_live    boolean;
+  v_ring_unchanged   boolean;
 begin
+  if tg_op = 'UPDATE' then
+    v_prior_exists  := true;
+    v_prior_polygon := old.polygon;
+    v_prior_live    := old.deleted_at is null and not old.archived;
+  else
+    select t.polygon, (t.deleted_at is null and not t.archived)
+      into v_prior_polygon, v_prior_live
+      from public.territories t
+     where t.team_id = new.team_id and t.id = new.id;
+    v_prior_exists := found;
+  end if;
+  v_ring_unchanged := v_prior_exists and v_prior_polygon is not distinct from new.polygon;
+  v_becoming_live  := v_prior_exists
+    and (new.deleted_at is null and not new.archived)
+    and not v_prior_live;
   -- a tombstoned hood is not somewhere anyone is sent to work; its outline
   -- is history and is left exactly as it is. Becoming live again is a
   -- different question, and is answered by the liveness test below.
@@ -341,8 +367,7 @@ begin
     -- An EXISTING row whose ring was already unusable keeps its NULL and
     -- is surfaced by the preflight instead of blocking every unrelated
     -- write to it. A row arriving with a NEW unusable ring is refused.
-    if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon
-       and not v_becoming_live then
+    if v_ring_unchanged and not v_becoming_live then
       new.geom := null;
       return new;
     end if;
@@ -367,8 +392,7 @@ begin
        against anything. That is a hole in the overlap invariant, opened by
        two ordinary writes. Retiring the hood (archive, tombstone) is the
        opposite direction and is always allowed. */
-    if tg_op = 'UPDATE' and old.polygon is not distinct from new.polygon
-       and not v_becoming_live then
+    if v_ring_unchanged and not v_becoming_live then
       new.geom := null;
       return new;
     end if;
@@ -395,6 +419,18 @@ create trigger territories_derive_geom
    repeat the predicate LITERALLY — `not archived` is semantically equal but
    is not reliably recognised by the planner as implying it, and the query
    then falls back to a sequential scan. */
+/* GRANTS. Supabase's project defaults (`alter default privileges in schema
+   public grant all on functions to postgres, anon, authenticated,
+   service_role`) hand EXECUTE on every new public function to anon at
+   creation, and `revoke ... from public` does not touch that explicit
+   entry — 0005 learned this. The reader is called INSIDE the SECURITY
+   INVOKER trigger as the writing client (authenticated), so authenticated
+   keeps EXECUTE; anon never writes turf and gets none. */
+revoke all on function public.rally_ring_read(jsonb)        from public, anon;
+revoke all on function public.rally_ring_to_geom(jsonb)     from public, anon;
+revoke all on function public.rally_ring_problem(jsonb)     from public, anon;
+revoke all on function public.territories_derive_geom()     from public, anon, authenticated;
+
 create index if not exists territories_geom_live_gist
   on public.territories using gist (geom)
   where deleted_at is null and archived = false;
@@ -490,7 +526,9 @@ as $$
   )
 $$;
 
-revoke execute on function public.rally_capabilities() from public;
+-- 0005's form: Supabase's default function privileges give anon an
+-- EXPLICIT execute entry at creation, which `from public` leaves in place
+revoke all on function public.rally_capabilities() from public, anon;
 grant execute on function public.rally_capabilities() to authenticated;
 
 -- ------------------------------------------------------ the total readers ---
@@ -1183,6 +1221,30 @@ begin
   return new;
 end $$;
 
+/* GRANTS. Every function above is created under Supabase's default
+   function privileges (EXECUTE to anon, authenticated, service_role). The
+   readers and the ledger helpers are called INSIDE the SECURITY INVOKER
+   assignment trigger as the writing client, so authenticated keeps EXECUTE
+   on them; anon never writes and gets none. The two that must not be
+   client-callable at all: the guard's counter (SECURITY DEFINER, reads
+   every team) and the trigger functions themselves. */
+revoke all on function public.rally_ms(text)                                        from public, anon;
+revoke all on function public.rally_uid(text)                                       from public, anon;
+revoke all on function public.rally_uid_uuid(text)                                  from public, anon;
+revoke all on function public.rally_sort_entries(jsonb)                             from public, anon;
+revoke all on function public.rally_open_entries(jsonb)                             from public, anon;
+revoke all on function public.rally_first_open_assignee(jsonb)                      from public, anon;
+revoke all on function public.rally_open_uuids(jsonb, uuid)                         from public, anon;
+revoke all on function public.rally_mirror_assignments(jsonb)                       from public, anon;
+revoke all on function public.rally_assert_ledger(jsonb, jsonb)                     from public, anon;
+revoke all on function public.rally_keep_closed_history(jsonb, jsonb)               from public, anon;
+revoke all on function public.rally_merge_provenance(jsonb, jsonb)                  from public, anon;
+revoke all on function public.rally_legacy_to_entries(jsonb, timestamptz, jsonb)    from public, anon;
+revoke all on function public.rally_close_duplicate_opens(jsonb)                    from public, anon;
+revoke all on function public.territories_assignment()                              from public, anon, authenticated;
+revoke all on function public.rally_unresolved_live_assignments()                   from public, anon, authenticated;
+revoke all on function public.rally_config_guard()                                  from public, anon, authenticated;
+
 drop trigger if exists rally_config_guard on public.rally_config;
 create trigger rally_config_guard
   before insert or update on public.rally_config
@@ -1697,6 +1759,13 @@ drop trigger if exists pins_protect_dnk on public.pins;
 create trigger pins_protect_dnk
   before insert or update on public.pins
   for each row execute function public.pins_protect_dnk();
+
+-- grants: Supabase's default function privileges (see 0010); the two
+-- readers run inside the SECURITY INVOKER trigger as the writing client
+revoke all on function public.rally_dnk_from_history(jsonb)           from public, anon;
+revoke all on function public.rally_strip_forged_clears(jsonb, jsonb) from public, anon;
+revoke all on function public.events_guard_dnk_clear()                from public, anon, authenticated;
+revoke all on function public.pins_protect_dnk()                      from public, anon, authenticated;
 
 comment on function public.pins_protect_dnk() is
   'Version-blind do-not-knock authority. Neutralises (never refuses) a non-RPC attempt to change a black door away from dnk or to tombstone it, preserves the rest of the write, and stamps data.updatedAt above the incoming value so the client converges.';

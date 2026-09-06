@@ -1074,6 +1074,32 @@ select t_assert((select name from public.territories where id='bf-dup-same') = '
   'X20b under legacy authority the same shape, with an unreadable timestamp beside it, is accepted and normalised');
 reset role;
 
+-- the INSERT arm of a PostgREST upsert fires BEFORE the conflict is found:
+-- an existing broken ring must still be writable untouched, and still not
+-- brought back live, through that arm
+-- (G20 tombstoned it; un-deleting it while it stays ARCHIVED is allowed —
+-- it is not becoming live — and gives the upsert an archived row to hit)
+update public.territories set deleted_at = null where id = 'bf-arch-bow';
+call t_as('00000000-0000-4000-d000-000000000003');
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+select team_id, id, 'BF Archived Bowtie (upsert rename)', polygon, homes, true, created_by, null, data
+  from public.territories where id = 'bf-arch-bow'
+on conflict (team_id, id) do update set
+  team_id = excluded.team_id, id = excluded.id, name = excluded.name, polygon = excluded.polygon, homes = excluded.homes,
+  archived = excluded.archived, created_by = excluded.created_by, deleted_at = excluded.deleted_at, data = excluded.data;
+select t_assert((select name from public.territories where id = 'bf-arch-bow') = 'BF Archived Bowtie (upsert rename)'
+            and (select geom is null and archived from public.territories where id = 'bf-arch-bow'),
+  'G23 a v40 upsert (INSERT ... ON CONFLICT) of an archived hood with a self-crossing ring commits untouched — the escape holds on the INSERT arm too');
+select t_raises($q$
+  insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+  select team_id, id, name, polygon, homes, false, created_by, null, data
+    from public.territories where id = 'bf-arch-bow'
+  on conflict (team_id, id) do update set
+    team_id = excluded.team_id, id = excluded.id, name = excluded.name, polygon = excluded.polygon, homes = excluded.homes,
+    archived = excluded.archived, created_by = excluded.created_by, deleted_at = excluded.deleted_at, data = excluded.data $q$,
+  'G23b …and the same upsert un-archiving it is refused (22023)', '22023');
+reset role;
+
 -- the activation guard REFUSES by name — it never casts a device-local id
 update public.territories set archived = false where id = 'bf-36hex';
 select t_raises('update public.rally_config set assignment_server_authoritative = true',

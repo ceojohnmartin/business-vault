@@ -151,6 +151,49 @@ SQL
 # is 0015's, i.e. Stage B. Stage A must reproduce v40's behaviour exactly.
 [ "$(q "select count(*) from public.territories where id in ('v40-split-a','v40-split-b') and open_assignees = '{}'::uuid[] and assignees = '{\"entries\": []}'::jsonb")" = "2" ] && ok "v40: …and the children are unassigned with an empty ledger — exactly what a v40 split produces today (inheritance is 0015, Stage B)" || bad "v40: children's ledgers: $(q "select id, open_assignees::text, assignees::text from public.territories where id like 'v40-split-%'")"
 
+# an archived hood with a self-crossing ring (the two production originals):
+# a v40 phone may still write it untouched (rename) but not bring it back
+set +e
+OUT="$(psql -X -d "$DB" 2>&1 <<SQL
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-d000-000000000003"}', false) \\gset
+set role authenticated;
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+select team_id, id, 'BF Archived Bowtie (renamed on v40)', polygon, homes, true, '00000000-0000-4000-d000-000000000003', deleted_at, jsonb_set(data, '{updatedAt}', to_jsonb($NOW))
+  from public.territories where team_id='dddddddd-4444-4444-a444-444444444444' and id='bf-arch-bow'
+on conflict (team_id, id) do update set
+  team_id = excluded.team_id, id = excluded.id, name = excluded.name, polygon = excluded.polygon, homes = excluded.homes,
+  archived = excluded.archived, created_by = excluded.created_by, deleted_at = excluded.deleted_at, data = excluded.data;
+SQL
+)"; set -e
+[ "$(q "select name from public.territories where id='bf-arch-bow'")" = "BF Archived Bowtie (renamed on v40)" ] && ok "v40: an archived hood with a self-crossing ring can still be renamed by a v40 upsert (INSERT arm of the upsert included)" || bad "v40: rename of the archived bowtie refused: $OUT"
+set +e
+OUT="$(psql -X -d "$DB" 2>&1 <<SQL
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-d000-000000000003"}', false) \\gset
+set role authenticated;
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+select team_id, id, name, polygon, homes, false, '00000000-0000-4000-d000-000000000003', deleted_at, jsonb_set(data, '{updatedAt}', to_jsonb($NOW + 1))
+  from public.territories where team_id='dddddddd-4444-4444-a444-444444444444' and id='bf-arch-bow'
+on conflict (team_id, id) do update set
+  team_id = excluded.team_id, id = excluded.id, name = excluded.name, polygon = excluded.polygon, homes = excluded.homes,
+  archived = excluded.archived, created_by = excluded.created_by, deleted_at = excluded.deleted_at, data = excluded.data;
+SQL
+)"; set -e
+printf '%s' "$OUT" | grep -q "crosses itself" && [ "$(q "select archived from public.territories where id='bf-arch-bow'")" = "t" ] && ok "v40: …but un-archiving it back into live turf is refused with the reason" || bad "v40: un-archive of the bowtie was not refused: $OUT"
+# a v40 Smart Split whose cut severs a concave hood into a self-overlapping
+# child is REFUSED by 0009 (no shape repair, ever) and the parent stays live
+set +e
+OUT="$(psql -X -d "$DB" 2>&1 <<SQL
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-d000-000000000003"}', false) \\gset
+set role authenticated;
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+values ('dddddddd-4444-4444-a444-444444444444','v40-split-parent2','V40 Split Parent 2','[[3.5,40],[3.502,40],[3.502,40.001],[3.5,40.001]]'::jsonb,null,false,'00000000-0000-4000-d000-000000000003',null,'{"id":"v40-split-parent2","assignedTo":""}'::jsonb);
+select public.smart_split_territory('v40-split-parent2', 'op-v40-split2', jsonb_build_array(
+  jsonb_build_object('id','v40-split2-a','name','bowtie child','polygon','[[3.5,40],[3.501,40.001],[3.501,40],[3.5,40.001]]'::jsonb,'homes',10),
+  jsonb_build_object('id','v40-split2-b','name','ok child','polygon','[[3.501,40],[3.502,40],[3.502,40.001],[3.501,40.001]]'::jsonb,'homes',10)));
+SQL
+)"; set -e
+printf '%s' "$OUT" | grep -q "crosses itself" && [ "$(q "select count(*) from public.territories where id='v40-split-parent2' and deleted_at is null and not archived")" = "1" ] && [ "$(q "select count(*) from public.territories where id like 'v40-split2-%'")" = "0" ] && ok "v40: a Smart Split that would create a self-crossing child is refused whole (22023) and the parent stays live — a documented Stage A consequence" || bad "v40: severed split not refused cleanly: $OUT"
+
 # ----------------------------------------------------------- 5. rollback
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$ROLLBACK" > $T-rollback.out 2>&1 && ok "ROLLBACK_v41_A.sql applies" || { tail -5 $T-rollback.out; bad "rollback failed"; }
 [ "$(q "select count(*) from information_schema.columns where table_name='territories' and column_name in ('geom','assignees','assignees_rev','open_assignees','cycle_started_at')")" = "0" ] && ok "rollback: v41 columns gone" || bad "rollback: columns remain"

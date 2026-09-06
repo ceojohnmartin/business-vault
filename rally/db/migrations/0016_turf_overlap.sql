@@ -177,6 +177,14 @@ begin
 end $$;
 
 drop trigger if exists territories_no_overlap on public.territories;
+-- grants (Supabase's default function privileges, see 0010): the measurement
+-- runs inside the SECURITY INVOKER constraint trigger as the writing client,
+-- so authenticated keeps EXECUTE on it; anon never writes; the trigger
+-- function and the tolerance are nobody's to call
+revoke all on function public.rally_overlap_m2(gis.geometry, gis.geometry) from public, anon;
+revoke all on function public.rally_overlap_tolerance_m2()                 from public, anon;
+revoke all on function public.assert_no_turf_overlap()                     from public, anon, authenticated;
+
 create constraint trigger territories_no_overlap
   after insert or update on public.territories
   deferrable initially deferred

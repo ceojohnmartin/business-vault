@@ -78,6 +78,15 @@ SA="$(sh "$DIR/stage-a-test.sh" 2>&1)" || {
   printf '%s\n' "$SA" | grep -E "FAIL" | head -10; echo "STAGE A: FAILED"; exit 1; }
 printf '%s\n' "$SA" | tail -1
 
+# STAGE B IS PROVEN THE SAME WAY, on a database in production's post-Stage-A
+# state: both parts all-or-nothing and idempotent, neither rewriting a row,
+# verified by db/test/verify-v41-stage-b1/b2.editor.sql, v40 still working
+# (its Smart Split now inheriting), and reversible by db/ROLLBACK_v41_B.sql
+# after either part.
+SB="$(sh "$DIR/stage-b-test.sh" 2>&1)" || {
+  printf '%s\n' "$SB" | grep -E "FAIL" | head -10; echo "STAGE B: FAILED"; exit 1; }
+printf '%s\n' "$SB" | tail -1
+
 # THE PREFLIGHT IS PROVEN, NOT TRUSTED. Both forms — psql and Supabase SQL
 # Editor — run against a seeded Stage-0 database (shim + 0001..0008 + the v40
 # seed), their ring readers must be byte-identical, and negative controls

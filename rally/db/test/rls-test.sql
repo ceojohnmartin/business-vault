@@ -701,6 +701,22 @@ select t_assert(
 select t_assert(
   not has_function_privilege('authenticated', 'public.rally_split_inherit(text,text[],text)', 'execute'),
   'rally_split_inherit is an internal of the split RPC and is not callable by a client');
+/* the same for every other internal the SECURITY DEFINER operations stand
+   on: they run as the owner, so a client role has no business executing
+   them — and two of them would otherwise be oracles (membership of any
+   team by uuid; a profile's name by uuid) */
+select t_assert(
+  not has_function_privilege('authenticated', 'public.rally_require_leader()', 'execute')
+  and not has_function_privilege('authenticated', 'public.rally_my_team()', 'execute')
+  and not has_function_privilege('authenticated', 'public.rally_diff_assignees(jsonb,uuid[],uuid,uuid,bigint,jsonb)', 'execute')
+  and not has_function_privilege('authenticated', 'public.rally_validate_assignees(uuid[],uuid)', 'execute')
+  and not has_function_privilege('authenticated', 'public.rally_split_strip_children(jsonb)', 'execute')
+  and not has_function_privilege('anon', 'public.rally_require_leader()', 'execute')
+  and not has_function_privilege('anon', 'public.rally_my_team()', 'execute')
+  and not has_function_privilege('anon', 'public.rally_diff_assignees(jsonb,uuid[],uuid,uuid,bigint,jsonb)', 'execute')
+  and not has_function_privilege('anon', 'public.rally_validate_assignees(uuid[],uuid)', 'execute')
+  and not has_function_privilege('anon', 'public.rally_split_strip_children(jsonb)', 'execute'),
+  'the 0014/0015 internals (require_leader, my_team, diff_assignees, validate_assignees, split_strip_children) are shut to every client role');
 select t_assert(
   has_function_privilege('authenticated', 'public.set_territory_assignments(text,uuid[],text)', 'execute')
   and has_function_privilege('authenticated', 'public.clear_pin_dnk(text,text,text)', 'execute'),

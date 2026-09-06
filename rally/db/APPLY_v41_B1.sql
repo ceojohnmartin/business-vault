@@ -1,3 +1,36 @@
+-- RALLY v41 — STAGE B, PART 1. APPLY 0014 (the authoritative turf operations)
+-- AS ONE TRANSACTION.
+--
+-- Run ONCE, after Stage A has committed and been verified
+-- (db/test/verify-v41-stage-a.editor.sql: 0 FAIL — done 2026-09-06), and
+-- after the owner's explicit approval of Stage B.
+--
+-- What it does. The body below is the VERBATIM migration file 0014:
+--   * four SECURITY DEFINER operations a leader calls through PostgREST —
+--     set_territory_assignments, save_territory, start_territory_cycle,
+--     clear_pin_dnk — executable by `authenticated` only;
+--   * four internals they stand on — rally_require_leader, rally_my_team,
+--     rally_diff_assignees, rally_validate_assignees — executable by NO
+--     client role (they run as the owner, inside the operations);
+--   * no table, no column, no trigger, no row rewrite: 0014 touches no data.
+--
+-- What it does NOT do: rally_capabilities() keeps reporting turfRpc FALSE
+-- until 0015 (Stage B part 2) is applied too, because turfRpc is DISCOVERED
+-- from the presence of BOTH smart_split_territory_v41 and
+-- set_territory_assignments. No client changes behaviour on this file alone.
+-- No 0016 (Stage C), no flip of assignment_server_authoritative, no client
+-- publish, no merge to main.
+--
+-- Transactional: all or nothing. db/test/stage-b-test.sh proves it on a
+-- database in production's exact post-Stage-A state, with a deliberately
+-- broken copy, a second (idempotent) run, v40 phones still working through
+-- it, and db/ROLLBACK_v41_B.sql taking it back out.
+--
+-- Verify afterwards with db/test/verify-v41-stage-b1.editor.sql.
+
+begin;
+
+-- ============================ 0014_turf_rpcs.sql ============================
 -- RALLY v41 — STAGE B. The authoritative turf operations.
 --
 -- Every function here is SECURITY DEFINER with `search_path = ''`, so every
@@ -444,3 +477,5 @@ grant execute on function public.set_territory_assignments(text, uuid[], text) t
 grant execute on function public.save_territory(text, text, jsonb, integer, boolean, uuid[], text) to authenticated;
 grant execute on function public.start_territory_cycle(text, timestamptz, text) to authenticated;
 grant execute on function public.clear_pin_dnk(text, text, text)           to authenticated;
+
+commit;

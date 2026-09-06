@@ -1,3 +1,38 @@
+-- RALLY v41 — STAGE B, PART 2. APPLY 0015 (Smart Split inherits the complete
+-- current assignee set, server-side) AS ONE TRANSACTION.
+--
+-- Run ONCE, after db/APPLY_v41_B1.sql has committed and
+-- db/test/verify-v41-stage-b1.editor.sql reads 0 FAIL.
+--
+-- What it does. The body below is the VERBATIM migration file 0015:
+--   * the certified 0005 body is RENAMED to smart_split_territory_core,
+--     executable by no client role (its body is untouched — the rename is a
+--     catalog operation; production's copy carries the CRLF line endings of
+--     the original SQL-Editor paste, and stays byte-for-byte what it was);
+--   * rally_split_inherit — each child receives a fresh open entry per
+--     CURRENT parent assignee; the parent's open entries close at the split
+--     instant; closed parent history is never copied;
+--   * rally_split_strip_children — the client may describe a child, never
+--     assign it;
+--   * smart_split_territory_v41 — the wrapper the v41 client calls;
+--   * smart_split_territory — the 0005 NAME, now the same wrapper, so a v40
+--     phone's split inherits too (it ignores the extra response key).
+--   * no table, no column, no trigger, no row rewrite.
+--
+-- After this file rally_capabilities() reports turfRpc TRUE: a v41 client
+-- switches its Smart Split to smart_split_territory_v41. The flag
+-- assignment_server_authoritative stays FALSE — legacy assignment authority
+-- is unchanged for every phone.
+--
+-- What it does NOT do: no 0016 (Stage C), no flip, no client publish, no
+-- merge to main.
+--
+-- Transactional: all or nothing; proven by db/test/stage-b-test.sh.
+-- Verify afterwards with db/test/verify-v41-stage-b2.editor.sql.
+
+begin;
+
+-- ============================ 0015_smart_split_v41.sql ============================
 -- RALLY v41 — STAGE B part 2. Smart Split inherits the COMPLETE current
 -- assignee set.
 --
@@ -175,3 +210,5 @@ revoke all on function public.smart_split_territory_v41(text, text, jsonb) from 
 grant execute on function public.smart_split_territory_v41(text, text, jsonb) to authenticated;
 revoke all on function public.smart_split_territory(text, text, jsonb) from public, anon;
 grant execute on function public.smart_split_territory(text, text, jsonb) to authenticated;
+
+commit;

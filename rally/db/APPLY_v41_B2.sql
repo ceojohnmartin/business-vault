@@ -1,0 +1,262 @@
+-- RALLY v41 — STAGE B, PART 2. APPLY 0015 (Smart Split inherits the complete
+-- current assignee set, server-side) AS ONE TRANSACTION.
+--
+-- Run ONCE, after db/APPLY_v41_B1.sql has committed and
+-- db/test/verify-v41-stage-b1.editor.sql reads 0 FAIL.
+--
+-- What it does. The body below is the VERBATIM migration file 0015:
+--   * the certified 0005 body is RENAMED to smart_split_territory_core,
+--     executable by no client role (its body is untouched — the rename is a
+--     catalog operation; production's copy carries the CRLF line endings of
+--     the original SQL-Editor paste, and stays byte-for-byte what it was);
+--   * rally_split_inherit — each child receives a fresh open entry per
+--     CURRENT parent assignee; the parent's open entries close at the split
+--     instant; closed parent history is never copied;
+--   * rally_split_strip_children — the client may describe a child, never
+--     assign it;
+--   * smart_split_territory_v41 — the wrapper the v41 client calls;
+--   * smart_split_territory — the 0005 NAME, now the same wrapper, so a v40
+--     phone's split inherits too (it ignores the extra response key).
+--   * no table, no column, no trigger, no row rewrite.
+--
+-- After this file rally_capabilities() reports turfRpc TRUE: a v41 client
+-- switches its Smart Split to smart_split_territory_v41. The flag
+-- assignment_server_authoritative stays FALSE — legacy assignment authority
+-- is unchanged for every phone.
+--
+-- What it does NOT do: no 0016 (Stage C), no flip, no client publish, no
+-- merge to main.
+--
+-- Transactional: all or nothing; proven by db/test/stage-b-test.sh.
+-- Verify afterwards with db/test/verify-v41-stage-b2.editor.sql.
+
+begin;
+
+-- ============================ 0015_smart_split_v41.sql ============================
+-- RALLY v41 — STAGE B part 2. Smart Split inherits the COMPLETE current
+-- assignee set.
+--
+-- 0005 is not reopened: it stays exactly as certified, and this file adds
+-- the assignment contract as a separate, additive step that the RPC calls
+-- at the end of its own transaction. Everything therefore commits or rolls
+-- back together with the audit claim, the parent retirement and the child
+-- creation — including a deferred overlap failure from 0016, which fires at
+-- COMMIT and takes the whole operation with it.
+--
+-- THE CONTRACT
+--   * every child receives a NEW OPEN entry per CURRENT parent assignee,
+--     carrying userId, name, assignedBy, assignedByName, assignedAt,
+--     inheritedFromTerritoryId and viaSplit = the operation id
+--   * CLOSED parent history is NOT copied into children — a child inherits
+--     who works it now, not who worked its parent two seasons ago
+--   * the parent's own open entries are explicitly CLOSED at the split
+--     instant, and the parent keeps its ENTIRE history
+--   * the parent is tombstoned by 0005, as before
+--
+-- Derived entirely server-side. The client sends child polygons; it does
+-- not and cannot author an assignment entry.
+
+create or replace function public.rally_split_inherit(
+  p_parent_id text,
+  p_child_ids text[],
+  p_operation_id text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid    uuid := auth.uid();
+  v_team   uuid;
+  v_parent public.territories%rowtype;
+  v_at     bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
+  v_open   uuid[];
+  v_child  text;
+begin
+  select team_id into v_team from public.profiles where id = v_uid;
+  if v_team is null then return; end if;
+
+  select * into v_parent from public.territories
+   where team_id = v_team and id = p_parent_id;
+  if not found then return; end if;
+
+  -- the parent's CURRENT set, validated: an unresolved legacy assignee is
+  -- history and is not carried forward as a new open assignment
+  select coalesce(array_agg(distinct p.id), '{}'::uuid[]) into v_open
+    from jsonb_array_elements(public.rally_open_entries(v_parent.assignees)) e
+    join public.profiles p
+      on p.id = public.rally_uid_uuid(e->>'userId')
+   where p.team_id = v_team and not coalesce(p.disabled, false);
+
+  -- each child gets FRESH open entries — never a copy of closed history
+  foreach v_child in array coalesce(p_child_ids, '{}'::text[]) loop
+    update public.territories t
+       set assignees = public.rally_diff_assignees(
+             coalesce(t.assignees, '{"entries": []}'::jsonb), v_open, v_team, v_uid, v_at,
+             jsonb_build_object('inheritedFromTerritoryId', p_parent_id,
+                                'viaSplit', p_operation_id))
+     where t.team_id = v_team and t.id = v_child;
+  end loop;
+
+  /* The parent's open entries close AT THE SPLIT INSTANT. Its whole
+     history stays: the hood is retired, and who worked it is part of the
+     record of the turf those children came from. */
+  /* Closed at the LATER of the split instant and the entry's own start.
+     A legacy entry may carry an assignedAt in the future — a v40 phone with
+     a fast clock stamps one every time it assigns — and closing it at the
+     server's instant would end it before it began, which rally_assert_ledger
+     (I3) refuses, aborting the WHOLE split. Under 0005 that same call
+     committed, so a plain `to_jsonb(v_at)` here would turn a working v40
+     Smart Split into a refusal. rally_diff_assignees takes the same care. */
+  update public.territories t
+     set assignees = jsonb_build_object('entries', public.rally_sort_entries((
+           select coalesce(jsonb_agg(
+                    case when e->>'unassignedAt' is null
+                         then jsonb_set(e, '{unassignedAt}',
+                                to_jsonb(greatest(v_at,
+                                  coalesce(public.rally_ms(e->>'assignedAt'), v_at))))
+                         else e end), '[]'::jsonb)
+             from jsonb_array_elements(coalesce(t.assignees->'entries', '[]'::jsonb)) e)))
+   where t.team_id = v_team and t.id = p_parent_id
+     and exists (select 1 from jsonb_array_elements(coalesce(t.assignees->'entries', '[]'::jsonb)) e
+                  where e->>'unassignedAt' is null);
+end $$;
+
+-- an internal (see 0010 on Supabase's default function privileges): shut to every client role
+revoke all on function public.rally_split_inherit(text, text[], text) from public, anon, authenticated, service_role;
+
+/* WIRING, and why the certified 0005 body is RENAMED rather than wrapped
+   alongside.
+
+   0005's smart_split_territory is granted to `authenticated`, and it
+   inserts each child with whatever `data` the caller supplied. Left as an
+   entry point of its own, a leader calling it directly — or any v40 phone,
+   which knows no other name — would split a hood on a path where the
+   children's assignment is whatever the CLIENT put in data.assignments: a
+   cross-team profile, a disabled rep, a string that is not a uuid, and no
+   inheritance at all. That is precisely the client-authored assignment
+   this stage exists to end.
+
+   So the certified body keeps its behaviour and loses its public name. It
+   becomes smart_split_territory_core, executable by nobody but its owner
+   (the service key included — see the revoke below),
+   and BOTH public names — the v41 one clients switch to when turfRpc is
+   true, and the 0005 one v40 phones keep calling — run the same wrapper:
+   strip every client-supplied assignment field from the children, run the
+   core (idempotency, parent row lock, capability checks, all as
+   certified), then derive the inheritance server-side. One transaction,
+   whichever name was called. */
+do $$
+begin
+  /* 0014 FIRST, OR NOTHING. rally_split_inherit above is plpgsql, so its
+     call to public.rally_diff_assignees resolves only when a split actually
+     runs. Applied on its own — sent out of order, or after 0014 was refused
+     — this file would commit happily and then break EVERY Smart Split,
+     v40 phones through the 0005 name included, with "function
+     rally_diff_assignees does not exist". Refusing here costs nothing and
+     leaves the split working. */
+  if to_regprocedure('public.rally_diff_assignees(jsonb,uuid[],uuid,uuid,bigint,jsonb)') is null
+     or to_regprocedure('public.set_territory_assignments(text,uuid[],text)') is null then
+    raise exception '0015 requires 0014 (APPLY_v41_B1.sql) — apply and verify it first'
+      using errcode = '55000';
+  end if;
+  /* THE RENAME IS IDENTITY-CHECKED, not merely existence-checked. Renaming
+     whatever happens to hold the 0005 name would, if the core had been
+     dropped by hand, rename the WRAPPER to _core and give every split an
+     infinite recursion — and the rollback would then bury the certified
+     body for good. So: rename only the certified body, accept a core that
+     is already the certified body, and refuse anything else. */
+  if to_regprocedure('public.smart_split_territory_core(text,text,jsonb)') is null then
+    if not exists (
+      select 1 from pg_proc p join pg_language l on l.oid = p.prolang
+       where p.oid = to_regprocedure('public.smart_split_territory(text,text,jsonb)')
+         and l.lanname = 'plpgsql'
+         and md5(replace(p.prosrc, E'\r\n', E'\n')) = '8b856cf630126aee2f0776508b9d1743') then
+      raise exception '0015: public.smart_split_territory is not the certified 0005 body — refusing to rename it'
+        using errcode = '55000';
+    end if;
+    alter function public.smart_split_territory(text, text, jsonb)
+      rename to smart_split_territory_core;
+  elsif not exists (
+    select 1 from pg_proc p join pg_language l on l.oid = p.prolang
+     where p.oid = to_regprocedure('public.smart_split_territory_core(text,text,jsonb)')
+       and l.lanname = 'plpgsql'
+       and md5(replace(p.prosrc, E'\r\n', E'\n')) = '8b856cf630126aee2f0776508b9d1743') then
+    raise exception '0015: public.smart_split_territory_core is not the certified 0005 body — refusing to proceed'
+      using errcode = '55000';
+  end if;
+end $$;
+/* service_role too. Supabase's default function privileges grant EXECUTE on
+   every new public function to the service key as well, and `from public,
+   anon, authenticated` leaves that entry in place — a direct route to the
+   certified body with the assignment strip and the inheritance skipped.
+   Nothing legitimate calls it: the wrappers run as the owner. */
+revoke all on function public.smart_split_territory_core(text, text, jsonb)
+  from public, anon, authenticated, service_role;
+
+/* A child arrives as {id, name, polygon, data}. The client may describe the
+   child; it may not assign it. */
+create or replace function public.rally_split_strip_children(p_children jsonb)
+returns jsonb
+language sql
+immutable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(
+           case when jsonb_typeof(c->'data') = 'object'
+                then jsonb_set(c, '{data}',
+                       (c->'data') - 'assignments' - 'assignedTo' - 'assignees'
+                                   - 'assigneesRev' - 'cycleStartedAt')
+                else c end
+           order by ord), '[]'::jsonb)
+    from jsonb_array_elements(coalesce(p_children, '[]'::jsonb)) with ordinality t(c, ord)
+$$;
+-- an internal of the wrapper (which runs as the owner): no client role executes it
+revoke all on function public.rally_split_strip_children(jsonb) from public, anon, authenticated, service_role;
+
+create or replace function public.smart_split_territory_v41(
+  p_parent_id    text,
+  p_operation_id text,
+  p_children     jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_res jsonb;
+  v_ids text[];
+begin
+  v_res := public.smart_split_territory_core(
+             p_parent_id, p_operation_id, public.rally_split_strip_children(p_children));
+  if coalesce(v_res->>'status', '') = 'already_committed' then
+    return v_res;   -- a retry must not re-inherit and re-close
+  end if;
+  select coalesce(array_agg(value #>> '{}'), '{}'::text[]) into v_ids
+    from jsonb_array_elements(coalesce(v_res->'child_ids', '[]'::jsonb));
+  perform public.rally_split_inherit(p_parent_id, v_ids, p_operation_id);
+  return v_res || jsonb_build_object('assignment_inherited', true);
+end $$;
+
+/* The 0005 name, kept for every phone that has not upgraded: same
+   signature, same response shape plus `assignment_inherited`, same
+   server-derived assignment. A v40 client ignores the extra key. */
+create or replace function public.smart_split_territory(
+  p_parent_id    text,
+  p_operation_id text,
+  p_children     jsonb)
+returns jsonb
+language sql
+security definer
+set search_path = ''
+as $$
+  select public.smart_split_territory_v41(p_parent_id, p_operation_id, p_children)
+$$;
+
+revoke all on function public.smart_split_territory_v41(text, text, jsonb) from public, anon;
+grant execute on function public.smart_split_territory_v41(text, text, jsonb) to authenticated;
+revoke all on function public.smart_split_territory(text, text, jsonb) from public, anon;
+grant execute on function public.smart_split_territory(text, text, jsonb) to authenticated;
+
+commit;

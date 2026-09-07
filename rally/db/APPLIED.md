@@ -21,6 +21,659 @@ Fill these in yourself after running each verification query.
 | `0005_smart_split.sql` | Atomic Smart Split: `territory_splits` + `smart_split_territory()` | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query; verify-production probes 7, 8, 9 PASS |
 | `0006_payment_rebuild.sql` | Passes every stored customer row through 0004's trigger once | 2026-09-02 ~16:28 UTC (APPLY_v39.sql) | STEP 2 catalog query: "APPLIED — all 13 v39 pieces are live" |
 | `0007_last4_strict.sql` | `last4` is four ASCII digits or the key is absent; rebuilds every row once more | 2026-09-03 01:05:18 UTC (APPLY_v39_1.sql; the rebuild stamped every customer row at that instant) | v39.1 confirmation query "APPLIED — 0007 is live and every stored last4 obeys it" (7 of 7); `verify-production.editor.sql` 14 PASS, 0 FAIL |
+| `0008_postgis_extension.sql` | **v41 STAGE 0** — PostGIS in the dedicated `gis` schema; touches no RALLY object | **APPLIED** — `create schema gis` + `create extension postgis with schema gis` ran as CUTOVER STEP 0A, 2026-09-05; the `grant usage on schema gis to authenticated` line ran inside the Stage A transaction, 2026-09-06 20:44 UTC. | STEP 0A read-only VERIFY: PostGIS 3.3.7, schema `gis`, extension owner `supabase_admin`, schema owner `postgres`, CREATE/USAGE for public/authenticated false/false, 876 extension objects, 0 outside `gis`, every v41 object count in `public` = 0, `smart_split_territory` present, PostgreSQL 17.6 |
+| `0009_territory_geometry.sql` | **v41 STAGE A** — `geom`, the shape-preserving derivation, the partial GiST index | **APPLIED** — 2026-09-06 20:44 UTC, in the ONE Stage A transaction (`APPLY_v41_A.sql` at `04d22d3`, md5-guarded; see STAGE A — APPLIED below) | production `verify-v41-stage-a.editor.sql`: 54 PASS, 4 INFO, 0 FAIL; all 25 function bodies md5-identical to the local proof |
+| `0010_territory_assignment.sql` | **v41 STAGE A** — the `assignees` ledger, `rally_config`, `rally_capabilities()`, the assignment trigger (flag FALSE) | **APPLIED** — same transaction | as above |
+| `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **APPLIED** — same transaction; the five proofs held (the transaction could not have committed otherwise) and are restated PASS in B2–B6 | as above |
+| `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **APPLIED** — same transaction | as above |
+| `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **APPLIED** — same transaction; trigger armed for v40 phones (D7 PASS on production) | as above |
+| `0014_turf_rpcs.sql` | **v41 STAGE B** — `save_territory`, `set_territory_assignments`, `start_territory_cycle`, `clear_pin_dnk` | **APPLIED** — 2026-09-07 03:10 UTC, with 0017, in the ONE `APPLY_v41_B1.sql` transaction (md5-guarded) | production `verify-v41-stage-b1.editor.sql`: 55 PASS, 2 INFO, 0 FAIL |
+| `0015_smart_split_v41.sql` | **v41 STAGE B** — the certified 0005 body is RENAMED to `smart_split_territory_core` (no client may execute it); BOTH public names run the wrapper that strips client-planted assignments from the children and derives the inheritance server-side | **APPLIED** — 2026-09-07 03:27 UTC, `APPLY_v41_B2.sql` (md5-guarded) | production `verify-v41-stage-b2.editor.sql`: 40 PASS, 1 INFO, 0 FAIL; `turfRpc` TRUE, flag FALSE |
+| `0016_turf_overlap.sql` | **v41 STAGE C** — the deferred overlap constraint + team advisory lock | **NOT APPLIED** | — |
+| `0017_turf_corrections.sql` | **v41 STAGE B (part 1)** — three corrections to the already-applied 0010 and 0013, each reproduced on a real database by the Stage B review: a cleared do-not-knock that went black again on the next write; an open ledger entry deleted by a stale mirror; a correction no client could see | **APPLIED** — 2026-09-07 03:10 UTC, inside `APPLY_v41_B1.sql` | production verify A2b: both helpers present, both trigger bodies carry it; D6b/D6c and D2c prove the behaviour |
+
+## v41 — Stages A and B APPLIED; Stage C, the flip and the client publish NOT done
+
+**Stage A (0008's grant + 0009–0013) is live since 2026-09-06 20:44 UTC, and
+Stage B (0017 + 0014, then 0015) since 2026-09-07 03:10 and 03:27 UTC. 0016
+has NOT been run, `assignment_server_authoritative` is FALSE, and the v41
+client has NOT been published.** Every phone in the field still runs Build
+v40 from `main` at `437893e`. The whole v41 set is proven only against a throwaway local
+PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
+
+### The staged order, and the STOP gate on each stage
+
+| Stage | Files | Gate before the NEXT stage |
+|---|---|---|
+| **0** | `0008` | **DONE.** Schema + extension at CUTOVER 0A; the USAGE grant went in with Stage A. Schema is `gis`, recorded below. |
+| **0.5** | `db/preflight/v41-preflight.sql` — read-only, creates no durable object | **Review every section.** It reports unusable outlines, existing overlaps, the full assignment census across live/archived/tombstoned/split-parent hoods, unresolvable assignees, duplicate open entries, and the do-not-knock and unlinked-customer counts. |
+| **A** | `0009` → `0010` → `0011` → `0012` → `0013` | **DONE 2026-09-06 (record below).** All five backfill proofs in 0011 must pass (they abort the transaction otherwise). The do-not-knock trigger is armed here on purpose: it protects v40 phones too. |
+| **B** | `0017` + `0014` → `0015` | **DONE 2026-09-07 (record below).** The v41 client must be deployed and its `applyTerritories` server-owned merge live BEFORE the flip, or the server would own a field no device can receive. |
+| **C** | `0016`, then — **separately** — the flip | 0016 refuses to arm while any live hood has an unusable outline. The flip is not a file: it is one reviewed statement, `update public.rally_config set assignment_server_authoritative = true;`. It is also GATED: `rally_config_guard` refuses it while any live hood still names a current assignee who is no rep on their team, because that hood would read as unassigned the moment clients trust the server's ledger. |
+
+### PostGIS schema — DECIDED and DISCOVERED (CUTOVER STEP 0 / 0A, 2026-09-05)
+
+| Question | Answer | Confirmed by |
+|---|---|---|
+| Was PostGIS already installed? | **No** (available: 3.3.7) | STEP 0 read-only status query |
+| Did `gis` / `extensions` exist? | `gis` absent · `extensions` present (platform namespace) | STEP 0 |
+| Chosen installation schema | **`gis`** — dedicated, not `public`, not `extensions` | owner decision, STEP 0A |
+| Installed version / schema | **3.3.7 / `gis`** | STEP 0A VERIFY row 2a/2b |
+| Extension owner / schema owner | `supabase_admin` / `postgres` | STEP 0A VERIFY 2c/4b |
+| Relocatable | `false` — the schema choice is one-way | STEP 0A VERIFY 2d |
+| Extension objects outside `gis` | **0** of 876 | STEP 0A VERIFY 5b |
+| v41 objects in `public` after 0A | columns 0 · tables 0 · functions 0 · triggers 0 · indexes 0 | STEP 0A VERIFY 6 |
+| PostgreSQL server | 17.6 | STEP 0A VERIFY 9 |
+| PostGIS build line (production) | PostGIS 3.3.7 · **GEOS 3.14.1 · PROJ 9.7.1** (local proof: PostGIS 3.4.2) | production preflight, `0 env / postgis_full_version`, 2026-09-06 |
+
+Every v41 file (0009, 0016, the preflight, the SQL tests, the race test)
+qualifies PostGIS as **`gis.`**. The earlier authored form said `extensions.`
+and was rewritten on 2026-09-05 before any of it touched production; the
+local proofs below were re-run after the rewrite with PostGIS homed in `gis`.
+
+Residual difference between the local proof and production: local is
+PostgreSQL 16.13 / PostGIS 3.4.2 (3.3.7 is not packaged for the local host);
+production is 17.6 / 3.3.7. Every PostGIS symbol v41 uses was audited against
+3.3.7 (newest is `ST_ForcePolygonCCW`, 2.4.0) and nothing PostgreSQL-17-
+specific is used.
+
+### STAGE A — the paste, its proof, its verification, its rollback (APPLIED 2026-09-06; record in the next section)
+
+Approved by the owner on 2026-09-06 after the clean preflight re-run, and
+applied the same day through the Supabase connector (not the SQL Editor) —
+the transport is recorded in STAGE A — APPLIED below. Everything in this
+section was written before the apply and is kept as the reference for what
+was run.
+
+**The paste:** `db/APPLY_v41_A.sql` — `begin;` 0008 (whole file; its one
+live line on production is `grant usage on schema gis to authenticated`)
+→ 0009 → 0010 → 0011 → 0012 → 0013 `commit;`. Regenerated from the
+migration files by `db/build-apply.sh`; the bodies are verbatim.
+
+**The proof:** `sh rally/db/test/stage-a-test.sh` (also run by
+`run-v41-tests.sh`), on a database in production's exact pre-Stage-A state
+(shim, 0001–0007, PostGIS in `gis` WITHOUT the USAGE grant, the v40-shaped
+seed): a copy with a syntax error injected after 0013's last statement
+fails loudly and leaves nothing behind (no column, no table, no trigger, no
+grant, no rewritten row); the real file applies and the verification paste
+reads 0 FAIL; a second run is data-idempotent (ledgers, mirrors, revisions,
+geoms and data outside `updatedAt` byte-identical); v40 still works through
+it (a leader's nine-column PostgREST upsert reassigns a hood via the legacy
+mirror and the ledger follows; a rep knocks; a rep still cannot draw turf;
+a v40 Smart Split through the certified 0005 RPC commits with valid child
+geoms and unassigned children, exactly as v40 produces today); and
+`db/ROLLBACK_v41_A.sql` returns schema and grants to their v40 state with
+data outside the two mirrors byte-identical to before — and the paste
+applies cleanly again afterwards.
+
+**The verification paste:** `db/test/verify-v41-stage-a.editor.sql` —
+one result set, `probe | result | detail`, PASS / `*** FAIL ***` / INFO.
+Sections A (catalog: PostGIS + the grant, the five columns, all 25 Stage A
+functions present and no Stage B/C function, the five triggers enabled and
+no 0016 trigger, both partial indexes, `rally_config` one row with the
+flag FALSE and unreachable by clients, `rally_capabilities()` = flag false
+/ turfRpc false / postgis true, the nine-column INSERT/UPDATE grants and
+nothing server-owned), B (the 0011 proofs restated on the committed state:
+every row has a ledger, no history lost, the scalar / v40-array / uuid[]
+mirrors agree with the ledger on every hood, I1–I3 hold, unresolved entries
+counted, the activation guard would find 0 — without flipping anything),
+C (every live outline has a valid geom; NULL geoms named), D (behavioural,
+rolled back: a leader's v40-shaped upsert commits and leaves the ledger
+untouched; naming `assignees` is refused; a self-crossing new outline is
+refused with the reason; a valid new v40 hood gets geom, ledger and both
+mirrors; a rep cannot draw turf but can knock; the do-not-knock trigger
+neutralises a re-disposition, a tombstone and a forged clear, and skips a
+client `dnk_clear` event). The five 0011 proofs themselves are assertions
+inside the apply transaction — it cannot commit if any fails — so what B
+re-checks is the state they guarantee.
+
+**RUNBOOK (owner):**
+
+1. Preconditions, all done: Step 0A; preflight Stage A CLEAR and Stage C
+   0 + 0 + 0; Hood 2 / Hood 6 A archived and redrawn; approval given.
+2. Maintenance window: every leader phone shows More = synced (0 to sync,
+   0 refused) BEFORE the paste — an offline hood edit still queued on a
+   phone would be discarded on its first pull if the backfill restamped
+   that hood. No territory administration (assign, draw, split, archive)
+   until the post-paste pull completes. Knocking may continue.
+3. Paste the WHOLE of `db/APPLY_v41_A.sql` into the SQL Editor and run it
+   once. Expected: success with no rows (the last statement is `commit`).
+   The 0011 proof NOTICEs are not shown by the editor; the verification
+   paste re-checks the state they guarantee. On a SQL error: nothing was
+   applied (one transaction) — paste the error back, do not retry blindly.
+   On a NON-SQL error (network, timeout, tab reload) the outcome is
+   unknown: run the verification paste first — its section A says whether
+   Stage A committed. Re-running the apply is safe either way (proven
+   data-idempotent; the cost is one more `updated_at` pull wave).
+4. Paste the WHOLE of `db/test/verify-v41-stage-a.editor.sql`. Expected:
+   about 46 rows, 0 `*** FAIL ***`. The B1 INFO row should read
+   `entries=12` (the preflight's kept 12 + synthesized 0). Paste every row
+   back.
+5. v40 smoke on real phones: a leader renames a hood and sees it on a
+   second device; a leader reassigns a hood; a rep knocks a door; no
+   sync refusals shown. Expect one pull wave: every hood row was touched.
+6. STOP. Stage B (0014 → 0015, then the v41 client publish) waits for a
+   separate approval.
+
+**What changes for v40 phones after Stage A (brief the leaders):**
+
+- A hood whose boundary crosses itself is REFUSED when a v40 phone pushes
+  it (0009: no shape repair, ever). v40 shows only "refused by the server"
+  under More, with no reason; the hood then exists only on that phone and
+  its doors go up without a hood. Before Stage A such a hood synced (and
+  was measured by nobody). Draw with "tap corners"; if More shows a
+  refusal, redraw the hood.
+- A v40 Smart Split whose cut line severs a concave (U/L-shaped) hood into
+  a self-overlapping child is refused whole: the toast says the hood was
+  not split and it stays live, unchanged. Split convex hoods, or wait for
+  the v41 client, which validates children first.
+- An archived hood with an unusable outline (the two originals of Hood 2
+  and Hood 6 A) can still be renamed or touched by a v40 phone; bringing it
+  back live is refused until the ring is fixed (proven on the upsert's
+  INSERT arm too, G23 / D10).
+- One pull wave: every hood row's `updated_at` moves once.
+- Only `authenticated` and the owner may write territories after Stage A:
+  gis USAGE is granted to `authenticated` alone, and 0009's SECURITY
+  INVOKER trigger names `gis.geometry`. A future adapter/service role must
+  first be granted USAGE on `gis` (decision recorded, not broadened).
+
+**Review round 3 (adversarial review of the Stage A artifacts, 2026-09-06)
+— two defects fixed before anything was pasted:**
+
+1. Supabase's project default `alter default privileges in schema public
+   grant all on functions to postgres, anon, authenticated, service_role`
+   (confirmed on production read-only) hands anon EXECUTE on every new
+   public function, and `revoke … from public` does not remove that
+   explicit entry — 0005 already used `from public, anon`. 0009/0010/0013
+   now revoke anon on every Stage A function, and revoke authenticated on
+   the SECURITY DEFINER guard counter and the trigger functions; 0014's
+   revokes were corrected the same way for Stage B. The local shim now
+   models the function default, so `stage-a-test.sh` proves the revokes.
+2. The v40 client's push is `INSERT … ON CONFLICT DO UPDATE`, and a BEFORE
+   INSERT trigger fires on the proposed row BEFORE the conflict is
+   detected. 0009's "existing broken ring keeps its NULL geom" escape was
+   guarded by `tg_op = 'UPDATE'`, so a v40 rename of an archived bowtie
+   would have been refused. The trigger now looks the existing row up by
+   key on the INSERT arm and applies the same rules (G23, D10).
+
+**Rollback:** `db/ROLLBACK_v41_A.sql`, one paste, one transaction — only if
+Stage A must be withdrawn before Stage B. Proven above. It drops every
+Stage A object, restores 0001's table-level insert/update grant and revokes
+gis USAGE; `data.assignments` keeps the assignment record in the v40 shape.
+
+### PRODUCTION PREFLIGHT — run 2026-09-06 (read-only; nothing applied)
+
+The editor form at `2725942` ran against production with no SQL error and
+returned 19 rows. Recorded verbatim from the owner's paste:
+
+- `0 env`: schema=gis version=3.3.7 owner=supabase_admin; GEOS 3.14.1, PROJ 9.7.1.
+- `1a`: 18 hoods — 14 LIVE, 4 tombstoned, 0 archived.
+- `1b` (LIVE hoods to fix before 0016): **2** — `mteqdmjjcarnneu` "Hood 2",
+  reason `Self-intersection[-90.8332010941214 30.3209866907733]`; and
+  `mtm1yzcf95wxp66` "Hood 6 A", reason
+  `Self-intersection[-90.7901513465947 30.2953784317262]`. Both outlines are
+  READABLE (every corner a numeric pair, in range) but PostGIS-INVALID: one
+  edge crosses another at the point named. 0009 would store a NULL geom for
+  each; 0016 refuses to arm while either is live.
+- `2`: 0 overlapping pairs, 0 unmeasurable pairs.
+- `3a`: hoods=18 raw_entries=8 kept=8 dropped_elements=0 ledger_entries=8
+  open=8 synthesized_from_assignedTo=0 timestamps_normalised=0
+  dedupe_closed=0 assignments_not_array=0 data_not_object=0
+  updatedAt_unreadable=0 local_device_ids=0 foreign_or_missing_profile=0
+  disabled_users=0 missing_assignedBy=0.
+- `3b`/`3d`/`3e`/`3f`: (none). `3c`: 0.
+- `Z verdict`: **Stage A CLEAR** (0 blockers, 0 to review). Stage C: 2 + 0 + 0.
+  Activation flip: 0.
+
+**Owner's decision:** fix Hood 2 and Hood 6 A in the app first (v40 has no
+outline editor for an existing hood: archive each, draw its replacement with
+"tap corners", assign it), re-run the same preflight, and go to Stage A only
+when Stage C reads 0 + 0 + 0. No SQL touches those rows; no ST_MakeValid.
+
+### PRODUCTION PREFLIGHT — RE-RUN after the in-app fix (read-only)
+
+Same editor form, after the owner archived Hood 2 and Hood 6 A in v40 and
+drew their replacements with "tap corners":
+
+- `1a`: 22 hoods — 16 LIVE, 4 tombstoned, 2 archived. `1b`: (none) — every
+  live outline usable, 16/16.
+- `2`: 0 overlapping pairs, 0 unmeasurable pairs.
+- `3a`: raw_entries=12 kept=12 dropped_elements=0 ledger_entries=12 open=12;
+  every other counter 0. `3b`–`3f`: (none) / 0.
+- `Z verdict`: Stage A CLEAR (0 + 0). **Stage C 0 + 0 + 0.** Flip: 0.
+- The two archived originals (`mteqdmjjcarnneu`, `mtm1yzcf95wxp66`) keep
+  their self-crossing rings; archived, they block nothing.
+
+The owner then approved Stage A only.
+
+### STAGE A — APPLIED to production, 2026-09-06 20:44 UTC
+
+**Transport.** The Supabase connector (`execute_sql`, role `postgres`,
+project `xwjreykfjzvlmgjzfnzt`) became available in the session, so the
+apply was NOT an owner paste. To keep the run byte-faithful to the reviewed
+file, `db/APPLY_v41_A.sql` at `04d22d3` was sent as ONE statement: a `do`
+wrapper holding the whole script in a dollar-quoted string, which
+`raise exception`s unless `md5(btrim(body))` equals the md5 computed from
+the file on disk, and only then `execute`s it. A transcription error in
+transit could therefore only refuse, never apply something else. The
+wrapper's own `begin`/`commit` lines are dropped because a `do` block runs
+inside the statement's transaction — atomicity is preserved (the connector
+runs one statement in one transaction). Result: no error, no rows.
+
+**Production state after the apply (read-only):** `territories` has the
+five new columns (`geom`, `assignees`, `assigned_to`, `assigned_to_all`,
+`assignees_uuid`); `rally_config` one row, flag FALSE; gis USAGE for
+`authenticated` TRUE; the 0001 table-wide INSERT/UPDATE grants replaced by
+the nine-column grants; 5 triggers enabled, 2 partial indexes; 22 hoods;
+ledger entries 12 / open 12 / unresolved 0; 16 live hoods with a valid
+geom; NULL geom only on the two archived originals; guard count 0;
+`rally_capabilities()` = `{postgis true, turfRpc false,
+assignmentServerAuthoritative false}`; anon can execute 0 Stage A
+functions.
+
+**Function-body identity:** the `prosrc` md5 of every one of the 25 Stage A
+functions on production equals the md5 of the same function on the local
+proof database (`stage-a-test.sh`'s post-apply state). What was proven
+locally is byte-for-byte what runs on production.
+
+**Verification paste on production** (`verify-v41-stage-a.editor.sql`,
+sent through the same md5-guarded wrapper): 58 rows — **54 PASS, 4 INFO,
+0 FAIL.** The INFO rows: B1 `hoods=22 entries=12 open=12
+unresolved_tagged=0` (= the preflight census, kept 12 + synthesized 0);
+B5 `0 tagged`; C1 `(none)`; C2 `Hood 6 A [mtm1yzcf95wxp66], Hood 2
+[mteqdmjjcarnneu]` (the expected two). Section D ran its rolled-back
+probes on team `c6c003c8-efc1-4286-a5dd-8b08d4753709`, hood
+`mteqbadr6ixcxzp` "Hood 1"; D9's Smart Split through the certified 0005
+RPC reported `committed` with valid child geoms and unassigned children
+(v40 behaviour) before rolling back; D10 probed the upsert escape on
+`mteqdmjjcarnneu`. Every D probe left no trace (each ends in rollback;
+the post-state counts above were taken afterwards).
+
+**Still owed by the owner (runbook step 5):** the v40 smoke on real
+phones — rename seen on a second device, a reassignment, a rep knock, no
+sync refusals; one pull wave is expected. And the leader briefing above.
+
+**Rollback** remains `db/ROLLBACK_v41_A.sql`, proven; only if Stage A must
+be withdrawn before Stage B.
+
+**NOT done, by instruction:** 0014, 0015, 0016, the activation flip, the
+v41 client publish, the merge to `main`.
+
+### STAGE B — the two applies, their proof, their verification, their rollback
+
+Approved by the owner on 2026-09-06 (after Stage A was accepted as
+complete): "apply 0014, verify it completely, apply 0015, verify it
+completely, publish the v41 client only after the Stage B server
+verification is clean, verify the published client is receiving and merging
+the server-owned fields; do not apply 0016, do not flip the flag, do not
+merge to main."
+
+**The two applies:** `db/APPLY_v41_B1.sql` (= 0014, verbatim) and
+`db/APPLY_v41_B2.sql` (= 0015, verbatim), each `begin;` … `commit;`,
+regenerated by `db/build-apply.sh`. Neither creates a table, a column or a
+trigger, and neither rewrites a row: they are function catalog changes only.
+0014 installs the four turf operations and their four internals; 0015 renames
+the certified 0005 body to `smart_split_territory_core` (a catalog rename —
+the body is untouched, CRLF line endings from the original paste included),
+installs the inheritance, and puts the wrapper under BOTH public names.
+`rally_capabilities()` reports `turfRpc` true only once both are present, so
+no client changes behaviour between the two.
+
+**The proof:** `sh rally/db/test/stage-b-test.sh` (55 checks, also run by
+`run-v41-tests.sh`) on a database in production's exact post-Stage-A state
+(shim, 0001–0008, the v40-shaped seed, then `APPLY_v41_A.sql` itself): a
+broken copy of each file fails loudly and leaves nothing behind (no
+function, no rename, no grant change, no rewritten row — the public function
+catalog and every territory/pin/event row are hashed before and after); each
+real file applies and its verification paste reads 0 FAIL with no probe row
+left; each is idempotent (catalog and data byte-identical on a second run —
+the certified body is renamed once, never twice); v40 still works through
+both (a leader's nine-column upsert reassigns through the legacy mirror, a
+rep knocks, a rep cannot draw turf, a v40 Smart Split through the 0005 NAME
+commits with children that now inherit the parent's rep and a correction
+stamp that makes the splitting phone pull them, a severed split is still
+refused whole); and `db/ROLLBACK_v41_B.sql` returns the public function
+catalog to its Stage A snapshot byte-for-byte (bodies, config, ACLs,
+languages — the certified body back under its own name with 0005's grants),
+after both parts and after part 1 alone, with both files applying cleanly
+again afterwards. The transport was rehearsed too: on a copy whose 0005 body
+was given production's CRLF line endings, both md5-guarded wrappers and both
+verification wrappers ran as single statements (0 FAIL each), the renamed
+core kept its CRLF body, and a wrapper with one character changed refused.
+
+**The verification pastes:** `db/test/verify-v41-stage-b1.editor.sql` (after
+0014: catalog A1–A7 — the eight functions by signature, SECURITY DEFINER with
+`search_path = ''` and a non-client owner, the four operations executable by
+`authenticated`, nothing by `anon`, the internals by no client role,
+`turfRpc` still false, 0005 still the certified body under its own name by
+md5, no 0015/0016 object, Stage A intact, the writable SECURITY DEFINER set
+exactly the five doors; state B1–B4; behaviour D0–D10 rolled back — as the
+real leader: `save_territory` creates a hood with its first rep, the
+assignment diff closes/retries/re-opens with the correction stamp, the
+refusals by sqlstate AND reason, `start_territory_cycle` on the server's
+clock / monotone / clamped, `clear_pin_dnk` with its event, retry and
+`not_dnk`; as the real rep: every operation refused 42501 "requires leader",
+ordinary work still commits, no territory insert; as `anon`: not even
+callable; a v40 upsert and v40's Smart Split still v40-shaped) and
+`db/test/verify-v41-stage-b2.editor.sql` (after 0015: the core IS the
+certified body by LF-normalised md5 and is callable by no client role, the
+two public names are the wrapper, `turfRpc` TRUE with the flag FALSE, the
+writable SECURITY DEFINER set exactly the eight names of the RLS suite, no
+0016 object, Stage A and 0005's audit table intact; behaviour rolled back —
+a split through the v41 name with a leader, a non-uuid, a stranger, a forged
+ledger, a rev and a cycle PLANTED in the children's data: both children
+inherit exactly the parent's current rep and nothing planted survives; the
+same through the 0005 NAME with v40-shaped children; one idempotency record
+across both names; an unassigned parent; the core refused to a leader; a
+severed split refused whole; 0014 still working; a v40 upsert; a rep's
+knock; both names refused to a rep by the core's own check; `anon` refused).
+
+**Privilege tightening found while authoring (before anything was applied):**
+0014's four internals (`rally_require_leader`, `rally_my_team`,
+`rally_diff_assignees`, `rally_validate_assignees`) and 0015's
+`rally_split_strip_children` were executable by `authenticated` under
+Supabase's default function privileges — two of them oracles (membership of
+any team by uuid; a profile's name by uuid). They run only inside the
+SECURITY DEFINER operations, as the owner, so they are now revoked from
+`authenticated` as well as `anon`, and `rls-test.sql` asserts it.
+
+**What changes for v40 phones after Stage B (brief the leaders):**
+
+- A Smart Split now gives every child the parent's CURRENT reps. In v40 the
+  children came out unassigned and had to be assigned by hand. The phone that
+  split sees the assignment arrive within a sync cycle (the server stamps the
+  children above the phone's clock); other phones see it on their next pull.
+  The parent's history is kept on the retired parent; nothing is copied.
+- Nothing else a v40 phone does changes: the nine-column upsert, knocking,
+  do-not-knock protection and the Stage A consequences stand as recorded.
+- After the v41 client is published, a v41 leader phone additionally starts
+  fresh passes and clears do-not-knocks through the server (refused offline,
+  by design), and calls `smart_split_territory_v41` — the same operation as
+  the 0005 name.
+
+**Rollback:** `db/ROLLBACK_v41_B.sql`, one transaction, proven above — before
+the v41 client is published, or after it has been withdrawn again: a
+published v41 client calls `start_territory_cycle` and `clear_pin_dnk`
+whenever a team server exists, and would 404 on them after the rollback.
+
+### STAGE B — APPLIED to production, 2026-09-07
+
+Approved by the owner: "apply 0014, verify it completely, apply 0015, verify
+it completely, publish the v41 client only after the Stage B server
+verification is clean, verify the published client is receiving and merging
+the server-owned fields. Do not apply 0016. Do not set
+assignment_server_authoritative = true. Do not merge to main."
+
+**Applied through the Supabase connector**, each file as ONE statement inside
+the md5-guarded `do` wrapper (a transcription error can only refuse, never
+apply something else):
+
+| | file | md5 of the guarded body | committed |
+|---|---|---|---|
+| part 1 | `APPLY_v41_B1.sql` (0017 + 0014) | `1aa5c005870dcba73d825a2028fe0600` | 2026-09-07 03:10 UTC |
+| part 2 | `APPLY_v41_B2.sql` (0015) | `8c67822d7cdc6aa3d70ad61990feef16` | 2026-09-07 03:27 UTC |
+
+Each returned no error and no rows. Part 1 was verified BEFORE part 2 was
+sent, as the sequence requires — and 0015 would have refused anyway: it now
+raises unless 0014 is already present.
+
+**Verification on production**, both pastes sent through the same guarded
+wrapper:
+
+- `verify-v41-stage-b1.editor.sql` — **55 PASS, 2 INFO, 0 FAIL.** Catalog:
+  the eight 0014 functions by exact signature, every one SECURITY DEFINER
+  with `search_path = ''` and a non-client owner; the four operations
+  executable by `authenticated`, nothing by `anon`, the four internals by no
+  client role AND not by `service_role`; 0017's two helpers present and both
+  corrected trigger bodies live; `turfRpc` still FALSE with 0015 not yet
+  applied; 0005 still the certified body under its own name by md5; no 0015
+  or 0016 object; Stage A intact (25 functions, 5 triggers, 5 columns, gis
+  USAGE, column privileges). State: hoods=22 entries=12 open=12
+  cycles_started=0 — identical to the Stage A verification, because 0014 and
+  0017 rewrite no row. Behaviour (all rolled back, on team
+  `c6c003c8-efc1-4286-a5dd-8b08d4753709`, hood `mteqbadr6ixcxzp`):
+  `save_territory` creates a hood with its first rep and answers with the
+  ledger; the assignment diff closes, retries as `already_committed`,
+  re-opens a new entry beside the closed one, and stamps `data.updatedAt`
+  above the incoming value; a stranger, a duplicate and an unknown hood are
+  each refused by sqlstate AND message; `save_territory` mirrors `homes` and
+  `archived` into `data`; `start_territory_cycle` uses the server clock, is
+  monotone, and clamps a stamp 400 days ahead; `clear_pin_dnk` needs a
+  reason, clears the door, writes its indelible event, answers a retry
+  `already_committed` with the original `cleared_at`, and answers `not_dnk`
+  on a door that is not black; **the clear survives an exact echo of the row
+  through the ordinary upsert and the next knock does not re-black it
+  (0017)**; a client-stamped clear is still stripped as a forgery while the
+  server's survives beside it; **a door a fast phone clock marked black an
+  hour ahead is clearable**; every operation is refused to a rep with
+  `turf: requires leader…` and to `anon` at the function itself; a rep's
+  ordinary work still commits and a rep still cannot draw turf; a v40
+  nine-column upsert still commits with the ledger untouched; and v40's
+  Smart Split still produced UNASSIGNED children, because 0015 had not
+  landed yet.
+
+- `verify-v41-stage-b2.editor.sql` — **40 PASS, 1 INFO, 0 FAIL.**
+  `smart_split_territory_core` IS the certified 0005 body (LF-normalised md5
+  `8b856cf6…`, plpgsql, `search_path public, pg_temp`) and is executable by
+  no client role and no service key; both public names are the wrapper;
+  `rally_capabilities()` = `{postgis true, turfRpc TRUE,
+  assignmentServerAuthoritative FALSE}`; the writable SECURITY DEFINER set
+  is exactly the eight named turf operations; no 0016 object; Stage A and
+  0005's `territory_splits` audit table intact; 0017 still in force. Ledger
+  totals unchanged again (0015 rewrites no row). Behaviour, rolled back: a
+  split through the v41 name with a leader, a non-uuid, a stranger, a forged
+  ledger, a rev and a cycle PLANTED in the children — both children inherit
+  exactly the parent's current rep, carry `inheritedFromTerritoryId`,
+  `viaSplit` and `assignedBy`, have their mirrors rebuilt from that ledger,
+  and **nothing planted survived**; the parent is tombstoned with its open
+  entry closed and its history kept; the children carry the correction stamp
+  so every phone pulls the inheritance; a retry does not re-inherit; the
+  0005 NAME does the same for v40-shaped children and keeps 0005's response
+  shape; one idempotency record serves both names; a parent whose entry was
+  stamped an hour ahead still splits; a stale mirror from the phone that
+  split still decides who is open while the inherited entry it never saw is
+  kept CLOSED with its provenance and the correction is stamped (0017); an
+  unassigned parent splits into unassigned children; the core is refused to
+  a leader; a severed split is refused whole with the parent left live; 0014
+  still works on a fresh child; a v40 upsert and a rep's knock still commit;
+  both split names are refused to a rep by the certified core's own check
+  and to `anon` at the function.
+
+**Function-body identity:** all 40 `rally_*` / turf / trigger function bodies
+on production are md5-identical (LF-normalised) to a local database built
+from the same files — shim, 0001–0008, the v40-shaped seed, `APPLY_v41_A`,
+then both Stage B pastes, with 0005's body given production's CRLF line
+endings first. What was proven locally is byte-for-byte what runs.
+
+**One FAIL was raised and resolved before it was accepted.** The first
+part-1 run reported the writable SECURITY DEFINER set as six names rather
+than five: production carries Supabase's own `rls_auto_enable`, the platform
+event trigger (`ensure_rls` on `ddl_command_end`) that enables RLS on every
+new public table. It returns `event_trigger`, which the probe's
+`prorettype <> 'trigger'` filter did not exclude. It is not a RALLY object,
+is not callable as a request, and predates Stage B. The probe now excludes
+event-trigger functions as well as row-trigger ones — and a negative control
+proves the corrected filter still SEES a real SECURITY DEFINER door. Part 1
+was then re-run whole: 0 FAIL.
+
+**What changed for v40 phones, now live:**
+
+- A Smart Split gives every child the parent's CURRENT reps. In v40 the
+  children came out unassigned. The splitting phone sees it within a sync
+  cycle (the children are stamped above its own clock); other phones see it
+  on their next pull.
+- A cleared do-not-knock now stays cleared. Before 0017 the first clear
+  would have been erased by the next phone write.
+- Nothing else changes. The nine-column upsert, knocking, the do-not-knock
+  protection and every Stage A consequence stand as recorded.
+
+**NOT done, by instruction:** 0016 (Stage C), the activation flip, the v41
+client publish, the merge to `main`.
+
+**Rollback** remains `db/ROLLBACK_v41_B.sql`, proven, and deliberately keeps
+0017.
+
+### Local proof — re-run 2026-09-05 with PostGIS homed in `gis`
+
+Every database proof below was re-run AFTER the `extensions.` → `gis.` rewrite,
+on a throwaway PostgreSQL 16.13 with PostGIS 3.4.2 installed by the rewritten
+0008 into `gis` (verified per test database: `3.4.2 in gis`).
+
+- `sh rally/db/test/run-v41-tests.sh` — 181 SQL checks over a v40-shaped
+  seed of 16 hoods (live, bare-scalar, archived, tombstoned, duplicate-open at
+  distinct and at the SAME instant, a run that ends before it starts, a
+  missing assignedAt, createdAt 0, a 36-hex non-uuid, an upper-case uuid,
+  junk elements, a `+`-prefixed timestamp, an assignedAt at the top of the
+  bigint range, an archived bowtie), the
+  staged-order gate (`turfRpc` false after Stage A, true after Stage B), the
+  no-shape-changing-repair grep over `db/migrations/`, `turf-race-test.sh`
+  (6 checks including the negative control that proves the advisory lock,
+  not merely the check), and `preflight-test.sh` (125 checks — see the
+  next section).
+- `sh rally/db/test/run-rls-tests.sh` — the full v39/v40 database battery,
+  re-run with 0008–0016 applied: RLS 283, RACE 11, SPLIT RACE 11, MIRROR 182, PAYMENT ABSENT 7, APPLY ATOMIC 13, LAST4 STRICT 28.
+- `sh rally/tests/run-all.sh` — the browser battery, 24 suite runs, 1,212
+  checks, 0 failing (re-run after review round 2; no client file changed).
+
+### The preflight, for the Supabase SQL Editor — TOTAL over legacy JSON
+
+`db/preflight/v41-preflight.editor.sql` is the form to paste into the editor:
+one final SELECT returning `section | key | detail`, every section present
+(an empty one prints `(none)`), and three `Z verdict` rows naming what blocks
+Stage A, Stage C (0016 arming) and the activation flip. It is READ-ONLY: it
+creates six `pg_temp` functions that die with the session, writes no row, and
+touches no durable object, grant, trigger, policy or migration.
+`db/preflight/v41-preflight.sql` is a psql wrapper (`\ir`) over the same
+text, so there is one survey.
+
+**ONE READER (2026-09-06).** Section 3 does not interpret legacy assignment
+data with rules of its own. It runs `public.rally_legacy_to_entries` — the
+normaliser 0010 installs, which the assignment trigger applies to every
+client upsert, 0011 uses to build the ledger, and `rally_config_guard` uses
+to decide the flip — as a `pg_temp` twin, with the four helpers it stands on
+(`rally_ms`, `rally_uid`, `rally_uid_uuid`, `rally_close_duplicate_opens`)
+and 0009's `rally_ring_read`. `preflight-test.sh` proves all six twins
+byte-identical to the migrations' bodies (name aside). So what the survey
+says a row's ledger will be IS what Stage A writes, and what it says would
+block the flip IS what the guard tests.
+
+**The normaliser is TOTAL and produces I1..I3 by construction.** An
+unreadable or missing `assignedAt` is synthesised from the row's own
+`created_at` (raw value kept in `assignedAtRaw` / tagged
+`assignedAtSynthesized`); an unreadable `unassignedAt` closes the run at its
+start (`unassignedAtRaw`); a run that ends before it starts is clamped; a rep
+open twice keeps the LAST entry open and closes the others at that instant
+(`closedByDedupe`); ids are canonicalised to lower case; an element that is
+not an object, or has no userId, carries no assignment and is dropped (the
+survey lists each one first). Timestamps are read by `rally_ms`, which
+accepts exactly what int8 accepts (whitespace, `+`, 19 digits) and returns
+NULL for everything else — never a cast error. `rally_uid_uuid` is a
+CASE-guarded cast: CASE, not AND, because the planner is free to hoist an
+AND-guarded `::uuid` into an index condition and evaluate it on the
+unguarded value (the activation guard did exactly that on a device-local id
+before this pass). **The only Stage A BLOCKER left is a territory whose
+`data` is not a JSON object.** Everything else is normalised, tagged and
+listed for review.
+
+**The reading rules, enforced by static checks in `preflight-test.sh`:** no
+`jsonb_array_elements` / `jsonb_array_length` over raw JSON without a
+`jsonb_typeof` guard; no `::uuid` in the survey body (only the twin casts);
+no geography cast on a ring the reader has not proven finite, inside
+[-180,180] × [-90,90] and under 180 degrees of longitude wide (an antipodal
+edge makes PostGIS's geography measurement raise an internal error, so the
+reader refuses it by name); every exploded row carries scalars only, never
+the array it came from (a 2,000-entry hood surveys in linear time).
+
+**What the second adversarial pass found and fixed (2026-09-06):** the
+activation guard's `::uuid` hoisted past its regex by the planner; a loose
+36-character regex that let a non-uuid reach a cast; 0016 measuring the raw
+polygon column and aborting on a JSON-null outline; an antipodal live pair
+aborting the geography overlap check; a readable-but-invalid live ring
+(bowtie) that 0016 did not block; an archived broken ring that could not be
+tombstoned (and, once fixed, an un-archive that must be refused until the
+ring is fixed — `v_becoming_live` in 0009's trigger); duplicate-open,
+ends-before-starts, missing-assignedAt and createdAt-0 hoods that made 0011
+abort on its own I1..I3 assertions; a future-dated open entry that
+`set_territory_assignments` could never close (I3) — it now closes at the
+later of now and its start; the backfill's PROOF 1 counting elements the
+reader drops; PROOF 3 comparing raw text instead of the reader's output; a
+quadratic temp footprint on a hood with thousands of entries; and, found by
+the new B10 test, `rally_merge_provenance` pairing BOTH copies of a rep's
+same-instant duplicate with one prior entry (losing the `closedByDedupe` tag
+or, depending on sort order, closing the rep's real run on a stale phone's
+upsert) — it now ranks each side within its (userId, assignedAt) group and
+pairs the n-th derived entry with the n-th prior, once; `rally_sort_entries`
+gained a third key so the ledger's byte order is deterministic.
+
+**Review round 2 (2026-09-06, external review of the editor SQL) — three
+more totality holes, closed:**
+
+1. **AND/OR evaluation order is not promised.** PostgreSQL's expression
+   rules (docs §4.2.14) leave the order of AND/OR operands undefined — in
+   WHERE (the planner reorders quals by cost), in CASE conditions and in
+   PL/pgSQL IFs alike — so `jsonb_typeof(x) <> 'array' OR
+   jsonb_array_length(x) < 2` is not a guard. Every such site is now a
+   nested IF, a CASE branch, or a CASE-built array input: `rally_ring_read`
+   (0009 and its twin), `rally_legacy_to_entries` (0010 and its twin — the
+   twin identity test would have failed on a one-sided fix), 0011's
+   `bare_scalar`, the preflight's `has_outline`, and the do-not-knock
+   census. A static check in `preflight-test.sh` now fails on any
+   `and|or jsonb_array_*` in the preflight, 0009, 0010 or 0011.
+2. **A bigint outruns a timestamp.** `rally_ms` accepts the full int8 range;
+   the future-entry finding formatted `to_timestamp(at_ms/1000)::date`, which
+   raises "timestamp out of range" past the year 294276 — the survey could
+   abort while *describing* a finding. Guarded: dates beyond 9999-12-31
+   print as `beyond the year 9999`. Seed row `bf-int8max` and fixture
+   `pf-int8max` (assignedAt and unassignedAt = 9223372036854775807) prove
+   the whole path: read as-is, listed as a review finding, closable at that
+   instant by `set_territory_assignments` (X23).
+3. **Measurement fails CLOSED.** The survey's overlap measurement is an
+   exception-safe `pg_temp.overlap_m2(a, b) → (m2, problem)`: a pair GEOS or
+   the geography engine cannot measure is a named BLOCKER row in section 2
+   and a separate `unmeasurable pair(s)` term in the Stage C verdict — never
+   an abort, never "zero". 0016's `rally_overlap_m2` now re-raises such a
+   failure as a named 23514 refusal (the write or the arming is refused
+   rather than admitted unmeasured). The test drives the helper with a
+   mixed-SRID pair (a guaranteed engine error) and an antipodal pair.
+4. **Differing multiplicity at one (userId, assignedAt)** — stated and
+   tested (X20c/d/e): with the server holding `[OPEN@T, CLOSED@T]` and a
+   phone sending only `[CLOSED@T]` under legacy authority, the current run
+   CLOSES at T. That is expected: under legacy authority the mirror is the
+   phone's word on who is open, and a mirror without the open copy is an
+   unassign. Identical closed triples are one fact under I4, so the ledger
+   may hold one where it held two. Closed → open resurrection is impossible
+   (X20d: the prior's `unassignedAt` always wins). Under server authority
+   the mirror does not touch the ledger at all (X20e: byte-identical,
+   revision unchanged).
+5. **Section 0 now records `gis.postgis_full_version()`** — the GEOS / PROJ
+   build line — so the production engine can be written beside the local
+   one (3.4.2 with its GEOS) in the PostGIS table above. **Owner: paste that
+   row's value into this file when the production preflight has run.**
+
+**`preflight-test.sh` (125 checks, 4 s for the fixture survey):**
+both preflight forms against a seeded Stage-0 database (16 hoods; the census
+row `hoods=16 raw_entries=19 kept=15 dropped_elements=4 ledger_entries=18
+open=12` hand-verified against the seed); the six twins; the static reading
+rules; then, with all **47** malformed fixtures in
+`v41-preflight-fixtures.sql` loaded at once — non-UUID, uuid-length and
+upper-case ids; assignments as object / string / number / JSON null; entries
+that are not objects or have no userId; timestamps that are text, decimals,
+missing, zero, in the future, at the top of the bigint range, inverted,
+duplicated at one instant, or int8-tolerant; `data` as string / array / JSON
+null; polygons as object /
+string / JSON null / empty; corners off the planet on all four sides
+(including overlapping out-of-range pairs); coordinates that are strings,
+"NaN", "Infinity", too big for float8; a corner that is not a pair; an
+antipodal pair; a 2,000-entry hood; four legacy pin shapes — no abort, a
+named finding for each, exactly 3 Stage A blockers (the three
+data-not-object rows), 18 unusable live outlines, 4 ghost assignees;
+**verdict consistency**: after deleting the 3 blockers and archiving the bad
+outlines, 0009–0016 apply over the whole fixture zoo, 0011's five proofs
+hold, and the flip is refused by the guard with the same count (4) the
+survey gave, never with a cast error; and negative controls (an overlapping
+pair, a bowtie, a ghost and a bare-scalar ghost) each detected and counted
+by the verdict rows.
+
 
 ## What production actually runs
 

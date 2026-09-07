@@ -40,6 +40,16 @@ grant execute on function auth.uid() to anon, authenticated;
 -- than passing vacuously.
 grant usage on schema public to anon, authenticated;
 alter default privileges in schema public grant all on tables to anon, authenticated;
+-- and on FUNCTIONS: supabase/postgres initial-schema.sql line
+-- `alter default privileges in schema public grant all on functions to
+-- postgres, anon, authenticated, service_role` — every function a migration
+-- creates is anon-executable unless the migration revokes it explicitly
+-- (`from public` alone does not remove an explicit grantee)
+-- ...to postgres, anon, authenticated AND service_role, exactly as the
+-- project default does. service_role matters: a migration that revokes only
+-- `from public, anon, authenticated` leaves the service key holding EXECUTE,
+-- and a local database without this line cannot see the difference.
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 
 -- realtime schema stand-in (Phase 3): the messages table RLS policies
 -- attach to, the topic() helper reading the per-join GUC the way

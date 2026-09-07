@@ -4,7 +4,7 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "rally-v40";
+const CACHE = "rally-v41";
 const TILE_CACHE = "rally-tiles-v1";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
@@ -25,16 +25,16 @@ const NET_TIMEOUT_MS = 3500;
    Keep these in step with index.html: same paths, same ?v. */
 const CORE = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./css/app.css?v=40",
-  "./vendor/maplibre-gl.js?v=40", "./vendor/maplibre-gl.css?v=40",
-  "./js/db.js?v=40", "./js/geo.js?v=40", "./js/data.js?v=40", "./js/ui.js?v=40", "./js/store.js?v=40",
-  "./js/cloud-config.js?v=40", "./js/cloud.js?v=40", "./js/sync.js?v=40", "./js/realtime.js?v=40",
-  "./js/auth.js?v=40", "./js/gate.js?v=40",
-  "./js/property.js?v=40", "./js/crm.js?v=40",
-  "./js/contract.js?v=40", "./js/map.js?v=40", "./js/hoods.js?v=40", "./js/customers.js?v=40",
-  "./js/route.js?v=40", "./js/street.js?v=40", "./js/select.js?v=40",
-  "./js/home.js?v=40", "./js/schedule.js?v=40", "./js/stats.js?v=40",
-  "./js/vault.js?v=40", "./js/app.js?v=40",
+  "./css/app.css?v=41",
+  "./vendor/maplibre-gl.js?v=41", "./vendor/maplibre-gl.css?v=41",
+  "./js/db.js?v=41", "./js/geom.js?v=41", "./js/geo.js?v=41", "./js/data.js?v=41", "./js/ui.js?v=41", "./js/store.js?v=41",
+  "./js/cloud-config.js?v=41", "./js/cloud.js?v=41", "./js/sync.js?v=41", "./js/realtime.js?v=41",
+  "./js/auth.js?v=41", "./js/gate.js?v=41",
+  "./js/property.js?v=41", "./js/crm.js?v=41",
+  "./js/contract.js?v=41", "./js/map.js?v=41", "./js/hoods.js?v=41", "./js/customers.js?v=41",
+  "./js/route.js?v=41", "./js/street.js?v=41", "./js/select.js?v=41",
+  "./js/home.js?v=41", "./js/turf.js?v=41", "./js/turfedit.js?v=41", "./js/schedule.js?v=41", "./js/stats.js?v=41",
+  "./js/vault.js?v=41", "./js/app.js?v=41",
   "./fonts/Noto Sans Bold/0-255.pbf", "./fonts/Noto Sans Bold/256-511.pbf",
   "./img/wordmark.svg", "./img/topo.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png",

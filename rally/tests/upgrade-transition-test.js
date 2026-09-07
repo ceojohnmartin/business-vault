@@ -117,6 +117,20 @@ function handleRest(req, res, u, body) {
      only, the parent must be a live row of the caller's team, the operation
      is idempotent, children are inserted and the parent tombstoned in one
      step. */
+  /* 0010 rally_capabilities. This suite models the realistic upgrade order:
+     the SERVER is migrated first and the clients follow, so the function
+     EXISTS and answers "not activated yet". A device must therefore leave
+     its latch false and keep authoring assignment locally — the case where
+     the function is absent entirely is covered by mixed-version-test.js. */
+  if (u.pathname === "/rest/v1/rpc/rally_capabilities") {
+    /* Stage A applied, Stage B not: this mock implements 0005's
+       smart_split_territory and nothing else, so turfRpc is FALSE — which
+       is exactly what the real rally_capabilities() reports, because it
+       discovers whether the v41 functions exist rather than asserting it.
+       A mock that claimed true here would send the client at a function
+       that is not there and 404 every Smart Split in the company. */
+    return j(res, 200, { assignmentServerAuthoritative: false, turfRpc: false, postgis: true });
+  }
   if (u.pathname === "/rest/v1/rpc/smart_split_territory") {
     cloud.rpcCalls++;
     if (!["leader", "manager", "owner"].includes(me.role) || me.disabled)

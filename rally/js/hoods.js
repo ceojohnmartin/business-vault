@@ -11,7 +11,11 @@
   let dots = [];            // [[lng,lat],...] while tap-drawing
   let pending = null;       // points awaiting the save sheet
   let editingId = null;     // hood being edited in the sheet
-  let assignTo = null;      // userId picked in the sheet (null = unassigned)
+  /* The reps this hood WILL have when the sheet is saved. A SET: one hood
+     may be worked by several people at once, and picking a second rep adds
+     them rather than replacing the first. */
+  let assignSet = [];
+  let draftId = null;       // the id a NEW hood will be created under — kept across retries
   let preAssign = null;     // "Give area" flow: the rep the new hood is for
 
   // ---------- draft rendering (dot mode) ----------
@@ -173,7 +177,8 @@
   function openHoodSheet(points, hood) {
     pending = points;
     editingId = hood ? hood.id : null;
-    assignTo = hood ? (hood.assignedTo || null) : preAssign;
+    assignSet = hood ? STORE.currentAssignees(hood).slice()
+                     : (preAssign ? [preAssign] : []);
     preAssign = null;
     $("#hood-sheet-title").textContent = hood ? "Edit territory" : "New territory";
     $("#hood-name").value = hood ? hood.name : "";
@@ -183,6 +188,11 @@
     if (hood) $("#hood-archive").textContent = hood.archived ? "Unarchive territory" : "🗄 Archive territory";
     $("#hood-newrep-wrap").hidden = true;
     $("#hood-newrep").value = "";
+    // Editing the OUTLINE happens on the map, not in a sheet — so this is
+    // a door out of the sheet rather than a control inside it.
+    const edit = $("#hood-edit-shape");
+    if (edit) edit.hidden = !hood || !STORE.canManageTerritories() ||
+      !hood.points || hood.points.length < 3;
     // Smart Split only makes sense on a saved hood, and only for managers
     $("#hood-split-wrap").hidden = !hood || !STORE.canManageTerritories();
     $("#hood-split-n").hidden = true;
@@ -318,7 +328,7 @@
       toast("Split failed — try a simpler shape");
       return;
     }
-    editingId = null; pending = null;
+    editingId = null; pending = null; draftId = null;
     MMAP.refreshHoods();
     closeSheet();
     renderHoodList();
@@ -333,18 +343,33 @@
       : `Cut into ${kids.length} hoods — hand them out from the hoods list`);
   }
 
-  // Assignment chips: the rep's territory color rides on the chip, so the
-  // manager sees exactly what the map will paint.
+  /* Assignment chips. MULTI-SELECT: a hood may be worked by John AND Jake,
+     so tapping a second rep adds them and tapping a selected rep takes only
+     that one off. "Unassigned" is the clear-all, and lights up only when
+     nobody is on the hood.
+
+     The rep's territory colour rides on the chip so the manager sees what
+     the map will paint — with several reps the map takes the FIRST one, in
+     the same deterministic order the server uses, and the chip row shows
+     the whole set. */
   function renderRepChips() {
+    const on = (id) => assignSet.indexOf(id) >= 0;
     const chips = [
-      `<button type="button" class="reason rep-chip${assignTo === null ? " sel" : ""}" data-u="">
+      `<button type="button" class="reason rep-chip${assignSet.length === 0 ? " sel" : ""}" data-u="">
          <span class="dot" style="background:#8A93A6"></span>Unassigned</button>`,
       ...STORE.users.map((u) =>
-        `<button type="button" class="reason rep-chip${assignTo === u.id ? " sel" : ""}" data-u="${u.id}">
+        `<button type="button" class="reason rep-chip${on(u.id) ? " sel" : ""}" data-u="${u.id}">
            <span class="dot" style="background:${u.color}"></span>${MUI.esc(u.name)}</button>`),
       `<button type="button" class="reason rep-chip" data-u="+">+ New rep</button>`,
     ];
     $("#hood-reps").innerHTML = chips.join("");
+    const note = $("#hood-reps-note");
+    if (note) {
+      note.textContent = assignSet.length > 1
+        ? assignSet.length + " reps work this hood — it shows up in every one of their lists"
+        : "";
+      note.hidden = assignSet.length < 2;
+    }
     $$("#hood-reps .rep-chip").forEach((b) =>
       b.addEventListener("click", () => {
         tick();
@@ -353,7 +378,10 @@
           $("#hood-newrep").focus();
           return;
         }
-        assignTo = b.dataset.u || null;
+        const id = b.dataset.u;
+        if (!id) assignSet = [];
+        else if (on(id)) assignSet = assignSet.filter((x) => x !== id);
+        else assignSet = assignSet.concat([id]);
         renderRepChips();
       }));
   }
@@ -378,12 +406,18 @@
         ).join("");
     }
 
-    const hist = (hood.assignments || []).slice(-3).reverse();
+    /* Assignment history, newest first, from the LEDGER — so a hood worked
+       by two reps at once shows both open runs rather than only the first.
+       An entry whose rep can no longer be resolved still shows: it is a
+       fact about who worked this turf, and history is never dropped to make
+       a name look tidy. */
+    const hist = STORE.assigneeHistory(hood).slice().reverse().slice(0, 6);
     if (hist.length) {
       html += `<div class="ce-sec" style="margin-top:14px">Assignment history</div>` +
         hist.map((a) =>
-          `<div class="h-item" style="font-size:12.5px;color:var(--t3)">${MUI.esc(a.name)}
-             · ${MUI.fmtDate(a.assignedAt)}${a.unassignedAt ? " → " + MUI.fmtDate(a.unassignedAt) : " → now"}</div>`
+          `<div class="h-item" style="font-size:12.5px;color:var(--t3)">${MUI.esc(a.name || "Former rep")}
+             · ${MUI.fmtDate(a.assignedAt)}${a.open ? " → now" : " → " + MUI.fmtDate(a.unassignedAt)}` +
+          (a.viaSplit ? ` <span class="dim">· inherited from a split</span>` : "") + `</div>`
         ).join("");
     }
     el.innerHTML = html;
@@ -410,6 +444,16 @@
 
   async function saveHoodInner() {
     const creating = !editingId;
+    /* Creating a hood — or moving who works one — is confirmed by the
+       server whenever there is one. Offline, that is a clean "Connect to
+       manage turf", not an RPC error after the sheet has closed. A plain
+       rename keeps working offline: it is a client-authored field. */
+    if (window.MTURF) {
+      const cur = creating ? [] : STORE.currentAssignees(
+        STORE.territories.find((x) => x.id === editingId) || {});
+      const moving = creating || assignSet.slice().sort().join() !== cur.slice().sort().join();
+      if (!(await MTURF.gate(creating ? "creating a hood" : "changing who works it", moving))) return;
+    }
     const name = $("#hood-name").value.trim() || "Hood " + (STORE.territories.length + 1);
     const homes = Math.max(0, Math.min(100000, Number($("#hood-homes").value) || 0)) || null;
     // a typed-but-unadded new rep still counts — nobody loses that keystroke
@@ -417,21 +461,40 @@
     let t;
     try {
       if (newRepName) {
-        const u = await STORE.addUser({ name: newRepName, role: "rep" });
-        assignTo = u.id;
+        // a retry must not mint a SECOND rep with the same name
+        const existing = STORE.users.find((u) =>
+          u.name.trim().toLowerCase() === newRepName.toLowerCase());
+        const u = existing || await STORE.addUser({ name: newRepName, role: "rep" });
+        // ADDED to the set, not swapped in: naming a new rep on a hood that
+        // already has one is how a second person joins it
+        if (assignSet.indexOf(u.id) < 0) assignSet = assignSet.concat([u.id]);
       }
       if (editingId) {
         t = STORE.territories.find((x) => x.id === editingId);
         if (t) { t.name = name; t.homes = homes; await STORE.updateTerritory(t); }
       } else {
-        t = await STORE.addTerritory({
-          name, homes, points: pending,
+        /* ONE id per draft, minted before the first attempt and kept across
+           retries: save_territory is an upsert on the id, so a retry after a
+           dropped response lands on the SAME hood instead of drawing a
+           second one over it. */
+        draftId = draftId || MDB.uid();
+        t = await STORE.createTerritory({
+          id: draftId, name, homes, points: pending,
           createdBy: (STORE.currentUser() || {}).id || null,
-        });
+        }, assignSet);
+        /* THE HOOD NOW EXISTS. Should anything after this fail, a retry
+           must EDIT this hood, not mint a second one beside it — the toast
+           said "couldn't save", but the turf is already on the map. */
+        editingId = t.id;
+        draftId = null;
       }
-      if (t) await STORE.assignTerritory(t, assignTo);
-    } catch (_) {
-      toast("Couldn't save the hood — try again");
+      // a NEW hood was created with its reps in one call above; an EDITED
+      // one has its reps moved through the assignment RPC here
+      if (t && !creating) await STORE.setAssignees(t, assignSet);
+    } catch (err) {
+      // the reason, when there is one — a rep with no account can never be
+      // given turf, and "try again" is a loop with no exit
+      toast((err && err.message) || "Couldn't save the hood — try again");
       return;
     }
     // the confirmed door import runs against the freshly saved territory,
@@ -441,14 +504,21 @@
       try { imported = await runImport(t.id); }
       catch (_) { toast("Import hit an error — scan the territory again to retry"); }
     }
-    const who = assignTo && STORE.userById(assignTo);
+    // name every rep the hood went to, not just the first — "assigned to
+    // John" on a hood John and Jake share is a wrong answer
+    const names = assignSet
+      .map((id) => (STORE.userById(id) || {}).name)
+      .filter(Boolean);
+    const who = names.length === 0 ? ""
+      : names.length === 1 ? names[0]
+      : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
     pending = null; editingId = null;
     MMAP.refreshHoods();
     closeSheet();
     renderHoodList();
     toast(imported && imported.added
-      ? `${name} — ${imported.added} doors pinned${who ? ", assigned to " + who.name : ""}`
-      : (who ? `${name} — assigned to ${who.name}` : `${name} saved`));
+      ? `${name} — ${imported.added} doors pinned${who ? ", assigned to " + who : ""}`
+      : (who ? `${name} — assigned to ${who}` : `${name} saved`));
   }
 
   // ---------- manager rep panel ----------
@@ -587,6 +657,14 @@
     bindSplit();
     MMAP.onMapClick(handleMapClick); // dot-drawing consumes taps before knocks
     $("#hood-save").addEventListener("click", saveHood);
+    const editBtn = $("#hood-edit-shape");
+    if (editBtn) editBtn.addEventListener("click", async () => {
+      tick();
+      const t = editingId && STORE.territories.find((x) => x.id === editingId);
+      if (!t) return;
+      closeSheet();
+      if (window.MTEDIT) await MTEDIT.open(t);
+    });
     $("#hood-delete").addEventListener("click", async () => {
       if (!editingId) return;
       if (!confirm("Delete this hood? Pins inside it are not affected.")) return;

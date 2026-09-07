@@ -667,3 +667,72 @@ migration is involved.
 **10.4 is the one that matters.** A refused write leaves no trace on the
 server at all, so this list is the only record anywhere of what those 1 + 6
 refusals were.
+
+
+---
+
+# v43 — what the refusal list found, and the two defects it exposed
+
+The v42 list did its job within hours. Both devices' refusals are now
+explained, and neither is caused by v41 or v42:
+
+* **Owner phone, 1 refused.** Hood 19, status **400** — not a permission
+  problem. `territories_derive_geom` raises `22023` (which PostgREST returns
+  as 400) for an outline that crosses itself. Reproduced on production
+  inside a rolled-back transaction.
+* **Rep phone, 6 refused.** All territories, all drawn **27–28 August** —
+  before the oldest hood that has ever existed on the server (31 August).
+  Practice hoods from before that browser profile joined a team. Four are
+  403 (a rep may not write turf — RLS doing its job); two are 400, the same
+  broken-outline defect. None was ever team data.
+
+Two client defects, both older than v41:
+
+1. **The server's own sentence was thrown away.** Our triggers raise English
+   written for the rep — *"the outline crosses itself near 30.45, -91.15.
+   Move a corner"* — and the client kept only the status number.
+2. **The draw path never checked the outline.** `MGEOM.validate` was wired
+   into the reshape editor and nowhere else, so a hood that no server would
+   ever accept saved locally without a murmur and died silently on sync.
+
+## 11. Getting v43
+
+- [ ] **11.1** Both phones: close RALLY completely, reopen. More →
+      **Build v43**.
+
+## 12. The refusal list, second pass
+
+- [ ] **12.1** Owner phone → More → Refused by the server. The Hood 19 row
+      now says **the outline crosses itself**, in the server's own words,
+      naming the corner — not "rejected the shape of this record".
+- [ ] **12.2** Each row has a **✕**. Tap it on one. That row goes, the count
+      drops, and the hood itself is untouched (check the map).
+- [ ] **12.3** Rep phone: dismiss all six. The row goes quiet — those hoods
+      are correctly refused and there is nothing the rep can do about them.
+- [ ] **12.4** Copy details still carries **no customer names or
+      addresses** — only our own `turf:` / `assignment:` messages travel.
+
+## 13. A bad outline is refused while you are still drawing it
+
+- [ ] **13.1** Draw a hood whose boundary crosses itself (a bowtie) and tap
+      **Save hood**. It is refused on the spot, in plain words, naming the
+      corner — and **the sheet stays open with the outline still there** so
+      you can drag the corner and save it properly.
+- [ ] **13.2** Fix the corner, save again: it saves and syncs normally.
+- [ ] **13.3** Hood 19: open it, **📐 Reshape this hood on the map**, move
+      the crossing corner until the bar goes grey, save. It should now
+      reach the server — check it appears on the rep phone after a sync.
+
+## What to send back for v43
+
+```
+11.1  Both phones on Build v43:
+12.1  What the Hood 19 row says now:
+12.2  Dismiss works; the hood is still on the map:
+12.3  Rep phone cleared:
+13.1  Bowtie refused while drawing, sheet stayed open:
+13.3  Hood 19 reshaped and now on the server:
+```
+
+**13.3 is the one that closes this out.** It proves the hood was never lost
+— only unsaveable — and that a rep can now fix that themselves.

@@ -41,7 +41,7 @@ const section = (t) => console.log("\n== " + t);
 // ---------------- mock Supabase: takes everything but turf ----------------
 const TEAM = "11111111-1111-4111-a111-111111111111";
 const mock = { users: {}, profiles: {}, access: {}, refresh: {},
-               territoryPosts: 0, refuseTerritories: true };
+               territoryPosts: 0, refuseTerritories: true, refuseTurfShape: false };
 function addUser(email, password, prof) {
   const id = crypto.randomUUID();
   mock.users[String(email).toLowerCase()] = { id, password };
@@ -117,6 +117,14 @@ const server = http.createServer((req, res) => {
         mock.territoryPosts++;
         if (mock.refuseTerritories) {
           return j(res, 403, { message: "new row violates row-level security policy" });
+        }
+        if (mock.refuseTurfShape) {
+          /* what territories_derive_geom actually raises — 22023, which
+             PostgREST returns as 400, carrying English written for the rep */
+          return j(res, 400, { code: "22023", message:
+            "turf: the outline crosses itself or is otherwise invalid " +
+            "(Self-intersection[-91.15 30.45]). Move a corner so the boundary " +
+            "never doubles back through itself." });
         }
       }
       return j(res, 201, []);
@@ -353,12 +361,130 @@ async function reopen(page) {
   check("I3 and the copy carries the same fact", /\(queued again\)/.test(retryCopy), retryCopy);
   await ctx.unroute(/\/(auth|rest)\/v1\//);
 
+  // ============ J: the server's own sentence reaches the screen ============
+  section("J — the words the server actually sent");
+  await page.evaluate(async () => {
+    await MDB.kvSet("syncDead", [
+      { k: "territories:t-geom", table: "territories", id: "t-geom", status: 400,
+        at: Date.now(), op: "upsert", msg: "turf: the outline crosses itself or is " +
+          "otherwise invalid (Self-intersection[-91.15 30.45]). Move a corner so the " +
+          "boundary never doubles back through itself." },
+      { k: "territories:t-rls", table: "territories", id: "t-rls", status: 403,
+        at: Date.now() - 1000, op: "upsert",
+        msg: 'new row violates row-level security policy for table "territories"' },
+    ]);
+  });
+  await reopen(page);
+  const jText = await page.$eval("#refused-list", (e) => e.textContent);
+  check("J1 our own trigger's sentence becomes the headline reason",
+    /outline crosses itself/.test(jText) && /Move a corner/.test(jText), jText.slice(0, 300));
+  check("J2 and its `turf:` prefix is not shown to the rep", !/turf:/.test(jText));
+  check("J3 PostgREST's own jargon does NOT become the headline",
+    /role may not save hoods/.test(jText), jText.slice(0, 400));
+  check("J4 but it is still there on the diagnostic line",
+    /row-level security policy/.test(jText));
+  await page.click("#refused-copy");
+  await page.waitForTimeout(300);
+  const jCopy = await page.evaluate(() => navigator.clipboard.readText());
+  check("J5 the copy carries OUR message — it is ours and it diagnoses",
+    /outline crosses itself/.test(jCopy), jCopy);
+  /* Anything the server says that is NOT one of our two prefixes could in
+     principle echo a column value, and this text is going into a message. */
+  check("J6 the copy carries no message we did not write",
+    !/row-level security/.test(jCopy), jCopy);
+
+  // ============ K: dismissing a refusal that cannot be acted on ============
+  section("K — dismissing a refusal that has been read");
+  check("K1 both rows are listed before dismissing",
+    (await page.$$("#refused-list .ref-row")).length === 2);
+  const pendingBeforeDismiss = await page.evaluate(() => MSYNC.status().pending);
+  const hoodsBeforeDismiss = await page.evaluate(() => STORE.territories.length);
+  await page.click("#refused-list .ref-row:first-child .ref-x");
+  await page.waitForTimeout(400);
+  check("K2 the row is gone from the list",
+    (await page.$$("#refused-list .ref-row")).length === 1);
+  check("K3 the engine's count agrees",
+    (await page.evaluate(() => MSYNC.status().refused)) === 1);
+  check("K4 the dead-letter really lost it, not just the screen",
+    (await page.evaluate(() => MSYNC.refusals())).length === 1);
+  /* Dismissing clears the LOG. It must never touch the record, and must
+     never put the row back in the outbox — so the queue is compared with
+     what it held a moment ago, not with zero (section I deliberately left
+     one row queued). */
+  check("K5 dismissing queued nothing and un-queued nothing",
+    (await page.evaluate(() => MSYNC.status().pending)) === pendingBeforeDismiss,
+    "before=" + pendingBeforeDismiss + " after=" + (await page.evaluate(() => MSYNC.status().pending)));
+  await page.click("#refused-list .ref-row:first-child .ref-x");
+  await page.waitForTimeout(400);
+  check("K6 dismissing the last one empties the list honestly",
+    /Nothing has been refused/i.test(await page.$eval("#refused-list", (e) => e.textContent)));
+  check("K6b dismissing never touched the records themselves",
+    (await page.evaluate(() => STORE.territories.length)) === hoodsBeforeDismiss);
+  check("K7 and More says so too",
+    /Nothing refused/i.test(await page.$eval(sub(), (e) => e.textContent)),
+    await page.$eval(sub(), (e) => e.textContent));
+
+  // ============ L: a bad outline never gets saved in the first place ============
+  /* Driven through MHOODS.createFromPoints -> the real hood sheet -> the real
+     #hood-save, which is the same saveHoodInner every drawing path ends in.
+     Asserting on the source text would have proved only that a string is
+     present in a file. */
+  section("L — the outline is checked when it is drawn");
+  if (await page.$eval("#refused-sheet", (e) => e.classList.contains("open"))) {
+    await page.click("#refused-sheet .grab");
+    await page.waitForTimeout(200);
+  }
+  const BOWTIE = [[-91.20, 30.40], [-91.10, 30.50], [-91.10, 30.40], [-91.20, 30.50]];
+  const CLEAN  = [[-91.90, 30.90], [-91.88, 30.90], [-91.88, 30.92], [-91.90, 30.92]];
+  const hoodsBefore = await page.evaluate(() => STORE.territories.length);
+  await page.evaluate((pts) => MHOODS.createFromPoints(pts), BOWTIE);
+  await page.waitForTimeout(300);
+  await page.click("#hood-save");
+  await page.waitForTimeout(700);
+  check("L1 the bowtie was NOT saved",
+    (await page.evaluate(() => STORE.territories.length)) === hoodsBefore,
+    "before=" + hoodsBefore + " after=" + (await page.evaluate(() => STORE.territories.length)));
+  const toastText = await page.$eval("#toast", (e) => e.textContent);
+  check("L2 and the rep was told what is wrong, in words they can act on",
+    /crosses itself/i.test(toastText), toastText);
+  check("L3 the message names the corner, as the server's does",
+    /-91\.|30\./.test(toastText), toastText);
+  /* The check must not have become a wall in front of ordinary drawing. */
+  const cleanOk = await page.evaluate((pts) => MGEOM.validate(pts).ok, CLEAN);
+  check("L4 a clean outline still passes the same checker", cleanOk === true);
+  check("L5 nothing was queued for a hood that was never made",
+    (await page.evaluate(() => MSYNC.status().pending)) === pendingBeforeDismiss);
+  /* Refusing the save must NOT close the sheet. The outline is still drawn,
+     still on screen and still draggable — telling someone their boundary
+     crosses itself and then throwing the boundary away would be worse than
+     saving it broken. */
+  check("L6 the sheet stays open so the outline can be fixed, not lost",
+    await page.$eval("#hood-sheet", (e) => e.classList.contains("open")));
+  await page.click("#hood-sheet .grab");
+  await page.waitForTimeout(250);
+
   // ================= G: the chip answers its own question =================
   section("G — the Map chip");
-  await page.click("#refused-sheet .grab");
-  await page.waitForTimeout(150);
+  if (await page.$eval("#refused-sheet", (e) => e.classList.contains("open"))) {
+    await page.click("#refused-sheet .grab");
+    await page.waitForTimeout(200);
+  }
+  /* A REAL refusal, not a seeded row: the chip reads the engine's own
+     counter, which only a genuine dead-letter moves. Section I left a
+     territory queued and the network is live again, so one cycle is enough
+     — and it exercises the whole path the rep's phone actually walks. */
+  await page.evaluate(async () => {
+    await MDB.kvSet("syncDead", []);
+    // a real hood with a clean outline: the mock refuses ALL turf, so this
+    // walks the whole push -> refusal -> dead-letter -> repaint path
+    await STORE.addTerritory({ name: "Chip Hood", color: "#7C5CFC",
+      points: [[-92.5, 31.0], [-92.4, 31.0], [-92.4, 31.1], [-92.5, 31.1]] });
+    await MSYNC.syncNow();
+  });
+  await page.waitForFunction(() => MSYNC.status().refused > 0, null, { timeout: 20000 });
   await page.click("#tab-map");
   await page.waitForTimeout(400);
+  await page.waitForTimeout(500);
   check("G1 the chip is showing the refusal",
     /refused/.test(await page.$eval("#sync-chip-n", (e) => e.textContent)),
     await page.$eval("#sync-chip-n", (e) => e.textContent));

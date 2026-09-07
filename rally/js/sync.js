@@ -600,6 +600,14 @@
           await deadLetter({
             k: ents[0].k, table, id: ents[0].id, status: r.status, at: Date.now(),
             op: ents[0].op || "upsert",
+            /* THE SERVER'S OWN SENTENCE. Our triggers raise English written
+               for the rep holding the phone — "the outline crosses itself
+               near 30.45, -91.15. Move a corner" — and until v42 the client
+               kept the status number and threw the sentence away, so the
+               screen could only manage "rejected the shape of this record"
+               about a hood whose exact broken corner the server had already
+               named. It is recorded here and read back on the More screen. */
+            msg: (r.data && r.data.message) || "",
           });
           await MDB.del("outbox", ents[0].k).catch(() => {});
           forget(ents[0].k);
@@ -825,7 +833,7 @@
         lastError = "split unavailable: the server has no smart_split_territory (0005)";
         await S().finishSplit(e.id, false);
         await deadLetter({ k: e.k, table: "splits", id: e.id, status: 404, at: Date.now(),
-          op: "split" });
+          op: "split", msg: (r.data && r.data.message) || "" });
         await MDB.del("outbox", e.k).catch(() => {});
         forget(e.k);
         try {
@@ -853,7 +861,8 @@
         }
       } catch (_) {}
       await deadLetter({ k: e.k, table: "splits", id: e.id,
-        status: r.status, at: Date.now(), op: "split" });
+        status: r.status, at: Date.now(), op: "split",
+        msg: (r.data && r.data.message) || "" });
       await MDB.del("outbox", e.k).catch(() => {});
       forget(e.k);
       repaint();
@@ -1702,6 +1711,37 @@
   // everything the server has refused on this device, for the More screen
   const refusals = async () => (await MDB.kvGet("syncDead", null)) || [];
 
+  /* CLEARING A REFUSAL THAT HAS BEEN READ.
+
+     Some refusals are correct and permanent, and the person looking at them
+     can do nothing whatever about it: a rep holding practice hoods from
+     before they joined a team will be refused that turf every time, because
+     a rep may not write turf and those hoods are not theirs to push. Before
+     this, that rep carried a red "6 refused" badge for the rest of the
+     device's life with no way out of it — an honest screen that had become
+     nagging rather than useful.
+
+     This removes the LOG ENTRY and nothing else. The record itself is
+     untouched and stays on the device; the outbox is not involved (a
+     refusal emptied it of this row long ago), so nothing is re-sent and
+     nothing is deleted. If the same row is refused again it comes straight
+     back, which is the point: dismissing says "I have read this", never
+     "pretend it did not happen". */
+  async function dismissRefusal(k) {
+    if (!k) return false;
+    const dead = (await MDB.kvGet("syncDead", null)) || [];
+    const next = dead.filter((d) => d.k !== k);
+    if (next.length === dead.length) return false;
+    await MDB.kvSet("syncDead", next);
+    deadCount = next.length;
+    deadTables = {};
+    next.forEach((d) => { const t = d.table || "record";
+      deadTables[t] = (deadTables[t] || 0) + 1; });
+    lastRefusal = next[next.length - 1] || null;
+    repaint();
+    return true;
+  }
+
   /* The pre-mutation re-check (v41). While the latch is false, a leader
      about to touch turf asks the server ONCE more, so an activation that
      happened since this session started is picked up without a reload.
@@ -1718,7 +1758,7 @@
 
   window.MSYNC = {
     start, queue, queueSplit, syncNow: cycle, wake, status, reset,
-    isDirty, refusals, capability, recheckCapability,
+    isDirty, refusals, dismissRefusal, capability, recheckCapability,
     // the store's atomic delete paths: build the tombstone rows, register
     // them before the transaction, unregister on abort, nudge a push after
     tombstoneEntry, register, unregister, kick,

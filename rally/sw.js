@@ -4,7 +4,7 @@
    Fonts + libraries: cache-first (versioned/immutable), opaque allowed.
    Map tiles: cache-first with a cap, opaque allowed, so knocked
    neighborhoods keep working offline. */
-const CACHE = "rally-v42";
+const CACHE = "rally-v43";
 const TILE_CACHE = "rally-tiles-v1";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
@@ -25,16 +25,16 @@ const NET_TIMEOUT_MS = 3500;
    Keep these in step with index.html: same paths, same ?v. */
 const CORE = [
   "./", "./index.html", "./manifest.webmanifest",
-  "./css/app.css?v=42",
-  "./vendor/maplibre-gl.js?v=42", "./vendor/maplibre-gl.css?v=42",
-  "./js/db.js?v=42", "./js/geom.js?v=42", "./js/geo.js?v=42", "./js/data.js?v=42", "./js/ui.js?v=42", "./js/store.js?v=42",
-  "./js/cloud-config.js?v=42", "./js/cloud.js?v=42", "./js/sync.js?v=42", "./js/realtime.js?v=42",
-  "./js/auth.js?v=42", "./js/gate.js?v=42",
-  "./js/property.js?v=42", "./js/crm.js?v=42",
-  "./js/contract.js?v=42", "./js/map.js?v=42", "./js/hoods.js?v=42", "./js/customers.js?v=42",
-  "./js/route.js?v=42", "./js/street.js?v=42", "./js/select.js?v=42",
-  "./js/home.js?v=42", "./js/turf.js?v=42", "./js/turfedit.js?v=42", "./js/schedule.js?v=42", "./js/stats.js?v=42",
-  "./js/vault.js?v=42", "./js/app.js?v=42",
+  "./css/app.css?v=43",
+  "./vendor/maplibre-gl.js?v=43", "./vendor/maplibre-gl.css?v=43",
+  "./js/db.js?v=43", "./js/geom.js?v=43", "./js/geo.js?v=43", "./js/data.js?v=43", "./js/ui.js?v=43", "./js/store.js?v=43",
+  "./js/cloud-config.js?v=43", "./js/cloud.js?v=43", "./js/sync.js?v=43", "./js/realtime.js?v=43",
+  "./js/auth.js?v=43", "./js/gate.js?v=43",
+  "./js/property.js?v=43", "./js/crm.js?v=43",
+  "./js/contract.js?v=43", "./js/map.js?v=43", "./js/hoods.js?v=43", "./js/customers.js?v=43",
+  "./js/route.js?v=43", "./js/street.js?v=43", "./js/select.js?v=43",
+  "./js/home.js?v=43", "./js/turf.js?v=43", "./js/turfedit.js?v=43", "./js/schedule.js?v=43", "./js/stats.js?v=43",
+  "./js/vault.js?v=43", "./js/app.js?v=43",
   "./fonts/Noto Sans Bold/0-255.pbf", "./fonts/Noto Sans Bold/256-511.pbf",
   "./img/wordmark.svg", "./img/topo.svg",
   "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png",

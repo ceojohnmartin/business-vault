@@ -444,6 +444,33 @@
 
   async function saveHoodInner() {
     const creating = !editingId;
+    /* THE OUTLINE IS CHECKED WHEN IT IS DRAWN, not only when it is reshaped.
+
+       MGEOM.validate has always existed and has always been thorough — a
+       boundary that crosses itself, a corner visited twice, a ring with no
+       area, one straddling the antimeridian — and its wording was written to
+       mirror the server's refusal word for word. It was wired into the
+       vertex editor and NOWHERE ELSE, so the path that CREATES a hood never
+       asked. A shaky finger drew a bowtie, the hood saved locally without a
+       murmur, and territories_derive_geom refused it (22023, which PostgREST
+       returns as 400) on the next sync: the hood lived on that one phone,
+       invisible to the team, forever. Three of the seven hoods drawn on
+       these devices in late August are in exactly that state.
+
+       It runs BEFORE the connectivity gate on purpose. Whether a ring can
+       ever be stored is a local question with a local answer, and asking the
+       server for permission to save a shape no server will accept earns the
+       rep "connect to manage turf" — true, useless, and not the problem.
+       The normalised ring (CCW, duplicate corners dropped) is what gets
+       saved, exactly as the editor saves it. */
+    if (creating && window.MGEOM) {
+      const ring = MGEOM.validate(pending);
+      if (!ring.ok) {
+        toast(ring.reason || "That outline isn't a shape RALLY can save — reshape it and try again", 6000);
+        return;
+      }
+      pending = ring.points;
+    }
     /* Creating a hood — or moving who works one — is confirmed by the
        server whenever there is one. Offline, that is a clean "Connect to
        manage turf", not an RPC error after the sheet has closed. A plain

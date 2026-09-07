@@ -318,6 +318,18 @@
     return "The server answered " + (d.status || "an error") + " and would not take it.";
   }
 
+  /* OUR OWN TRIGGERS speak English written for a rep and name the exact
+     corner or entry at fault; they are the two prefixes the migrations
+     raise (`turf:` at 8 sites, `assignment:` at 5) and they carry no
+     customer text by construction. Everything else the server says is
+     PostgREST's own jargon — "new row violates row-level security policy" —
+     which is worse than the sentence this screen already writes, and which
+     could in principle echo a column value. So: ours is promoted to the
+     headline reason and may travel in the copy; anything else stays on the
+     dim diagnostic line and never leaves the phone in the copy. */
+  const OURS = /^(turf|assignment):\s*/;
+  const serverSays = (d) => (OURS.test(String(d.msg || "")) ? String(d.msg).replace(OURS, "") : "");
+
   const refusedOpLabel = (d) =>
     d.op === "delete" ? "Delete" : d.op === "split" ? "Split" : d.op ? "Save" : "Sent";
 
@@ -351,17 +363,31 @@
          the server again on the next cycle. Saying so is the difference
          between a list of history and a list of outstanding problems. */
       const again = !!(window.MSYNC && MSYNC.isDirty && MSYNC.isDirty(d.table, d.id));
+      const mine = serverSays(d);
+      const other = !mine && d.msg ? String(d.msg) : "";
       return `<div class="ref-row">
         <span class="ic">${w.ic}</span>
         <span class="rb">
           <span class="rt">${esc(w.title)}<span class="ref-tag">${esc(refusedOpLabel(d))}</span></span>
           ${w.sub ? `<span class="rw">${esc(w.sub)}</span>` : ""}
-          <span class="rw">${esc(refusedWhy(d))}</span>
+          <span class="rw">${esc(mine || refusedWhy(d))}</span>
           ${again ? `<span class="rw ref-again">Changed on this device since — it will be offered again on the next sync.</span>` : ""}
-          <span class="rm">${esc(d.table)} · ${esc(d.id)} · ${esc(d.status == null ? "?" : String(d.status))} · ${esc(d.at ? MUI.fmtAgo(d.at) : "time unknown")}</span>
+          <span class="rm">${esc(d.table)} · ${esc(d.id)} · ${esc(d.status == null ? "?" : String(d.status))} · ${esc(d.at ? MUI.fmtAgo(d.at) : "time unknown")}${other ? " · " + esc(other) : ""}</span>
         </span>
+        <button class="ref-x" type="button" data-k="${esc(d.k || "")}" aria-label="Dismiss this refusal">✕</button>
       </div>`;
     }).join("");
+
+    /* Bound here rather than once at boot: the rows are rebuilt on every
+       open, so the buttons are new elements each time. */
+    $$("#refused-list .ref-x").forEach((b) =>
+      b.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        MUI.tick();
+        if (window.MSYNC && MSYNC.dismissRefusal) await MSYNC.dismissRefusal(b.dataset.k);
+        await renderRefusals();
+        renderMore();
+      }));
   }
 
   /* The copy is for whoever is diagnosing this — so it is IDs, ops, status
@@ -382,10 +408,12 @@
     ];
     newestFirst(list).forEach((d, i) => {
       const again = !!(window.MSYNC && MSYNC.isDirty && MSYNC.isDirty(d.table, d.id));
+      const mine = serverSays(d);
       lines.push("  " + pad(i + 1, 4) + pad(d.table, 13) + pad(d.id, 20)
         + pad(d.op || "sent", 8) + pad(d.status, 8)
         + (d.at ? new Date(d.at).toISOString() : "?")
         + (again ? "  (queued again)" : ""));
+      if (mine) lines.push("        " + mine);
     });
     if (st.lastError) lines.push("", "last sync error: " + st.lastError);
     lines.push("", "IDs, ops and status codes only — no customer details.");

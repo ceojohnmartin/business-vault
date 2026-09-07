@@ -1124,6 +1124,12 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .ref-empty{background:var(--s2);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:14px 13px;font-size:13px;color:var(--t2);line-height:1.5}
 .ref-row .ref-again{color:var(--sold-ink);font-weight:600}
+/* Dismiss: a refusal that has been READ. Deliberately quiet and small —
+   clearing the log is a considered act, not the obvious thing to tap. */
+.ref-x{flex:none;align-self:flex-start;width:30px;height:30px;margin:-3px -4px 0 0;
+  border-radius:9px;color:var(--t3);font-size:14px;line-height:1;
+  display:flex;align-items:center;justify-content:center}
+.ref-x:active{background:var(--s3);transform:scale(.92)}
 .ref-foot{font-size:11.5px;color:var(--t3);line-height:1.45;margin:2px 0 10px}
 /* the first-door hint shares the chip's exact spot; it steps up when the
    chip is out so neither pill covers the other (see MMAP.updateBrandToday) */

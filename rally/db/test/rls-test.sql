@@ -669,7 +669,10 @@ select t_assert(
      from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
-      and p.prorettype <> 'trigger'::regtype
+      -- neither a row-trigger nor an EVENT-trigger function is a door a
+      -- request can reach; production carries Supabase's own
+      -- `rls_auto_enable` event trigger, which is why this excludes both
+      and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
       and p.provolatile = 'v')
   = 'clear_pin_dnk,rally_split_inherit,save_territory,set_territory_assignments,'
     || 'smart_split_territory,smart_split_territory_core,smart_split_territory_v41,start_territory_cycle',

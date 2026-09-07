@@ -27,16 +27,18 @@ Fill these in yourself after running each verification query.
 | `0011_assignment_backfill.sql` | **v41 STAGE A** — lossless backfill with its five proofs as assertions | **APPLIED** — same transaction; the five proofs held (the transaction could not have committed otherwise) and are restated PASS in B2–B6 | as above |
 | `0012_column_privileges.sql` | **v41 STAGE A** — table-wide UPDATE on territories replaced by column grants | **APPLIED** — same transaction | as above |
 | `0013_dnk_authority.sql` | **v41 STAGE A** — version-blind do-not-knock protection on `pins` | **APPLIED** — same transaction; trigger armed for v40 phones (D7 PASS on production) | as above |
-| `0014_turf_rpcs.sql` | **v41 STAGE B** — `save_territory`, `set_territory_assignments`, `start_territory_cycle`, `clear_pin_dnk` | **NOT APPLIED** | — |
-| `0015_smart_split_v41.sql` | **v41 STAGE B** — the certified 0005 body is RENAMED to `smart_split_territory_core` (no client may execute it); BOTH public names run the wrapper that strips client-planted assignments from the children and derives the inheritance server-side | **NOT APPLIED** | — |
+| `0014_turf_rpcs.sql` | **v41 STAGE B** — `save_territory`, `set_territory_assignments`, `start_territory_cycle`, `clear_pin_dnk` | **APPLIED** — 2026-09-07 03:10 UTC, with 0017, in the ONE `APPLY_v41_B1.sql` transaction (md5-guarded) | production `verify-v41-stage-b1.editor.sql`: 55 PASS, 2 INFO, 0 FAIL |
+| `0015_smart_split_v41.sql` | **v41 STAGE B** — the certified 0005 body is RENAMED to `smart_split_territory_core` (no client may execute it); BOTH public names run the wrapper that strips client-planted assignments from the children and derives the inheritance server-side | **APPLIED** — 2026-09-07 03:27 UTC, `APPLY_v41_B2.sql` (md5-guarded) | production `verify-v41-stage-b2.editor.sql`: 40 PASS, 1 INFO, 0 FAIL; `turfRpc` TRUE, flag FALSE |
 | `0016_turf_overlap.sql` | **v41 STAGE C** — the deferred overlap constraint + team advisory lock | **NOT APPLIED** | — |
+| `0017_turf_corrections.sql` | **v41 STAGE B (part 1)** — three corrections to the already-applied 0010 and 0013, each reproduced on a real database by the Stage B review: a cleared do-not-knock that went black again on the next write; an open ledger entry deleted by a stale mirror; a correction no client could see | **APPLIED** — 2026-09-07 03:10 UTC, inside `APPLY_v41_B1.sql` | production verify A2b: both helpers present, both trigger bodies carry it; D6b/D6c and D2c prove the behaviour |
 
-## v41 — Stage A APPLIED; Stage B, Stage C, the flip and the publish NOT done
+## v41 — Stages A and B APPLIED; Stage C, the flip and the client publish NOT done
 
-**Stage A (0008's grant + 0009–0013) is live on production since 2026-09-06
-20:44 UTC. 0014–0016 have NOT been run, the flag is FALSE, and v41 has not
-been published.** Production phones still run Build v40 from `main` at
-`437893e`, with 0001–0007 and Stage A live. The whole v41 set is proven only against a throwaway local
+**Stage A (0008's grant + 0009–0013) is live since 2026-09-06 20:44 UTC, and
+Stage B (0017 + 0014, then 0015) since 2026-09-07 03:10 and 03:27 UTC. 0016
+has NOT been run, `assignment_server_authoritative` is FALSE, and the v41
+client has NOT been published.** Every phone in the field still runs Build
+v40 from `main` at `437893e`. The whole v41 set is proven only against a throwaway local
 PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 
 ### The staged order, and the STOP gate on each stage
@@ -46,7 +48,7 @@ PostgreSQL 16 with real PostGIS 3.4.2 (`db/test/run-v41-tests.sh`).
 | **0** | `0008` | **DONE.** Schema + extension at CUTOVER 0A; the USAGE grant went in with Stage A. Schema is `gis`, recorded below. |
 | **0.5** | `db/preflight/v41-preflight.sql` — read-only, creates no durable object | **Review every section.** It reports unusable outlines, existing overlaps, the full assignment census across live/archived/tombstoned/split-parent hoods, unresolvable assignees, duplicate open entries, and the do-not-knock and unlinked-customer counts. |
 | **A** | `0009` → `0010` → `0011` → `0012` → `0013` | **DONE 2026-09-06 (record below).** All five backfill proofs in 0011 must pass (they abort the transaction otherwise). The do-not-knock trigger is armed here on purpose: it protects v40 phones too. |
-| **B** | `0014` → `0015` | The v41 client must be deployed and its `applyTerritories` server-owned merge live BEFORE the flip, or the server would own a field no device can receive. |
+| **B** | `0017` + `0014` → `0015` | **DONE 2026-09-07 (record below).** The v41 client must be deployed and its `applyTerritories` server-owned merge live BEFORE the flip, or the server would own a field no device can receive. |
 | **C** | `0016`, then — **separately** — the flip | 0016 refuses to arm while any live hood has an unusable outline. The flip is not a file: it is one reviewed statement, `update public.rally_config set assignment_server_authoritative = true;`. It is also GATED: `rally_config_guard` refuses it while any live hood still names a current assignee who is no rep on their team, because that hood would read as unassigned the moment clients trust the server's ledger. |
 
 ### PostGIS schema — DECIDED and DISCOVERED (CUTOVER STEP 0 / 0A, 2026-09-05)
@@ -393,6 +395,123 @@ SECURITY DEFINER operations, as the owner, so they are now revoked from
 the v41 client is published, or after it has been withdrawn again: a
 published v41 client calls `start_territory_cycle` and `clear_pin_dnk`
 whenever a team server exists, and would 404 on them after the rollback.
+
+### STAGE B — APPLIED to production, 2026-09-07
+
+Approved by the owner: "apply 0014, verify it completely, apply 0015, verify
+it completely, publish the v41 client only after the Stage B server
+verification is clean, verify the published client is receiving and merging
+the server-owned fields. Do not apply 0016. Do not set
+assignment_server_authoritative = true. Do not merge to main."
+
+**Applied through the Supabase connector**, each file as ONE statement inside
+the md5-guarded `do` wrapper (a transcription error can only refuse, never
+apply something else):
+
+| | file | md5 of the guarded body | committed |
+|---|---|---|---|
+| part 1 | `APPLY_v41_B1.sql` (0017 + 0014) | `1aa5c005870dcba73d825a2028fe0600` | 2026-09-07 03:10 UTC |
+| part 2 | `APPLY_v41_B2.sql` (0015) | `8c67822d7cdc6aa3d70ad61990feef16` | 2026-09-07 03:27 UTC |
+
+Each returned no error and no rows. Part 1 was verified BEFORE part 2 was
+sent, as the sequence requires — and 0015 would have refused anyway: it now
+raises unless 0014 is already present.
+
+**Verification on production**, both pastes sent through the same guarded
+wrapper:
+
+- `verify-v41-stage-b1.editor.sql` — **55 PASS, 2 INFO, 0 FAIL.** Catalog:
+  the eight 0014 functions by exact signature, every one SECURITY DEFINER
+  with `search_path = ''` and a non-client owner; the four operations
+  executable by `authenticated`, nothing by `anon`, the four internals by no
+  client role AND not by `service_role`; 0017's two helpers present and both
+  corrected trigger bodies live; `turfRpc` still FALSE with 0015 not yet
+  applied; 0005 still the certified body under its own name by md5; no 0015
+  or 0016 object; Stage A intact (25 functions, 5 triggers, 5 columns, gis
+  USAGE, column privileges). State: hoods=22 entries=12 open=12
+  cycles_started=0 — identical to the Stage A verification, because 0014 and
+  0017 rewrite no row. Behaviour (all rolled back, on team
+  `c6c003c8-efc1-4286-a5dd-8b08d4753709`, hood `mteqbadr6ixcxzp`):
+  `save_territory` creates a hood with its first rep and answers with the
+  ledger; the assignment diff closes, retries as `already_committed`,
+  re-opens a new entry beside the closed one, and stamps `data.updatedAt`
+  above the incoming value; a stranger, a duplicate and an unknown hood are
+  each refused by sqlstate AND message; `save_territory` mirrors `homes` and
+  `archived` into `data`; `start_territory_cycle` uses the server clock, is
+  monotone, and clamps a stamp 400 days ahead; `clear_pin_dnk` needs a
+  reason, clears the door, writes its indelible event, answers a retry
+  `already_committed` with the original `cleared_at`, and answers `not_dnk`
+  on a door that is not black; **the clear survives an exact echo of the row
+  through the ordinary upsert and the next knock does not re-black it
+  (0017)**; a client-stamped clear is still stripped as a forgery while the
+  server's survives beside it; **a door a fast phone clock marked black an
+  hour ahead is clearable**; every operation is refused to a rep with
+  `turf: requires leader…` and to `anon` at the function itself; a rep's
+  ordinary work still commits and a rep still cannot draw turf; a v40
+  nine-column upsert still commits with the ledger untouched; and v40's
+  Smart Split still produced UNASSIGNED children, because 0015 had not
+  landed yet.
+
+- `verify-v41-stage-b2.editor.sql` — **40 PASS, 1 INFO, 0 FAIL.**
+  `smart_split_territory_core` IS the certified 0005 body (LF-normalised md5
+  `8b856cf6…`, plpgsql, `search_path public, pg_temp`) and is executable by
+  no client role and no service key; both public names are the wrapper;
+  `rally_capabilities()` = `{postgis true, turfRpc TRUE,
+  assignmentServerAuthoritative FALSE}`; the writable SECURITY DEFINER set
+  is exactly the eight named turf operations; no 0016 object; Stage A and
+  0005's `territory_splits` audit table intact; 0017 still in force. Ledger
+  totals unchanged again (0015 rewrites no row). Behaviour, rolled back: a
+  split through the v41 name with a leader, a non-uuid, a stranger, a forged
+  ledger, a rev and a cycle PLANTED in the children — both children inherit
+  exactly the parent's current rep, carry `inheritedFromTerritoryId`,
+  `viaSplit` and `assignedBy`, have their mirrors rebuilt from that ledger,
+  and **nothing planted survived**; the parent is tombstoned with its open
+  entry closed and its history kept; the children carry the correction stamp
+  so every phone pulls the inheritance; a retry does not re-inherit; the
+  0005 NAME does the same for v40-shaped children and keeps 0005's response
+  shape; one idempotency record serves both names; a parent whose entry was
+  stamped an hour ahead still splits; a stale mirror from the phone that
+  split still decides who is open while the inherited entry it never saw is
+  kept CLOSED with its provenance and the correction is stamped (0017); an
+  unassigned parent splits into unassigned children; the core is refused to
+  a leader; a severed split is refused whole with the parent left live; 0014
+  still works on a fresh child; a v40 upsert and a rep's knock still commit;
+  both split names are refused to a rep by the certified core's own check
+  and to `anon` at the function.
+
+**Function-body identity:** all 40 `rally_*` / turf / trigger function bodies
+on production are md5-identical (LF-normalised) to a local database built
+from the same files — shim, 0001–0008, the v40-shaped seed, `APPLY_v41_A`,
+then both Stage B pastes, with 0005's body given production's CRLF line
+endings first. What was proven locally is byte-for-byte what runs.
+
+**One FAIL was raised and resolved before it was accepted.** The first
+part-1 run reported the writable SECURITY DEFINER set as six names rather
+than five: production carries Supabase's own `rls_auto_enable`, the platform
+event trigger (`ensure_rls` on `ddl_command_end`) that enables RLS on every
+new public table. It returns `event_trigger`, which the probe's
+`prorettype <> 'trigger'` filter did not exclude. It is not a RALLY object,
+is not callable as a request, and predates Stage B. The probe now excludes
+event-trigger functions as well as row-trigger ones — and a negative control
+proves the corrected filter still SEES a real SECURITY DEFINER door. Part 1
+was then re-run whole: 0 FAIL.
+
+**What changed for v40 phones, now live:**
+
+- A Smart Split gives every child the parent's CURRENT reps. In v40 the
+  children came out unassigned. The splitting phone sees it within a sync
+  cycle (the children are stamped above its own clock); other phones see it
+  on their next pull.
+- A cleared do-not-knock now stays cleared. Before 0017 the first clear
+  would have been erased by the next phone write.
+- Nothing else changes. The nine-column upsert, knocking, the do-not-knock
+  protection and every Stage A consequence stand as recorded.
+
+**NOT done, by instruction:** 0016 (Stage C), the activation flip, the v41
+client publish, the merge to `main`.
+
+**Rollback** remains `db/ROLLBACK_v41_B.sql`, proven, and deliberately keeps
+0017.
 
 ### Local proof — re-run 2026-09-05 with PostGIS homed in `gis`
 

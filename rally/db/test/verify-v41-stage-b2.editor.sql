@@ -113,9 +113,14 @@ begin
   select count(*), count(*) filter (where id and not assignment_server_authoritative) into n, n2 from public.rally_config;
   res := res || pg_temp.b_row('A4 rally_config holds ONE row and assignment_server_authoritative = FALSE (the flip has NOT happened)', n = 1 and n2 = 1, n || ' row(s), ' || n2 || ' false');
   -- A5 the writable SECURITY DEFINER set is exactly the named doors (the RLS suite's list)
+  /* row-trigger AND event-trigger functions are excluded: neither is
+     callable as a request. Supabase's platform `rls_auto_enable` (the
+     ddl_command_end trigger that enables RLS on every new public table) is
+     the event-trigger one on this project. */
   select coalesce(string_agg(p.proname, ',' order by p.proname), '') into t
     from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
-   where ns.nspname = 'public' and p.prosecdef and p.prorettype <> 'trigger'::regtype and p.provolatile = 'v';
+   where ns.nspname = 'public' and p.prosecdef and p.provolatile = 'v'
+     and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype);
   res := res || pg_temp.b_row('A5 the writable SECURITY DEFINER functions in public are exactly the eight named turf operations',
     t = 'clear_pin_dnk,rally_split_inherit,save_territory,set_territory_assignments,smart_split_territory,smart_split_territory_core,smart_split_territory_v41,start_territory_cycle', t);
   -- A6 no 0016 object; Stage A intact; 0005's audit table intact

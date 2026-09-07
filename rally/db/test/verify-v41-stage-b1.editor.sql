@@ -135,9 +135,16 @@ begin
     and has_column_privilege('authenticated', 'public.territories'::regclass, 'data', 'UPDATE')
     and not has_column_privilege('authenticated', 'public.territories'::regclass, 'assignees', 'UPDATE'), '');
   -- A7 the writable SECURITY DEFINER set is exactly the named doors
+  /* A row-trigger function is not a door (Postgres refuses to call one
+     outside a trigger) and neither is an EVENT-trigger function — Supabase's
+     own `rls_auto_enable`, which the platform attaches to ddl_command_end to
+     turn RLS on for every new public table, returns event_trigger and is
+     excluded here for the same reason. What is left is the set of functions
+     a request could actually reach. */
   select coalesce(string_agg(p.proname, ',' order by p.proname), '') into t
     from pg_proc p join pg_namespace ns on ns.oid = p.pronamespace
-   where ns.nspname = 'public' and p.prosecdef and p.prorettype <> 'trigger'::regtype and p.provolatile = 'v';
+   where ns.nspname = 'public' and p.prosecdef and p.provolatile = 'v'
+     and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype);
   res := res || pg_temp.b_row('A7 the writable SECURITY DEFINER functions in public are exactly the five turf doors (0005 + 0014)',
     t = 'clear_pin_dnk,save_territory,set_territory_assignments,smart_split_territory,start_territory_cycle', t);
 

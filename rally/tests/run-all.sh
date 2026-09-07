@@ -18,8 +18,10 @@ total=0; failed=0
 # sets) and runs in plain node — no browser, so it is next and fastest.
 # `v41` and `v41-ui` are the v41 release gates: the server-owned merge, the
 # capability latch, do-not-knock authority, and the turf screens.
+# `refusals` is the v42 gate: the refusal LIST the count has pointed at since
+# v39, proved end to end against a server that says no to turf.
 for f in release-assets v41-logic smoke auth facade flow2 doors-fix sync realtime cloud-auth font-boot \
-         backup-secrets role attribution payment-honesty v40 v41 v41-ui mixed-version \
+         backup-secrets role attribution payment-honesty v40 v41 v41-ui refusals mixed-version \
          upgrade-transition mixed-version@v37 upgrade-transition@v37 smart-split torture; do
   base="${f%@v37}"
   t="$DIR/$base.js"; [ -f "$t" ] || t="$DIR/$base-test.js"
@@ -40,5 +42,5 @@ for f in release-assets v41-logic smoke auth facade flow2 doors-fix sync realtim
   fi
 done
 echo "----------------------------------------"
-printf 'TOTAL %d checks across 24 suite runs, %d suite(s) failing\n' "$total" "$failed"
+printf 'TOTAL %d checks across 25 suite runs, %d suite(s) failing\n' "$total" "$failed"
 [ "$failed" = "0" ] || exit 1

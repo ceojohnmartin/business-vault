@@ -183,7 +183,14 @@
      two outstanding refusals where there is one, and pushed real distinct
      refusals out of the 200-entry cap. The counters are derived from the
      stored list rather than incremented, so what status() reports and what
-     refusals() lists can never disagree. */
+     refusals() lists can never disagree.
+
+     Each entry also records the OP it was refused doing. Without it the
+     More screen can only say "the server said no to this hood" — which
+     reads as "your edit was lost" when what actually happened was that the
+     server declined to DELETE it and the row is still safely there. The
+     field is additive: entries written before v42 have no `op`, and the
+     screen says "sent" for those rather than inventing one. */
   async function deadLetter(entry) {
     const dead = (await MDB.kvGet("syncDead", null)) || [];
     const next = dead.filter((d) => d.k !== entry.k);
@@ -195,6 +202,14 @@
     capped.forEach((d) => { deadTables[d.table] = (deadTables[d.table] || 0) + 1; });
     lastRefusal = entry;
     parked.add(entry.k);
+    /* A refusal is the one push outcome a screen must hear about, and until
+       v42 nothing told one. repaint() runs only when a PULL applied
+       something, so a push-only cycle that parked a row left the Map chip
+       and the More row both quoting a stale count until the rep happened to
+       navigate — on the very phone that had just lost a write. The splits
+       arm already repaints from inside its loop; this is the same move for
+       the arm that parks a row. */
+    repaint();
   }
 
   /* A Smart Split is not a row, it is a COMMAND — the one thing this engine
@@ -584,6 +599,7 @@
           // the refusal becomes VISIBLE — a parked row is not a synced row
           await deadLetter({
             k: ents[0].k, table, id: ents[0].id, status: r.status, at: Date.now(),
+            op: ents[0].op || "upsert",
           });
           await MDB.del("outbox", ents[0].k).catch(() => {});
           forget(ents[0].k);
@@ -685,7 +701,8 @@
               } catch (_) {}
             }
             lastError = "delete " + table + " refused " + e.id + " (no rows changed)";
-            await deadLetter({ k: e.k, table, id: e.id, status: 403, at: Date.now() });
+            await deadLetter({ k: e.k, table, id: e.id, status: 403, at: Date.now(),
+              op: "delete" });
             await MDB.del("outbox", e.k).catch(() => {});
             forget(e.k);
             continue;
@@ -807,7 +824,8 @@
       if (r.status === 404) {
         lastError = "split unavailable: the server has no smart_split_territory (0005)";
         await S().finishSplit(e.id, false);
-        await deadLetter({ k: e.k, table: "splits", id: e.id, status: 404, at: Date.now() });
+        await deadLetter({ k: e.k, table: "splits", id: e.id, status: 404, at: Date.now(),
+          op: "split" });
         await MDB.del("outbox", e.k).catch(() => {});
         forget(e.k);
         try {
@@ -835,7 +853,7 @@
         }
       } catch (_) {}
       await deadLetter({ k: e.k, table: "splits", id: e.id,
-        status: r.status, at: Date.now() });
+        status: r.status, at: Date.now(), op: "split" });
       await MDB.del("outbox", e.k).catch(() => {});
       forget(e.k);
       repaint();
@@ -1448,6 +1466,11 @@
     if (window.MCUST) go(() => MCUST.renderList());
     if (window.MSCHED) go(() => MSCHED.render());
     if (window.MHOME) go(() => MHOME.render());
+    /* The refusal count lives on TWO surfaces — the Map chip and the More
+       row — and they are the same fact. Only the chip repainted here, so a
+       refusal parked while More was open left the two disagreeing until the
+       rep navigated away and back. */
+    if (window.MAPP) go(() => MAPP.syncChanged && MAPP.syncChanged());
   }
 
   // ---------- the cycle ----------

@@ -216,6 +216,180 @@
     $("#more-export-sub").textContent = STORE.customers.length
       ? `${STORE.customers.length} customer${STORE.customers.length === 1 ? "" : "s"} · ${syncBit}`
       : "Signed customers land here";
+
+    /* v42: the refusal LIST finally gets a door of its own. v39 shipped the
+       count — on the Map chip and on the Export line above — and shipped
+       MSYNC.refusals() to back it, but never a screen, so the one question
+       a "6 refused" pill provokes ("which six?") had no answer anywhere in
+       the app. The row is cloud-era only: with no server, nothing can
+       refuse anything. It stays visible when the count is zero, because a
+       rep who has just been told they have refusals needs to be able to
+       find the place that says so — and then that it is clear. */
+    const refRow = $("#more-refused");
+    if (refRow) {
+      refRow.hidden = !(syncSt && syncSt.on);
+      refRow.classList.toggle("refused", !!(syncSt && syncSt.refused));
+      $("#more-refused-sub").textContent = !syncSt || !syncSt.loaded
+        ? "Checking this device's record…"
+        : syncSt.refused
+          ? `${syncSt.refused} record${syncSt.refused === 1 ? "" : "s"} the server would not accept`
+          : "Nothing refused — the server took everything this device sent";
+    }
+  }
+
+  // ---------- what the server refused ----------
+  /* WHAT was refused, in the rep's own words. The dead-letter holds a table,
+     an id and a status — nothing else. The record itself may still be on
+     this device (a refused save leaves the local copy alone) or may not (an
+     erase, or a delete that succeeded from another phone), and both are
+     said plainly rather than shown as a bare id. */
+  function refusedWhat(d) {
+    const gone = "no longer on this device";
+    const find = (arr, id) => (arr || []).find((x) => x.id === id) || null;
+    if (d.table === "territories") {
+      const t = find(STORE.territories, d.id);
+      return { ic: "🗺️", title: t ? "Hood “" + t.name + "”" : "A hood", sub: t ? "" : gone };
+    }
+    if (d.table === "pins") {
+      const p = find(STORE.pins, d.id);
+      if (!p) return { ic: "🚪", title: "A door", sub: gone };
+      return {
+        ic: "🚪",
+        title: p.address || "A door",
+        sub: (MDATA.DISPOSITIONS[p.disposition] || {}).label
+          || (typeof p.lat === "number" ? p.lat.toFixed(5) + ", " + p.lng.toFixed(5) : ""),
+      };
+    }
+    if (d.table === "events") {
+      const e = find(STORE.events, d.id);
+      if (!e) return { ic: "✊", title: "A knock", sub: gone };
+      const p = find(STORE.pins, e.pinId);
+      const label = (MDATA.DISPOSITIONS[e.disposition] || {}).label || "Knock";
+      return {
+        ic: "✊",
+        title: label + (p && p.address ? " at " + p.address : ""),
+        sub: e.ts ? MUI.fmtDate(e.ts) : "",
+      };
+    }
+    if (d.table === "customers") {
+      const c = find(STORE.customers, d.id);
+      return c
+        ? { ic: "👤", title: STORE.custName(c), sub: STORE.custAddress(c) }
+        : { ic: "👤", title: "A customer", sub: gone };
+    }
+    if (d.table === "splits") {
+      return { ic: "✂️", title: "A Smart Split", sub: "the hood is back exactly as it was" };
+    }
+    return { ic: "📄", title: String(d.table || "A record").replace(/s$/, ""), sub: "" };
+  }
+
+  /* WHY, in one sentence someone can act on.
+
+     `status` is what the server answered, with ONE exception this engine
+     authors itself: a delete that changed no rows is recorded as 403,
+     because "the server did not remove it" is a refusal even though no
+     HTTP layer said so. Reading that back as "permission denied — your
+     work is gone" would be exactly wrong (the record is safe, on the
+     server, and this device has put its copy back), so the delete arm
+     answers before any status is interpreted. */
+  function refusedWhy(d) {
+    const s = Number(d.status);
+    if (d.op === "delete") {
+      return s === 403
+        ? "The server did not remove it. It is still on the server, and this device has put its copy back — nothing was lost."
+        : "The server refused to remove it (" + d.status + "). It is still on the server.";
+    }
+    if (d.table === "splits") {
+      return s === 404
+        ? "Smart Split is not switched on for this team on the server. The hood was left exactly as it was — nothing was lost."
+        : "The server refused the split. The hood came back exactly as it was — nothing was lost.";
+    }
+    if (s === 401) {
+      return "This device was not signed in to the server when it tried. Sign out and back in, then make the change again.";
+    }
+    if (s === 403) {
+      return d.table === "territories"
+        ? "This device's role may not save hoods. Drawing, renaming, re-cutting or handing out turf takes a leader, manager or owner."
+        : "The server would not let this device save it — this device's role may not change this record.";
+    }
+    if (s === 404) return "The server has no such record to update.";
+    if (s === 409) return "It clashed with something already on the server.";
+    if (s === 400 || s === 422) return "The server rejected the shape of this record.";
+    return "The server answered " + (d.status || "an error") + " and would not take it.";
+  }
+
+  const refusedOpLabel = (d) =>
+    d.op === "delete" ? "Delete" : d.op === "split" ? "Split" : d.op ? "Save" : "Sent";
+
+  const currentRefusals = async () =>
+    (window.MSYNC && MSYNC.refusals ? await MSYNC.refusals().catch(() => []) : []);
+
+  /* Newest first — whatever just went wrong is what someone came here for.
+     By TIME, not by array order: the two agree for anything this engine
+     parked (it appends as refusals happen), but a list restored from a
+     device that had been offline, or read back in a different order, would
+     otherwise put a week-old refusal above the one from a minute ago. */
+  const newestFirst = (list) =>
+    list.slice().sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0));
+
+  async function renderRefusals() {
+    const el = $("#refused-list");
+    if (!el) return;
+    el.innerHTML = `<div class="ref-empty">Reading this device's record…</div>`;
+    const list = await currentRefusals();
+    const any = list.length > 0;
+    $("#refused-copy").disabled = !any;
+    $("#refused-share").disabled = !any;
+    if (!any) {
+      el.innerHTML = `<div class="ref-empty">Nothing has been refused on this device. Everything it has sent, the server took.</div>`;
+      return;
+    }
+    el.innerHTML = newestFirst(list).map((d) => {
+      const w = refusedWhat(d);
+      /* A refusal empties the outbox of that row, so a row that is queued
+         NOW has been changed on this device since — and will be offered to
+         the server again on the next cycle. Saying so is the difference
+         between a list of history and a list of outstanding problems. */
+      const again = !!(window.MSYNC && MSYNC.isDirty && MSYNC.isDirty(d.table, d.id));
+      return `<div class="ref-row">
+        <span class="ic">${w.ic}</span>
+        <span class="rb">
+          <span class="rt">${esc(w.title)}<span class="ref-tag">${esc(refusedOpLabel(d))}</span></span>
+          ${w.sub ? `<span class="rw">${esc(w.sub)}</span>` : ""}
+          <span class="rw">${esc(refusedWhy(d))}</span>
+          ${again ? `<span class="rw ref-again">Changed on this device since — it will be offered again on the next sync.</span>` : ""}
+          <span class="rm">${esc(d.table)} · ${esc(d.id)} · ${esc(d.status == null ? "?" : String(d.status))} · ${esc(d.at ? MUI.fmtAgo(d.at) : "time unknown")}</span>
+        </span>
+      </div>`;
+    }).join("");
+  }
+
+  /* The copy is for whoever is diagnosing this — so it is IDs, ops, status
+     codes and timestamps, and DELIBERATELY not the customer names and
+     addresses on the screen above it. None of those help anyone read a
+     refusal, and this text is going into a message to somebody. */
+  function refusalReport(list) {
+    const st = (window.MSYNC && MSYNC.status()) || {};
+    const pad = (v, n) => String(v == null ? "" : v).padEnd(n);
+    const lines = [
+      "RALLY refusals — build " + (window.RALLY_BUILD || "?"),
+      "device: " + (STORE.settings.repName || "?")
+        + " · " + (STORE.ROLE_LABELS[STORE.effectiveRole()] || "Rep")
+        + " · team " + (STORE.settings.teamName || "?"),
+      list.length + " refused · listed " + new Date().toISOString(),
+      "",
+      "  #   table        id                  op      status  when",
+    ];
+    newestFirst(list).forEach((d, i) => {
+      const again = !!(window.MSYNC && MSYNC.isDirty && MSYNC.isDirty(d.table, d.id));
+      lines.push("  " + pad(i + 1, 4) + pad(d.table, 13) + pad(d.id, 20)
+        + pad(d.op || "sent", 8) + pad(d.status, 8)
+        + (d.at ? new Date(d.at).toISOString() : "?")
+        + (again ? "  (queued again)" : ""));
+    });
+    if (st.lastError) lines.push("", "last sync error: " + st.lastError);
+    lines.push("", "IDs, ops and status codes only — no customer details.");
+    return lines.join("\n");
   }
 
   // ---------- team & roles ----------
@@ -434,6 +608,39 @@
     $("#more-export").addEventListener("click", () => MCUST.exportAll());
     $("#more-csv").addEventListener("click", () => MVAULT.exportCSV());
 
+    $("#more-refused").addEventListener("click", async () => {
+      openSheet("refused-sheet");   // open first, fill after — as Backup does
+      await renderRefusals();
+    });
+    /* Both actions re-read the dead-letter rather than closing over what the
+       sheet last rendered: a cycle can park a row while the sheet is open,
+       and handing someone a list that is one refusal short of the truth is
+       the one thing this screen exists to stop. */
+    $("#refused-copy").addEventListener("click", async () => {
+      const text = refusalReport(await currentRefusals());
+      try {
+        await navigator.clipboard.writeText(text);
+        toast("Copied — paste it wherever you need it");
+      } catch (_) {
+        /* The clipboard API is blocked in more places than it works: plain
+           http, older iOS, and most in-app browsers. The phone's own share
+           sheet is the fallback, and it is the same text either way. */
+        try {
+          await MUI.shareOrDownload(text, "rally-refusals.txt", "text/plain", "RALLY refusals");
+        } catch (__) {
+          toast("This browser wouldn't let RALLY copy it — screenshot the list instead", 5000);
+        }
+      }
+    });
+    $("#refused-share").addEventListener("click", async () => {
+      const text = refusalReport(await currentRefusals());
+      try {
+        await MUI.shareOrDownload(text, "rally-refusals.txt", "text/plain", "RALLY refusals");
+      } catch (_) {
+        toast("This browser wouldn't share the file — screenshot the list instead", 5000);
+      }
+    });
+
     $("#more-backup").addEventListener("click", async () => {
       openSheet("backup-sheet");
       const el = $("#bk-status");
@@ -527,7 +734,18 @@
     $("#veil").addEventListener("click", () => { closeSheet(); MMAP.clearSelection(); });
     $$(".sheet .grab").forEach((g) =>
       g.addEventListener("click", () => { closeSheet(); MMAP.clearSelection(); }));
-    $("#sync-chip").addEventListener("click", () => { show("customers"); });
+    /* A pill that reads "6 refused" and opens the customer book answers a
+       question nobody asked. When there are refusals it opens the list of
+       them; the "N to sync" chip keeps its old destination. */
+    $("#sync-chip").addEventListener("click", async () => {
+      const st = window.MSYNC && MSYNC.status();
+      if (st && st.refused) {
+        openSheet("refused-sheet");
+        await renderRefusals();
+        return;
+      }
+      show("customers");
+    });
     $("#guide-q").addEventListener("input", (e) => renderGuide(e.target.value));
     $$(".mtab").forEach((b) =>
       b.addEventListener("click", () => {
@@ -571,7 +789,22 @@
     renderMore();
     // a role change (promotion, demotion, or the first server answer landing)
     // has to reach the privileged surfaces immediately — not on next launch
-    window.MAPP = { show, roleChanged: () => { renderMore(); renderRankScreen(); } };
+    window.MAPP = {
+      show,
+      roleChanged: () => { renderMore(); renderRankScreen(); },
+      /* The Map chip repaints on every sync cycle; the More row did not, so
+         a refusal landing while More was open left the two surfaces quoting
+         different numbers for the same thing. An open refusal sheet
+         re-renders with it, keeping its scroll position. */
+      syncChanged: () => {
+        renderMore();
+        const sheet = $("#refused-sheet");
+        if (!sheet || !sheet.classList.contains("open")) return;
+        const list = $("#refused-list");
+        const top = list ? list.scrollTop : 0;
+        renderRefusals().then(() => { if (list) list.scrollTop = top; }).catch(() => {});
+      },
+    };
     show("customers"); // Customers is the front tab now; Home lives in More
 
     // keep a focused input visible above the on-screen keyboard inside sheets

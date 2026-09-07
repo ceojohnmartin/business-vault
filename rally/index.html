@@ -20,8 +20,8 @@
      arrives, and until then the CSS fallback stack renders immediately. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap"
       media="print" onload="this.media='all'">
-<link rel="stylesheet" href="vendor/maplibre-gl.css?v=41">
-<link rel="stylesheet" href="css/app.css?v=41">
+<link rel="stylesheet" href="vendor/maplibre-gl.css?v=42">
+<link rel="stylesheet" href="css/app.css?v=42">
 </head>
 <body>
 
@@ -285,6 +285,7 @@
       <button class="more-item" id="more-prop"><span class="ic">🏘️</span><span><span class="tt">Property data</span><br><span class="dd" id="more-prop-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers (JSON)</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-csv"><span class="ic">📊</span><span><span class="tt">Export spreadsheet (CSV)</span><br><span class="dd">Opens in Excel, Sheets, or any CRM import</span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-refused" hidden><span class="ic">🚫</span><span><span class="tt">Refused by the server</span><br><span class="dd" id="more-refused-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-backup"><span class="ic">🛟</span><span><span class="tt">Backup &amp; restore</span><br><span class="dd" id="more-backup-sub">Everything on this device, in one file</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-lock"><span class="ic">🔐</span><span><span class="tt">Sign out</span><br><span class="dd" id="more-lock-sub"></span></span><span class="chev">›</span></button>
       <div class="demo-note" id="more-build" style="margin:2px 0 8px"></div>
@@ -807,6 +808,18 @@
     <input type="file" id="bk-file" accept=".json,application/json" hidden>
   </div>
 
+  <div class="sheet" id="refused-sheet">
+    <div class="grab"></div>
+    <h2>Refused by the server</h2>
+    <div class="sub">Work this device sent that the server would not accept. A refusal is a fact about the record, not a hiccup: <b>nothing retries it on its own</b>.</div>
+    <div id="refused-list"></div>
+    <p class="ref-foot">Copy sends IDs, times and status codes only — never customer names or addresses.</p>
+    <div class="btnrow">
+      <button class="btn btn-gold" id="refused-copy" type="button">Copy details</button>
+      <button class="btn btn-ghost" id="refused-share" type="button">Share as file</button>
+    </div>
+  </div>
+
   <div class="sheet" id="goals-sheet">
     <div class="grab"></div>
     <h2>Goals &amp; commission</h2>
@@ -849,35 +862,35 @@
 
 </div>
 
-<script src="vendor/maplibre-gl.js?v=41"></script>
-<script>window.RALLY_BUILD = "v41";</script>
-<script src="js/db.js?v=41"></script>
-<script src="js/geom.js?v=41"></script>
-<script src="js/geo.js?v=41"></script>
-<script src="js/data.js?v=41"></script>
-<script src="js/ui.js?v=41"></script>
-<script src="js/store.js?v=41"></script>
-<script src="js/cloud-config.js?v=41"></script>
-<script src="js/cloud.js?v=41"></script>
-<script src="js/sync.js?v=41"></script>
-<script src="js/realtime.js?v=41"></script>
-<script src="js/auth.js?v=41"></script>
-<script src="js/gate.js?v=41"></script>
-<script src="js/property.js?v=41"></script>
-<script src="js/crm.js?v=41"></script>
-<script src="js/contract.js?v=41"></script>
-<script src="js/map.js?v=41"></script>
-<script src="js/hoods.js?v=41"></script>
-<script src="js/customers.js?v=41"></script>
-<script src="js/route.js?v=41"></script>
-<script src="js/street.js?v=41"></script>
-<script src="js/select.js?v=41"></script>
-<script src="js/home.js?v=41"></script>
-<script src="js/turf.js?v=41"></script>
-<script src="js/turfedit.js?v=41"></script>
-<script src="js/schedule.js?v=41"></script>
-<script src="js/stats.js?v=41"></script>
-<script src="js/vault.js?v=41"></script>
-<script src="js/app.js?v=41"></script>
+<script src="vendor/maplibre-gl.js?v=42"></script>
+<script>window.RALLY_BUILD = "v42";</script>
+<script src="js/db.js?v=42"></script>
+<script src="js/geom.js?v=42"></script>
+<script src="js/geo.js?v=42"></script>
+<script src="js/data.js?v=42"></script>
+<script src="js/ui.js?v=42"></script>
+<script src="js/store.js?v=42"></script>
+<script src="js/cloud-config.js?v=42"></script>
+<script src="js/cloud.js?v=42"></script>
+<script src="js/sync.js?v=42"></script>
+<script src="js/realtime.js?v=42"></script>
+<script src="js/auth.js?v=42"></script>
+<script src="js/gate.js?v=42"></script>
+<script src="js/property.js?v=42"></script>
+<script src="js/crm.js?v=42"></script>
+<script src="js/contract.js?v=42"></script>
+<script src="js/map.js?v=42"></script>
+<script src="js/hoods.js?v=42"></script>
+<script src="js/customers.js?v=42"></script>
+<script src="js/route.js?v=42"></script>
+<script src="js/street.js?v=42"></script>
+<script src="js/select.js?v=42"></script>
+<script src="js/home.js?v=42"></script>
+<script src="js/turf.js?v=42"></script>
+<script src="js/turfedit.js?v=42"></script>
+<script src="js/schedule.js?v=42"></script>
+<script src="js/stats.js?v=42"></script>
+<script src="js/vault.js?v=42"></script>
+<script src="js/app.js?v=42"></script>
 </body>
 </html>

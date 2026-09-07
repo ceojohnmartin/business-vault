@@ -617,3 +617,53 @@ Anything odd, slow, ugly or surprising — however small:
 the published client is not receiving or merging the server-owned fields
 correctly: do not proceed to Stage C, and report exactly what each phone
 showed.
+
+---
+
+# v42 — the refusal list (added after the v41 certification run)
+
+The v41 run surfaced two counts nobody could act on: **1 refused** on the
+owner phone and **6 refused** on the rep phone. The app had no screen that
+listed them — v39 shipped the count and `MSYNC.refusals()` behind it, but
+never the list — so "which six?" had no answer anywhere on the phone.
+
+v42 adds the screen. Everything else about v41 is unchanged; no server
+migration is involved.
+
+## 9. Getting v42
+
+- [ ] **9.1** Both phones: close RALLY completely (swipe it away), reopen.
+      **More → the grey line under "Erase all data" reads `Build v42`.**
+      If it still reads v41, close and reopen once more — the worker
+      installs on one open and takes over on the next.
+
+## 10. The refusal list
+
+- [ ] **10.1** More has a row **🚫 Refused by the server**, above
+      *Backup & restore*. On a clean phone its grey line reads
+      *Nothing refused*.
+- [ ] **10.2** On a phone with refusals the row is **red** and reads
+      *N records the server would not accept*.
+- [ ] **10.3** Tap it. Every refusal is listed by what it actually is — a
+      hood by its name, a door by its address, a customer by their name —
+      with one sentence saying why, and a dim line under it carrying the
+      table, the id, the status and how long ago.
+- [ ] **10.4** **Copy the details**, then paste it into a message. It must
+      contain ids and status codes and **no customer names or addresses**.
+- [ ] **10.5** Map tab: the red **N refused** pill now opens that same list
+      instead of the customer book.
+
+## What to send back for v42
+
+```
+9.1   Both phones show Build v42:
+10.1  The row is on More:
+10.2  Owner phone count / rep phone count:
+10.3  What each refusal says it is, and why (paste or screenshot):
+10.4  The copied text (paste it whole):
+10.5  The Map pill opens the list:
+```
+
+**10.4 is the one that matters.** A refused write leaves no trace on the
+server at all, so this list is the only record anywhere of what those 1 + 6
+refusals were.

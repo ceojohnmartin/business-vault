@@ -824,6 +824,14 @@
       chip.hidden = q === 0;
       $("#sync-chip-n").textContent = q + " queued for FieldRoutes";
     }
+    /* The chip and the first-door hint were written to the same spot — same
+       left, same bottom, same z-index — and the hint only hides once there
+       are pins. So a device with no doors YET and something waiting or
+       refused stacked the two pills on each other, and the hit test landed
+       on whichever painted last: the "1 refused" pill could not be tapped
+       on precisely the phone most likely to be showing one. The hint moves
+       up out of the way whenever the chip is out. */
+    document.body.classList.toggle("has-sync-chip", !chip.hidden);
     updateHoodStrip();
   }
 

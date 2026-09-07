@@ -101,11 +101,20 @@ begin
   /* The parent's open entries close AT THE SPLIT INSTANT. Its whole
      history stays: the hood is retired, and who worked it is part of the
      record of the turf those children came from. */
+  /* Closed at the LATER of the split instant and the entry's own start.
+     A legacy entry may carry an assignedAt in the future — a v40 phone with
+     a fast clock stamps one every time it assigns — and closing it at the
+     server's instant would end it before it began, which rally_assert_ledger
+     (I3) refuses, aborting the WHOLE split. Under 0005 that same call
+     committed, so a plain `to_jsonb(v_at)` here would turn a working v40
+     Smart Split into a refusal. rally_diff_assignees takes the same care. */
   update public.territories t
      set assignees = jsonb_build_object('entries', public.rally_sort_entries((
            select coalesce(jsonb_agg(
                     case when e->>'unassignedAt' is null
-                         then jsonb_set(e, '{unassignedAt}', to_jsonb(v_at))
+                         then jsonb_set(e, '{unassignedAt}',
+                                to_jsonb(greatest(v_at,
+                                  coalesce(public.rally_ms(e->>'assignedAt'), v_at))))
                          else e end), '[]'::jsonb)
              from jsonb_array_elements(coalesce(t.assignees->'entries', '[]'::jsonb)) e)))
    where t.team_id = v_team and t.id = p_parent_id
@@ -114,7 +123,7 @@ begin
 end $$;
 
 -- an internal (see 0010 on Supabase's default function privileges): shut to every client role
-revoke all on function public.rally_split_inherit(text, text[], text) from public, anon, authenticated;
+revoke all on function public.rally_split_inherit(text, text[], text) from public, anon, authenticated, service_role;
 
 /* WIRING, and why the certified 0005 body is RENAMED rather than wrapped
    alongside.
@@ -129,7 +138,8 @@ revoke all on function public.rally_split_inherit(text, text[], text) from publi
    this stage exists to end.
 
    So the certified body keeps its behaviour and loses its public name. It
-   becomes smart_split_territory_core, executable by nobody but its owner,
+   becomes smart_split_territory_core, executable by nobody but its owner
+   (the service key included — see the revoke below),
    and BOTH public names — the v41 one clients switch to when turfRpc is
    true, and the 0005 one v40 phones keep calling — run the same wrapper:
    strip every client-supplied assignment field from the children, run the
@@ -138,13 +148,51 @@ revoke all on function public.rally_split_inherit(text, text[], text) from publi
    whichever name was called. */
 do $$
 begin
+  /* 0014 FIRST, OR NOTHING. rally_split_inherit above is plpgsql, so its
+     call to public.rally_diff_assignees resolves only when a split actually
+     runs. Applied on its own — sent out of order, or after 0014 was refused
+     — this file would commit happily and then break EVERY Smart Split,
+     v40 phones through the 0005 name included, with "function
+     rally_diff_assignees does not exist". Refusing here costs nothing and
+     leaves the split working. */
+  if to_regprocedure('public.rally_diff_assignees(jsonb,uuid[],uuid,uuid,bigint,jsonb)') is null
+     or to_regprocedure('public.set_territory_assignments(text,uuid[],text)') is null then
+    raise exception '0015 requires 0014 (APPLY_v41_B1.sql) — apply and verify it first'
+      using errcode = '55000';
+  end if;
+  /* THE RENAME IS IDENTITY-CHECKED, not merely existence-checked. Renaming
+     whatever happens to hold the 0005 name would, if the core had been
+     dropped by hand, rename the WRAPPER to _core and give every split an
+     infinite recursion — and the rollback would then bury the certified
+     body for good. So: rename only the certified body, accept a core that
+     is already the certified body, and refuse anything else. */
   if to_regprocedure('public.smart_split_territory_core(text,text,jsonb)') is null then
+    if not exists (
+      select 1 from pg_proc p join pg_language l on l.oid = p.prolang
+       where p.oid = to_regprocedure('public.smart_split_territory(text,text,jsonb)')
+         and l.lanname = 'plpgsql'
+         and md5(replace(p.prosrc, E'\r\n', E'\n')) = '8b856cf630126aee2f0776508b9d1743') then
+      raise exception '0015: public.smart_split_territory is not the certified 0005 body — refusing to rename it'
+        using errcode = '55000';
+    end if;
     alter function public.smart_split_territory(text, text, jsonb)
       rename to smart_split_territory_core;
+  elsif not exists (
+    select 1 from pg_proc p join pg_language l on l.oid = p.prolang
+     where p.oid = to_regprocedure('public.smart_split_territory_core(text,text,jsonb)')
+       and l.lanname = 'plpgsql'
+       and md5(replace(p.prosrc, E'\r\n', E'\n')) = '8b856cf630126aee2f0776508b9d1743') then
+    raise exception '0015: public.smart_split_territory_core is not the certified 0005 body — refusing to proceed'
+      using errcode = '55000';
   end if;
 end $$;
+/* service_role too. Supabase's default function privileges grant EXECUTE on
+   every new public function to the service key as well, and `from public,
+   anon, authenticated` leaves that entry in place — a direct route to the
+   certified body with the assignment strip and the inheritance skipped.
+   Nothing legitimate calls it: the wrappers run as the owner. */
 revoke all on function public.smart_split_territory_core(text, text, jsonb)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 /* A child arrives as {id, name, polygon, data}. The client may describe the
    child; it may not assign it. */
@@ -165,7 +213,7 @@ as $$
     from jsonb_array_elements(coalesce(p_children, '[]'::jsonb)) with ordinality t(c, ord)
 $$;
 -- an internal of the wrapper (which runs as the owner): no client role executes it
-revoke all on function public.rally_split_strip_children(jsonb) from public, anon, authenticated;
+revoke all on function public.rally_split_strip_children(jsonb) from public, anon, authenticated, service_role;
 
 create or replace function public.smart_split_territory_v41(
   p_parent_id    text,

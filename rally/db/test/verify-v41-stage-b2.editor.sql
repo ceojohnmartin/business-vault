@@ -94,6 +94,18 @@ begin
                   and (pg_get_userbyid(p.proowner) in ('anon', 'authenticated')
                        or (p.prosecdef and not coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=%')));
   res := res || pg_temp.b_row('A3 every SECURITY DEFINER function pins its search_path and none is owned by a client role', t is null, coalesce('NOT: ' || t, 'all'));
+  -- A3b the service key holds no route to an internal either
+  select string_agg(x, ', ') into t from unnest(internals) x
+   where has_function_privilege('service_role', 'public.' || x, 'EXECUTE');
+  res := res || pg_temp.b_row('A3b no internal is executable by service_role either — the certified core included, so the service key has no route to a split with the strip and the inheritance skipped', t is null, coalesce('service_role may execute: ' || t, 'none'));
+  -- A3c 0017 is still in force (it travelled with part 1 and the rollback keeps it)
+  select p.prosrc like '%rally_keep_open_history%' into ok from pg_proc p where p.oid = to_regprocedure('public.territories_assignment()');
+  select p.prosrc like '%rally_keep_server_clears%' into ok2 from pg_proc p where p.oid = to_regprocedure('public.pins_protect_dnk()');
+  res := res || pg_temp.b_row('A3c 0017 is still in force (its two corrected trigger bodies and both helpers)',
+    coalesce(ok, false) and coalesce(ok2, false)
+    and to_regprocedure('public.rally_keep_open_history(jsonb,jsonb,bigint)') is not null
+    and to_regprocedure('public.rally_keep_server_clears(jsonb,jsonb)') is not null, '');
+
   -- A4 capabilities: turfRpc now TRUE, the flag still FALSE
   j := public.rally_capabilities();
   res := res || pg_temp.b_row('A4 rally_capabilities() = flag FALSE, turfRpc TRUE (both 0014 and 0015 present), postgis true',
@@ -264,6 +276,54 @@ begin
       res := res || pg_temp.b_row('D2 the same operation id retried through the OTHER name is already_committed (one idempotency record for both names)', j->>'status' = 'already_committed', 'status=' || coalesce(j->>'status', '?'));
     exception when others then
       res := res || pg_temp.b_row('D2 the 0005 name', false, 'REFUSED: ' || sqlstate || ' ' || sqlerrm);
+    end;
+    /* D2b A FAST PHONE'S CLOCK MUST NOT COST A SPLIT. A v40 phone stamps
+       assignedAt with its own clock, so an open entry can sit an hour in
+       the future. Closing the parent's entries at the split instant alone
+       would end one before it began, which the ledger assertion refuses —
+       taking the WHOLE split with it, on a call that committed under 0005. */
+    begin
+      insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+      values (team, tid || '-fut', 'probe future parent', '[[0.56,0.5],[0.561,0.5],[0.561,0.501],[0.56,0.501]]'::jsonb, null, false, boss_id, null,
+              jsonb_build_object('id', tid || '-fut', 'assignedTo', rep_id::text, 'updatedAt', now_ms,
+                'assignments', jsonb_build_array(jsonb_build_object('userId', rep_id::text, 'name', 'probe rep',
+                  'assignedBy', 'probe lead', 'assignedAt', now_ms + 3600000, 'unassignedAt', null))));
+      j := public.smart_split_territory_v41(tid || '-fut', op || '-fut', jsonb_build_array(
+             jsonb_build_object('id', tid || '-fut-a', 'name', 'A', 'polygon', '[[0.56,0.5],[0.5605,0.5],[0.5605,0.501],[0.56,0.501]]'::jsonb),
+             jsonb_build_object('id', tid || '-fut-b', 'name', 'B', 'polygon', '[[0.5605,0.5],[0.561,0.5],[0.561,0.501],[0.5605,0.501]]'::jsonb)));
+      select count(*) into n from public.territories t5
+       where t5.team_id = team and t5.id in (tid || '-fut-a', tid || '-fut-b') and t5.open_assignees = array[rep_id];
+      select (select count(*) from jsonb_array_elements(t5.assignees->'entries') e where e->>'unassignedAt' is null)
+        into n2 from public.territories t5 where t5.team_id = team and t5.id = tid || '-fut';
+      res := res || pg_temp.b_row('D2b a parent whose open entry was stamped an HOUR AHEAD by a fast phone still splits, both children inherit, and the parent''s entry closes at the later of the two instants',
+        n = 2 and n2 = 0 and j->>'status' = 'committed', n || ' child(ren) inherit, parent open=' || n2 || ' status=' || coalesce(j->>'status', '?'));
+    exception when others then
+      res := res || pg_temp.b_row('D2b a split of a parent with a future-dated open entry', false, 'REFUSED: ' || sqlstate || ' ' || sqlerrm);
+    end;
+    /* D2c THE SPLITTING PHONE HAS NOT PULLED YET. Its own children were
+       built unassigned; if the leader assigns one before the pull lands,
+       the mirror it sends does not name the inherited entry. The mirror
+       still decides who is open — but the inherited run is CLOSED and kept
+       with its provenance, not deleted (0017), and the correction comes
+       back with a clock above the phone's so it is not read as "same". */
+    begin
+      insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+      values (team, tid || '-a', 'probe A', '[[0.5,0.5],[0.5005,0.5],[0.5005,0.501],[0.5,0.501]]'::jsonb, null, false, boss_id, null,
+              jsonb_build_object('id', tid || '-a', 'name', 'probe A', 'assignedTo', boss_id::text, 'updatedAt', now_ms + 1,
+                'assignments', jsonb_build_array(jsonb_build_object('userId', boss_id::text, 'name', 'the leader',
+                  'assignedBy', 'probe lead', 'assignedAt', now_ms + 1, 'unassignedAt', null))))
+      on conflict (team_id, id) do update set name = excluded.name, polygon = excluded.polygon, homes = excluded.homes,
+        archived = excluded.archived, created_by = excluded.created_by, deleted_at = excluded.deleted_at, data = excluded.data;
+      select t5.open_assignees = array[boss_id],
+             (select count(*) from jsonb_array_elements(t5.assignees->'entries') e
+               where e->>'userId' = rep_id::text and e->>'unassignedAt' is not null
+                 and e ? 'viaSplit' and (e->>'closedByMirror')::boolean),
+             public.rally_ms(t5.data->>'updatedAt') > now_ms + 1
+        into ok, n, ok2 from public.territories t5 where t5.team_id = team and t5.id = tid || '-a';
+      res := res || pg_temp.b_row('D2c a stale mirror from the phone that split still decides who is open NOW, but the inherited entry it never saw is CLOSED and kept with its provenance (0017)', ok and n = 1, 'open set adopted=' || ok || ', inherited entries kept closed=' || n);
+      res := res || pg_temp.b_row('D2c …and the correction comes back stamped above the phone''s own clock, so that phone cannot read the echo as "same" and discard it (0017)', ok2, '');
+    exception when others then
+      res := res || pg_temp.b_row('D2c a stale mirror over an inherited child', false, 'REFUSED: ' || sqlstate || ' ' || sqlerrm);
     end;
     -- D3 an UNASSIGNED parent splits into unassigned children, no error
     begin

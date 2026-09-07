@@ -42,8 +42,13 @@ CERT=8b856cf630126aee2f0776508b9d1743   # md5 of 0005's function body, LF line e
 TEAM=dddddddd-4444-4444-a444-444444444444
 JOHN=00000000-0000-4000-d000-000000000001; JAKE=00000000-0000-4000-d000-000000000002; LEAD=00000000-0000-4000-d000-000000000003
 
-# every public function: name, identity args, body md5, config, definer, ACL, language
-CATQ="select md5(string_agg(p.proname||':'||pg_get_function_identity_arguments(p.oid)||':'||md5(p.prosrc)||':'||coalesce(array_to_string(p.proconfig,','),'')||':'||p.prosecdef||':'||coalesce(p.proacl::text,'')||':'||l.lanname, '|' order by p.proname, pg_get_function_identity_arguments(p.oid))) from pg_proc p join pg_namespace n on n.oid=p.pronamespace join pg_language l on l.oid=p.prolang where n.nspname='public'"
+# every public function: name, identity args, body md5, config, definer,
+# language — and its ACL as a SORTED SET. proacl::text would compare entry
+# ORDER too, and a revoke-then-grant moves the re-granted role to the end of
+# the list: the privileges are identical and the text is not. On production,
+# where the default grants postgres/anon/authenticated/service_role, the
+# rollback's re-grant of authenticated does exactly that.
+CATQ="select md5(string_agg(p.proname||':'||pg_get_function_identity_arguments(p.oid)||':'||md5(p.prosrc)||':'||coalesce(array_to_string(p.proconfig,','),'')||':'||p.prosecdef||':'||coalesce((select string_agg(a.grantee::regrole::text||'='||a.privilege_type, ',' order by a.grantee::regrole::text, a.privilege_type) from aclexplode(p.proacl) a),'')||':'||l.lanname, '|' order by p.proname, pg_get_function_identity_arguments(p.oid))) from pg_proc p join pg_namespace n on n.oid=p.pronamespace join pg_language l on l.oid=p.prolang where n.nspname='public'"
 RAWQ="select md5((select md5(string_agg((team_id::text||id||name||polygon::text||coalesce(homes::text,'')||archived||coalesce(deleted_at::text,'')||data::text||assignees::text||assignees_rev||open_assignees::text||coalesce(cycle_started_at::text,'')||coalesce(geom::text,'')), '|' order by team_id, id)) from public.territories) || (select coalesce(md5(string_agg((team_id::text||id||disposition||data::text||coalesce(deleted_at::text,'')), '|' order by team_id, id)),'') from public.pins) || (select coalesce(md5(string_agg((team_id::text||id||type||coalesce(disposition,'')||data::text), '|' order by team_id, id)),'') from public.events))"
 FN14="select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('rally_require_leader','rally_my_team','rally_diff_assignees','rally_validate_assignees','set_territory_assignments','save_territory','start_territory_cycle','clear_pin_dnk')"
 FN15="select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname in ('smart_split_territory_core','smart_split_territory_v41','rally_split_inherit','rally_split_strip_children')"
@@ -83,13 +88,23 @@ build
 [ "$(q "$FN14")" = "0" ] && [ "$(q "$FN15")" = "0" ] && ok "state: no Stage B function yet" || bad "state: a Stage B function exists"
 [ "$(q "$SPLITQ")" = "$SPLIT0" ] && ok "state: smart_split_territory is the certified 0005 body (md5 $CERT), plpgsql, public,pg_temp, authenticated only" || bad "state: smart_split_territory is not 0005's: $(q "$SPLITQ")"
 CAT0="$(q "$CATQ")"; RAW0="$(q "$RAWQ")"
+# 0017 (three corrections to Stage A) travels inside APPLY_v41_B1.sql, and
+# ROLLBACK_v41_B.sql deliberately KEEPS it: the defects it fixes exist
+# without 0014 and 0015. So the rollback's target catalog is Stage A PLUS
+# 0017, and that snapshot is taken here, from the migration file alone.
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0017_turf_corrections.sql" > $T-0017.out 2>&1 \
+  && ok "0017 applies on the Stage A state" || { tail -5 $T-0017.out; bad "0017 failed"; }
+CAT017="$(q "$CATQ")"
+CATROWS="select p.proname||':'||pg_get_function_identity_arguments(p.oid)||':'||md5(p.prosrc)||':'||coalesce(array_to_string(p.proconfig,','),'')||':'||p.prosecdef||':'||coalesce((select string_agg(a.grantee::regrole::text||'='||a.privilege_type, ',' order by a.grantee::regrole::text, a.privilege_type) from aclexplode(p.proacl) a),'')||':'||l.lanname from pg_proc p join pg_namespace n on n.oid=p.pronamespace join pg_language l on l.oid=p.prolang where n.nspname='public' order by 1"
+q "$CATROWS" > $T-cat-017.txt
+[ "$(q "$RAWQ")" = "$RAW0" ] && ok "0017 rewrote no row" || bad "0017 changed a row"
 
 # --------------------------------------------------- 1. broken part 1
 broken "$B1" $T-b1-broken.sql
 set +e; psql -q -v ON_ERROR_STOP=1 -d "$DB" -f $T-b1-broken.sql > $T-b1-broken.out 2>&1; BROKE=$?; set -e
 [ "$BROKE" != "0" ] && ok "part 1: a broken copy fails loudly (exit $BROKE)" || bad "part 1: broken copy did not fail"
 [ "$(q "$FN14")" = "0" ] && ok "part 1: …and no 0014 function became live" || bad "part 1: a 0014 function leaked"
-[ "$(q "$CATQ")" = "$CAT0" ] && ok "part 1: …the function catalog is byte-identical" || bad "part 1: catalog changed by a failed apply"
+[ "$(q "$CATQ")" = "$CAT017" ] && ok "part 1: …the function catalog is byte-identical" || bad "part 1: catalog changed by a failed apply"
 [ "$(q "$RAWQ")" = "$RAW0" ] && ok "part 1: …and no row changed" || bad "part 1: rows changed by a failed apply"
 
 # ----------------------------------------------------- 2. real part 1
@@ -192,12 +207,133 @@ SQL
 )"; set -e
 printf '%s' "$OUT" | grep -q "crosses itself" && [ "$(q "select count(*) from public.territories where id='v40-split-parent2' and deleted_at is null and not archived")" = "1" ] && [ "$(q "select count(*) from public.territories where id like 'v40-split2-%'")" = "0" ] && [ "$(q "select count(*) from public.territory_splits where operation_id='op-v40-split2'")" = "0" ] && ok "v40: a Smart Split that would create a self-crossing child is still refused whole through the wrapper (no child, no claim, parent live)" || bad "v40: severed split not refused cleanly: $OUT"
 
+# ------------------------- 5b. THE THREE 0017 REGRESSIONS, each reproduced
+# Every one of these FAILED on the Stage A bodies (reproduced on a real
+# database during the Stage B review) and is a permanent gate now.
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+insert into public.pins (team_id, id, lat, lng, disposition, data, created_by) values
+  ('$TEAM','dnk17', 40.0005, 0.0005, 'dnk',
+   jsonb_build_object('id','dnk17','disposition','dnk','updatedAt',1700000000000::bigint,
+     'history', jsonb_build_array(jsonb_build_object('ts',1700000000000::bigint,'disposition','dnk'))), '$JOHN');
+select set_config('request.jwt.claims', '{"sub":"$LEAD"}', false) \gset
+set role authenticated;
+select public.clear_pin_dnk('dnk17','the owner moved out','op-clear-17') \gset
+reset role;
+SQL
+[ "$(q "select disposition from public.pins where id='dnk17'")" = "unworked" ] && ok "0017/DNK: a leader's clear_pin_dnk clears the door" || bad "0017/DNK: the clear did not take"
+# the echo every phone sends: INSERT ... ON CONFLICT with the server's own row
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+select set_config('request.jwt.claims', '{"sub":"$JOHN"}', false) \gset
+set role authenticated;
+insert into public.pins (team_id, id, lat, lng, address, disposition, data, created_by)
+select team_id, id, lat, lng, address, disposition, data, '$JOHN' from public.pins where id='dnk17'
+on conflict (team_id, id) do update set lat=excluded.lat, lng=excluded.lng, address=excluded.address,
+  disposition=excluded.disposition, data=excluded.data;
+reset role;
+SQL
+[ "$(q "select (select count(*) from jsonb_array_elements(data->'history') h where h->>'disposition'='dnk_clear') from public.pins where id='dnk17'")" = "1" ] && ok "0017/DNK: an EXACT ECHO of the row by a rep (the INSERT arm of every client upsert) keeps the server's clear — the defect that made a cleared door go black again" || bad "0017/DNK: the echo stripped the server's clear"
+# a phone that cleared it stamps its own clock; a phone that never pulled it has no clear at all
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+select set_config('request.jwt.claims', '{"sub":"$JOHN"}', false) \gset
+set role authenticated;
+update public.pins set data = jsonb_set(data, '{history}', jsonb_build_array(
+    jsonb_build_object('ts',1700000000000::bigint,'disposition','dnk'),
+    jsonb_build_object('ts',(extract(epoch from clock_timestamp())*1000)::bigint + 5000,'disposition','dnk_clear','reason','my own clock')))
+ where id='dnk17';
+reset role;
+SQL
+[ "$(q "select (select count(*) from jsonb_array_elements(data->'history') h where h->>'disposition'='dnk_clear' and h->>'reason'='the owner moved out') from public.pins where id='dnk17'")" = "1" ] && [ "$(q "select (select count(*) from jsonb_array_elements(data->'history') h where h->>'reason'='my own clock') from public.pins where id='dnk17'")" = "0" ] && ok "0017/DNK: a client-stamped clear is still stripped as a forgery, and the SERVER's clear survives beside it" || bad "0017/DNK: forged/genuine clear handling wrong: $(q "select data->'history' from public.pins where id='dnk17'")"
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+select set_config('request.jwt.claims', '{"sub":"$JOHN"}', false) \gset
+set role authenticated;
+update public.pins set disposition='nh', data=jsonb_set(data,'{disposition}','"nh"') where id='dnk17';
+reset role;
+SQL
+[ "$(q "select disposition from public.pins where id='dnk17'")" = "nh" ] && ok "0017/DNK: …so the rep's next knock lands on a door that is no longer black" || bad "0017/DNK: the door went black again on the next knock"
+# 0017 #2 and #3: an inherited entry survives a stale mirror, and the correction is stamped
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+select set_config('request.jwt.claims', '{"sub":"$LEAD"}', false) \gset
+set role authenticated;
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+values ('$TEAM','p17','Parent 17','[[7,40],[7.002,40],[7.002,40.001],[7,40.001]]'::jsonb,null,false,'$LEAD',null,
+  jsonb_build_object('id','p17','assignedTo','$JOHN','updatedAt',1700000000000::bigint,
+    'assignments', jsonb_build_array(jsonb_build_object('userId','$JOHN','name','BF John','assignedBy','BF Lead','assignedAt',1700000000000::bigint,'unassignedAt',null))));
+select public.smart_split_territory('p17','op-17', jsonb_build_array(
+  jsonb_build_object('id','c17a','name','A','polygon','[[7,40],[7.001,40],[7.001,40.001],[7,40.001]]'::jsonb,'data',jsonb_build_object('id','c17a','name','A','assignments','[]'::jsonb,'updatedAt',1700000000000::bigint)),
+  jsonb_build_object('id','c17b','name','B','polygon','[[7.001,40],[7.002,40],[7.002,40.001],[7.001,40.001]]'::jsonb,'data',jsonb_build_object('id','c17b','name','B','assignments','[]'::jsonb,'updatedAt',1700000000000::bigint)))) \gset
+-- the splitting phone has NOT pulled: it assigns child A to Jake from its own stale copy
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+values ('$TEAM','c17a','A','[[7,40],[7.001,40],[7.001,40.001],[7,40.001]]'::jsonb,null,false,'$LEAD',null,
+  jsonb_build_object('id','c17a','name','A','assignedTo','$JAKE','updatedAt',1700000009999::bigint,
+    'assignments', jsonb_build_array(jsonb_build_object('userId','$JAKE','name','BF Jake','assignedBy','BF Lead','assignedAt',1700000009999::bigint,'unassignedAt',null))))
+on conflict (team_id, id) do update set name=excluded.name, polygon=excluded.polygon, homes=excluded.homes,
+  archived=excluded.archived, created_by=excluded.created_by, deleted_at=excluded.deleted_at, data=excluded.data;
+-- and it saves child B (a rename only) from the same stale copy
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+values ('$TEAM','c17b','B renamed','[[7.001,40],[7.002,40],[7.002,40.001],[7.001,40.001]]'::jsonb,null,false,'$LEAD',null,
+  jsonb_build_object('id','c17b','name','B renamed','updatedAt',1700000009999::bigint,'assignments','[]'::jsonb))
+on conflict (team_id, id) do update set name=excluded.name, polygon=excluded.polygon, homes=excluded.homes,
+  archived=excluded.archived, created_by=excluded.created_by, deleted_at=excluded.deleted_at, data=excluded.data;
+reset role;
+SQL
+[ "$(q "select open_assignees::text from public.territories where id='c17a'")" = "{$JAKE}" ] && ok "0017/ledger: the stale mirror still decides who is OPEN now (Jake)" || bad "0017/ledger: the mirror did not decide the open set"
+[ "$(q "select (select count(*) from jsonb_array_elements(assignees->'entries') e where e->>'userId'='$JOHN' and e->>'unassignedAt' is not null and e ? 'viaSplit' and (e->>'closedByMirror')::boolean) from public.territories where id='c17a'")" = "1" ] && ok "0017/ledger: …but the inherited entry it did not name is CLOSED and kept, provenance intact (viaSplit, closedByMirror) — it used to be deleted outright" || bad "0017/ledger: the inherited entry: $(q "select assignees from public.territories where id='c17a'")"
+[ "$(q "select public.rally_ms(data->>'updatedAt') > 1700000009999 from public.territories where id='c17b'")" = "t" ] && ok "0017/stamp: a rename by the un-pulled phone comes back with a clock ABOVE its own, so the correction is not discarded as 'same'" || bad "0017/stamp: data.updatedAt was not moved: $(q "select data->>'updatedAt' from public.territories where id='c17b'")"
+[ "$(q "select open_assignees::text from public.territories where id='c17b'")" = "{$JOHN}" ] && ok "0017/stamp: …and the inheritance the phone never saw is still open on the server" || bad "0017/stamp: the inheritance was lost"
+# a v40 phone with a FAST clock: the split must still commit (0015)
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+select set_config('request.jwt.claims', '{"sub":"$LEAD"}', false) \gset
+set role authenticated;
+insert into public.territories (team_id, id, name, polygon, homes, archived, created_by, deleted_at, data)
+values ('$TEAM','pfut','Future Parent','[[8,40],[8.002,40],[8.002,40.001],[8,40.001]]'::jsonb,null,false,'$LEAD',null,
+  jsonb_build_object('id','pfut','assignedTo','$JOHN','updatedAt',(extract(epoch from clock_timestamp())*1000)::bigint,
+    'assignments', jsonb_build_array(jsonb_build_object('userId','$JOHN','name','BF John','assignedBy','BF Lead',
+      'assignedAt',(extract(epoch from clock_timestamp())*1000)::bigint + 3600000,'unassignedAt',null))));
+select public.smart_split_territory('pfut','op-fut', jsonb_build_array(
+  jsonb_build_object('id','cfut-a','name','A','polygon','[[8,40],[8.001,40],[8.001,40.001],[8,40.001]]'::jsonb),
+  jsonb_build_object('id','cfut-b','name','B','polygon','[[8.001,40],[8.002,40],[8.002,40.001],[8.001,40.001]]'::jsonb))) \gset
+reset role;
+SQL
+[ "$(q "select count(*) from public.territories where id in ('cfut-a','cfut-b') and open_assignees = array['$JOHN']::uuid[]")" = "2" ] && ok "0015: a hood whose open entry was stamped an HOUR AHEAD by a fast phone still splits, and both children inherit — closing at the split instant alone aborted the whole operation" || bad "0015: the future-dated split failed"
+# save_territory mirrors every column the client reads
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+select set_config('request.jwt.claims', '{"sub":"$LEAD"}', false) \gset
+set role authenticated;
+select public.save_territory('sv17','Saved 17','[[9,40],[9.001,40],[9.001,40.001],[9,40.001]]'::jsonb, 12, false, null, null) \gset
+select public.save_territory('sv17', null, null, 99, true, null, null) \gset
+reset role;
+SQL
+[ "$(q "select (data->>'homes')||'/'||(data->>'archived')||' cols '||homes||'/'||archived from public.territories where id='sv17'")" = "99/true cols 99/true" ] && ok "0014: save_territory's UPDATE arm mirrors homes and archived into data — the client reads row.data, so a column moved without its mirror is invisible on every phone" || bad "0014: data mirror: $(q "select data, homes, archived from public.territories where id='sv17'")"
+# a door blacked by a FAST phone clock must still be clearable
+psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
+insert into public.pins (team_id, id, lat, lng, disposition, data, created_by) values
+  ('$TEAM','dnk-fast', 40.0006, 0.0006, 'dnk',
+   jsonb_build_object('id','dnk-fast','disposition','dnk','updatedAt',(extract(epoch from clock_timestamp())*1000)::bigint,
+     'history', jsonb_build_array(jsonb_build_object('ts',(extract(epoch from clock_timestamp())*1000)::bigint + 3600000,'disposition','dnk'))), '$JOHN');
+select set_config('request.jwt.claims', '{"sub":"$LEAD"}', false) \gset
+set role authenticated;
+select public.clear_pin_dnk('dnk-fast','owner moved','op-fast') \gset
+reset role;
+select set_config('request.jwt.claims', '{"sub":"$JOHN"}', false) \gset
+set role authenticated;
+update public.pins set disposition='nh', data=jsonb_set(data,'{disposition}','"nh"') where id='dnk-fast';
+reset role;
+SQL
+[ "$(q "select disposition from public.pins where id='dnk-fast'")" = "nh" ] && [ "$(q "select public.rally_dnk_from_history(data) is null from public.pins where id='dnk-fast'")" = "t" ] && ok "0014: a door a FAST phone clock marked black an hour ahead is clearable — the clear is stamped above the knock it clears, so it counts and the next knock is not forced back to black" || bad "0014: the future-dated black door could not be cleared: $(q "select disposition, data->'history' from public.pins where id='dnk-fast'")"
+
+# 0015 refuses to land without 0014
+psql -q -d "$DB" -c "drop function if exists public.rally_diff_assignees(jsonb, uuid[], uuid, uuid, bigint, jsonb) cascade" >/dev/null 2>&1
+set +e; OUT="$(psql -X -d "$DB" -f "$B2" 2>&1)"; set -e
+printf '%s' "$OUT" | grep -q "0015 requires 0014" && ok "0015 REFUSES to apply without 0014 — out of order it would commit and then break every Smart Split at run time" || bad "0015 applied without 0014: $(printf '%s' "$OUT" | tail -2)"
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$B1" >/dev/null 2>&1
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$B2" >/dev/null 2>&1
+
 # ------------------------------------------------------- 6. rollback
 RAWB="$(q "$RAWQ")"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$RB" > $T-rb.out 2>&1 && ok "ROLLBACK_v41_B.sql applies (after both parts)" || { tail -5 $T-rb.out; bad "rollback failed"; }
 [ "$(q "$FN14")" = "0" ] && [ "$(q "$FN15")" = "0" ] && ok "rollback: every Stage B function gone" || bad "rollback: functions remain"
 [ "$(q "$SPLITQ")" = "$SPLIT0" ] && ok "rollback: smart_split_territory is the certified body again under its own name, plpgsql, public,pg_temp, 0005's grants" || bad "rollback: smart_split_territory: $(q "$SPLITQ")"
-[ "$(q "$CATQ")" = "$CAT0" ] && ok "rollback: the public function catalog is byte-identical to the Stage A snapshot (bodies, config, ACLs, languages)" || bad "rollback: catalog differs from the Stage A snapshot"
+[ "$(q "$CATQ")" = "$CAT017" ] && ok "rollback: the public function catalog is byte-identical to the Stage A + 0017 snapshot (bodies, config, ACLs, languages) — 0017 is kept on purpose" || { q "$CATROWS" > $T-cat-after.txt; bad "rollback: catalog differs from the Stage A + 0017 snapshot"; diff $T-cat-017.txt $T-cat-after.txt | head -8; }
 [ "$(q "select public.rally_capabilities()->>'turfRpc'")" = "false" ] && ok "rollback: turfRpc false again" || bad "rollback: turfRpc still true"
 [ "$(q "$RAWQ")" = "$RAWB" ] && ok "rollback: no row changed (inherited ledger entries from the v40 split stand, as documented)" || bad "rollback: rows changed"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" <<SQL
@@ -219,9 +355,11 @@ verify "$V2" "verify-v41-stage-b2 (after re-apply)"
 
 # ------------------------------------------- 7. rollback after PART 1 ONLY
 build
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0017_turf_corrections.sql" >/dev/null 2>&1
+CAT017B="$(q "$CATQ")"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$B1" > $T-b1d.out 2>&1
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$RB" > $T-rb2.out 2>&1 && ok "ROLLBACK_v41_B.sql applies after part 1 alone" || { tail -5 $T-rb2.out; bad "rollback after part 1 failed"; }
-[ "$(q "$CATQ")" = "$CAT0" ] && [ "$(q "$SPLITQ")" = "$SPLIT0" ] && [ "$(q "select public.rally_capabilities()->>'turfRpc'")" = "false" ] && ok "rollback after part 1: catalog byte-identical to the Stage A snapshot, 0005 untouched, turfRpc false" || bad "rollback after part 1: catalog differs"
+[ "$(q "$CATQ")" = "$CAT017B" ] && [ "$(q "$SPLITQ")" = "$SPLIT0" ] && [ "$(q "select public.rally_capabilities()->>'turfRpc'")" = "false" ] && ok "rollback after part 1: catalog byte-identical to the Stage A + 0017 snapshot, 0005 untouched, turfRpc false" || bad "rollback after part 1: catalog differs"
 
 echo "STAGE B: $pass passed, $fail failed"
 [ "$fail" = "0" ] && echo "STAGE B: ALL GREEN" || { echo "STAGE B: FAILED"; exit 1; }

@@ -74,6 +74,21 @@ begin
   select string_agg(x, ', ') into t from unnest(internals) x
    where has_function_privilege('authenticated', 'public.' || x, 'EXECUTE');
   res := res || pg_temp.b_row('A2 the four internals are not executable by authenticated either', t is null, coalesce('authenticated may execute: ' || t, 'none'));
+  -- A2b the 0017 corrections travelled in this paste and are live
+  select string_agg(x, ', ') into t from unnest(array['rally_keep_open_history(jsonb,jsonb,bigint)','rally_keep_server_clears(jsonb,jsonb)']) x
+   where to_regprocedure('public.' || x) is null;
+  res := res || pg_temp.b_row('A2b 0017''s two helpers are present (the corrections to 0010 and 0013 travelled in this paste)', t is null, coalesce('missing: ' || t, 'both present'));
+  select p.prosrc like '%rally_keep_open_history%' and p.prosrc not like '%(v_auth or v_via_rpc) and tg_op%'
+    into ok from pg_proc p where p.oid = to_regprocedure('public.territories_assignment()');
+  res := res || pg_temp.b_row('A2b territories_assignment carries 0017: it keeps an open entry a stale mirror does not name, and stamps every real correction', coalesce(ok, false), '');
+  select p.prosrc like '%rally_keep_server_clears%' and p.prosrc like '%from public.pins p%'
+    into ok from pg_proc p where p.oid = to_regprocedure('public.pins_protect_dnk()');
+  res := res || pg_temp.b_row('A2b pins_protect_dnk carries 0017: it looks the existing row up on the INSERT arm and keeps the clears the server holds', coalesce(ok, false), '');
+  -- A2c the service key holds no route to an internal
+  select string_agg(x, ', ') into t from unnest(internals) x
+   where has_function_privilege('service_role', 'public.' || x, 'EXECUTE');
+  res := res || pg_temp.b_row('A2c no 0014 internal is executable by service_role either (Supabase''s default grants it; the migration revokes it)', t is null, coalesce('service_role may execute: ' || t, 'none'));
+
   -- A3 capabilities: turfRpc still FALSE (0015 not applied), flag FALSE
   j := public.rally_capabilities();
   res := res || pg_temp.b_row('A3 rally_capabilities() = flag false, turfRpc false (0015 not yet applied), postgis true',
@@ -264,6 +279,19 @@ begin
              'status=' || coalesce(j->>'status', '?') || ' name=' || t3.name || ' homes=' || coalesce(t3.homes::text, 'null') || ' rev=' || t3.assignees_rev
         into ok, t from public.territories t3 where t3.team_id = team and t3.id = tid;
       res := res || pg_temp.b_row('D4 save_territory on an existing hood renames it, leaves the outline, the door count and the ledger alone, moves data.updatedAt', ok and j->>'status' = 'updated', t);
+      /* D4b EVERY COLUMN THE CLIENT READS IS MIRRORED INTO data. A device
+         builds its record from row.data alone, so a column this function
+         moved without its mirror would be invisible on every phone — and
+         the phone's own value would be reverted by the pull that carried
+         the edit. */
+      j := public.save_territory(tid, null, null, 77, true, null, null);
+      select (t3.homes = 77 and (t3.data->>'homes')::int = 77 and t3.archived and (t3.data->>'archived')::boolean),
+             'homes col=' || t3.homes || ' data=' || coalesce(t3.data->>'homes', 'null') || ' archived col=' || t3.archived || ' data=' || coalesce(t3.data->>'archived', 'absent')
+        into ok, t from public.territories t3 where t3.team_id = team and t3.id = tid;
+      res := res || pg_temp.b_row('D4b save_territory mirrors homes and archived into data, not only into the columns', ok, t);
+      j := public.save_territory(tid, null, null, null, false, null, null);
+      select (t3.homes = 77 and (t3.data->>'homes')::int = 77 and not t3.archived) into ok from public.territories t3 where t3.team_id = team and t3.id = tid;
+      res := res || pg_temp.b_row('D4b …and a null still means "leave it alone" for the door count while un-archiving', ok, '');
     exception when others then
       res := res || pg_temp.b_row('D4 save_territory update', false, 'REFUSED: ' || sqlstate || ' ' || sqlerrm);
     end;
@@ -367,6 +395,47 @@ begin
       j := public.clear_pin_dnk(pid2, 'not black', op || '-d2');
       res := res || pg_temp.b_row('D6 clearing a door that is not black answers not_dnk and writes nothing', j->>'status' = 'not_dnk'
         and not exists (select 1 from public.events e where e.team_id = team and e.id = 'dnkclear-' || op || '-d2'), 'status=' || coalesce(j->>'status', '?'));
+      /* D6b THE CLEAR HAS TO SURVIVE THE NEXT WRITE — the defect 0017 fixes.
+         Every client write is INSERT ... ON CONFLICT, and the trigger fires
+         on the proposed row before the conflict is seen. Before 0017 that
+         arm stripped the server's own clear, the door went black again on
+         the following knock, and no clear could ever stick. */
+      -- created_by is the PUSHING device's user, which is what js/sync.js
+      -- rowFor("pins") sends on every push whoever first knocked the door
+      insert into public.pins (team_id, id, lat, lng, address, disposition, data, created_by)
+      select p.team_id, p.id, p.lat, p.lng, p.address, p.disposition, p.data, boss_id from public.pins p where p.team_id = team and p.id = pid
+      on conflict (team_id, id) do update set lat = excluded.lat, lng = excluded.lng, address = excluded.address,
+        disposition = excluded.disposition, data = excluded.data;
+      select (select count(*) from jsonb_array_elements(p.data->'history') h where h->>'disposition' = 'dnk_clear'), p.disposition
+        into n, t from public.pins p where p.team_id = team and p.id = pid;
+      res := res || pg_temp.b_row('D6b an EXACT ECHO of the cleared door through the ordinary upsert keeps the server''s clear (0017)', n = 1 and t = 'unworked', n || ' clear(s), disposition=' || t);
+      update public.pins set disposition = 'nh', data = jsonb_set(data, '{disposition}', '"nh"') where team_id = team and id = pid;
+      select disposition into t from public.pins where team_id = team and id = pid;
+      res := res || pg_temp.b_row('D6b …so the next knock lands on a door that is no longer black (it used to go straight back to dnk)', t = 'nh', 'disposition=' || t);
+      -- a client-stamped clear is still a forgery, and it does not take the genuine one with it
+      update public.pins set data = jsonb_set(data, '{history}', (data->'history') || jsonb_build_object('ts', now_ms + 99000, 'disposition', 'dnk_clear', 'reason', 'my own clock'))
+       where team_id = team and id = pid;
+      select (select count(*) from jsonb_array_elements(p.data->'history') h where h->>'disposition' = 'dnk_clear'),
+             (select count(*) from jsonb_array_elements(p.data->'history') h where h->>'reason' = 'my own clock')
+        into n, n2 from public.pins p where p.team_id = team and p.id = pid;
+      res := res || pg_temp.b_row('D6b a clear stamped with a client''s own clock is still stripped as a forgery, and the server''s survives beside it', n = 1 and n2 = 0, n || ' clear(s) kept, ' || n2 || ' forged');
+      /* D6c A DOOR BLACKED BY A FAST PHONE CLOCK IS STILL CLEARABLE. A clear
+         counts only at or after the do-not-knock it clears, so a knock
+         stamped in the future would leave the door black however often it
+         was cleared. */
+      insert into public.pins (team_id, id, lat, lng, address, disposition, data, created_by)
+      values (team, pid || '-fast', 0.6, 0.6, 'probe st', 'dnk',
+              jsonb_build_object('disposition', 'dnk', 'updatedAt', now_ms,
+                'history', jsonb_build_array(jsonb_build_object('ts', now_ms + 3600000, 'disposition', 'dnk'))), boss_id);
+      j := public.clear_pin_dnk(pid || '-fast', 'the owner moved out (probe)', op || '-d3');
+      update public.pins set disposition = 'nh', data = jsonb_set(data, '{disposition}', '"nh"') where team_id = team and id = pid || '-fast';
+      select p.disposition, public.rally_dnk_from_history(p.data) is null into t, ok from public.pins p where p.team_id = team and p.id = pid || '-fast';
+      res := res || pg_temp.b_row('D6c a door a fast phone clock marked black an HOUR AHEAD is clearable: the clear is stamped above the knock it clears, so the next knock is not forced back to black',
+        t = 'nh' and ok, 'disposition after the next knock=' || t || ' reads black=' || (not ok));
+      -- and a retry answers with the ORIGINAL instant, so a client that lost the response stamps the server's moment
+      j := public.clear_pin_dnk(pid, 'again', op || '-d1');
+      res := res || pg_temp.b_row('D6b a retry answers already_committed WITH the original cleared_at, so a client that lost the first response still stamps the server''s moment',
+        j->>'status' = 'already_committed' and (j->>'cleared_at') is not null, j::text);
     exception when others then
       res := res || pg_temp.b_row('D6 clear_pin_dnk by a leader', false, 'REFUSED: ' || sqlstate || ' ' || sqlerrm);
     end;

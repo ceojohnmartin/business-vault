@@ -55,6 +55,7 @@ const mock = {
   forgedEventsDropped: 0,
   forgedHistoryStripped: 0,
   serverAuthoredClears: new Set(),   // the ids clear_pin_dnk itself wrote
+  serverClearsKept: 0,               // 0017: clears re-added to a write that dropped one
   pinUpserts: new Map(),   // pin id -> number of upload attempts (loop detector)
 };
 const tick = () => new Date(++mock.clock).toISOString();
@@ -232,7 +233,16 @@ function handleRpc(req, res, u, body, me) {
     const row = mock.tables.pins.get(TEAM + "|" + body.p_pin_id);
     if (!row) return j(res, 400, { message: "turf: door not found" });
     if (!body.p_reason) return j(res, 400, { message: "turf: needs a reason" });
-    const at = nowMs();
+    /* THE SERVER'S OWN CLOCK, DELIBERATELY NOT THE CLIENT'S. A clear IS the
+       moment it happened, and the server tells a genuine clear from a forged
+       one by matching that timestamp. When the mock and the device shared a
+       clock, a client that stamped its LOCAL copy with Date.now() passed by
+       coincidence — and on production it would have had its own copy of the
+       clear stripped as a forgery. The offset makes the two clocks
+       distinguishable, so only a client that adopts cleared_at survives. */
+    const dnkTs = (row.data.history || []).filter((h) => h.disposition === "dnk")
+      .reduce((m, h) => Math.max(m, h.ts || 0), 0);
+    const at = Math.max(nowMs() - 12345, dnkTs + 1);
     row.data = Object.assign({}, row.data, {
       history: (row.data.history || []).concat([{ ts: at, disposition: "dnk_clear",
         reason: body.p_reason, dm: false, note: "" }]),
@@ -303,7 +313,13 @@ function handleRest(req, res, u, body) {
         const kept = row.data.history.filter((h) => h.disposition !== "dnk_clear" ||
           had.some((o) => o.disposition === "dnk_clear" && o.ts === h.ts));
         if (kept.length !== row.data.history.length) mock.forgedHistoryStripped++;
-        row.data.history = kept;
+        /* 0017: and every clear the SERVER already holds survives a write
+           that dropped it — a phone that never pulled the clear carries no
+           copy at all, and one that cleared the door carries its own. */
+        const back = had.filter((o) => o.disposition === "dnk_clear" &&
+          !kept.some((h) => h.disposition === "dnk_clear" && h.ts === o.ts));
+        if (back.length) mock.serverClearsKept += back.length;
+        row.data.history = kept.concat(back);
       }
       const existing = t.get(key);
       if (existing) {
@@ -974,6 +990,33 @@ const server = http.createServer((req, res) => {
           STORE.events.some((e) => e.pinId === id && e.disposition === "dnk_clear"), pid));
       check("D10 the server agrees",
         (mock.tables.pins.get(TEAM + "|" + pid) || {}).disposition === "unworked");
+      /* D11-D13 THE CLEAR HAS TO SURVIVE THE DEVICE'S OWN PUSH. The clearing
+         phone queues the pin; the server strips any clear whose timestamp it
+         does not recognise. A phone that stamped its local copy with its own
+         clock therefore pushes a history the server reads as a forgery — and
+         since its copy never held the server's entry, the door would come
+         back black. The client adopts cleared_at for exactly this reason. */
+      const localTs = await d2.page.evaluate((id) => {
+        const p = STORE.pins.find((x) => x.id === id);
+        return (p.history || []).filter((h) => h.disposition === "dnk_clear").map((h) => h.ts);
+      }, pid);
+      const srvTs = ((mock.tables.pins.get(TEAM + "|" + pid) || {}).data || {}).history
+        .filter((h) => h.disposition === "dnk_clear").map((h) => h.ts);
+      check("D11 the device stamped its local clear with the SERVER's instant, not its own clock",
+        localTs.length === 1 && srvTs.length === 1 && localTs[0] === srvTs[0],
+        "local " + JSON.stringify(localTs) + " vs server " + JSON.stringify(srvTs));
+      await syncUntil(d2, () => true, 6);
+      const afterPush = (mock.tables.pins.get(TEAM + "|" + pid) || {}).data.history
+        .filter((h) => h.disposition === "dnk_clear");
+      check("D12 after the clearing device pushes the pin, the server still holds exactly one clear",
+        afterPush.length === 1, JSON.stringify(afterPush));
+      const srvDisp = (mock.tables.pins.get(TEAM + "|" + pid) || {}).disposition;
+      const devDisp = await d2.page.evaluate((id) => (STORE.pins.find((x) => x.id === id) || {}).disposition, pid);
+      const srvData = (mock.tables.pins.get(TEAM + "|" + pid) || {}).data;
+      check("D13 and the door has not gone back to black on any device",
+        srvDisp === "unworked" && devDisp === "unworked",
+        "server=" + srvDisp + " device=" + devDisp + " data.disposition=" + (srvData || {}).disposition +
+        " hist=" + JSON.stringify((srvData || {}).history));
       await d.ctx.close(); await d2.ctx.close();
     }
 

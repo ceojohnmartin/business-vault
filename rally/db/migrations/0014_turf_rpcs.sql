@@ -249,6 +249,7 @@ begin
             jsonb_build_object('id', p_id, 'name', coalesce(p_name, ''),
                                'points', coalesce(p_polygon, '[]'::jsonb),
                                'homes', p_homes,
+                               'archived', coalesce(p_archived, false),
                                'createdAt', v_at, 'updatedAt', v_at));
   else
     if v_t.deleted_at is not null then
@@ -261,9 +262,17 @@ begin
            -- here does; wiping a door count nobody mentioned is not an edit
            homes = coalesce(p_homes, homes),
            archived = coalesce(p_archived, archived),
-           data = jsonb_set(jsonb_set(jsonb_set(data,
+           /* EVERY COLUMN THE CLIENT READS IS MIRRORED INTO data.
+              A device builds its record from row.data alone (the pull has
+              no select list and applyTerritories reads row.data), so a
+              column this function moved without moving its mirror would be
+              invisible on every phone — and the phone's own value would be
+              reverted by the very pull that carried the edit. */
+           data = jsonb_set(jsonb_set(jsonb_set(jsonb_set(jsonb_set(data,
                     '{name}', to_jsonb(coalesce(p_name, name))),
                     '{points}', coalesce(p_polygon, polygon)),
+                    '{homes}', coalesce(to_jsonb(coalesce(p_homes, homes)), 'null'::jsonb)),
+                    '{archived}', to_jsonb(coalesce(p_archived, archived))),
                     '{updatedAt}', to_jsonb(v_at))
      where team_id = v_team and id = p_id;
   end if;
@@ -366,6 +375,8 @@ declare
   v_at    bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   v_ev    text := 'dnkclear-' || p_operation_id;
   v_hist  jsonb;
+  v_prior_at bigint;
+  v_dnk_at   bigint;
 begin
   v_uid  := public.rally_require_leader();
   v_team := public.rally_my_team();
@@ -377,17 +388,39 @@ begin
     raise exception 'turf: clearing do-not-knock needs an operation id' using errcode = '22023';
   end if;
 
-  -- idempotent on the operation id: the event IS the record of the clear
-  if exists (select 1 from public.events where team_id = v_team and id = v_ev) then
-    return jsonb_build_object('status', 'already_committed', 'pin_id', p_pin_id);
+  /* Idempotent on the operation id: the event IS the record of the clear.
+     The retry is answered WITH the instant of the clear it is retrying, so
+     a client that lost the first response still stamps its local copy with
+     the server's moment rather than its own — the same reason the ok path
+     returns cleared_at. */
+  select at_ms into v_prior_at from public.events where team_id = v_team and id = v_ev;
+  if found then
+    return jsonb_build_object('status', 'already_committed', 'pin_id', p_pin_id,
+      'cleared_at', v_prior_at);
   end if;
 
   select * into v_p from public.pins where team_id = v_team and id = p_pin_id for update;
   if not found then
     raise exception 'turf: door % not found for this team', p_pin_id using errcode = '42501';
   end if;
-  if public.rally_dnk_from_history(v_p.data) is null and v_p.disposition <> 'dnk' then
+  v_dnk_at := public.rally_dnk_from_history(v_p.data);
+  if v_dnk_at is null and v_p.disposition <> 'dnk' then
     return jsonb_build_object('status', 'not_dnk', 'pin_id', p_pin_id);
+  end if;
+
+  /* THE CLEAR MUST COUNT, whatever clock marked the door black.
+
+     A clear only clears when it is at or AFTER the do-not-knock it clears —
+     that rule is what stops a clear planted with an old timestamp from
+     disarming a later refusal. But a phone with a fast clock stamps its
+     do-not-knock in the future, and then the server's own instant is BEFORE
+     it: the clear is written, the column says unworked, and the history
+     still reads black. The door goes back to black on the next knock and no
+     clear can ever take. So the clear is stamped at the later of now and
+     the moment it is clearing — the same care rally_diff_assignees takes
+     when it closes an entry that has not started yet. */
+  if v_dnk_at is not null and v_dnk_at >= v_at then
+    v_at := v_dnk_at + 1;
   end if;
 
   insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
@@ -430,11 +463,18 @@ end $$;
    hand `authenticated` a membership oracle (rally_validate_assignees says
    whether any uuid is an active member of any team) and a name lookup by
    uuid across teams (rally_diff_assignees). Shut to every client role, as
-   0010's guard counter and 0015's rally_split_inherit are. */
-revoke all on function public.rally_require_leader()                    from public, anon, authenticated;
-revoke all on function public.rally_my_team()                           from public, anon, authenticated;
-revoke all on function public.rally_diff_assignees(jsonb, uuid[], uuid, uuid, bigint, jsonb) from public, anon, authenticated;
-revoke all on function public.rally_validate_assignees(uuid[], uuid)    from public, anon, authenticated;
+   0010's guard counter and 0015's rally_split_inherit are.
+
+   service_role is named explicitly. Supabase's default privileges grant it
+   EXECUTE on every new public function, so `from public, anon,
+   authenticated` would leave the service key able to call an internal
+   directly — and for 0015's core that means running the certified split
+   body with the assignment-stripping and the inheritance skipped. Nothing
+   legitimate loses anything: these run as the owner, inside the doors. */
+revoke all on function public.rally_require_leader()                    from public, anon, authenticated, service_role;
+revoke all on function public.rally_my_team()                           from public, anon, authenticated, service_role;
+revoke all on function public.rally_diff_assignees(jsonb, uuid[], uuid, uuid, bigint, jsonb) from public, anon, authenticated, service_role;
+revoke all on function public.rally_validate_assignees(uuid[], uuid)    from public, anon, authenticated, service_role;
 revoke all on function public.set_territory_assignments(text, uuid[], text) from public, anon;
 revoke all on function public.save_territory(text, text, jsonb, integer, boolean, uuid[], text) from public, anon;
 revoke all on function public.start_territory_cycle(text, timestamptz, text) from public, anon;

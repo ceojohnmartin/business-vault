@@ -1985,12 +1985,21 @@
      door's history so the ordinary history union carries it to every other
      device, including one too old to know what a dnk_clear is. */
   S.clearPinDnk = async function (pin, reason) {
-    const now = Date.now();
     const opId = MDB.uid();
+    let now = Date.now();
     if (window.MCLOUD && MCLOUD.enabled()) {
-      await rpc("clear_pin_dnk", {
+      const res = await rpc("clear_pin_dnk", {
         p_pin_id: pin.id, p_reason: reason, p_operation_id: opId,
       });
+      /* THE SERVER'S INSTANT, NOT THIS PHONE'S. A clear IS a moment, and
+         that moment is the one the server recorded: the door's history on
+         the server carries it, and the server tells a client write apart
+         from a forged one by matching that very timestamp. A copy stamped
+         with this phone's clock is a DIFFERENT clear — stripped as a
+         forgery on the next push, taking the phone's only copy of the real
+         one with it. So the local copy is built from cleared_at whenever
+         the server gave one. */
+      if (res && typeof res.cleared_at === "number" && res.cleared_at > 0) now = res.cleared_at;
     }
     const entry = { ts: now, disposition: "dnk_clear", reason, dm: false, note: "" };
     pin.history = (pin.history || []).concat([entry]);

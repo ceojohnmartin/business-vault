@@ -498,3 +498,122 @@ screenshot evidence.
 (the child of the offline split). Together they cover exactly the area `Hood 4`
 did; doors kept their full knock history. They are working turf and should not be
 deleted. Both `ZZ DELETE ME` test doors were removed by the test itself.
+
+
+---
+
+# RALLY v41 — real-iPhone certification (Stage B client)
+
+> **Not yet run.** Written for the v41 publish that follows Stage B
+> (0014 + 0015 on production, `turfRpc` true, the authority flag still
+> FALSE). Nothing here needs Stage C or the flip. Test on the production
+> origin, for the reason section 0 of the v39 checklist gives: any "staging"
+> on the same origin shares the phone's IndexedDB with production.
+
+v41 is the first client that **receives fields the server owns** — the
+assignment ledger revision, and the cycle boundary ("fresh pass") — and the
+first that **calls the server for three things instead of writing them
+itself**: starting a fresh pass, clearing a do-not-knock, and a Smart Split
+whose children inherit the parent's reps. Under the current flag (FALSE) it
+still assigns hoods the v40 way, through the ordinary sync; that switches only
+at the separately gated flip.
+
+You need **two phones**: a leader's and a rep's (or one phone signed in as
+each, in turn — the cross-device checks then need a second sign-in). Budget
+30 minutes. Test data is named `ZZ …` and removed in section 7.
+
+## 1. Before publishing
+
+- [ ] **1.1** Both phones show **Build v40**. More → **synced**, 0 pending,
+      0 refused, on both. Anything pending or refused: stop, do not publish.
+- [ ] **1.2** Note one hood that is currently assigned to the rep (call it
+      HOOD-A) and one door in it.
+
+## 2. Publish and update
+
+- [ ] **2.1** Publish v41. Wait ~2 minutes for GitHub Pages.
+- [ ] **2.2** Force-close RALLY from the app switcher and reopen, on both
+      phones. Build badge reads **v41**? Which reopen did it take?
+- [ ] **2.3** Reopen twice more: stays v41. More → synced, 0 pending,
+      0 refused. Hoods, doors, customers, role and name all intact.
+
+## 3. The server-owned fields arrive (Clear Outcomes)
+
+- [ ] **3.1** Leader phone: open HOOD-A → **Start a fresh pass**. Confirm.
+      Toast says the pass started; worked doors read unworked again; knock
+      counts, notes, callbacks and customers are still there; black doors
+      stay black.
+- [ ] **3.2** Force-close and reopen the leader phone: HOOD-A still shows the
+      fresh pass (nothing came back as worked).
+- [ ] **3.3** Rep phone, within ~10 seconds online: HOOD-A shows the fresh
+      pass too, without the rep doing anything. **This is the server-owned
+      merge working** — the boundary came down a column, not through the
+      hood's ordinary edit.
+- [ ] **3.4** Leader phone, Airplane Mode on: try to start a fresh pass on
+      another hood. It must **refuse** with "Connect to manage turf…" and
+      change nothing. Airplane Mode off.
+
+## 4. Clearing a do-not-knock is a server decision
+
+- [ ] **4.1** Rep phone: mark a test door `ZZ BLACK` as do-not-knock. Try to
+      knock it again as the rep: it stays black.
+- [ ] **4.2** Leader phone (after sync): open `ZZ BLACK` → clear the
+      do-not-knock, type a reason. Toast: cleared and recorded. The door is
+      unworked (not black).
+- [ ] **4.3** Rep phone, after sync: `ZZ BLACK` is unworked and its history
+      shows the clear with the reason.
+- [ ] **4.4** Rep phone: there is **no** clear action on a black door (the
+      rep-facing app has no path to it).
+
+## 5. Smart Split inherits the reps
+
+- [ ] **5.1** Leader phone: HOOD-A is assigned to the rep. Smart Split it
+      into 2. Children appear, stop saying *waiting on the team* within a
+      few seconds, the parent disappears, doors are re-homed.
+- [ ] **5.2** Both children show the **rep as assigned** (they inherited).
+      In v40 they were created unassigned — this is the change.
+- [ ] **5.3** Rep phone, after sync: both children are in the rep's turf,
+      assigned to them; HOOD-A is gone.
+- [ ] **5.4** Force-close and reopen the leader phone: children still
+      assigned, parent still gone, More → synced, 0 refused.
+
+## 6. Assignment still works the v40 way (flag FALSE)
+
+- [ ] **6.1** Leader phone: assign one child to nobody, then back to the rep.
+      Rep phone follows each change after sync.
+- [ ] **6.2** More on both phones → synced, 0 pending, 0 refused.
+
+## 7. Clean up
+
+- [ ] **7.1** Delete `ZZ BLACK`; rename or keep the two children as you
+      prefer. More → synced on both phones.
+
+## 8. Nothing else moved
+
+- [ ] **8.1** Customer editor: still no card/bank fields; the disclosure is
+      still there.
+- [ ] **8.2** Restart the leader phone, reopen RALLY: still v41, still signed
+      in, still synced.
+
+## What to send back
+
+```
+Starting build (both phones):            Ending build:
+2.2  Which reopen first showed v41:
+2.3  Stayed v41; synced 0/0; everything intact:
+3.1-3.2  Fresh pass started; survived a reopen:
+3.3  Fresh pass appeared on the REP phone by itself:
+3.4  Offline fresh pass refused with the connect message:
+4.1-4.3  DNK: rep could not un-black it; leader cleared it with a reason; rep phone shows the clear:
+4.4  No clear action on the rep phone:
+5.1-5.4  Split: confirmed / children ASSIGNED to the rep / rep phone agrees / survived reopen:
+6.1-6.2  v40-style assignment round trip; synced 0/0:
+8.1-8.2  No card/bank fields; survived a phone restart:
+
+Anything odd, slow, ugly or surprising — however small:
+```
+
+**3.3, 4.2, 5.2 and 5.3 are the v41 acceptance.** Any of them failing means
+the published client is not receiving or merging the server-owned fields
+correctly: do not proceed to Stage C, and report exactly what each phone
+showed.

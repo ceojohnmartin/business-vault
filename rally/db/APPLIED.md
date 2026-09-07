@@ -507,11 +507,71 @@ was then re-run whole: 0 FAIL.
 - Nothing else changes. The nine-column upsert, knocking, the do-not-knock
   protection and every Stage A consequence stand as recorded.
 
-**NOT done, by instruction:** 0016 (Stage C), the activation flip, the v41
-client publish, the merge to `main`.
-
 **Rollback** remains `db/ROLLBACK_v41_B.sql`, proven, and deliberately keeps
 0017.
+
+### THE v41 CLIENT — PUBLISHED, 2026-09-07
+
+The owner approved the publish after the Stage B server verification read
+clean, resolving the conflict between "publish the v41 client" and "do not
+merge to main": GitHub Pages serves `origin/main` byte-for-byte, so there is
+no other mechanism in this repository.
+
+`main` moved from `437893e` (Build v40, published 2026-09-03) to `7252fcd`,
+a no-fast-forward merge of the v41 branch at `c36ed17`. The live origin
+served v41 within about a minute of the push.
+
+**What was published is exactly what was tested.** No client file changed
+between the browser battery (1,215 checks across 24 suites, 0 failing) and
+the merge. Every served file was then fetched from
+`https://ceojohnmartin.github.io/business-vault/rally/` and compared with
+the tree: `index.html`, `sw.js`, `manifest.webmanifest`, `css/app.css` and
+the ten client modules — **14 of 14 byte-identical, 0 differing.** The
+served `index.html` declares `RALLY_BUILD = "v41"` and the served `sw.js`
+caches `rally-v41`.
+
+**The served client carries the v41 contract** (grepped from the fetched
+files, not the tree): six `mergeServerOwned` call sites; the split RPC
+chosen from `capability("turfRpc")`; `assignees_rev` and `cycle_started_at`
+merged from their own columns; `clearPinDnk` adopting the server's
+`cleared_at`; and the capability fetch itself.
+
+**The wire path was verified against the live project.** `live-check.js`:
+14 PASS — the shipped key is publishable, not privileged, and `anon` is
+denied on all eight tables. Then every RPC the client calls was POSTed to
+the real PostgREST with the shipped key and the argument shape the client
+sends: `rally_capabilities`, `start_territory_cycle`, `clear_pin_dnk`,
+`set_territory_assignments`, `save_territory`, `smart_split_territory_v41`
+and the 0005 name each answered **42501 "permission denied for function"** —
+resolved by PostgREST, refused for want of a session, which is correct — and
+so did the internals `smart_split_territory_core` and `rally_split_inherit`,
+which must never be reachable. That also proves PostgREST's schema cache
+picked up the functions created minutes earlier.
+
+  A note on a false alarm worth remembering: probing these endpoints with an
+  EMPTY body returns 404, because PostgREST resolves an RPC by name AND
+  argument signature. The 0005 name — live since September 2 — answers 404
+  to an empty body too. Only the correctly-shaped call distinguishes "not
+  exposed" from "wrong payload".
+
+**What the phones get.** Every device picks up v41 on its next force-close
+and reopen (the reliable path on iOS). Until then a v40 phone keeps working
+exactly as recorded above. A v41 leader additionally starts fresh passes and
+clears do-not-knocks through the server — both refuse offline, by design —
+and calls `smart_split_territory_v41`, which is the same operation as the
+0005 name.
+
+**Still owed: the real-iPhone certification** at the end of `IPHONE-CERT.md`
+(the v41 section). Its acceptance items are 3.3 (a fresh pass appearing on
+the REP's phone by itself), 4.2 (a leader's do-not-knock clear crossing to
+the rep's phone), and 5.2/5.3 (split children arriving already assigned, on
+both phones). Those four are the human half of "the published client is
+receiving and merging the server-owned fields correctly"; the server half is
+verified above. Also still owed from Stage A: the v40 phone smoke, now
+superseded by this checklist.
+
+**NOT done, by instruction:** 0016 (Stage C) and the activation flip. Both
+wait for their own separate approvals.
 
 ### Local proof — re-run 2026-09-05 with PostGIS homed in `gis`
 

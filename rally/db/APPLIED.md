@@ -1641,3 +1641,57 @@ reached the server and the split cannot retire a parent that is not there.
 The proposal is written to disk before the command is queued, so a device
 killed between send and response recovers it on boot and retries the same
 operation id. A refusal erases the proposal and restores the hood.
+
+
+---
+
+# STAGE B — CERTIFIED ON PRODUCTION, 2026-09-08
+
+The v41 acceptance set is complete. Every item was exercised on two real
+iPhones against the live project and then verified in the database rather
+than taken on trust.
+
+| Check | Evidence in production |
+|---|---|
+| **4.2** the do-not-knock clear | **3** `dnk_clear` events (`dnkclear-…`, server-minted ids), each carrying the leader's reason and rep id; **3** doors now read `unworked` |
+| **4.1** a black door is protected | 3 black doors deleted from a phone at 01:10, all still present and still `dnk` — every tombstone neutralised; **6** black doors protected in total |
+| **5.2 / 5.3** split inheritance | both children of Hood 21 carry the rep in `open_assignees`; the parent is tombstoned |
+| the outline fix | **Hood 19 is now on the server** — reshaped on the phone after v43 caught the self-intersection, and accepted |
+| the flag | `assignment_server_authoritative` is still **false**. Untouched. |
+| Stage B functions | all **6** present (`rally_diff_assignees`, `set_territory_assignments`, `save_territory`, `clear_pin_dnk`, `smart_split_territory_v41`, `rally_split_inherit`) |
+
+## What the certification run cost, and what it bought
+
+Four client releases came out of it, none of them planned:
+
+* **v42** — the refusal LIST. v39 shipped the count and `MSYNC.refusals()`
+  behind it; the screen was never built, so "6 refused" had no answer
+  anywhere on the phone. Building it turned two unexplained counts into a
+  specific, reproducible defect within hours.
+* **v43** — the server's own sentence carried into that list, and the
+  outline checked when a hood is DRAWN rather than only when it is reshaped.
+  `MGEOM.validate` had two call sites, both in the vertex editor.
+* **v44** — the turf menu ran off the right edge of the phone, sized by a
+  rep's email address, with its controls unreachable.
+* **v45 / v46** — a 44px dismiss target and "Dismiss all", then the
+  do-not-knock reason asked in-app instead of through `window.prompt()` —
+  the only prompt() in RALLY, and unreliable in a standalone PWA, which is
+  why no clear had ever reached the server in two days of testing.
+
+None of those defects came from v41. Two predated it by weeks; the other two
+were in v39-era code the migration never touched.
+
+## What the refusals actually were
+
+* **Owner phone, 1** — Hood 19, HTTP **400**, never a permission problem:
+  `territories_derive_geom` raises `22023` for a self-intersecting outline,
+  which PostgREST returns as 400. Visible as a bowtie on the owner's own map.
+* **Rep phone, 6** — all territories, all drawn **27–28 August**, before the
+  oldest hood that has ever existed on the server (31 August). Practice hoods
+  from before that browser joined a team: four 403 (a rep may not write
+  turf), two 400 (the same broken outline). None was ever team data.
+
+## Still not done, and still gated
+
+Stage C (0016) is **not applied**. `assignment_server_authoritative` is
+**false**. Both remain behind their own separate approvals.

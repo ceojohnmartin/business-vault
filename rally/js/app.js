@@ -352,6 +352,12 @@
     const any = list.length > 0;
     $("#refused-copy").disabled = !any;
     $("#refused-share").disabled = !any;
+    const clearBtn = $("#refused-clear");
+    if (clearBtn) {
+      // only when it saves real work: one refusal already has its own ✕
+      clearBtn.hidden = list.length < 2;
+      clearBtn.textContent = "Dismiss all " + list.length;
+    }
     if (!any) {
       el.innerHTML = `<div class="ref-empty">Nothing has been refused on this device. Everything it has sent, the server took.</div>`;
       return;
@@ -659,6 +665,20 @@
           toast("This browser wouldn't let RALLY copy it — screenshot the list instead", 5000);
         }
       }
+    });
+    /* Clearing the whole log at once. Same contract as a single ✕ — the
+       LOG goes, the records do not — so there is no confirm: nothing is
+       destroyed, and anything the server refuses again comes straight
+       back. */
+    $("#refused-clear").addEventListener("click", async () => {
+      MUI.tick();
+      const list = await currentRefusals();
+      for (const d of list) {
+        if (window.MSYNC && MSYNC.dismissRefusal) await MSYNC.dismissRefusal(d.k);
+      }
+      await renderRefusals();
+      renderMore();
+      toast(list.length + " refusal" + (list.length === 1 ? "" : "s") + " cleared from this device's log");
     });
     $("#refused-share").addEventListener("click", async () => {
       const text = refusalReport(await currentRefusals());

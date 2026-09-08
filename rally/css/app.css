@@ -1146,10 +1146,22 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .ref-row .ref-again{color:var(--sold-ink);font-weight:600}
 /* Dismiss: a refusal that has been READ. Deliberately quiet and small —
    clearing the log is a considered act, not the obvious thing to tap. */
-.ref-x{flex:none;align-self:flex-start;width:30px;height:30px;margin:-3px -4px 0 0;
-  border-radius:9px;color:var(--t3);font-size:14px;line-height:1;
+/* 44x44, because that is the smallest square a thumb reliably hits and the
+   first version of this was 30 — quiet to look at and awkward to press. The
+   glyph stays small; the TARGET is what grew, pulled back into the row's
+   padding with negative margins so nothing moved visually. */
+.ref-x{flex:none;align-self:flex-start;width:44px;height:44px;
+  margin:-10px -11px -10px 0;
+  border-radius:12px;color:var(--t3);font-size:15px;line-height:1;
   display:flex;align-items:center;justify-content:center}
-.ref-x:active{background:var(--s3);transform:scale(.92)}
+.ref-x:active{background:var(--s3)}
+/* Six refusals of the same kind is the ordinary case, not the exception —
+   a rep carrying practice hoods from before they joined a team gets one per
+   hood. Six separate taps to acknowledge one fact is a chore. */
+.ref-clear{display:block;width:100%;padding:11px;margin:2px 0 10px;
+  border-radius:var(--radius-sm);background:var(--s2);border:1px solid var(--line);
+  color:var(--t2);font-size:13px;font-weight:600}
+.ref-clear:active{background:var(--s3);transform:scale(.99)}
 .ref-foot{font-size:11.5px;color:var(--t3);line-height:1.45;margin:2px 0 10px}
 /* the first-door hint shares the chip's exact spot; it steps up when the
    chip is out so neither pill covers the other (see MMAP.updateBrandToday) */

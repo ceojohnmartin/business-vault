@@ -401,6 +401,20 @@ async function reopen(page) {
     (await page.$$("#refused-list .ref-row")).length === 2);
   const pendingBeforeDismiss = await page.evaluate(() => MSYNC.status().pending);
   const hoodsBeforeDismiss = await page.evaluate(() => STORE.territories.length);
+  /* The first version of this button was 30x30. It worked in a test that
+     dispatched a click at its centre and was awkward under a real thumb —
+     which is how it reached a phone and did nothing. 44 is the floor. */
+  const xBox = await page.$eval("#refused-list .ref-row .ref-x",
+    (e) => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height }; });
+  check("K1b the dismiss target is big enough for a thumb",
+    xBox.w >= 44 && xBox.h >= 44, JSON.stringify(xBox));
+  check("K1c and it is the thing actually under that point",
+    await page.evaluate(() => {
+      const el = document.querySelector("#refused-list .ref-row .ref-x");
+      const r = el.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!(hit && el.contains(hit));
+    }));
   await page.click("#refused-list .ref-row:first-child .ref-x");
   await page.waitForTimeout(400);
   check("K2 the row is gone from the list",
@@ -425,6 +439,37 @@ async function reopen(page) {
   check("K7 and More says so too",
     /Nothing refused/i.test(await page.$eval(sub(), (e) => e.textContent)),
     await page.$eval(sub(), (e) => e.textContent));
+
+  // ---- and the bulk control, for a rep holding six of the same thing ----
+  await page.evaluate(async () => {
+    const t = Date.now();
+    await MDB.kvSet("syncDead", [1, 2, 3, 4, 5, 6].map((n) => ({
+      k: "territories:bulk-" + n, table: "territories", id: "bulk-" + n,
+      status: n % 3 === 0 ? 400 : 403, at: t - n * 1000, op: "upsert" })));
+    MAPP.syncChanged();
+  });
+  await reopen(page);
+  check("K8 six refusals offer one control instead of six taps",
+    await page.isVisible("#refused-clear"));
+  check("K9 and it says how many it will clear",
+    /Dismiss all 6/.test(await page.$eval("#refused-clear", (e) => e.textContent)),
+    await page.$eval("#refused-clear", (e) => e.textContent));
+  await page.click("#refused-clear");
+  await page.waitForTimeout(600);
+  check("K10 one tap clears the log", (await page.evaluate(() => MSYNC.refusals())).length === 0);
+  check("K11 the engine's count agrees",
+    (await page.evaluate(() => MSYNC.status().refused)) === 0);
+  check("K12 and the list says so honestly",
+    /Nothing has been refused/i.test(await page.$eval("#refused-list", (e) => e.textContent)));
+  /* A single refusal keeps its own ✕ and does not need a bulk button. */
+  await page.evaluate(async () => {
+    await MDB.kvSet("syncDead", [{ k: "pins:solo", table: "pins", id: "solo",
+      status: 403, at: Date.now(), op: "upsert" }]);
+    MAPP.syncChanged();
+  });
+  await reopen(page);
+  check("K13 one refusal shows no bulk control",
+    !(await page.isVisible("#refused-clear")));
 
   // ============ L: a bad outline never gets saved in the first place ============
   /* Driven through MHOODS.createFromPoints -> the real hood sheet -> the real

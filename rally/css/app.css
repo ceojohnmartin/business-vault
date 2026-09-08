@@ -575,13 +575,33 @@ body.editing #tabbar,body.editing .fab-new{display:none}
 .sched-un .su-cta{flex:none;color:var(--accent);font-weight:800;font-size:13px}
 
 /* ---------- hoods ---------- */
-.hood-menu{min-width:210px}
+/* v43: THE HOOD MENU IS A DROPDOWN, NOT A COLUMN-MATE.
+
+   It lived inside the .map-actions flex column, so the column was as wide
+   as the menu, and the menu was as wide as its longest line. A rep who has
+   signed in is listed by their EMAIL, and one long address made the panel
+   wider than the phone. .map-actions is itself a flex item of .map-chrome
+   with the default min-width:auto, so it refused to shrink below that
+   content — and the menu ran off the right edge with its buttons and hood
+   rows physically unreachable. (Nothing was wrong with the menu's own
+   width rule: 210px is a MINimum, and there was never a maximum.)
+
+   Overlaying it removes it from that negotiation entirely. The column is
+   three 44px buttons wide, always; the menu hangs beneath them from
+   top:100%, so it follows the buttons if any are ever added or removed,
+   and it is capped to the viewport so it can never leave the screen
+   again. */
+.map-actions{position:relative}
+.hood-menu{min-width:210px;position:absolute;top:100%;right:0;margin-top:10px;
+  width:max-content;max-width:calc(100vw - 28px);
+  max-height:calc(100vh - 190px);overflow-y:auto;overscroll-behavior:contain}
 .hood-list{border-top:1px solid var(--line);margin-top:5px;padding-top:5px;max-height:200px;overflow-y:auto}
 .hood-row{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;font-size:13.5px;cursor:pointer}
 .hood-row:active{background:var(--s2)}
 .hood-row .dot{width:11px;height:11px;border-radius:4px;flex:none}
 .hood-row .hn{flex:1;min-width:0;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hood-row .hr{display:block;font-size:11px;color:var(--t3);font-weight:500}
+.hood-row .hr{display:block;font-size:11px;color:var(--t3);font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hood-edit{flex:none;width:28px;height:28px;border-radius:8px;background:var(--s2);color:var(--t2);font-size:13px}
 .hood-empty{font-size:12.5px;color:var(--t3);padding:10px;text-align:center}
 .hood-colors{display:flex;gap:10px;flex-wrap:wrap}

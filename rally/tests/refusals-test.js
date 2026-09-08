@@ -288,7 +288,9 @@ async function reopen(page) {
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   check("C2 something was copied", copied.length > 40, copied.slice(0, 80));
   check("C3 the copy carries the ids", copied.includes(hoodId));
-  check("C4 the copy carries the build", copied.includes("v42"));
+  // read from the page, not written here: a release bump must not fail this
+  const liveBuild = await page.evaluate(() => window.RALLY_BUILD);
+  check("C4 the copy carries the build", copied.includes(liveBuild), liveBuild);
   check("C5 the copy names NO customer", !/Marguerite|Thibodeaux/.test(copied), copied);
   check("C6 the copy carries NO address", !/Perkins/.test(copied) && !/Baton Rouge/.test(copied), copied);
   check("C7 and it says so, so nobody goes looking for more",
@@ -503,6 +505,67 @@ async function reopen(page) {
     await page.$eval("#refused-sheet", (e) => e.classList.contains("open")));
   check("G3 and the map is still the screen behind it",
     await page.$eval("#screen-map", (e) => e.classList.contains("active")));
+
+  // ============ M: the turf menu stays on the screen ============
+  /* It lived in the .map-actions flex column, so the column was as wide as
+     the menu and the menu was as wide as its longest line — and a rep who
+     has signed in is listed by their EMAIL. One long address pushed the
+     whole panel off the right edge of the phone with its buttons
+     unreachable. Nothing in the battery looked at whether a control was
+     still ON the screen, so nothing caught it. */
+  section("M — the turf menu fits the phone");
+  if (await page.$eval("#refused-sheet", (e) => e.classList.contains("open"))) {
+    await page.click("#refused-sheet .grab");
+    await page.waitForTimeout(250);
+  }
+  await page.evaluate(() => {
+    // a manager sees the rep panel; the long address is the whole point
+    STORE.roleState = Object.assign({}, STORE.roleState, { role: "owner" });
+    STORE.users = [{ id: "u-long", name: "johnmartin24@icloud.com",
+                     role: "rep", color: "#2E86FF", createdAt: Date.now() }];
+    if (window.MMAP) MMAP.refreshHoods();
+  });
+  await page.click("#tab-map");
+  await page.waitForTimeout(300);
+  await page.click("#fab-hoods");
+  await page.waitForTimeout(400);
+  const box = await page.evaluate(() => {
+    const el = document.querySelector("#hood-menu");
+    if (!el || el.hidden) return null;
+    const r = el.getBoundingClientRect();
+    return { left: r.left, right: r.right, width: r.width, vw: window.innerWidth };
+  });
+  check("M1 the menu is open", !!box, JSON.stringify(box));
+  check("M2 its right edge is on the screen",
+    box && box.right <= box.vw + 0.5, JSON.stringify(box));
+  check("M3 and so is its left edge — it did not just overflow the other way",
+    box && box.left >= -0.5, JSON.stringify(box));
+  check("M4 it is never wider than the phone",
+    box && box.width <= box.vw, JSON.stringify(box));
+  /* Reachability is the thing the owner actually lost: a button whose
+     centre is off-screen cannot be tapped, whatever the box says. */
+  const reachable = await page.evaluate(() => {
+    const out = [];
+    for (const sel of ["#hood-pencil", "#hood-dots", "#hood-lasso", "#hood-heat"]) {
+      const el = document.querySelector(sel);
+      if (!el) { out.push([sel, "missing"]); continue; }
+      const r = el.getBoundingClientRect();
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const hit = document.elementFromPoint(cx, cy);
+      out.push([sel, cx > 0 && cx < window.innerWidth && hit && el.contains(hit) ? "ok" : "unreachable"]);
+    }
+    return out;
+  });
+  check("M5 every option in the menu can actually be tapped",
+    reachable.every((r) => r[1] === "ok"), JSON.stringify(reachable));
+  const repRow = await page.evaluate(() => {
+    const el = document.querySelector("#hood-reps-panel .rep-row");
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { right: r.right, vw: window.innerWidth };
+  });
+  check("M6 a rep row carrying a long email stays on the screen too",
+    !repRow || repRow.right <= repRow.vw + 0.5, JSON.stringify(repRow));
 
   section("H — no console errors anywhere in the run");
   check("H1 the page threw nothing", errors.length === 0, errors.join(" | "));

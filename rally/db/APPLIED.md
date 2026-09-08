@@ -1695,3 +1695,94 @@ were in v39-era code the migration never touched.
 
 Stage C (0016) is **not applied**. `assignment_server_authoritative` is
 **false**. Both remain behind their own separate approvals.
+
+---
+
+# STAGE C — APPLIED AND VERIFIED ON PRODUCTION, 2026-09-08
+
+`0016_turf_overlap.sql` is live on `xwjreykfjzvlmgjzfnzt`. Two hoods on the
+same team may share a boundary, but they may no longer share ground.
+
+`assignment_server_authoritative` is **still false**. The flip was not part
+of this gate and was not touched.
+
+## What was applied
+
+One migration, nothing else: three functions and one constraint trigger.
+
+| Object | Shape |
+|---|---|
+| `public.rally_overlap_tolerance_m2()` | immutable, returns `1.0` |
+| `public.rally_overlap_m2(gis.geometry, gis.geometry)` | immutable, INVOKER, `search_path = ''`, `ST_CollectionExtract(…, 3)` so a shared edge or a point touch measures 0 — and **fails closed**: a pair GEOS cannot measure raises rather than reporting zero |
+| `public.assert_no_turf_overlap()` | SECURITY DEFINER, `search_path = ''`, takes `pg_advisory_xact_lock(hashtext('rally_turf'), hashtext(team_id))` before it looks |
+| `territories_no_overlap` | constraint trigger, **DEFERRABLE INITIALLY DEFERRED**, enabled |
+
+The deferral is not decoration. Smart Split writes children that overlap the
+still-live parent enormously in the middle of its transaction and retires the
+parent at the end; an immediate check would refuse every split RALLY makes.
+
+## The arming gate held
+
+0016 refuses to arm over a table it would trap. Both arms were proven on the
+local mirror before the paste (`db/test/stage-c-test.sh`, 53 checks): seeded
+with a live overlapping pair it refuses and leaves nothing; seeded with a live
+hood whose outline the map cannot use it refuses and leaves nothing. On
+production both populations were **0**, measured by the preflight through the
+server's own functions, so the gate passed and the migration armed.
+
+## Verification, run on production after the apply
+
+`db/test/verify-v41-stage-c.editor.sql` — 16 probes, strictly read-only.
+All 16 **PASS**:
+
+* three functions present, `rally_overlap_m2` at the expected signature, the
+  check SECURITY DEFINER, the trigger deferrable-initially-deferred and
+  enabled, tolerance exactly `1.0`;
+* `anon` may execute none of them; `authenticated` may **measure** but may not
+  call the check itself;
+* the advisory lock and `ST_CollectionExtract` are both in the shipped bodies;
+* all **12** Stage A + Stage B objects intact, no territories/pins trigger
+  disabled, `assignment_server_authoritative` **false**;
+* live hoods with an unusable outline: **0**. Live pairs overlapping > 1 m²:
+  **0**. All **6** live candidate pairs measurable — nothing fell into the
+  fail-closed branch. Unresolved current assignees (the flip's blocker):
+  **0**.
+
+`db/test/verify-v41-stage-c-livefire.editor.sql` is the optional companion:
+15 probes that plant hoods in empty ocean inside a subtransaction which is
+always rolled back, proving the rule bites — > 1 m² refused, shared edge
+allowed, point touch allowed, 0.25 m² tolerated, self-crossing refused,
+archived hoods not turf, another team's identical footprint allowed, Smart
+Split still succeeds, a failing split still atomic, a v40-shaped write still
+accepted. It is **not** read-only in the strict sense and is not described as
+such. All 15 pass on the local mirror.
+
+## The one divergence between this repo and production, recorded
+
+The md5 guard on the first paste fired and **nothing was applied** — the text
+that reached the SQL Editor had drifted from `db/APPLY_v41_C.sql` in
+transcription. The paste that did apply was a comment-stripped, ASCII form of
+the same migration, and the SQL Editor stored it with CRLF line endings. So
+production's function bodies are **textually different** from
+`migrations/0016_turf_overlap.sql`:
+
+| | `rally_overlap_m2` | `assert_no_turf_overlap` |
+|---|---|---|
+| production body md5 | `fff35ead156ac3151cf9cd3fa564c05c` | `3e217b3b2392098b1972b64c152988e7` |
+| CRLF in body | yes | yes |
+
+Diffed word-for-word with comments and whitespace normalised away, the entire
+difference is **three characters in two error messages**: `m²` → `m2` and
+`—` → `-`. Every statement, every predicate, every `errcode`, the advisory
+lock, the fail-closed branch and the tolerance are identical. There is no
+behavioural difference; a rep who draws overlapping turf sees `m2` where the
+repo file says `m²`.
+
+This is the same precedent already recorded for the 0005 body. Production was
+**not** re-pasted to fix cosmetics — that would be a second unapproved write
+to production to change nothing.
+
+## Still not done, and still gated
+
+The assignment-authority flip is **not** performed and was not prepared.
+`assignment_server_authoritative` is **false**. Phase 5 is not started.

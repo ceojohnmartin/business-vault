@@ -1786,3 +1786,92 @@ to production to change nothing.
 
 The assignment-authority flip is **not** performed and was not prepared.
 `assignment_server_authoritative` is **false**. Phase 5 is not started.
+
+---
+
+# THE ASSIGNMENT-AUTHORITY FLIP - APPLIED AND VERIFIED, 2026-09-08
+
+`assignment_server_authoritative` is **true** on `xwjreykfjzvlmgjzfnzt`.
+
+The stored ledger is now the only thing that decides who works a hood. An
+ordinary client upsert can no longer author an assignment; only
+`set_territory_assignments`, `save_territory` and a Smart Split can move a
+ledger. v41 is complete.
+
+## What was changed
+
+One row, one column. `db/APPLY_v41_FLIP.sql`, run as its guarded DO block:
+
+```
+update public.rally_config set assignment_server_authoritative = true where id;
+```
+
+Nothing else. No schema, no function, no trigger, no grant, and not one
+territory, pin or event row.
+
+Six assertions ran **before** the write - exactly one config row, the flag
+currently false, all 43 Stage A/B/C functions present, the three territories
+triggers and `rally_config_guard` armed, `territories_assignment` still
+SECURITY INVOKER, and `rally_unresolved_live_assignments() = 0`. Two ran
+after: the column took, and `rally_capabilities()` reports it. All passed.
+
+## The pre-flip baseline, and the proof nothing moved
+
+Captured read-only at **19:26:56Z**, immediately before the flip:
+
+| | |
+|---|---|
+| assignment fingerprint | `43fde7a47839a175b3579492cec3cfcc` |
+| live hoods | 20 |
+| assigned hoods | 11 |
+| open assignments | 11 |
+
+The fingerprint is `md5` over every live hood's `(id, open_assignees,
+data.assignedTo, assignees_rev, md5(assignees))`. After the flip, and again
+after the live-fire probes, it reads **identically**. No hood changed hands.
+
+## Verification, run on production immediately after
+
+29 probes, all **PASS**. 17 read-only, 12 live fire (planted in empty ocean
+inside a subtransaction that always rolls back; probe Z1 counted 0 rows left).
+
+* flag `true`, `rally_capabilities()` reports
+  `{"postgis": true, "turfRpc": true, "assignmentServerAuthoritative": true}`
+* `rally_unresolved_live_assignments()` still **0**
+* `open_assignees` vs ledger: **0** disagreements. `data.assignedTo`: **0**.
+  `data.assignments`: **0**. Malformed / duplicate-open / unresolvable: **0**
+* no live hood holds a ledger open entry with an empty `open_assignees` -
+  the shape a silent unassign would take
+* 43 of 43 functions, every trigger enabled, `territories_assignment` still
+  INVOKER, ledger columns still sealed
+* 0 bad / unprotected / invalid / stale outlines, 0 forbidden overlaps,
+  0 unmeasurable pairs
+* **L1** a v40-shaped upsert naming a DIFFERENT rep as assigned did **not**
+  move the ledger, did **not** give that rep the hood - and the rename the
+  same write carried **was** accepted
+* multi-assignee opens two entries; removing a rep **closes** the entry and
+  keeps the history
+* a rep knock, a do-not-knock clear, Clear Outcomes and a Smart Split with
+  inheritance all still work
+
+## The mistake worth recording
+
+The first version of probe L1 sent an **empty** `data.assignments` - and it
+passed on an UNFLIPPED database, which is how I learned it was proving
+nothing. `rally_legacy_to_entries` deliberately reads an empty mirror with no
+`assignedTo` as *this phone is telling us nothing* and returns the prior
+ledger untouched, so that write leaves the ledger alone under either flag.
+What a phone CAN do under legacy authority is decide who is OPEN. The fixture
+now hands the hood to a different rep, and was rehearsed both ways: flipped,
+the ledger holds; unflipped, the other rep takes the hood.
+
+## What this does not undo
+
+`db/ROLLBACK_v41_FLIP.sql` sets the column back to false. That restores the
+SERVER. It does not restore the FLEET: clients latch the capability, and only
+a full erase of a device clears it. A rollback therefore produces a mixed
+fleet that RALLY has never been tested in. Fix forward.
+
+## Still not done
+
+v41 is **not** frozen. Phase 5 is **not** started.

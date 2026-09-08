@@ -41,7 +41,7 @@ const section = (t) => console.log("\n== " + t);
 // ---------------- mock Supabase: takes everything but turf ----------------
 const TEAM = "11111111-1111-4111-a111-111111111111";
 const mock = { users: {}, profiles: {}, access: {}, refresh: {},
-               territoryPosts: 0, refuseTerritories: true, refuseTurfShape: false };
+               territoryPosts: 0, refuseTerritories: true, refuseTurfShape: false, clears: [] };
 function addUser(email, password, prof) {
   const id = crypto.randomUUID();
   mock.users[String(email).toLowerCase()] = { id, password };
@@ -101,6 +101,13 @@ const server = http.createServer((req, res) => {
       if (!uid) return j(res, 401, { message: "JWT invalid" });
 
       if (u.pathname.startsWith("/rest/v1/rpc/")) {
+        const fn = u.pathname.replace("/rest/v1/rpc/", "");
+        if (fn === "clear_pin_dnk") {
+          // 0014's clear: the server stamps the instant, above the dnk it clears
+          mock.clears.push({ pin: body.p_pin_id, reason: body.p_reason,
+                             op: body.p_operation_id });
+          return j(res, 200, { cleared_at: Date.now() });
+        }
         // v41 capabilities: this device's server has none switched on, which
         // is the legacy path and exactly what the refusal case needs
         return j(res, 200, {});
@@ -611,6 +618,120 @@ async function reopen(page) {
   });
   check("M6 a rep row carrying a long email stays on the screen too",
     !repRow || repRow.right <= repRow.vw + 0.5, JSON.stringify(repRow));
+
+  // ====== N: clearing a do-not-knock, the one action with no other route ======
+  /* This asked for its reason through window.prompt() — the only prompt()
+     in RALLY. A home-screen PWA runs standalone, where iOS may never show
+     one; the call then returns null and the old code returned false with no
+     toast at all. The button was dead and silent on the one thing 0013
+     leaves a leader no other way to do, and two days of field testing never
+     produced a single dnk_clear. */
+  section("N — the do-not-knock clear asks in-app");
+  const beforeClears = mock.clears.length;
+  const dnkPin = await page.evaluate(async () => {
+    STORE.roleState = Object.assign({}, STORE.roleState, { role: "owner" });
+    const p = await STORE.addPin ? null : null;
+    return null;
+  }).then(() => page.evaluate(async () => {
+    const pin = { id: MDB.uid(), lat: 30.44, lng: -91.15, address: "9 Test St",
+      disposition: "dnk", reason: null, dm: false, note: "",
+      history: [{ ts: Date.now() - 5000, disposition: "dnk", reason: null, dm: false, note: "" }],
+      createdAt: Date.now() - 5000, updatedAt: Date.now() - 5000 };
+    STORE.pins.push(pin);
+    await MDB.put("pins", pin);
+    return pin.id;
+  }));
+  check("N1 there is a black door to clear", !!dnkPin, String(dnkPin));
+
+  // no prompt() may be reachable: if one fires, the test hangs, so trap it
+  let promptFired = false;
+  page.on("dialog", async (d) => { promptFired = true; await d.dismiss(); });
+
+  const clearing = page.evaluate((id) => {
+    STORE.roleState = Object.assign({}, STORE.roleState, { role: "owner" });
+    return MTURF.clearDnk(STORE.pins.find((p) => p.id === id));
+  }, dnkPin);
+  await page.waitForTimeout(600);
+  check("N2 an in-app sheet asks for the reason — not a native prompt",
+    await page.$eval("#dnk-sheet", (e) => e.classList.contains("open")));
+  check("N3 and no native dialog was used at all", promptFired === false);
+
+  // an empty reason is refused in the sheet, and the sheet stays put
+  await page.click("#dnk-go");
+  await page.waitForTimeout(300);
+  check("N4 an empty reason is refused, with a visible reason why",
+    await page.isVisible("#dnk-msg")
+    && await page.$eval("#dnk-sheet", (e) => e.classList.contains("open")));
+  check("N5 and nothing reached the server on an empty reason",
+    mock.clears.length === beforeClears);
+
+  await page.fill("#dnk-reason", "New owner, request withdrawn in writing");
+  await page.click("#dnk-go");
+  const cleared = await clearing;
+  await page.waitForTimeout(500);
+  check("N6 the clear went through", cleared === true);
+  check("N7 the server's own RPC was called — not an ordinary edit",
+    mock.clears.length === beforeClears + 1, JSON.stringify(mock.clears.slice(-1)));
+  check("N8 carrying the reason the leader typed",
+    /New owner/.test((mock.clears[mock.clears.length - 1] || {}).reason || ""));
+  check("N9 and an idempotency key",
+    !!(mock.clears[mock.clears.length - 1] || {}).op);
+  check("N10 the door is no longer do-not-knock on this device",
+    (await page.evaluate((id) => (STORE.pins.find((p) => p.id === id) || {}).disposition, dnkPin)) !== "dnk");
+
+  /* Backing out must resolve, not hang — the veil and the grab close sheets
+     through the app's own global handlers, which know nothing about this
+     promise. */
+  section("N* — backing out of the clear");
+  const before2 = mock.clears.length;
+  const dnk2 = await page.evaluate(async () => {
+    const pin = { id: MDB.uid(), lat: 30.45, lng: -91.16, address: "11 Test St",
+      disposition: "dnk", reason: null, dm: false, note: "",
+      history: [{ ts: Date.now() - 5000, disposition: "dnk", reason: null, dm: false, note: "" }],
+      createdAt: Date.now() - 5000, updatedAt: Date.now() - 5000 };
+    STORE.pins.push(pin); await MDB.put("pins", pin); return pin.id;
+  });
+  const backing = page.evaluate((id) => {
+    STORE.roleState = Object.assign({}, STORE.roleState, { role: "owner" });
+    return MTURF.clearDnk(STORE.pins.find((p) => p.id === id));
+  }, dnk2);
+  await page.waitForTimeout(500);
+  await page.click("#dnk-cancel");
+  const backed = await Promise.race([
+    backing,
+    new Promise((r) => setTimeout(() => r("HUNG"), 6000)),
+  ]);
+  check("N11 cancelling resolves rather than hanging the door forever", backed === false, String(backed));
+  check("N12 and sends nothing", mock.clears.length === before2);
+  check("N13 the door is still black", 
+    (await page.evaluate((id) => (STORE.pins.find((p) => p.id === id) || {}).disposition, dnk2)) === "dnk");
+  /* And again by the grab handle — the other route the app's own global
+     handler closes sheets with, and the one a thumb reaches for. Re-opening
+     the same sheet a second time is part of what this checks. */
+  const viaGrab = page.evaluate((id) => {
+    STORE.roleState = Object.assign({}, STORE.roleState, { role: "owner" });
+    return MTURF.clearDnk(STORE.pins.find((p) => p.id === id));
+  }, dnk2);
+  await page.waitForTimeout(600);
+  check("N14 the sheet opens again for a second attempt",
+    await page.$eval("#dnk-sheet", (e) => e.classList.contains("open")));
+  await page.click("#dnk-sheet .grab");
+  const grabbed = await Promise.race([
+    viaGrab,
+    new Promise((r) => setTimeout(() => r("HUNG"), 6000)),
+  ]);
+  check("N15 closing it by the grab handle resolves too", grabbed === false, String(grabbed));
+  check("N16 and still nothing was sent", mock.clears.length === before2);
+
+  /* And the gate that makes all of this leadership-only is still shut for
+     a rep — the sheet must not even open. */
+  const asRep = await page.evaluate((id) => {
+    STORE.roleState = Object.assign({}, STORE.roleState, { role: "rep" });
+    return MTURF.clearDnk(STORE.pins.find((p) => p.id === id));
+  }, dnk2);
+  check("N17 a rep is refused before any sheet opens", asRep === false);
+  check("N18 and no sheet was left open behind them",
+    !(await page.$eval("#dnk-sheet", (e) => e.classList.contains("open"))));
 
   section("H — no console errors anywhere in the run");
   check("H1 the page threw nothing", errors.length === 0, errors.join(" | "));

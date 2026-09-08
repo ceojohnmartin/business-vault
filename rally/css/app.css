@@ -1167,3 +1167,8 @@ body.editing #tabbar,body.editing .fab-new{display:none}
    chip is out so neither pill covers the other (see MMAP.updateBrandToday) */
 body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 #refused-sheet .btn[disabled]{opacity:.42;pointer-events:none}
+
+/* the reason a do-not-knock clear needs before it will go through */
+.dnk-msg{background:rgba(229,72,77,.08);border:1px solid rgba(229,72,77,.35);
+  color:var(--notint-ink);border-radius:var(--radius-sm);padding:9px 12px;
+  font-size:12.5px;margin-bottom:12px}

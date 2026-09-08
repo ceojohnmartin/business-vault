@@ -244,16 +244,63 @@
   /* Never a disposition tap. The rep-facing app has no path to this at all;
      a leader gets here from the door itself, types why, and the server
      records an event that no client can edit or delete. */
+  /* ASKING FOR THE REASON, IN THE APP.
+
+     This used to be window.prompt() — the only one in RALLY, everything
+     else being confirm() or a sheet. A home-screen PWA runs in standalone
+     display, where prompt() is not dependable: iOS may simply never show
+     it, in which case the call returns null and the arm below returned
+     false WITHOUT a toast. The button was dead and silent, on the one
+     action a leader cannot achieve any other way — the server refuses every
+     other route to clearing a do-not-knock, which is the whole point of
+     0013. Two days of field testing never once produced a dnk_clear.
+
+     A sheet cannot be suppressed, matches every other flow in the app, and
+     gives the reason field the room a permanent record deserves.
+
+     Resolves null if the leader backs out — including by the veil or the
+     grab handle, which the app's own global handlers close sheets with, so
+     those are listened for too. Without that, backing out this way would
+     leave this promise pending forever and the door frozen mid-clear. */
+  function askClearReason() {
+    return new Promise((resolve) => {
+      const input = $("#dnk-reason"), msg = $("#dnk-msg");
+      const go = $("#dnk-go"), cancel = $("#dnk-cancel");
+      const veil = $("#veil"), grab = $("#dnk-sheet .grab");
+      if (!input || !go || !cancel) return resolve(null);   // markup missing: refuse, never hang
+      input.value = "";
+      if (msg) msg.hidden = true;
+      const done = (val) => {
+        go.removeEventListener("click", onGo);
+        cancel.removeEventListener("click", onOut);
+        if (veil) veil.removeEventListener("click", onOut);
+        if (grab) grab.removeEventListener("click", onOut);
+        closeSheet();
+        resolve(val);
+      };
+      const onGo = () => {
+        const v = input.value.trim();
+        if (!v) { if (msg) msg.hidden = false; try { input.focus(); } catch (_) {} return; }
+        done(v);
+      };
+      const onOut = () => done(null);
+      go.addEventListener("click", onGo);
+      cancel.addEventListener("click", onOut);
+      if (veil) veil.addEventListener("click", onOut);
+      if (grab) grab.addEventListener("click", onOut);
+      openSheet("dnk-sheet");
+      setTimeout(() => { try { input.focus(); } catch (_) {} }, 260);
+    });
+  }
+
   async function clearDnk(pin) {
     if (!STORE.canManageTerritories()) {
       toast("Only a manager can clear a do-not-knock");
       return false;
     }
-    const reason = prompt(
-      "Clearing a do-not-knock is recorded permanently.\n\n" +
-      "Why is this door knockable again? (e.g. new owner, request withdrawn in writing)");
-    if (reason === null) return false;
-    if (!reason.trim()) { toast("A reason is required"); return false; }
+    const reason = await askClearReason();
+    // backing out is a decision, not a failure — but it is never silent
+    if (reason === null) { toast("Left as do-not-knock"); return false; }
     if (!(await gate("clearing a do-not-knock"))) return false;
     try {
       await STORE.clearPinDnk(pin, reason.trim());

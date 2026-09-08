@@ -20,8 +20,8 @@
      arrives, and until then the CSS fallback stack renders immediately. -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap"
       media="print" onload="this.media='all'">
-<link rel="stylesheet" href="vendor/maplibre-gl.css?v=45">
-<link rel="stylesheet" href="css/app.css?v=45">
+<link rel="stylesheet" href="vendor/maplibre-gl.css?v=46">
+<link rel="stylesheet" href="css/app.css?v=46">
 </head>
 <body>
 
@@ -808,6 +808,26 @@
     <input type="file" id="bk-file" accept=".json,application/json" hidden>
   </div>
 
+  <!-- Clearing a do-not-knock is the one action that must never be a
+       silent no-op: it is leadership-only, permanently recorded, and the
+       server refuses every other route to it. It used to ask for its reason
+       through window.prompt() — the ONLY prompt() in RALLY — which a
+       home-screen PWA in standalone display can decline to show at all,
+       leaving the button dead and saying nothing. -->
+  <div class="sheet" id="dnk-sheet">
+    <div class="grab"></div>
+    <h2>Clear the do-not-knock</h2>
+    <div class="sub">Recorded permanently, with who did it and when. The server keeps that record and no device can edit or delete it.</div>
+    <div class="field"><label for="dnk-reason">Why is this door knockable again?</label>
+      <input id="dnk-reason" autocomplete="off" autocapitalize="sentences"
+             placeholder="e.g. new owner, request withdrawn in writing"></div>
+    <div class="dnk-msg" id="dnk-msg" hidden>A reason is required — this goes on the permanent record.</div>
+    <div class="btnrow">
+      <button class="btn btn-ghost" id="dnk-cancel" type="button">Cancel</button>
+      <button class="btn btn-gold" id="dnk-go" type="button">Clear it</button>
+    </div>
+  </div>
+
   <div class="sheet" id="refused-sheet">
     <div class="grab"></div>
     <h2>Refused by the server</h2>
@@ -863,35 +883,35 @@
 
 </div>
 
-<script src="vendor/maplibre-gl.js?v=45"></script>
-<script>window.RALLY_BUILD = "v45";</script>
-<script src="js/db.js?v=45"></script>
-<script src="js/geom.js?v=45"></script>
-<script src="js/geo.js?v=45"></script>
-<script src="js/data.js?v=45"></script>
-<script src="js/ui.js?v=45"></script>
-<script src="js/store.js?v=45"></script>
-<script src="js/cloud-config.js?v=45"></script>
-<script src="js/cloud.js?v=45"></script>
-<script src="js/sync.js?v=45"></script>
-<script src="js/realtime.js?v=45"></script>
-<script src="js/auth.js?v=45"></script>
-<script src="js/gate.js?v=45"></script>
-<script src="js/property.js?v=45"></script>
-<script src="js/crm.js?v=45"></script>
-<script src="js/contract.js?v=45"></script>
-<script src="js/map.js?v=45"></script>
-<script src="js/hoods.js?v=45"></script>
-<script src="js/customers.js?v=45"></script>
-<script src="js/route.js?v=45"></script>
-<script src="js/street.js?v=45"></script>
-<script src="js/select.js?v=45"></script>
-<script src="js/home.js?v=45"></script>
-<script src="js/turf.js?v=45"></script>
-<script src="js/turfedit.js?v=45"></script>
-<script src="js/schedule.js?v=45"></script>
-<script src="js/stats.js?v=45"></script>
-<script src="js/vault.js?v=45"></script>
-<script src="js/app.js?v=45"></script>
+<script src="vendor/maplibre-gl.js?v=46"></script>
+<script>window.RALLY_BUILD = "v46";</script>
+<script src="js/db.js?v=46"></script>
+<script src="js/geom.js?v=46"></script>
+<script src="js/geo.js?v=46"></script>
+<script src="js/data.js?v=46"></script>
+<script src="js/ui.js?v=46"></script>
+<script src="js/store.js?v=46"></script>
+<script src="js/cloud-config.js?v=46"></script>
+<script src="js/cloud.js?v=46"></script>
+<script src="js/sync.js?v=46"></script>
+<script src="js/realtime.js?v=46"></script>
+<script src="js/auth.js?v=46"></script>
+<script src="js/gate.js?v=46"></script>
+<script src="js/property.js?v=46"></script>
+<script src="js/crm.js?v=46"></script>
+<script src="js/contract.js?v=46"></script>
+<script src="js/map.js?v=46"></script>
+<script src="js/hoods.js?v=46"></script>
+<script src="js/customers.js?v=46"></script>
+<script src="js/route.js?v=46"></script>
+<script src="js/street.js?v=46"></script>
+<script src="js/select.js?v=46"></script>
+<script src="js/home.js?v=46"></script>
+<script src="js/turf.js?v=46"></script>
+<script src="js/turfedit.js?v=46"></script>
+<script src="js/schedule.js?v=46"></script>
+<script src="js/stats.js?v=46"></script>
+<script src="js/vault.js?v=46"></script>
+<script src="js/app.js?v=46"></script>
 </body>
 </html>

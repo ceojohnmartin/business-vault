@@ -63,7 +63,7 @@ n="$(echo "$base" | grep -c '|\*\*\* FAIL \*\*\*|' || true)"
 
 # 5a  open_assignees stops agreeing with the ledger
 bite "5a" "open_assignees drifts from the ledger" \
-  "update public.territories set open_assignees = open_assignees || '{00000000-0000-4000-d000-000000000002}'::uuid[]
+  "update public.territories set open_assignees = open_assignees || '{00000000-0000-4000-d000-0000000000fe}'::uuid[]
     where id = $LIVE"
 
 # 6a  data.assignedTo stops agreeing with the ledger
@@ -182,6 +182,54 @@ bite "13a" "!territories_no_overlap disabled" \
 # 3a  the flag already true
 bite "3a" "!the flag is somehow already true" \
   "update public.rally_config set assignment_server_authoritative = true"
+
+# ---- cases for the probes added after the adversarial review ----
+
+# 5b  a duplicate uuid planted straight into the column
+bite "5b" "a duplicate uuid in open_assignees" \
+  "update public.territories set open_assignees =
+     '{00000000-0000-4000-d000-000000000001,00000000-0000-4000-d000-000000000001}'::uuid[]
+    where id = $LIVE"
+
+# 6c  the legacy mirror key removed entirely
+bite "6c" "data.assignments key removed" \
+  "update public.territories set data = data - 'assignments' where id = $LIVE"
+
+# 7a  the ledger container itself made unusable. This is the row that made an
+#     unguarded survey die before it could report anything at all.
+bite "7a" "assignees.entries is a string, not an array" \
+  "update public.territories set assignees = '{\"entries\":\"gone\"}'::jsonb where id = $LIVE"
+
+# 12a an unmeasurable pair. 0016 fails closed, so rally_overlap_m2 RAISES;
+#     pg_temp.ov must turn that into a NULL and let 11a and 12a both report.
+bite "12a" "!a live pair the geometry engine cannot measure" \
+  "alter table public.territories disable trigger user" \
+  "insert into public.territories (team_id,id,name,polygon,archived,data,assignees,assignees_rev,open_assignees,geom)
+   select team_id,'bite-bad1','bite-bad1','[]'::jsonb,false,'{}'::jsonb,'{\"entries\":[]}'::jsonb,0,'{}'::uuid[],
+          gis.st_setsrid(gis.st_geomfromtext('POLYGON((-160 45,-159.99 45,-159.99 45.01,-160 45.01,-160 45))'),4326)
+     from public.territories limit 1" \
+  "insert into public.territories (team_id,id,name,polygon,archived,data,assignees,assignees_rev,open_assignees,geom)
+   select team_id,'bite-bad2','bite-bad2','[]'::jsonb,false,'{}'::jsonb,'{\"entries\":[]}'::jsonb,0,'{}'::uuid[],
+          gis.st_setsrid(gis.st_geomfromtext('POLYGON((-160 45,-159.98 45.02,-159.98 45,-160 45.02,-160 45))'),4326)
+     from public.territories limit 1" \
+  "alter table public.territories enable trigger user"
+
+# 2i  a SECURITY DEFINER gate whose search_path is unpinned. bool_and would
+#     have skipped this silently; the count form must not.
+bite "2i" "!the gate's search_path unpinned" \
+  "alter function public.rally_unresolved_live_assignments() reset search_path"
+
+# 2k  an internal handed to clients
+bite "2k" "!rally_split_inherit granted to authenticated" \
+  "grant execute on function public.rally_split_inherit(text, text[], text) to authenticated"
+
+# 2m  a column 0012 never granted, handed back
+bite "2m" "!cycle_started_at made client-writable" \
+  "grant update (cycle_started_at) on public.territories to authenticated"
+
+# 2a  a Stage B object removed
+bite "2a" "!a Stage B function dropped" \
+  "drop function public.rally_keep_open_history(jsonb, jsonb, bigint)"
 
 psql -q -d postgres -c "drop database if exists $DB" >/dev/null 2>&1 || true
 echo

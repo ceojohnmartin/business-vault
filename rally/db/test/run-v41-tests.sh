@@ -2,9 +2,11 @@
 # RALLY v41 — the server release gates.
 #   PGHOST=/tmp/pgrls/sock PGPORT=5544 sh rally/db/test/run-v41-tests.sh
 #
-# Applies the Supabase shim and EVERY migration (0001..0016) to a throwaway
+# Applies the Supabase shim and EVERY migration (0001..0017) to a throwaway
 # database, then runs the v41 assertions plus the concurrency proof, which
-# needs two real sessions and so lives in its own script.
+# needs two real sessions and so lives in its own script, then each staged
+# PASTE (A, B, C) against a database in the state production was in when the
+# owner ran it.
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 DB=rally_v41_test
@@ -86,6 +88,17 @@ printf '%s\n' "$SA" | tail -1
 SB="$(sh "$DIR/stage-b-test.sh" 2>&1)" || {
   printf '%s\n' "$SB" | grep -E "FAIL" | head -10; echo "STAGE B: FAILED"; exit 1; }
 printf '%s\n' "$SB" | tail -1
+
+# STAGE C IS PROVEN THE SAME WAY, on a database in production's post-Stage-B
+# state: all-or-nothing, the arming gate refusing BOTH populations it exists
+# to refuse, idempotent, the rule itself (over-tolerance refused, shared edge
+# and point touch allowed, a sub-1 m² sliver tolerated, retired turf not
+# turf, another team not blocked), Smart Split still committing and a failing
+# split still atomic, v40-shaped writes unaffected, and reversible by
+# db/ROLLBACK_v41_C.sql. The two-session race is turf-race-test.sh above.
+SC="$(sh "$DIR/stage-c-test.sh" 2>&1)" || {
+  printf '%s\n' "$SC" | grep -E "FAIL" | head -10; echo "STAGE C: FAILED"; exit 1; }
+printf '%s\n' "$SC" | tail -1
 
 # THE PREFLIGHT IS PROVEN, NOT TRUSTED. Both forms — psql and Supabase SQL
 # Editor — run against a seeded Stage-0 database (shim + 0001..0008 + the v40

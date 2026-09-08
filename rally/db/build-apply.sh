@@ -6,6 +6,7 @@
 #   db/APPLY_v41_A.sql  <- 0008, 0009, 0010, 0011, 0012, 0013   (v41 STAGE A, applied 2026-09-06)
 #   db/APPLY_v41_B1.sql <- 0017, 0014                            (v41 STAGE B part 1)
 #   db/APPLY_v41_B2.sql <- 0015                                  (v41 STAGE B part 2)
+#   db/APPLY_v41_C.sql  <- 0016                                  (v41 STAGE C)
 # Each file keeps its own header (everything up to and including "begin;").
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -27,3 +28,4 @@ regen APPLY_v39_1.sql 0007_last4_strict.sql
 regen APPLY_v41_A.sql 0008_postgis_extension.sql 0009_territory_geometry.sql 0010_territory_assignment.sql 0011_assignment_backfill.sql 0012_column_privileges.sql 0013_dnk_authority.sql
 regen APPLY_v41_B1.sql 0017_turf_corrections.sql 0014_turf_rpcs.sql
 regen APPLY_v41_B2.sql 0015_smart_split_v41.sql
+regen APPLY_v41_C.sql  0016_turf_overlap.sql

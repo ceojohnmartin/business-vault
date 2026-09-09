@@ -43,14 +43,15 @@ already as (
   select
     (select count(*) from information_schema.columns
       where table_schema = 'public' and table_name = 'territories'
-        and column_name in ('seq','uuid','cycle_keep')) as t_cols,
+        and column_name in ('seq','uuid','cycle_keep','cycle_keep_at')) as t_cols,
     (select count(*) from information_schema.columns
       where table_schema = 'public' and table_name = 'events'
         and column_name in ('territory_id','prev_disposition')) as e_cols,
     (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
       where n.nspname = 'public'
-        and p.proname in ('territories_number','import_territory_doors',
-                          'reset_territory_outcomes','rally_territory_summary')) as fns
+        and p.proname in ('territories_number','events_derive_context','rally_num',
+                          'import_territory_doors','reset_territory_outcomes',
+                          'rally_territory_summary')) as fns
 ),
 
 -- 3. THE QUESTION THAT DECIDES THE UNIQUE INDEX.
@@ -99,16 +100,16 @@ select * from (
   select 3, 'base: territories triggers present', b.trg::text,
          case when b.trg = 3 then 'PASS' else 'FAIL — expected 3' end from base b
   union all
-  select 4, 'already applied: territories columns', a.t_cols::text,
+  select 4, 'already applied: territories columns', a.t_cols::text || ' of 4',
          case when a.t_cols = 0 then 'PASS — not applied'
-              when a.t_cols = 3 then 'NOTE — already applied; the apply is idempotent'
+              when a.t_cols = 4 then 'NOTE — already applied; the apply is idempotent'
               else 'FAIL — PARTIAL. Stop and read APPLIED.md' end from already a
   union all
   select 5, 'already applied: events columns', a.e_cols::text,
          case when a.e_cols in (0,2) then 'PASS' else 'FAIL — PARTIAL' end from already a
   union all
-  select 6, 'already applied: v42 functions', a.fns::text,
-         case when a.fns in (0,4) then 'PASS' else 'FAIL — PARTIAL' end from already a
+  select 6, 'already applied: v42 functions', a.fns::text || ' of 6',
+         case when a.fns in (0,6) then 'PASS' else 'FAIL — PARTIAL' end from already a
   union all
   select 7, 'duplicate property rows (live, same source+externalId)', d.n::text,
          case when d.n = 0 then 'PASS — a unique index would build cleanly later'
@@ -132,9 +133,9 @@ select * from (
            when (select fns from base) <> 43
              or (select flag from base) is not true
              or (select trg from base) <> 3
-             or (select t_cols from already) not in (0,3)
+             or (select t_cols from already) not in (0,4)
              or (select e_cols from already) not in (0,2)
-             or (select fns from already) not in (0,4)
+             or (select fns from already) not in (0,6)
            then 'DO NOT APPLY — a probe above reads FAIL'
            else 'READY — db/APPLY_v42.sql may be pasted and run' end
 ) x order by ord;

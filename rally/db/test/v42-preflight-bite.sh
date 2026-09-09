@@ -106,6 +106,11 @@ bite "5. a PARTIALLY applied v42 (one events column) is caught" 5 \
   "alter table public.events add column territory_id text" verdict
 bite "6. a PARTIALLY applied v42 (one function) is caught" 6 \
   "create function public.rally_territory_summary(text) returns jsonb language sql as \$\$ select '{}'::jsonb \$\$" verdict
+# and the LAST column added is caught too — a probe that names only the
+# columns it happened to know about when it was written is a probe that goes
+# blind every time the migration grows one.
+bite "6b. a PARTIAL v42 that only has the newest column is caught" 4 \
+  "alter table public.territories add column cycle_keep_at timestamptz" verdict
 
 # 7 — duplicate property rows. Two live pins for one property.
 bite "7. duplicate property rows are counted" 7 \

@@ -1875,3 +1875,97 @@ fleet that RALLY has never been tested in. Fix forward.
 ## Still not done
 
 v41 is **not** frozen. Phase 5 is **not** started.
+
+---
+
+# POST-FLIP PHONE ACCEPTANCE - COMPLETED, 2026-09-09
+
+Server authority was exercised end to end through the shipped v46 UI on a
+real device, against live production, and corroborated read-only in the
+database. No SQL was used to make any assignment change.
+
+## Sessions and build
+
+One iPhone, two sessions: the owner home-screen PWA and a separate rep
+browser session. Both on **Build v46**, both confirmed to have fetched the
+post-flip capability - the edge log shows `POST /rest/v1/rpc/rally_capabilities`
+-> 200 at 00:57:37, 00:57:38, 00:58:10 and 00:58:11Z on 2026-09-09, where the
+newest fetch before the flip was 2026-09-08 18:28:29Z.
+
+Leader More tab at that point: `Owner - confirmed with the office`,
+`2 customers - synced`, `Nothing refused - the server took everything this
+device sent`, `Signed in as ceojohnmartin@gmail.com`, `Build v46`, and no
+sync pill on the Map.
+
+## The test hood
+
+`Hood 14 B`, id `mtm44ogmerzg1l3` - chosen because it had never been
+assigned, so "restore the original set" is unambiguous. Owner-approved
+before any change. Starting state, read at 03:45:51Z:
+`open_assignees {}`, ledger `{"entries": []}`, `assignees_rev 0`, 0 doors,
+polygon md5 `de84d3d424d1ed22c0653ab67ff32d00`.
+
+The two accounts, by profile id (both carry a blank `name` on the server):
+
+* `95abffb0-c51f-4bc7-8c7e-21de569ed23f` - ceojohnmartin@gmail.com, owner
+* `45cf2410-98b2-4907-9189-73071872d534` - johnmartin24@icloud.com, rep
+
+## What the ledger records
+
+| When (UTC) | Operation | Effect |
+|---|---|---|
+| 04:02:52 | `mttkoxnu3kiygpu` | both accounts assigned - two OPEN entries |
+| 04:37:23 | `mttlxbhex3rfrpc` | owner removed - entry CLOSED, rep left OPEN |
+| 05:43:09 | `mtto9wcmylt8zxm` | rep removed - entry CLOSED, hood back to empty |
+
+Final state at 05:44:23Z: `open_assignees {}`, `assignees_rev 3`, **2 ledger
+entries, 0 open, 2 closed**. Both test runs retained in full. `assignedTo`
+and `assignments` both agree with the ledger; `open_assignees` matches
+`rally_open_uuids`. Polygon md5 unchanged. Doors still 0.
+
+Because the rep's "My turf" list is driven by `STORE.currentAssignees()`,
+which reads the LEDGER rather than the legacy mirror, the rep session seeing
+this assignment is itself proof that session had latched the capability.
+
+## One real finding, and what it teaches
+
+The first cleanup attempt was reported as done but had **not reached the
+server**: at 05:27Z the hood still showed the rep OPEN at `rev 2`, and the
+edge log carried no third `set_territory_assignments` call. Under server
+authority `STORE.setAssignees` is RPC-only - it does NOT fall back to the
+outbox - so a "Nobody" save made offline is refused by the turf gate and
+leaves nothing behind locally either. The sheet can look right while nothing
+was written anywhere. Repeating the save online produced operation
+`mtto9wcmylt8zxm` and the empty set above.
+
+That is worth keeping: after the flip, a leader's turf change is only real
+if the device was online when they tapped Save.
+
+A second reported detail also did not hold. The knock recorded during the
+session synced as pin `mttl31jwo4avodb` (`nothome`, 04:13:51Z) with event
+`mttl31jxlw5lfw5`, but its `territory_id` is NULL - a door's hood is derived
+from geometry, and those coordinates are not inside Hood 14 B. The hood
+therefore still has 0 doors and 0 events. Nothing was deleted to achieve
+that; it was never there.
+
+## Production health at 05:46:55Z
+
+flag `true` - capabilities
+`{"postgis": true, "turfRpc": true, "assignmentServerAuthoritative": true}` -
+gate 0 - 43 of 43 Stage A/B/C functions - 0 disabled triggers on territories -
+`rally_config_guard` armed - 20 live hoods, 11 assigned - 0 ledger/mirror
+disagreements of any kind - 0 bad outlines - 0 forbidden overlaps.
+
+## Accepted limitations
+
+* **One iPhone, two sessions**, not two physical handsets. The owner PWA and
+  the rep browser session are separate origins with separate storage, which
+  exercises two independent clients, but not two devices on two networks.
+* **The capability latch is one-way for the fleet.** Setting the flag back to
+  false restores the server, not the phones. See the flip record above.
+* Both server profiles carry a **blank `name`**, so the app draws teammate
+  labels from each device's local list. Pre-existing; not caused by the flip.
+
+## Not done
+
+v41 is **not** frozen - that is the owner's call. Phase 5 is not started.

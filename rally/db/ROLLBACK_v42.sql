@@ -56,6 +56,15 @@ alter table public.territories drop constraint if exists territories_uuid_uniq;
 
 -- Dropping a column drops every privilege granted on it, so the SELECT
 -- grants in §I of 0018 need no separate revoke.
+--
+-- The one grant that must be put back by hand is public.events' INSERT.
+-- 0018 replaced its table-wide grant with a column list so that a column
+-- added later could not be written by a client. Leaving that in place after
+-- a rollback would be harmless — the client writes exactly those columns —
+-- but it would be a silent divergence from what every other v41 database
+-- looks like, so it is restored.
+revoke insert on public.events from authenticated;
+grant insert on public.events to authenticated;
 alter table public.events       drop column if exists prev_disposition;
 alter table public.events       drop column if exists territory_id;
 alter table public.territories  drop column if exists cycle_keep_at;

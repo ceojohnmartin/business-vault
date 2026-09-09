@@ -140,16 +140,38 @@
     return hit;
   }
 
+  // clean {lat,lon} points, or null if there is no usable ring
+  function ringOf(pts) {
+    if (!Array.isArray(pts)) return null;
+    const g = pts.filter((p) => p && typeof p.lat === "number" && typeof p.lon === "number");
+    return g.length >= 4 ? g : null;
+  }
+
+  /* A multipolygon building keeps its rings on its members. The OUTER ring
+     is the building; an inner ring is a courtyard, and placing a pin in one
+     is the same mistake as the bounding-box centre. Take the longest outer
+     ring — on the rare relation with several outer parts that is the main
+     structure rather than a shed. */
+  function relationRing(el) {
+    if (!Array.isArray(el.members)) return null;
+    let best = null;
+    el.members.forEach((m) => {
+      if (!m || (m.role && m.role !== "outer")) return;
+      const g = ringOf(m.geometry);
+      if (g && (!best || g.length > best.length)) best = g;
+    });
+    return best;
+  }
+
   function placeAt(el) {
-    const g = Array.isArray(el.geometry)
-      ? el.geometry.filter((p) => p && typeof p.lat === "number" && typeof p.lon === "number")
-      : null;
-    if (g && g.length >= 4) {
+    const g = ringOf(el.geometry) || relationRing(el);
+    if (g) {
       const ctr = ringCentroid(g);
       if (ctr && inGeom(g, ctr.lon, ctr.lat)) return { point: ctr, how: "building_centroid" };
       const pos = ringPointOnSurface(g);
       if (pos) return { point: pos, how: "building_surface" };
     }
+    // only if the response carried one — "out tags geom" does not
     if (el.center) return { point: el.center, how: "building_bbox" };
     if (el.lat != null && el.lon != null) return { point: { lat: el.lat, lon: el.lon }, how: "node" };
     return { point: null, how: "none" };
@@ -160,18 +182,31 @@
 
   async function osmSearch(ring, onStatus) {
     const poly = ring.map(([lng, lat]) => lat.toFixed(6) + " " + lng.toFixed(6)).join(" ");
-    /* `geom` on the ways, `center` as the safety net.
+    /* `out tags geom` — and NOT "geom center".
        `out tags center` alone returns the centre of a building's BOUNDING
        BOX. On a rectangle that is the roof. On an L-shaped or U-shaped
-       house, a courtyard block or a curved terrace it is the notch — which
-       is the driveway, the garden, or the neighbour. That is the "pin in
-       the yard" reps report, and it is why the geometry is fetched: with
-       the outline in hand, placeAt() below can return a point GUARANTEED to
-       be on the roof. Relations (multipolygon buildings) still come back
-       with `center` only, and take the old path. */
+       house, a courtyard block or a curved terrace it is the notch — the
+       driveway, the garden, or the neighbour. That is the "pin in the yard"
+       reps report, and it is why the outline is fetched: with the ring in
+       hand, placeAt() can return a point GUARANTEED to be on the roof.
+
+       The first version of this asked for "geom center", reasoning that a
+       centre was a useful safety net. MEASURED AGAINST THE LIVE API, that
+       is wrong and silently so: Overpass honours the LAST geometry modifier
+       and drops the other. "out tags geom center" returned every way with
+       center and NO geometry, so placeAt never saw an outline and every pin
+       fell back to the bounding-box centre — the exact behaviour the change
+       existed to remove. One building near the Eiffel Tower, three forms:
+
+         out tags geom center;   geometry absent      center present
+         out tags geom;          geometry 129 points  center absent
+         out tags center geom;   geometry 129 points  center absent
+
+       So: ask for geometry. A relation carries its rings on its MEMBERS
+       rather than at the top level, and placeAt reads those. */
     const q = `[out:json][timeout:25];
 (way["building"](poly:"${poly}");relation["building"](poly:"${poly}"););
-out tags geom center;`;
+out tags geom;`;
     onStatus("Searching properties…");
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 28000);

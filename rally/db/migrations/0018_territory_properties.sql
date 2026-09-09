@@ -249,6 +249,7 @@ set search_path = ''
 as $$
 declare
   v_hist jsonb;
+  v_pin_tid text;
   v_best jsonb;
   v_e    jsonb;
   v_ts   bigint;
@@ -260,12 +261,18 @@ begin
     new.territory_id := nullif(btrim(coalesce(new.data->>'territoryId', '')), '');
   end if;
 
+  /* SELECT ... INTO sets EVERY target to NULL when no row is found. The
+     first draft passed new.territory_id straight into the INTO list, so a
+     knock whose door row was not visible — a pin not yet pulled, a pin in
+     another team, a race against the pin's own insert — had the hood the
+     client had just supplied in the blob overwritten with NULL. The read
+     goes into its own variables, and only what was found is used. */
   if new.territory_id is null or new.prev_disposition is null then
-    select coalesce(p.data->'history', '[]'::jsonb),
-           coalesce(new.territory_id, p.territory_id)
-      into v_hist, new.territory_id
+    select coalesce(p.data->'history', '[]'::jsonb), p.territory_id
+      into v_hist, v_pin_tid
       from public.pins p
      where p.team_id = new.team_id and p.id = new.pin_id;
+    if new.territory_id is null then new.territory_id := v_pin_tid; end if;
   end if;
 
   if new.prev_disposition is null and jsonb_typeof(v_hist) = 'array' then
@@ -399,6 +406,8 @@ declare
   v_bad       int := 0;
   v_inelig    int := 0;
   v_prior     jsonb;
+  v_prior_type text;
+  v_prior_tid  text;
 begin
   v_uid  := public.rally_require_leader();
   v_team := public.rally_my_team();
@@ -417,8 +426,26 @@ begin
   /* Idempotent on the operation id. The event IS the record of the import,
      so a retry that lost its response is answered with the original counts
      rather than importing the same neighbourhood twice. */
-  select data into v_prior from public.events where team_id = v_team and id = v_ev;
+  /* IDEMPOTENT ON OUR OWN RECORD, NOT ON THE ID ALONE.
+
+     A rep can insert an ordinary event with any id they like — the events
+     policy only requires it be their own row. So a rep who inserted
+     'import-<id>' could make the next import with that operation id return
+     "already_committed" and import nothing, silently, and the leader would
+     see a successful-looking result with zero doors. Verified on a replica.
+
+     A retry is only answered as a retry when the row is one THIS function
+     wrote: same type, same hood. Anything else means the id has been used
+     for something else, and that is an error the caller can act on by
+     retrying with a fresh id — which every client already generates. */
+  select type, territory_id, data into v_prior_type, v_prior_tid, v_prior
+    from public.events where team_id = v_team and id = v_ev;
   if found then
+    if v_prior_type is distinct from 'territory_import'
+       or v_prior_tid is distinct from p_territory_id then
+      raise exception 'import: operation id % is already in use by another record', p_operation_id
+        using errcode = '23505';
+    end if;
     return jsonb_build_object('status', 'already_committed',
       'territory_id', p_territory_id, 'counts', coalesce(v_prior->'counts', '{}'::jsonb));
   end if;
@@ -660,6 +687,25 @@ declare
   v_at     timestamptz := clock_timestamp();
   v_ms     bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   v_ev     text := 'reset-' || p_operation_id;
+  /* THE FOUR OUTCOMES A BOUNDARY CAN ACTUALLY DECIDE.
+
+     'sold' and 'dnk' are deliberately NOT here, and leaving them in was a
+     data-loss bug in the first draft. effectiveDisposition answers black
+     from the do-not-knock ledger and green from the customer record BEFORE
+     it ever looks at the boundary. So a keep-list containing them does not
+     "preserve" anything — it resurrects:
+
+       a door whose do-not-knock a manager EXPLICITLY CLEARED went black
+       again at the next reset, because the cleared dnk was still the latest
+       kept entry in its history and the clear is not an outcome;
+
+       a door whose customer CANCELLED stayed green forever and was never
+       handed back to a rep, because the old sold entry was kept.
+
+     Both are silent, both survive every later pass, and neither is visible
+     from the map. The keep-list is now only ever drawn from the four states
+     a knock can leave behind. */
+  v_keepable constant text[] := array['unworked','nothome','goback','notint'];
   v_all    constant text[] := array['unworked','nothome','goback','notint','sold','dnk'];
   v_reset  text[] := coalesce(p_reset, '{}');
   v_keep   text[];
@@ -667,6 +713,8 @@ declare
   v_sold   boolean;
   v_dnk    jsonb := '[]'::jsonb;
   v_prior  jsonb;
+  v_prior_type text;
+  v_prior_tid  text;
 begin
   v_uid  := public.rally_require_leader();
   v_team := public.rally_my_team();
@@ -693,12 +741,19 @@ begin
   end if;
   v_sold := 'sold' = any (v_reset);
 
-  -- the column stores the COMPLEMENT: what this boundary does not apply to
+  -- the column stores the COMPLEMENT, over the KEEPABLE four only
   select coalesce(array_agg(x order by x), '{}') into v_keep
-    from unnest(v_all) x where not (x = any (v_reset));
+    from unnest(v_keepable) x where not (x = any (v_reset));
 
-  select data into v_prior from public.events where team_id = v_team and id = v_ev;
+  -- same reasoning as the import: our own record, not the id alone
+  select type, territory_id, data into v_prior_type, v_prior_tid, v_prior
+    from public.events where team_id = v_team and id = v_ev;
   if found then
+    if v_prior_type is distinct from 'territory_reset'
+       or v_prior_tid is distinct from p_territory_id then
+      raise exception 'reset: operation id % is already in use by another record', p_operation_id
+        using errcode = '23505';
+    end if;
     return jsonb_build_object('status', 'already_committed',
       'territory_id', p_territory_id,
       'cycle_started_at', v_prior->>'cycleStartedAt',
@@ -764,6 +819,7 @@ declare
   v_team   uuid;
   v_t      public.territories%rowtype;
   v_total  bigint;
+  v_live   bigint;
   v_houses bigint;
   v_sales  bigint;
 begin
@@ -794,7 +850,18 @@ begin
       using errcode = '42501';
   end if;
 
-  select count(*) into v_total from public.territories
+  /* "Polygon 10 of 100" — N of HOW MANY HAVE EVER BEEN DRAWN.
+
+     Counting live hoods made the card read "Polygon 22 of 15" the moment
+     anything was deleted or archived, because a number is never reused
+     while the live count falls. Reproduced on a replica. The denominator is
+     the highest number ever issued to this team, which is monotone and can
+     never be smaller than the numerator. How many are live today is a
+     different and also useful number, returned separately rather than
+     conflated with it. */
+  select coalesce(max(seq), 0) into v_total from public.territories
+   where team_id = v_team;
+  select count(*) into v_live from public.territories
    where team_id = v_team and deleted_at is null and not archived;
 
   select count(*) into v_houses from public.pins
@@ -810,7 +877,7 @@ begin
 
   return jsonb_build_object(
     'territory_id', p_territory_id, 'uuid', v_t.uuid,
-    'seq', v_t.seq, 'of', v_total,
+    'seq', v_t.seq, 'of', v_total, 'live_hoods', v_live,
     'houses', v_houses, 'sales', v_sales,
     'cycle_started_at', v_t.cycle_started_at,
     -- only report a keep-list that still belongs to the current boundary
@@ -826,13 +893,33 @@ end $$;
 grant select (seq, uuid, cycle_keep, cycle_keep_at) on public.territories to authenticated;
 grant select (territory_id, prev_disposition) on public.events to authenticated;
 
-/* A phone may WRITE the two new event columns, because a phone authors
-   events. It may not write a hood's number, its permanent uuid, or which
-   outcomes a reset kept: those are server-owned, exactly like assignees and
-   cycle_started_at before them. No INSERT or UPDATE grant is issued on
-   them, and 0012 already replaced the table-wide grant with column grants,
-   so they are unreachable by omission. */
-grant insert (territory_id, prev_disposition) on public.events to authenticated;
+/* NO CLIENT WRITES EITHER OF THE NEW EVENT COLUMNS.
+
+   The first draft granted INSERT on both, reasoning that a phone authors
+   events. But events_derive_context fills them from data the server already
+   holds, so no client NEEDS them — and a granted column on an append-only
+   log that no policy can correct is a column a rep can forge. A knock could
+   have claimed to have happened in another hood, or to have changed a
+   status it never changed, and nothing downstream could tell.
+
+   Making them read-only takes the same surgery 0012 did on territories and
+   pins, and for the same reason. public.events still carries a TABLE-level
+   INSERT grant, and a table-level grant automatically covers every column
+   added afterwards — so omitting a column grant achieved nothing, and
+   PostgreSQL will not let you revoke one column out of a table-level
+   privilege either. Verified on a replica both ways: a rep could insert a
+   row naming both columns and forge the audit trail, and the column-scoped
+   REVOKE was silently a no-op.
+
+   So the table-wide grant is replaced by the exact column list the client
+   already writes. Adding a column to public.events after this point does
+   NOT hand it to any client, which is the property 0012 was after.
+
+   The four territory columns need none of this: that table's grant is
+   already column-scoped, so they are unreachable by omission. */
+revoke insert on public.events from authenticated;
+grant insert (team_id, id, pin_id, type, disposition, at_ms, by_user, data, created_at)
+  on public.events to authenticated;
 
 revoke all on function public.rally_num(text) from public, anon;
 grant execute on function public.rally_num(text) to authenticated;
@@ -873,7 +960,10 @@ begin
     from information_schema.column_privileges
    where table_schema = 'public' and grantee = 'authenticated'
      and privilege_type in ('INSERT','UPDATE')
-     and ((table_name = 'territories' and column_name in ('seq','uuid','cycle_keep','cycle_keep_at')));
+     and ((table_name = 'territories'
+            and column_name in ('seq','uuid','cycle_keep','cycle_keep_at'))
+       or  (table_name = 'events'
+            and column_name in ('territory_id','prev_disposition')));
   if v_leak is not null then
     raise exception '0018: authenticated can write a server-owned column (%)', v_leak;
   end if;

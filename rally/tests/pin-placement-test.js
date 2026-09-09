@@ -80,6 +80,26 @@ inside(U, r.point.lon, r.point.lat)
   ? ok("3. a U-shaped block gets a pin on the building, not in the courtyard")
   : bad("3.", JSON.stringify(r));
 
+/* ---- 3b. A MULTIPOLYGON RELATION. Its rings live on its members, and the
+   query now asks for geometry rather than a centre, so a relation with no
+   top-level geometry must still be placed from its OUTER ring — not dropped,
+   and not placed in its courtyard. ---- */
+const outer = [P(0, 0), P(0.0015, 0), P(0.0015, 0.0015), P(0, 0.0015), P(0, 0)];
+const inner = [P(0.0005, 0.0005), P(0.001, 0.0005), P(0.001, 0.001), P(0.0005, 0.001), P(0.0005, 0.0005)];
+r = placeAt({ type: "relation", members: [
+  { role: "inner", geometry: inner },
+  { role: "outer", geometry: outer },
+] });
+inside(outer, r.point.lon, r.point.lat)
+  ? ok("3b. a multipolygon building is placed from its outer ring")
+  : bad("3b.", JSON.stringify(r));
+r.how === "building_centroid" || r.how === "building_surface"
+  ? ok("3c. from the ring, not from a bounding box") : bad("3c.", r.how);
+
+// a relation whose members carry nothing usable is nothing, not a guess
+r = placeAt({ type: "relation", members: [{ role: "outer", geometry: [] }] });
+r.point === null ? ok("3d. a relation with no usable ring yields no pin") : bad("3d.", JSON.stringify(r));
+
 // ---- 4. no outline: the bbox centre is used, and labelled as such ----
 r = placeAt({ center: { lat: 5, lon: 6 } });
 r.point.lat === 5 && r.how === "building_bbox"
@@ -95,6 +115,19 @@ r.point === null && r.how === "none"
 r = placeAt({ geometry: [P(1, 1), P(1, 1), P(1, 1), P(1, 1)], center: { lat: 2, lon: 2 } });
 r.point && Number.isFinite(r.point.lat) && Number.isFinite(r.point.lon)
   ? ok("6. a degenerate outline falls through to a finite point") : bad("6.", JSON.stringify(r));
+
+/* ---- 7. THE QUERY. Overpass honours the LAST geometry modifier and drops
+   the other, so "out tags geom center" returns centres and no outlines —
+   measured against the live API — and every pin silently falls back to the
+   bounding box. This asserts the shipped query asks for geometry and does
+   not ask for a centre after it. ---- */
+// the line inside the query template, not a sentence in a comment above it
+const out = (src.match(/^out tags[^;\n]*;/m) || [""])[0];
+/geom/.test(out) ? ok("7. the query asks for building geometry: " + out)
+                 : bad("7. the query asks for building geometry", out);
+!/geom\s+center/.test(out)
+  ? ok("7b. and does not put center after geom, which would drop it")
+  : bad("7b. 'geom center' returns centres and NO geometry", out);
 
 console.log("\n================================\nPASS " + pass + "   FAIL " + fail);
 process.exit(fail ? 1 : 0);

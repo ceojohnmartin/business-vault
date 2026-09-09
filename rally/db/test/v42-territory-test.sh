@@ -365,16 +365,30 @@ eq  "8e. the reset is in the activity log" \
 
 # THE INVERSION THAT MATTERS. The manager ticks what BECOMES BLUE; the column
 # stores the complement. Getting this backwards would blank a worked hood.
-# dnk is always in the complement: it can never appear in the ticked list.
 eq  "8f. the column stores the COMPLEMENT of what was ticked" \
-    "$(q "select cycle_keep::text from public.territories where id='t-imp'")" "{dnk,sold,unworked}"
+    "$(q "select cycle_keep::text from public.territories where id='t-imp'")" "{unworked}"
 R=$(as_lead "select public.reset_territory_outcomes('t-imp','{}'::text[],false,'r-1b')")
 eq  "8g. ticking NOTHING keeps every outcome — the empty list is not 'reset everything'" \
-    "$(q "select cycle_keep::text from public.territories where id='t-imp'")" "{dnk,goback,nothome,notint,sold,unworked}"
+    "$(q "select cycle_keep::text from public.territories where id='t-imp'")" "{goback,nothome,notint,unworked}"
 
 R=$(as_lead "select public.reset_territory_outcomes('t-imp','{nothome,notint,goback}'::text[],false,'r-1')")
 has "8h. the same operation id is answered, not re-run" "$R" "already_committed"
 
+for combo in "{sold}" "{nothome,sold}" "{}" "{unworked,nothome,goback,notint,sold}"; do
+  as_lead "select public.reset_territory_outcomes('t-imp','$combo'::text[],false,'r-keep-$combo')" >/dev/null
+  K=$(q "select cycle_keep::text from public.territories where id='t-imp'")
+  case "$K" in
+    *dnk*) bad "8f2. a keep-list can never hold dnk (ticked $combo)" "got $K";;
+    *sold*) bad "8f2. a keep-list can never hold sold (ticked $combo)" "got $K";;
+    *) ok "8f2. ticking $combo leaves neither sold nor dnk in the keep-list";;
+  esac
+done
+# why that matters, stated as the two failures it prevents:
+#   a cleared do-not-knock would go black again at the next reset, because the
+#   cleared dnk is still the newest KEPT outcome in the door's history and a
+#   dnk_clear is not an outcome;
+#   a door whose customer CANCELLED would stay green forever and never be
+#   handed back to a rep.
 R=$(as_lead "select public.reset_territory_outcomes('t-imp','{banana}'::text[],false,'r-3')")
 has "8i. a bogus outcome name is refused" "$R" "is not an outcome"
 # the four-letter TEXT "NULL", not a null — it is simply not an outcome
@@ -400,6 +414,42 @@ eq "8p. a later plain Clear Outcomes leaves the stamp behind..." \
    "$(q "select (cycle_keep_at < cycle_started_at)::text from public.territories where id='t-imp'")" "true"
 R=$(as_lead "select public.rally_territory_summary('t-imp')")
 has "8q. ...so the summary stops reporting a keep-list that no longer applies" "$R" '"cycle_keep": []'
+
+echo
+echo "=== 8r. THE THREE THINGS THE PANEL FOUND, AS REGRESSIONS ==="
+# "Polygon 22 of 15" — a number is never reused while the live count falls,
+# so a denominator of live hoods renders N > M the moment anything is deleted.
+R=$(as_lead "select public.rally_territory_summary('t-imp')")
+SEQ=$(echo "$R" | sed -n 's/.*"seq": \([0-9]*\).*/\1/p')
+OF=$(echo "$R"  | sed -n 's/.*"of": \([0-9]*\).*/\1/p')
+if [ -n "$SEQ" ] && [ -n "$OF" ] && [ "$SEQ" -le "$OF" ]; then
+  ok "8r1. the card can never read 'Polygon N of M' with N greater than M (got $SEQ of $OF)"
+else
+  bad "8r1. N must never exceed M" "seq=$SEQ of=$OF"
+fi
+has "8r2. and how many are live today is reported separately, not conflated" "$R" '"live_hoods"'
+
+# A knock whose door row the server cannot see must not LOSE the hood the
+# client already told it. SELECT ... INTO nulls every target when not found.
+psql -X -q -d "$DB" -c "insert into public.events (team_id,id,pin_id,type,disposition,at_ms,by_user,data)
+  values ('$TEAM','ev-nopin','no-such-pin','knock','nothome',1700005000000,'$JOHN',
+          '{\"pinId\":\"no-such-pin\",\"territoryId\":\"t-imp\"}'::jsonb)" >/dev/null
+eq "8r3. a knock on a door the server cannot see keeps the hood from the blob" \
+   "$(q "select coalesce(territory_id,'(destroyed)') from public.events where id='ev-nopin'")" "t-imp"
+
+# A rep can insert an ordinary event with any id. That must not be able to
+# masquerade as the record of a leader's import and veto it silently.
+psql -X -q -d "$DB" -tA -c "begin; select set_config('request.jwt.claims','{\"sub\":\"$JOHN\"}',true);
+  set local role authenticated;
+  insert into public.events (team_id,id,pin_id,type,disposition,at_ms,by_user,data)
+  values ('$TEAM','import-VETO',null,'knock','',1,'$JOHN','{}'::jsonb); commit;" >/dev/null 2>&1
+R=$(as_lead "select public.import_territory_doors('t-imp','[{\"lat\":41.0018,\"lng\":6.0018,\"source\":\"x\",\"externalId\":\"veto\"}]'::jsonb,'VETO')")
+has "8r4. a planted operation id is refused loudly, not answered as 'already done'" \
+    "$R" "already in use by another record"
+eq  "8r5. and the doors were not silently skipped" \
+    "$(q "select count(*) from public.pins where data->'prop'->>'externalId'='veto'")" "0"
+R=$(as_lead "select public.import_territory_doors('t-imp','[{\"lat\":41.0018,\"lng\":6.0018,\"source\":\"x\",\"externalId\":\"veto\"}]'::jsonb,'VETO-2')")
+has "8r6. a fresh operation id still works, so the veto is not durable" "$R" '"inserted": 1'
 
 echo
 echo "=== 9. RESET DOES NOT CLEAR BLACK ==="

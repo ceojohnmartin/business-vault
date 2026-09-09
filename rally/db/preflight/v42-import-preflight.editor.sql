@@ -78,13 +78,29 @@ scale as (
     (select count(*) from public.events) as activity
 ),
 
--- 5. Hoods whose outline the server could not read. They are not a blocker
---    for v42 — but import_territory_doors REFUSES to import into one,
---    because it cannot test containment without a geometry. Worth knowing
---    before a manager hits it in the field.
-noGeom as (
-  select count(*) as n from public.territories
-   where deleted_at is null and archived = false and geom is null
+-- 5. THE ONE CONDITION THAT ABORTS THE APPLY.
+--
+--    §J backfills every territory row. That UPDATE re-runs 0009's geometry
+--    derivation and 0016's overlap constraint, and 0016 refuses to let a
+--    LIVE hood hold an outline the server cannot read. One such row and the
+--    whole transaction rolls back.
+--
+--    This probe rated it "NOTE" in its first version, so the preflight would
+--    have said READY and the paste would then have failed. Reproduced on a
+--    replica with a two-point ring: "BF Live has an outline this map cannot
+--    use (a hood needs at least 3 distinct corners - this outline has 2), so
+--    it cannot be made active turf", and nothing applied.
+--
+--    It reads the POLYGON, not geom. A live row with a good outline and a
+--    null geom is harmless — the backfill re-derives it — and that was
+--    confirmed on a replica too, so this must not block on it.
+badRing as (
+  select count(*) as n,
+         coalesce(string_agg(id || ' (' || public.rally_ring_problem(polygon) || ')', '; '
+                             order by id), '') as detail
+    from public.territories
+   where deleted_at is null and archived = false
+     and public.rally_ring_problem(polygon) is not null
 )
 
 select * from (
@@ -123,9 +139,11 @@ select * from (
   union all
   select 11, 'activity rows', s.activity::text, 'INFO' from scale s
   union all
-  select 12, 'live hoods with an unreadable outline', g.n::text,
+  select 12, 'live hoods with an unreadable outline',
+         g.n::text || case when g.n > 0 then ' — ' || g.detail else '' end,
          case when g.n = 0 then 'PASS'
-              else 'NOTE — an import into one of these will be refused' end from noGeom g
+              else 'FAIL — the apply WILL abort on these. Archive or fix each one first' end
+    from badRing g
   union all
   select 99, 'VERDICT',
          '',
@@ -136,6 +154,7 @@ select * from (
              or (select t_cols from already) not in (0,4)
              or (select e_cols from already) not in (0,2)
              or (select fns from already) not in (0,6)
+             or (select n from badRing) > 0
            then 'DO NOT APPLY — a probe above reads FAIL'
            else 'READY — db/APPLY_v42.sql may be pasted and run' end
 ) x order by ord;

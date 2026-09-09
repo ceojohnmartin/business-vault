@@ -1844,10 +1844,23 @@
      keep-list, so a list left over from an older, selective reset must stop
      counting the moment any newer boundary lands — otherwise "clear
      outcomes" would quietly not clear the outcomes a March reset had held. */
+  /* Only the four states a KNOCK can leave behind may be kept.
+
+     'sold' and 'dnk' are answered above the boundary — green from the
+     customer record, black from the do-not-knock ledger — so keeping them
+     does not preserve anything, it RESURRECTS: a do-not-knock a manager
+     explicitly cleared would go black again at the next reset, and a door
+     whose customer cancelled would stay green forever and never be handed
+     back to a rep. The server refuses to write either into the list; this
+     filters them anyway, because a row can arrive from a server that has
+     not been upgraded yet and the cost of being wrong here is silent. */
+  const KEEPABLE = { unworked: 1, nothome: 1, goback: 1, notint: 1 };
+
   S.cycleKeep = function (t) {
     if (!t || !Array.isArray(t.cycleKeep) || !t.cycleKeep.length) return [];
     const at = t.cycleKeepAt || 0, C = t.cycleStartedAt || 0;
-    return at >= C ? t.cycleKeep : [];
+    if (at < C) return [];
+    return t.cycleKeep.filter((x) => KEEPABLE[x]);
   };
 
   S.effectiveDisposition = function (pin, t, facts) {
@@ -2103,7 +2116,7 @@
     if (!g.ok) throw new Error(g.reason);
     if (g.code === "solo") {
       t.cycleStartedAt = Math.max(t.cycleStartedAt || 0, Date.now());
-      t.cycleKeep = ALL_OUTCOMES.filter((x) => list.indexOf(x) < 0);
+      t.cycleKeep = Object.keys(KEEPABLE).filter((x) => list.indexOf(x) < 0);
       t.cycleKeepAt = t.cycleStartedAt;
       await MDB.put("territories", t);
       return { cycleStartedAt: t.cycleStartedAt, reset: list, keep: t.cycleKeep, dnkPins: [] };

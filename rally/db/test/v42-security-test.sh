@@ -152,6 +152,24 @@ for c in seq uuid cycle_keep cycle_keep_at; do
 done
 
 echo
+echo "=== 8b. A REP CANNOT FORGE THE AUDIT TRAIL ==="
+# public.events carries a TABLE-level INSERT grant, and a table-level grant
+# covers every column added later. Omitting a column grant was not enough;
+# it took an explicit REVOKE, and this is what proves it.
+for c in territory_id prev_disposition; do
+  eq "8b. authenticated cannot write events.$c" \
+     "$(q "select count(*) from information_schema.column_privileges
+            where table_name='events' and grantee='authenticated'
+              and column_name='$c' and privilege_type='INSERT'")" "0"
+done
+R=$(as "$JOHN" "insert into public.events (team_id,id,pin_id,type,disposition,at_ms,by_user,data,territory_id,prev_disposition)
+  values ('$TEAM','forge-ev','p1','knock','nothome',1700000000000,'$JOHN','{}'::jsonb,'not-my-hood','sold')")
+has "8b. and a rep naming them is refused" "$R" "permission denied"
+R=$(as "$JOHN" "insert into public.events (team_id,id,pin_id,type,disposition,at_ms,by_user,data)
+  values ('$TEAM','plain-ev','p1','knock','nothome',1700000000000,'$JOHN','{\"territoryId\":\"sec-hood\"}'::jsonb)")
+has "8b. while an ordinary knock still commits" "$R" "COMMIT"
+
+echo
 echo "=== 9. A REP CANNOT FORGE A HOOD NUMBER ==="
 R=$(as "$LEAD" "insert into public.territories (team_id,id,name,polygon,archived,data,assignees,assignees_rev,open_assignees,created_by,seq)
   values ('$TEAM','forge-1','forge','[[31.0,41.0],[31.004,41.0],[31.004,41.004],[31.0,41.004]]'::jsonb,false,'{}'::jsonb,'{\"entries\":[]}'::jsonb,0,'{}'::uuid[],'$LEAD',1)")

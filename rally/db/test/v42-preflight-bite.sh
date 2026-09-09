@@ -128,11 +128,27 @@ bite "7. duplicate property rows are counted" 7 \
 # predates those rules. session_replication_role = replica suspends user
 # triggers for the session, which is the only honest way to model a row that
 # was already there before the rules were.
-bite "8. a live hood with an unreadable outline is reported" 12 \
+# THE CONDITION THAT ABORTS THE APPLY. It has to BLOCK, not advise: the
+# backfill re-runs 0016 on every row and 0016 refuses a live hood whose
+# outline the server cannot read. A two-point ring is such an outline.
+bite "8. a live hood with an unreadable outline BLOCKS the apply" 12 \
   "set session_replication_role = replica;
-   update public.territories set geom = null
+   update public.territories set polygon = '[[9.0,40.0],[9.001,40.0]]'::jsonb, geom = null
     where deleted_at is null and archived = false and id = 'bf-live';
-   set session_replication_role = origin" note
+   set session_replication_role = origin" verdict
+
+# ...and a live hood with a GOOD outline but no derived geometry must NOT
+# block, because the backfill simply re-derives it. A preflight that refused
+# this would stop a safe apply.
+fresh "$DB"
+psql -q -d "$DB" -c "set session_replication_role = replica;
+  update public.territories set geom = null where id = 'bf-live';
+  set session_replication_role = origin" >/dev/null 2>&1
+V="$(verdict "$DB")"
+case "$V" in
+  READY*) ok "8b. a null geometry with a readable outline does NOT block";;
+  *) bad "8b. a null geometry with a readable outline does NOT block" "read [$V]";;
+esac
 
 echo
 echo "=== the probes must also survive HOSTILE data without raising ==="
@@ -154,8 +170,12 @@ esac
 # and it must be READ-ONLY. Prove it by running it as a role that cannot write.
 fresh "$DB"
 psql -q -d "$DB" -c "create role pf_readonly login" >/dev/null 2>&1 || true
+# SELECT plus EXECUTE, and no write privilege of any kind. The preflight
+# calls rally_ring_problem, which is a read; the point of this case is that
+# nothing it does needs INSERT, UPDATE, DELETE or DDL.
 psql -q -d "$DB" -c "grant usage on schema public, gis to pf_readonly;
   grant select on all tables in schema public to pf_readonly;
+  grant execute on all functions in schema public to pf_readonly;
   grant execute on all functions in schema gis to pf_readonly" >/dev/null 2>&1 || true
 RO="$(PGUSER=pf_readonly psql -X -d "$DB" -f "$PRE" -tA 2>&1 || true)"
 case "$RO" in

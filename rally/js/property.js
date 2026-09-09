@@ -74,14 +74,104 @@
     return { eligible: false, whyExcluded: desc || "unknown land use", propertyType: fields.usedesc || null };
   }
 
+  /* ---------- WHERE A PIN GOES ----------
+
+     One pin per house, ON the house. In priority order:
+
+       1. the building outline's point-on-surface — always inside the
+          polygon, even when the shape is concave and its true centroid
+          is not;
+       2. the building outline's area centroid, when that point is itself
+          inside the outline (the common convex case, and the most
+          natural-looking of the three);
+       3. the bounding-box centre Overpass hands back for anything with no
+          outline — a multipolygon relation, or a node tagged as a building.
+
+     Every door records which of the three it got, in `placement`, so a
+     later audit can tell a rooftop from a fallback without guessing. */
+
+  // area centroid of a closed or open ring; null on a degenerate (zero-area) ring
+  function ringCentroid(pts) {
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0, n = pts.length; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n];
+      const f = p.lon * q.lat - q.lon * p.lat;
+      a += f; cx += (p.lon + q.lon) * f; cy += (p.lat + q.lat) * f;
+    }
+    if (!a) return null;
+    return { lon: cx / (3 * a), lat: cy / (3 * a) };
+  }
+
+  /* A point guaranteed to be inside a simple polygon: scan the horizontal
+     line at the ring's mid-latitude, collect where it crosses the edges,
+     and take the midpoint of the WIDEST interior span. On an L-shape that
+     lands in the thickest part of the building — the roof — rather than in
+     the notch. This is the same idea as PostGIS's ST_PointOnSurface, at the
+     precision a door pin needs. */
+  function ringPointOnSurface(pts) {
+    let minLat = Infinity, maxLat = -Infinity;
+    pts.forEach((p) => { if (p.lat < minLat) minLat = p.lat; if (p.lat > maxLat) maxLat = p.lat; });
+    if (!(maxLat > minLat)) return null;
+    const y = (minLat + maxLat) / 2;
+    const xs = [];
+    for (let i = 0, n = pts.length; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n];
+      if ((p.lat > y) === (q.lat > y)) continue;              // no crossing
+      xs.push(p.lon + ((y - p.lat) / (q.lat - p.lat)) * (q.lon - p.lon));
+    }
+    if (xs.length < 2) return null;
+    xs.sort((m, n) => m - n);
+    let best = null, span = -1;
+    for (let i = 0; i + 1 < xs.length; i += 2) {              // interior spans only
+      const w = xs[i + 1] - xs[i];
+      if (w > span) { span = w; best = (xs[i] + xs[i + 1]) / 2; }
+    }
+    return best === null ? null : { lon: best, lat: y };
+  }
+
+  // is (lon,lat) inside this building outline? same ray cast as inRing,
+  // over Overpass's {lat,lon} shape
+  function inGeom(pts, lon, lat) {
+    let hit = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const yi = pts[i].lat, xi = pts[i].lon, yj = pts[j].lat, xj = pts[j].lon;
+      if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  }
+
+  function placeAt(el) {
+    const g = Array.isArray(el.geometry)
+      ? el.geometry.filter((p) => p && typeof p.lat === "number" && typeof p.lon === "number")
+      : null;
+    if (g && g.length >= 4) {
+      const ctr = ringCentroid(g);
+      if (ctr && inGeom(g, ctr.lon, ctr.lat)) return { point: ctr, how: "building_centroid" };
+      const pos = ringPointOnSurface(g);
+      if (pos) return { point: pos, how: "building_surface" };
+    }
+    if (el.center) return { point: el.center, how: "building_bbox" };
+    if (el.lat != null && el.lon != null) return { point: { lat: el.lat, lon: el.lon }, how: "node" };
+    return { point: null, how: "none" };
+  }
+
   // ---------- provider: OpenStreetMap (Overpass) ----------
   const OVERPASS = "https://overpass-api.de/api/interpreter";
 
   async function osmSearch(ring, onStatus) {
     const poly = ring.map(([lng, lat]) => lat.toFixed(6) + " " + lng.toFixed(6)).join(" ");
+    /* `geom` on the ways, `center` as the safety net.
+       `out tags center` alone returns the centre of a building's BOUNDING
+       BOX. On a rectangle that is the roof. On an L-shaped or U-shaped
+       house, a courtyard block or a curved terrace it is the notch — which
+       is the driveway, the garden, or the neighbour. That is the "pin in
+       the yard" reps report, and it is why the geometry is fetched: with
+       the outline in hand, placeAt() below can return a point GUARANTEED to
+       be on the roof. Relations (multipolygon buildings) still come back
+       with `center` only, and take the old path. */
     const q = `[out:json][timeout:25];
 (way["building"](poly:"${poly}");relation["building"](poly:"${poly}"););
-out tags center;`;
+out tags geom center;`;
     onStatus("Searching properties…");
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 28000);
@@ -98,7 +188,8 @@ out tags center;`;
     const j = await r.json();
     const els = (j && j.elements) || [];
     const out = els.map((el) => {
-      const c = el.center || (el.lat != null ? { lat: el.lat, lon: el.lon } : null);
+      const place = placeAt(el);
+      const c = place.point;
       if (!c || !inRing(ring, c.lon, c.lat)) return null;
       const tags = el.tags || {};
       const elig = osmEligibility(tags);
@@ -108,6 +199,7 @@ out tags center;`;
         parcelId: null,
         source: "osm",
         lat: c.lat, lng: c.lon,
+        placement: place.how,
         address: addr || "",
         city: tags["addr:city"] || "", state: tags["addr:state"] || "",
         zip: tags["addr:postcode"] || "",
@@ -182,9 +274,10 @@ out tags center;`;
       const fields = props.fields || props;
       // pin on the parcel's own point when given; polygon centroid otherwise
       let lat = Number(fields.lat), lng = Number(fields.lon);
+      let placement = "parcel_point";           // Regrid's own representative point
       if ((!lat || !lng) && f.geometry) {
         const c = geomCentroid(f.geometry);
-        if (c) { lng = c[0]; lat = c[1]; }
+        if (c) { lng = c[0]; lat = c[1]; placement = "parcel_centroid"; }
       }
       if (!lat || !lng || !inRing(ring, lng, lat)) return null;
       const elig = regridEligibility(fields);
@@ -205,6 +298,7 @@ out tags center;`;
         // county APNs repeat across counties — scope the key
         parcelId: apn ? [fields.state2, fields.county, apn].filter(Boolean).join(":") : null,
         source: "regrid",
+        placement,
         lat, lng,
         address: situs,
         city: fields.scity || fields.city || "", state: fields.state2 || "",
@@ -235,13 +329,33 @@ out tags center;`;
     return isFinite(n) && n > 0 ? n : null;
   };
 
+  /* A PARCEL'S REPRESENTATIVE POINT.
+
+     This used to average the ring's vertices. A vertex mean is not a
+     centroid: it is pulled toward whichever edge the surveyor happened to
+     draw with the most points, so on a lot with a detailed road frontage
+     and a plain back boundary the pin drifts toward the street. The area
+     centroid below does not care how the outline was digitised.
+
+     It is still a PARCEL point, not a building point — on a large or
+     irregular lot it can sit well away from the house, which is exactly why
+     the OSM building outline is preferred when one exists. */
   function geomCentroid(g) {
     const ring = g.type === "Polygon" ? g.coordinates[0]
       : g.type === "MultiPolygon" ? g.coordinates[0] && g.coordinates[0][0] : null;
-    if (!ring || !ring.length) return null;
-    let x = 0, y = 0;
-    ring.forEach(([lng, lat]) => { x += lng; y += lat; });
-    return [x / ring.length, y / ring.length];
+    if (!ring || ring.length < 4) return null;
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0, n = ring.length; i < n; i++) {
+      const [x1, y1] = ring[i], [x2, y2] = ring[(i + 1) % n];
+      const f = x1 * y2 - x2 * y1;
+      a += f; cx += (x1 + x2) * f; cy += (y1 + y2) * f;
+    }
+    if (!a) {                                   // degenerate: fall back honestly
+      let x = 0, y = 0;
+      ring.forEach(([lng, lat]) => { x += lng; y += lat; });
+      return [x / ring.length, y / ring.length];
+    }
+    return [cx / (3 * a), cy / (3 * a)];
   }
 
   // ---------- provider: demo (deterministic grid, clearly labeled) ----------
@@ -267,6 +381,7 @@ out tags center;`;
         out.push({
           externalId: "demo-" + r + "-" + c,
           parcelId: null, source: "demo",
+          placement: "synthetic_grid",   // NOT a real house — see the header
           lat, lng,
           address: num + " Demo Ave", city: "Demoville", state: "", zip: "",
           propertyType: "Single-family (demo)", eligible: true, whyExcluded: null,
@@ -342,5 +457,8 @@ out tags center;`;
       .replace(/\s+/g, " ").trim();
   }
 
-  window.MPROP = { searchByPolygon, activeName, providerName: (n) => (PROVIDERS[n || activeName()] || {}).name || "", normAddr, areaKm2 };
+  window.MPROP = { searchByPolygon, activeName, providerName: (n) => (PROVIDERS[n || activeName()] || {}).name || "", normAddr, areaKm2,
+    // pure geometry, exported so tests/pin-placement-test.js can prove a pin
+    // lands on an L-shaped roof rather than in its notch
+    _placeAt: placeAt };
 })();

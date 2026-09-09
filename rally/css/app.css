@@ -1172,3 +1172,67 @@ body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 .dnk-msg{background:rgba(229,72,77,.08);border:1px solid rgba(229,72,77,.35);
   color:var(--notint-ink);border-radius:var(--radius-sm);padding:9px 12px;
   font-size:12.5px;margin-bottom:12px}
+
+/* ================= v42: THE POLYGON CARD ==================
+   Two numbers. A manager drawing turf needs to know which polygon this is
+   and how much work is in it; every other statistic belongs in a report,
+   not over the map they are trying to see. */
+.polycard{position:absolute;left:12px;top:calc(12px + env(safe-area-inset-top,0px));z-index:7;
+  background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--line-soft);border-radius:var(--radius);box-shadow:var(--shadow);
+  padding:10px 14px;min-width:172px}
+.polycard[hidden]{display:none}
+.pc-id{font-size:13px;font-weight:700;color:var(--t1);letter-spacing:-.01em}
+.pc-nums{display:flex;gap:14px;margin-top:5px;font-size:12.5px;color:var(--t2)}
+.pc-nums b{font-size:15px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
+.pc-sales b{color:var(--sold-ink)}
+
+/* ================= v42: ASSIGN A TERRITORY ================= */
+#assign-panel[hidden]{display:none}
+.ascrim{position:fixed;inset:0;z-index:120;background:rgba(16,24,40,.28)}
+.apanel{position:fixed;z-index:121;left:0;right:0;bottom:0;display:flex;flex-direction:column;
+  background:var(--s1);border:1px solid var(--line);border-bottom:none;
+  border-radius:22px 22px 0 0;box-shadow:0 -8px 40px rgba(16,24,40,.16);
+  max-height:86vh;padding:10px 16px calc(14px + env(safe-area-inset-bottom,0px))}
+/* On a wide screen it is the side panel of the reference design; on a phone
+   it stays a sheet, because a 380px-wide column beside a map is neither. */
+@media (min-width:820px){
+  .ascrim{background:rgba(16,24,40,.18)}
+  .apanel{left:auto;top:0;bottom:0;width:392px;max-height:none;
+    border-radius:0;border-right:none;border-top:none;
+    box-shadow:-8px 0 40px rgba(16,24,40,.14);padding-top:16px}
+  .apanel .grab{display:none}
+}
+.ahead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ahead h2{font-size:20px;font-weight:700;letter-spacing:-.015em;margin:0}
+.asub{font-size:12.5px;color:var(--t3);margin-top:2px}
+.ax{font-size:24px;line-height:1;color:var(--t2);padding:0 4px}
+.asearch{display:flex;align-items:center;gap:9px;background:var(--s2);
+  border:1px solid var(--line);border-radius:12px;padding:0 12px;height:42px}
+.asearch svg{width:17px;height:17px;flex:none;stroke:var(--t3);fill:none;stroke-width:1.9;stroke-linecap:round}
+.asearch input{flex:1;min-width:0;border:none;background:none;font:inherit;font-size:15px;
+  color:var(--t1);outline:none;-webkit-appearance:none}
+.asec{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--t3);margin:16px 2px 6px}
+#assign-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.arep{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  padding:11px 12px;border:1.5px solid transparent;border-radius:14px;
+  border-bottom:1px solid var(--line-soft)}
+.arep:last-child{border-bottom-color:transparent}
+.arep.on{border-color:var(--accent);background:var(--accent-dim);border-bottom-color:var(--accent)}
+.arep .av{flex:none;width:40px;height:40px;border-radius:50%;color:#fff;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13.5px;font-weight:700;letter-spacing:.02em}
+.arep .who{flex:1;min-width:0}
+.arep .nm{display:block;font-size:15.5px;font-weight:600;color:var(--t1);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arep .sub{display:block;font-size:12.5px;color:var(--t3);margin-top:1px}
+.arep .tick{flex:none;width:22px;height:22px;border-radius:50%;
+  border:1.8px solid var(--s3);position:relative}
+.arep.on .tick{background:var(--accent);border-color:var(--accent)}
+.arep.on .tick::after{content:"";position:absolute;left:7px;top:3.5px;width:5px;height:10px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.aempty{padding:22px 4px;color:var(--t3);font-size:14px;text-align:center}
+.afoot{padding-top:12px;border-top:1px solid var(--line-soft);margin-top:8px}
+.anote{display:flex;gap:8px;margin-top:10px;font-size:11.5px;line-height:1.45;color:var(--t3)}
+.anote svg{width:14px;height:14px;flex:none;margin-top:1px;stroke:var(--t3);fill:none;stroke-width:1.7}

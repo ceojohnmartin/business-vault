@@ -174,6 +174,51 @@
   }
 
   // ---------- save sheet ----------
+  /* ---------- THE POLYGON CARD ----------
+     Two numbers over the map while turf is being drawn or reviewed, and
+     nothing else. A saved hood reads its number and its counts from the
+     SERVER, so "Polygon 10 of 100" is the team's answer rather than this
+     phone's partial copy; an unsaved draft says so plainly instead of
+     guessing at a number the server has not issued yet. */
+  let cardGen = 0;
+  function hideCard() { cardGen++; const c = $("#polycard"); if (c) c.hidden = true; }
+  /* Every close in this module goes through here. The card describes the
+     sheet's polygon, so leaving it up after the sheet has gone would put a
+     stale house count over a map showing something else. */
+  function closeHoodSheet() { hideCard(); closeSheet(); }
+
+  async function showCard(hood, scan) {
+    const c = $("#polycard");
+    if (!c) return;
+    const gen = ++cardGen;
+    const houses = scan ? scan.eligible.length : null;
+    c.hidden = false;
+    if (!hood) {
+      // A draft has no number: the server assigns it on insert, and
+      // predicting one that a concurrent manager might take is worse than
+      // not showing one.
+      $("#pc-id").textContent = "New polygon";
+      $("#pc-houses").textContent = houses == null ? "—" : houses;
+      $("#pc-sales").textContent = "0";
+      return;
+    }
+    $("#pc-id").textContent = hood.seq ? "Polygon " + hood.seq : "Polygon";
+    $("#pc-houses").textContent = houses == null ? "…" : houses;
+    $("#pc-sales").textContent = "…";
+    try {
+      const sum = await STORE.territorySummary(hood);
+      if (gen !== cardGen) return;                 // another polygon since
+      $("#pc-id").textContent = sum.seq
+        ? "Polygon " + sum.seq + (sum.of ? " of " + sum.of : "") : "Polygon";
+      $("#pc-houses").textContent = houses == null ? sum.houses : houses;
+      $("#pc-sales").textContent = sum.sales;
+    } catch (_) {
+      if (gen !== cardGen) return;
+      $("#pc-houses").textContent = houses == null ? "—" : houses;
+      $("#pc-sales").textContent = "—";
+    }
+  }
+
   function openHoodSheet(points, hood) {
     pending = points;
     editingId = hood ? hood.id : null;
@@ -200,6 +245,7 @@
     renderRepChips();
     renderHoodHistory(hood);
     setupDoorsBlock(points, hood);
+    showCard(hood, null);
     openSheet("hood-sheet");
   }
 
@@ -236,6 +282,7 @@
     const fresh = res.eligible.filter((p) => !idx.match(p));
     const dupes = res.eligible.length - fresh.length;
     lastScan = { fresh, res, forId: hood ? hood.id : null };
+    showCard(hood, res);                 // the card's house count is the scan's
     const acres = Math.max(1, Math.round(res.areaKm2 * 247.105));
     if (!res.eligible.length) {
       st.innerHTML = `No residential doors found in this area` +
@@ -330,7 +377,7 @@
     }
     editingId = null; pending = null; draftId = null;
     MMAP.refreshHoods();
-    closeSheet();
+    closeHoodSheet();
     renderHoodList();
     /* Say which of the two things actually happened. With a team project
        configured the split is a PROPOSAL until the server commits it in one
@@ -352,6 +399,28 @@
      the map will paint — with several reps the map takes the FIRST one, in
      the same deterministic order the server uses, and the chip row shows
      the whole set. */
+  /* The chips are fine for four reps and unusable for forty. This opens the
+     searchable picker over them, and hands back the same assignSet the save
+     path below already reads — the panel is a better way to choose, not a
+     second way to save. */
+  function openAssignPanel() {
+    if (!window.MASSIGN) return;
+    const hood = editingId ? STORE.territories.find((x) => x.id === editingId) : null;
+    MASSIGN.open({
+      preselect: assignSet.slice(),
+      subtitle: hood && hood.seq ? "Polygon " + hood.seq
+              : hood ? hood.name : "New polygon — not saved yet",
+      onSave: async (ids) => {
+        assignSet = ids.slice();
+        renderRepChips();
+        // Nothing is written here. A new hood commits its geometry and its
+        // assignment together when the sheet is saved; an existing one goes
+        // through the assignment RPC on the same button. Writing from two
+        // places is how a half-saved hood happens.
+      },
+    });
+  }
+
   function renderRepChips() {
     const on = (id) => assignSet.indexOf(id) >= 0;
     const chips = [
@@ -541,7 +610,7 @@
       : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
     pending = null; editingId = null;
     MMAP.refreshHoods();
-    closeSheet();
+    closeHoodSheet();
     renderHoodList();
     toast(imported && imported.added
       ? `${name} — ${imported.added} doors pinned${who ? ", assigned to " + who : ""}`
@@ -674,6 +743,8 @@
     $("#hood-lasso").addEventListener("click", () => { tick(); startMode("lasso"); });
     $("#draw-cancel").addEventListener("click", () => { tick(); stopMode(); });
     $("#draw-undo").addEventListener("click", () => { tick(); dots.pop(); refreshDraft(); });
+    const ap = $("#hood-assign-open");
+    if (ap) ap.addEventListener("click", () => { tick(); openAssignPanel(); });
     $("#draw-done").addEventListener("click", () => {
       tick();
       if (dots.length < 3) return;
@@ -689,7 +760,7 @@
       tick();
       const t = editingId && STORE.territories.find((x) => x.id === editingId);
       if (!t) return;
-      closeSheet();
+      closeHoodSheet();
       if (window.MTEDIT) await MTEDIT.open(t);
     });
     $("#hood-delete").addEventListener("click", async () => {
@@ -698,7 +769,7 @@
       if (!(await STORE.deleteTerritory(editingId))) return; // storage failure: nothing changed
       editingId = null;
       MMAP.refreshHoods();
-      closeSheet();
+      closeHoodSheet();
       toast("Hood deleted");
     });
     $("#hood-archive").addEventListener("click", async () => {
@@ -708,7 +779,7 @@
       await STORE.updateTerritory(t);
       editingId = null;
       MMAP.refreshHoods();
-      closeSheet();
+      closeHoodSheet();
       renderHoodList();
       toast(t.archived
         ? `${t.name} archived — doors and history are untouched`
@@ -741,7 +812,7 @@
     $("#hd-redraw").addEventListener("click", () => {
       tick();
       const pts = (pending || []).slice();
-      closeSheet();
+      closeHoodSheet();
       startMode("dots");
       dots = pts; // the drawn ring becomes editable corners — undo works
       refreshDraft();

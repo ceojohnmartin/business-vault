@@ -482,6 +482,11 @@
       delete data.assignees;
       delete data.assigneesRev;
       delete data.cycleStartedAt;
+      // v42, same rule: the hood's number, its permanent uuid, and which
+      // outcomes the current reset kept are server columns, not blob fields.
+      delete data.seq;
+      delete data.uuid;
+      delete data.cycleKeep;
       if (data.assignedTo) data.assignedTo = toProfile(data.assignedTo) || data.assignedTo;
       (data.assignments || []).forEach((a) => {
         if (a.userId) a.userId = toProfile(a.userId) || a.userId;
@@ -946,6 +951,24 @@
       const at = Date.parse(row.cycle_started_at);
       if (at && at > (rec.cycleStartedAt || 0)) { rec.cycleStartedAt = at; changed = true; }
     }
+    /* cycle_keep travels WITH the boundary, not on its own clock: it says
+       what the CURRENT boundary exempts, so adopting a new keep-list
+       without the boundary that set it would repaint doors against a cycle
+       that never happened. Both are server-owned; no phone can write
+       either. */
+    if (Array.isArray(row.cycle_keep)) {
+      const next = row.cycle_keep.slice().sort().join(",");
+      if (next !== (rec.cycleKeep || []).slice().sort().join(",")) {
+        rec.cycleKeep = row.cycle_keep.slice();
+        changed = true;
+      }
+    }
+    /* The hood's number and its permanent uuid. Server-assigned on insert
+       and fixed for life, so this is a one-way adoption: a device that has
+       them already never revises them, and a device that does not simply
+       learns them. */
+    if (row.seq != null && rec.seq !== Number(row.seq)) { rec.seq = Number(row.seq); changed = true; }
+    if (row.uuid && rec.uuid !== row.uuid) { rec.uuid = row.uuid; changed = true; }
     return changed;
   }
 

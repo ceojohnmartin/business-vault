@@ -29,3 +29,4 @@ regen APPLY_v41_A.sql 0008_postgis_extension.sql 0009_territory_geometry.sql 001
 regen APPLY_v41_B1.sql 0017_turf_corrections.sql 0014_turf_rpcs.sql
 regen APPLY_v41_B2.sql 0015_smart_split_v41.sql
 regen APPLY_v41_C.sql  0016_turf_overlap.sql
+regen APPLY_v42.sql    0018_territory_properties.sql

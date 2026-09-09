@@ -485,6 +485,57 @@
   // Import eligible properties as unworked doors. Idempotent: a re-run of
   // the same import matches everything and adds nothing, so a retry after
   // a dropped connection can never duplicate a door.
+  /* THE SERVER-SIDE IMPORT — the path a team with a cloud takes.
+
+     The device scans a polygon with whichever property provider is
+     configured and hands the normalised result to the server, which decides
+     what is new. Doing the matching there rather than here is what makes
+     the result the same for everyone: two managers importing overlapping
+     neighbourhoods from two phones cannot each create their own copy of the
+     same house, because they are serialised behind one lock against one set
+     of committed rows.
+
+     Sent in pages, because a neighbourhood can be thousands of doors and a
+     single request that times out mid-way tells you nothing about what
+     landed. Each page carries its own operation id derived from the run's,
+     so a retry of page 3 is answered rather than re-imported.
+
+     Returns { added, matched, outside, unusable, pages } and NEVER writes a
+     pin locally: the doors arrive on the next pull, already carrying the
+     ids the whole team will use. */
+  S.importDoorsServer = async function (props, { territoryId, operationId, onProgress } = {}) {
+    if (!territoryId) throw new Error("import: which hood?");
+    const run = operationId || MDB.uid();
+    const PAGE = 400;
+    let added = 0, matched = 0, outside = 0, unusable = 0, pages = 0;
+    for (let i = 0; i < props.length; i += PAGE) {
+      const slice = props.slice(i, i + PAGE).map((p) => ({
+        // the wire shape the RPC allowlists — nothing else is sent
+        lat: p.lat, lng: p.lng, address: p.address || "",
+        city: p.city || "", state: p.state || "", zip: p.zip || "",
+        source: p.source || "", externalId: p.externalId || "",
+        parcelId: p.parcelId || "", propertyType: p.propertyType || "",
+        owner: p.owner || "", yearBuilt: p.yearBuilt || "",
+        sqft: p.sqft || "", lotSqft: p.lotSqft || "",
+        lastSaleDate: p.lastSaleDate || "", lastSalePrice: p.lastSalePrice || "",
+        placement: p.placement || "",
+      }));
+      const res = await rpc("import_territory_doors", {
+        p_territory_id: territoryId,
+        p_doors: slice,
+        p_operation_id: run + "-" + pages,
+      });
+      const c = (res && res.counts) || {};
+      added += Number(c.inserted || 0);
+      matched += Number(c.matched || 0);
+      outside += Number(c.outside || 0);
+      unusable += Number(c.unusable || 0);
+      pages++;
+      if (onProgress) onProgress(Math.min(i + PAGE, props.length), props.length);
+    }
+    return { added, matched, outside, unusable, pages };
+  };
+
   S.importDoors = async function (props, { territoryId, onProgress } = {}) {
     const idx = S.buildDoorIndex();
     const now = Date.now();
@@ -1769,22 +1820,36 @@
   // may paint, and the only ones the map has an image for
   const OUTCOMES = { unworked: 1, nothome: 1, goback: 1, notint: 1, sold: 1, dnk: 1 };
 
+  /* Outcomes this hood's CURRENT boundary does not apply to. A manager
+     resetting for a re-knock may choose to leave Go Backs purple, because a
+     booked callback is not an unworked door. Server-owned (territories
+     .cycle_keep) and empty by default, which is exactly the behaviour every
+     hood had before it existed. */
+  S.cycleKeep = (t) => (t && Array.isArray(t.cycleKeep) ? t.cycleKeep : []);
+
   S.effectiveDisposition = function (pin, t, facts) {
     const f = facts || S.doorFacts();
     if (S.isCurrentDnk(pin, f)) return "dnk";
     if (S.activeCustomerOf(pin, f)) return "sold";
-    const C = S.cycleStart(t || S.hoodOf(pin));
+    const hood = t || S.hoodOf(pin);
+    const C = S.cycleStart(hood);
     if (C === null) return OUTCOMES[pin.disposition] ? pin.disposition : "unworked";
-    let best = null;
+    const keep = S.cycleKeep(hood);
+    let best = null, kept = null;
     (pin.history || []).forEach((h) => {
       /* Only real OUTCOMES. A dnk_clear is a record of an administrative
          act, not something that happened at the door — and returning it
          here would ask the map for a pin image that does not exist, which
          renders as nothing at all: the door would silently vanish. */
       if (!OUTCOMES[h.disposition]) return;
-      if (h.ts >= C && (!best || h.ts >= best.ts)) best = h;
+      if (h.ts >= C) { if (!best || h.ts >= best.ts) best = h; return; }
+      /* BEFORE the boundary, and an outcome the reset was told to keep. It
+         still loses to anything that happened AFTER — a kept Go Back that
+         has since been knocked is whatever the knock made it. */
+      if (keep.indexOf(h.disposition) >= 0 && (!kept || h.ts >= kept.ts)) kept = h;
     });
-    return best ? best.disposition : "unworked";
+    if (best) return best.disposition;
+    return kept ? kept.disposition : "unworked";
   };
 
   /* Not-home depth for the CURRENT cycle: 1 -> yellow, 2 -> darker,
@@ -1978,6 +2043,67 @@
     }
     await MDB.put("territories", t);
     return t;
+  };
+
+  /* RESET FOR RE-KNOCK — Clear Outcomes, with a choice.
+
+     `keep` names the outcomes this new pass leaves alone; [] is the
+     product default and the behaviour Clear Outcomes always had. Sold and a
+     current do-not-knock are protected by effectiveDisposition whatever is
+     passed.
+
+     `includeDnk` does NOT clear black. It asks the server which doors ARE
+     black, and returns them for the caller to clear one at a time through
+     clearPinDnk() — each with its own reason and its own indelible event.
+     A bulk clear would be one line here and a hole in the only audit trail
+     that says who let a household off a do-not-knock list. */
+  S.resetForReknock = async function (t, keep, includeDnk) {
+    const list = Array.isArray(keep) ? keep.slice() : [];
+    if (!(window.MCLOUD && MCLOUD.enabled())) {
+      // No team server: the device is the record, and it can still do the
+      // part that is purely derived.
+      t.cycleStartedAt = Math.max(t.cycleStartedAt || 0, Date.now());
+      t.cycleKeep = list;
+      await MDB.put("territories", t);
+      return { cycleStartedAt: t.cycleStartedAt, keep: list, dnkPins: [] };
+    }
+    const res = await rpc("reset_territory_outcomes", {
+      p_territory_id: t.id,
+      p_keep: list,
+      p_include_dnk: !!includeDnk,
+      p_operation_id: MDB.uid(),
+    });
+    const server = res && res.cycle_started_at ? Date.parse(res.cycle_started_at) : Date.now();
+    t.cycleStartedAt = Math.max(t.cycleStartedAt || 0, server);
+    t.cycleKeep = (res && Array.isArray(res.keep)) ? res.keep : list;
+    await MDB.put("territories", t);
+    return {
+      cycleStartedAt: t.cycleStartedAt,
+      keep: t.cycleKeep,
+      dnkPins: (res && res.dnk_pins) || [],
+    };
+  };
+
+  /* THE TWO NUMBERS ON THE DRAW CARD — "Polygon 10 of 100", houses, sales.
+     Read from the server so the count is the team's, not this phone's
+     partial copy of it. Falls back to what this device can see when there
+     is no cloud, and says which it gave. */
+  S.territorySummary = async function (t) {
+    if (window.MCLOUD && MCLOUD.enabled()) {
+      try {
+        const res = await rpc("rally_territory_summary", { p_territory_id: t.id });
+        if (res) return Object.assign({ source: "server" }, res);
+      } catch (e) { /* fall through to the local count rather than showing nothing */ }
+    }
+    const live = S.territories.filter((x) => S.isLive(x));
+    const doors = S.pins.filter((p) => !p.deletedAt && S.hoodOf(p) && S.hoodOf(p).id === t.id);
+    return {
+      source: "device",
+      territory_id: t.id, uuid: t.uuid || null,
+      seq: t.seq || null, of: live.length,
+      houses: doors.length,
+      sales: doors.filter((p) => S.activeCustomerOf(p)).length,
+    };
   };
 
   /* CLEAR A DO-NOT-KNOCK — the ONLY route that clears black. The server

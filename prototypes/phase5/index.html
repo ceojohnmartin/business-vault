@@ -1,0 +1,244 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<title>RALLY — Phase 5 map preview (PROTOTYPE)</title>
+<link rel="stylesheet" href="../../rally/vendor/maplibre-gl.css">
+<!-- Outfit embedded as a data URI: the prototype makes ZERO network
+     requests at render time. Production loads the same family from the
+     Google Fonts CDN; nothing about that is changed here. -->
+<link rel="stylesheet" href="font.css">
+<style>
+:root{
+  --bg:#FFFFFF; --s1:#FFFFFF; --s2:#F6F7F9; --s3:#ECEEF2;
+  --line:#E2E4E8; --line-soft:rgba(16,17,20,.09);
+  --accent:#17181A; --accent-btn:#1B1C1E;
+  --sold:#22B558; --sold-ink:#15803D; --nothome:#F5B301; --nothome-ink:#8F6B00;
+  --goback:#7C5CFC; --dnk:#0B0F16; --notint:#E5484D; --notint-ink:#BB2E33;
+  --unworked:#2E86FF;
+  --t1:#101114; --t2:rgba(16,17,20,.72); --t3:rgba(16,17,20,.52);
+  --radius:16px; --radius-sm:12px; --tab-h:64px; --safe-b:env(safe-area-inset-bottom,0px);
+  --glass:rgba(255,255,255,.92);
+  --shadow:0 1px 2px rgba(16,24,40,.06),0 6px 22px rgba(16,24,40,.08);
+  --ui:'Outfit','Helvetica Neue',Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{background:var(--bg);color:var(--t1);font-family:var(--ui);font-size:15.5px;line-height:1.5;
+  position:fixed;inset:0;overflow:hidden;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+.num{font-variant-numeric:tabular-nums}
+
+#map{position:absolute;inset:0;bottom:calc(var(--tab-h) + var(--safe-b))}
+.maplibregl-ctrl-attrib,.maplibregl-ctrl-bottom-right{display:none!important}
+
+/* ---------- TOP BAR: one row. brand + turf + progress ---------- */
+.topbar{position:absolute;left:0;right:0;top:0;z-index:6;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 0;
+  display:flex;gap:8px;align-items:flex-start;pointer-events:none}
+.topbar>*{pointer-events:auto}
+.turfbar{flex:1;min-width:0;display:flex;align-items:center;gap:10px;
+  background:var(--glass);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--line-soft);border-radius:14px;padding:8px 10px 8px 12px;box-shadow:var(--shadow)}
+.rmark{font-weight:800;letter-spacing:.14em;font-size:11px;color:var(--t1);flex:none;
+  padding-right:10px;border-right:1px solid var(--line);align-self:stretch;display:flex;align-items:center}
+.turfsel{flex:1;min-width:0;display:flex;align-items:center;gap:8px;text-align:left}
+.turfsel .hdot{width:10px;height:10px;border-radius:3px;flex:none}
+.turfsel .tt{min-width:0}
+.turfsel .nm{font-weight:700;font-size:14px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.turfsel .sb{font-size:11px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.turfsel .cv{flex:none;color:var(--t3);font-size:13px}
+.prog{flex:none;text-align:right;padding-left:10px;border-left:1px solid var(--line);align-self:stretch;
+  display:flex;flex-direction:column;justify-content:center}
+.prog .big{font-weight:800;font-size:15px;line-height:1}
+.prog .lb{font-size:9.5px;color:var(--t3);letter-spacing:.04em;text-transform:uppercase}
+.pbar{position:absolute;left:12px;right:12px;bottom:-1px;height:2px;border-radius:2px;background:var(--s3);overflow:hidden}
+.pbar>i{display:block;height:100%;background:var(--accent);border-radius:2px}
+
+/* ---------- RIGHT RAIL ---------- */
+.rail{position:absolute;right:12px;z-index:6;display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.fab{width:44px;height:44px;border-radius:13px;background:var(--glass);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--line-soft);
+  display:flex;align-items:center;justify-content:center;color:var(--t2);box-shadow:var(--shadow)}
+.fab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fab:active{transform:scale(.94)}
+.fab.on{background:var(--accent-btn);color:#fff;border-color:var(--accent-btn)}
+.fab.wide{width:auto;padding:0 13px;gap:7px;font-size:13px;font-weight:600;color:var(--t1)}
+
+/* ---------- STATUS PILL ---------- */
+.statuspill{position:absolute;left:50%;transform:translateX(-50%);z-index:7;
+  display:flex;align-items:center;gap:7px;background:var(--accent-btn);color:#fff;
+  border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:600;box-shadow:var(--shadow)}
+.statuspill .d{width:7px;height:7px;border-radius:50%;background:var(--nothome)}
+.statuspill[hidden],.mgbar[hidden],.fab[hidden]{display:none}
+.statuspill.bad{background:var(--notint)}
+.statuspill.bad .d{background:#fff}
+
+/* ---------- TAB BAR ---------- */
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:calc(var(--tab-h) + var(--safe-b));
+  padding-bottom:var(--safe-b);background:rgba(255,255,255,.94);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);display:flex;z-index:20}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font-size:10px;color:var(--t3);font-weight:500}
+.tab svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.tab.sel{color:var(--t1);font-weight:700}
+
+/* ---------- SHEET ---------- */
+/* The door sheet must never black out the map: the rep has to keep seeing
+   where they are standing. The scrim is a tap-catcher first, a dim second. */
+.scrim{position:absolute;inset:0;background:rgba(16,24,40,.06);z-index:80;opacity:0;pointer-events:none;transition:opacity .24s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:90;background:var(--s1);
+  border:1px solid var(--line);border-bottom:none;border-radius:22px 22px 0 0;
+  padding:10px 16px calc(16px + var(--safe-b));max-height:58%;overflow-y:auto;overscroll-behavior:contain;
+  box-shadow:0 -8px 40px rgba(16,24,40,.14);
+  transform:translateY(105%);transition:transform .28s cubic-bezier(.32,.72,.28,1)}
+.sheet.open{transform:translateY(0)}
+.note.lead{border-color:var(--line);background:var(--s2)}
+.grab{width:38px;height:4px;border-radius:2px;background:var(--s3);margin:4px auto 12px}
+
+/* door sheet */
+.dh{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px}
+.dh .a{flex:1;min-width:0}
+.dh .addr{font-size:19px;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+.dh .who{font-size:14px;color:var(--t2);margin-top:1px}
+.dh .co{font-size:11px;color:var(--t3);margin-top:3px}
+.badge{flex:none;display:inline-flex;align-items:center;gap:6px;border-radius:999px;
+  padding:6px 11px;font-size:12px;font-weight:700;background:var(--s2);border:1px solid var(--line)}
+.badge .sw{width:9px;height:9px;border-radius:3px}
+.lastrow{display:flex;gap:8px;align-items:center;background:var(--s2);border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;color:var(--t2);margin-bottom:10px}
+.lastrow b{color:var(--t1);font-weight:600}
+.cbrow{display:flex;gap:9px;align-items:center;background:rgba(245,179,1,.10);
+  border:1px solid rgba(245,179,1,.34);border-radius:var(--radius-sm);
+  padding:10px 12px;font-size:13px;color:var(--nothome-ink);font-weight:600;margin-bottom:10px}
+.dnkbanner{display:flex;gap:9px;align-items:flex-start;background:#111318;color:#fff;
+  border-radius:var(--radius-sm);padding:11px 13px;font-size:13px;margin-bottom:10px;font-weight:600}
+.dnkbanner span.i{flex:none;font-size:14px;line-height:1.3}
+.cbrow .k{flex:none;width:7px;height:7px;border-radius:50%;background:var(--nothome)}
+.sec{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--t3);margin:14px 0 8px}
+.note{background:var(--s2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:10px 12px;font-size:13.5px;color:var(--t2);margin-bottom:7px}
+.note .m{display:block;font-size:11px;color:var(--t3);margin-top:4px}
+.oc{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ocb{height:62px;border-radius:14px;border:1px solid var(--line);background:var(--s1);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  font-size:12px;font-weight:650;color:var(--t1);box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.ocb .sw{width:14px;height:14px;border-radius:5px}
+.ocb:active{transform:scale(.97)}
+.ocb.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.row2{display:flex;gap:8px;margin-top:9px}
+.btn{flex:1;height:48px;border-radius:14px;font-size:14.5px;font-weight:650;
+  display:flex;align-items:center;justify-content:center;gap:7px;border:1px solid var(--line);background:var(--s1)}
+.btn.dark{background:var(--accent-btn);color:#fff;border-color:var(--accent-btn)}
+
+/* leader */
+.mgbar{position:absolute;left:12px;right:12px;bottom:calc(var(--tab-h) + var(--safe-b) + 12px);z-index:8;background:var(--glass);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--line-soft);border-radius:16px;box-shadow:var(--shadow);padding:9px}
+.mgttl{display:flex;align-items:center;justify-content:space-between;padding:1px 4px 8px;
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--t3)}
+.mgttl .x{color:var(--t2);font-size:16px;letter-spacing:0}
+.mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.mgb{height:64px;border-radius:12px;border:1px solid var(--line);background:var(--s1);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  font-size:10.5px;font-weight:600;color:var(--t1);text-align:center;line-height:1.15;padding:0 3px}
+.mgb svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mgb.on{background:var(--accent-btn);color:#fff;border-color:var(--accent-btn)}
+.mgnote{font-size:11px;color:var(--t3);padding:8px 4px 1px;display:flex;gap:6px;align-items:flex-start}
+
+.protobadge{position:absolute;left:14px;top:calc(env(safe-area-inset-top,0px) + 74px);
+  z-index:9;background:rgba(17,19,24,.72);color:#fff;font-size:9px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;padding:3px 8px;border-radius:6px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style></head><body>
+
+<div id="map"></div>
+
+<div class="topbar">
+  <div class="turfbar">
+    <div class="rmark">RALLY</div>
+    <button class="turfsel" id="turfsel">
+      <span class="hdot" id="hdot"></span>
+      <span class="tt"><span class="nm" id="tnm">Hood 14 B</span>
+        <span class="sb" id="tsb">Your turf · 2 reps</span></span>
+      <span class="cv">⌄</span>
+    </button>
+    <div class="prog"><div class="big num" id="pleft">31</div><div class="lb">left</div></div>
+    <div class="pbar"><i id="pfill" style="width:38%"></i></div>
+  </div>
+</div>
+
+<div class="protobadge" id="pbadge">Prototype · demo data</div>
+
+<div class="rail" id="rail">
+  <button class="fab" id="f-search" aria-label="Search an address">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></button>
+  <button class="fab" id="f-turf" aria-label="Back to my turf">
+    <svg viewBox="0 0 24 24"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20V6.5Z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
+  <button class="fab" id="f-loc" aria-label="Center on me">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>
+  <button class="fab" id="f-manage" aria-label="Manage turf" hidden>
+    <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1Z"/></svg></button>
+</div>
+
+<button class="statuspill" id="spill" hidden><span class="d"></span><span id="spilltx"></span></button>
+
+<div class="mgbar" id="mgbar" hidden>
+  <div class="mgttl"><span>Manage turf · Hood 14 B</span><span class="x" id="mgclose">✕</span></div>
+  <div class="mgrid">
+    <button class="mgb on"><svg viewBox="0 0 24 24"><path d="M4 20h16"/><path d="M6 16 16.5 5.5a2.1 2.1 0 0 1 3 3L9 19l-4 1 1-4Z"/></svg>Trace</button>
+    <button class="mgb"><svg viewBox="0 0 24 24"><circle cx="6" cy="7" r="2"/><circle cx="18" cy="7" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="6" cy="18" r="2"/><path d="M8 7h8M18 9v7M16 18H8M6 16V9"/></svg>Corners</button>
+    <button class="mgb"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18"/><circle cx="12" cy="12" r="8.5"/></svg>Split</button>
+    <button class="mgb"><svg viewBox="0 0 24 24"><path d="M16 11V7a4 4 0 0 0-8 0v4"/><rect x="5" y="11" width="14" height="9" rx="2"/></svg>Assign</button>
+  </div>
+  <div class="mgnote"><span>⚠︎</span><span id="mgnote">Snapping to Hood 14 A's edge — <b>tap to accept</b>. The server refuses any overlap above 1.0 m²; nothing is repaired silently.</span></div>
+</div>
+
+<div class="tabbar">
+  <button class="tab"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2"/><circle cx="17" cy="9.5" r="2.6"/><path d="M16 14.6c2.4.1 4 1.7 4.5 4.4"/></svg>Customers</button>
+  <button class="tab sel"><svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-10.2a6.5 6.5 0 1 1 13 0C18.5 15.4 12 21 12 21Z"/><circle cx="12" cy="10.5" r="2.4"/></svg>Map</button>
+  <button class="tab"><svg viewBox="0 0 24 24"><path d="M4 12h4l2.5-6 3 12 2.5-6h4"/></svg>Route</button>
+  <button class="tab"><svg viewBox="0 0 24 24"><path d="M5 20v-7M12 20V5M19 20v-11"/></svg>Leaderboard</button>
+  <button class="tab"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>More</button>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="door">
+  <div class="grab"></div>
+  <div id="dnkslot"></div>
+  <div class="dh">
+    <div class="a">
+      <div class="addr" id="d-addr">412 Magnolia Ave</div>
+      <div class="who" id="d-who">R. Boudreaux</div>
+      <div class="co num" id="d-co">Hood 14 B · 30.22401, −92.04013</div>
+    </div>
+    <span class="badge" id="d-badge"><span class="sw"></span><span></span></span>
+  </div>
+  <div class="lastrow" id="d-last"></div>
+  <div id="d-cbslot"></div>
+  <!-- the last note earns its place above the outcome buttons: it is the
+       single most useful thing a rep reads before they knock -->
+  <div id="d-noteslot"></div>
+  <div class="sec">What happened?</div>
+  <div class="oc">
+    <button class="ocb" data-d="nothome"><span class="sw" style="background:var(--nothome)"></span>Not home</button>
+    <button class="ocb" data-d="notint"><span class="sw" style="background:var(--notint)"></span>Not interested</button>
+    <button class="ocb" data-d="goback"><span class="sw" style="background:var(--goback)"></span>Go back</button>
+    <button class="ocb" data-d="sold"><span class="sw" style="background:var(--sold)"></span>Sold</button>
+    <button class="ocb" data-d="dnk"><span class="sw" style="background:var(--dnk)"></span>Do not knock</button>
+    <button class="ocb" data-d="note"><span class="sw" style="background:var(--s3)"></span>Note only</button>
+  </div>
+  <div class="row2">
+    <button class="btn" id="d-note">+ Note</button>
+    <button class="btn" id="d-cb">Callback</button>
+  </div>
+  <div class="row2"><button class="btn dark" id="d-sold">Sold — create customer</button></div>
+  <div class="sec">History</div>
+  <div id="d-hist"></div>
+</div>
+
+<script src="../../rally/vendor/maplibre-gl.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body></html>

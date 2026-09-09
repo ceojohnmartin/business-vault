@@ -58,6 +58,7 @@ mk() { # $1 id  $2 ring — insert a live hood as the leader would
 
 FPROWS="select md5((select md5(string_agg((team_id::text||id||name||polygon::text||coalesce(homes::text,'')||archived||coalesce(deleted_at::text,'')||data::text||assignees::text||assignees_rev||open_assignees::text||coalesce(cycle_started_at::text,'')||coalesce(geom::text,'')), '|' order by team_id, id)) from public.territories) || (select coalesce(md5(string_agg((team_id::text||id||disposition||data::text||coalesce(deleted_at::text,'')), '|' order by team_id, id)),'') from public.pins) || (select coalesce(md5(string_agg((team_id::text||id||type||coalesce(disposition,'')||data::text), '|' order by team_id, id)),'') from public.events))"
 FPASSIGN="select md5(string_agg(team_id::text||id||assignees::text||assignees_rev::text||open_assignees::text, '|' order by team_id, id)) from public.territories"
+FPSTAMP="select md5(string_agg(id||updated_at::text, '|' order by id)) from public.territories"
 
 build() {
   psql -q -v ON_ERROR_STOP=1 -d postgres -c "drop database if exists $DB" -c "create database $DB" >/dev/null
@@ -75,6 +76,8 @@ build() {
 echo "=== building production's current state ==="
 build
 BEFORE_ROWS=$(q "$FPROWS"); BEFORE_ASSIGN=$(q "$FPASSIGN")
+BEFORE_STAMP=$(q "$FPSTAMP")
+BEFORE_PINSTAMP=$(q "select coalesce(md5(string_agg(id||updated_at::text,'|' order by id)),'(none)') from public.pins")
 FLAG=$(q "select assignment_server_authoritative from public.rally_config")
 eq "0. the base is production: the flip is live" "$FLAG" "t"
 
@@ -87,6 +90,18 @@ echo "=== 1. THE APPLY ITSELF ==="
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../APPLY_v42.sql" >/dev/null 2>&1 \
   && ok "1a. APPLY_v42.sql applies as ONE transaction" || bad "1a. APPLY_v42.sql applies as ONE transaction" "psql error"
 eq "1b. not one territory, pin or event row changed" "$(q "$FPROWS")" "$BEFORE_ROWS"
+# updated_at is NOT in that fingerprint, and it is the one thing that must
+# move: the client pulls territories on an updated_at cursor, so a row whose
+# stamp did not change is a row no phone ever asks for again — seq and uuid
+# would exist on the server and nowhere else.
+if [ "$(q "$FPSTAMP")" = "$BEFORE_STAMP" ]; then
+  bad "1b2. every territory's updated_at moved, so the new columns reach devices" \
+      "the stamps are unchanged — no phone would ever pull the new columns"
+else
+  ok "1b2. every territory's updated_at moved, so the new columns reach devices"
+fi
+eq "1b3. and no PIN row was touched at all" \
+   "$(q "select coalesce(md5(string_agg(id||updated_at::text,'|' order by id)),'(none)') from public.pins")" "$BEFORE_PINSTAMP"
 eq "1c. the assignment ledger is byte-identical"    "$(q "$FPASSIGN")" "$BEFORE_ASSIGN"
 psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../APPLY_v42.sql" >/dev/null 2>&1 \
   && ok "1d. applying it twice succeeds" || bad "1d. applying it twice succeeds" "psql error"
@@ -147,21 +162,45 @@ eq  "3g. still two doors" "$(q "select count(*) from public.pins where territory
 
 echo
 echo "=== 4. THE IMPORT: NEVER A SECOND PIN FOR ONE PROPERTY ==="
+# EVERY FIXTURE BELOW IS PLACED SO THAT ONLY THE TIER UNDER TEST CAN MATCH.
+# The first version of this section put the "tier 3" door 4 cm from its
+# target, which is also inside tier 4's 12 m radius — so it passed whether
+# tier 3 existed or not. 40 m is outside tier 4 and inside tier 3; the
+# negative cases below pin the far edge of each bound.
 R=$(as_lead "select public.import_territory_doors('t-imp','$IN'::jsonb,'op-2')")
 has "4a. tier 1 — the provider's own id matches" "$R" '"inserted": 0'
 eq  "4b. still two doors" "$(q "select count(*) from public.pins where territory_id='t-imp'")" "2"
-MOVED='[{"lat":41.00105,"lng":6.00105,"address":"1 A St RENAMED","source":"regrid","externalId":"other","parcelId":"P-9"}]'
+
 psql -X -q -d "$DB" -c "update public.pins set data = jsonb_set(data,'{prop,parcelId}','\"P-9\"') where territory_id='t-imp' and address='1 A St'" >/dev/null
+# 40 m away, a different provider and a different address — so tier 1, tier 3
+# and tier 4 are all excluded and ONLY the parcel number can match.
+MOVED='[{"lat":41.001362,"lng":6.001,"address":"1 A St RENAMED","source":"regrid","externalId":"other","parcelId":"P-9"}]'
 R=$(as_lead "select public.import_territory_doors('t-imp','$MOVED'::jsonb,'op-3')")
-has "4c. tier 2 — a different provider, same parcel, matches" "$R" '"inserted": 0'
-NEARBY='[{"lat":41.0020004,"lng":6.0020004,"address":"2 A St","source":"melissa","externalId":"m1"}]'
+has "4c. tier 2 — a different provider 40 m away, same parcel, matches" "$R" '"inserted": 0'
+
+# 40 m away, same address, no parcel and an unknown provider — only tier 3.
+NEARBY='[{"lat":41.002362,"lng":6.002,"address":"2 A St","source":"melissa","externalId":"m1"}]'
 R=$(as_lead "select public.import_territory_doors('t-imp','$NEARBY'::jsonb,'op-4')")
-has "4d. tier 3 — same address a few metres away matches" "$R" '"inserted": 0'
+has "4d. tier 3 — same address 40 m away matches" "$R" '"inserted": 0'
+
+# no address, no ids, half a metre away — only tier 4 can catch this one.
 BARE='[{"lat":41.0010005,"lng":6.0010005,"source":"osm2","externalId":"z9"}]'
 R=$(as_lead "select public.import_territory_doors('t-imp','$BARE'::jsonb,'op-5')")
 has "4e. tier 4 — a bare centroid on a known roof matches" "$R" '"inserted": 0'
 eq  "4f. after four re-imports there are still exactly two doors" \
     "$(q "select count(*) from public.pins where territory_id='t-imp'")" "2"
+
+# THE FAR EDGE OF EACH BOUND. A matcher that matches everything is not a
+# matcher; these prove the distances are real and that a genuinely new house
+# still gets its own pin.
+FAR3='[{"lat":41.003809,"lng":6.002,"address":"2 A St","source":"melissa","externalId":"m2"}]'
+R=$(as_lead "select public.import_territory_doors('t-imp','$FAR3'::jsonb,'op-4b')")
+has "4g. tier 3 stops at 120 m — the same street number 200 m away is a NEW house" "$R" '"inserted": 1'
+FAR4='[{"lat":41.001271,"lng":6.001,"source":"osm3","externalId":"z10"}]'
+R=$(as_lead "select public.import_territory_doors('t-imp','$FAR4'::jsonb,'op-5b')")
+has "4h. tier 4 stops at 12 m — a bare centroid 30 m away is a NEW house" "$R" '"inserted": 1'
+eq  "4i. so the two genuinely new houses were created, and only those" \
+    "$(q "select count(*) from public.pins where territory_id='t-imp'")" "4"
 
 echo
 echo "=== 5. THE IMPORT: WHAT IT REFUSES ==="
@@ -170,9 +209,29 @@ R=$(as_lead "select public.import_territory_doors('t-imp','$OUT'::jsonb,'op-6')"
 has "5a. a door outside the polygon is rejected"  "$R" '"outside": 1'
 has "5b. and not created"                          "$R" '"inserted": 0'
 eq  "5c. it exists nowhere" "$(q "select count(*) from public.pins where address='far away'")" "0"
+# COORDINATE FORMATS THE IMPORT MUST ACCEPT. The first guard here was a
+# regex that capped the fraction at 15 digits and rejected exponents, so a
+# provider sending an ordinary high-precision centroid lost its house
+# silently. Each of these is a legitimate coordinate inside the polygon.
+PREC='[{"lat":41.0031234567890123,"lng":6.0031234567890123,"source":"p","externalId":"prec-1"},
+       {"lat":"41.00325","lng":"6.00325","source":"p","externalId":"prec-2"},
+       {"lat":4.100335e1,"lng":6.00335,"source":"p","externalId":"prec-3"},
+       {"lat":41,"lng":6.0034,"source":"p","externalId":"prec-4"}]'
+R=$(as_lead "select public.import_territory_doors('t-imp','$PREC'::jsonb,'op-prec')")
+has "5h. a 16-digit centroid, a string, exponent notation and a bare integer are all read" \
+    "$R" '"unusable": 0'
+has "5i. and none of them was silently dropped" "$R" '"inserted": 4'
+
 JUNK='[{"lat":"nope","lng":6.001},{"lat":91,"lng":6.001},{"lng":6.001}]'
 R=$(as_lead "select public.import_territory_doors('t-imp','$JUNK'::jsonb,'op-7')")
 has "5d. unusable coordinates are counted, never guessed" "$R" '"unusable": 3'
+# RESIDENTIAL ONLY — the server checks, it does not take the client's word.
+NONRES='[{"lat":41.0005,"lng":6.0005,"address":"Parish School","source":"osm","externalId":"school-1","eligible":false}]'
+R=$(as_lead "select public.import_territory_doors('t-imp','$NONRES'::jsonb,'op-7b')")
+has "5d2. a door the provider judged non-residential is refused" "$R" '"ineligible": 1'
+has "5d3. and not created"                                       "$R" '"inserted": 0'
+eq  "5d4. it exists nowhere" "$(q "select count(*) from public.pins where address='Parish School'")" "0"
+
 R=$(as_lead "select public.import_territory_doors('t-imp','{}'::jsonb,'op-8')")
 has "5e. a non-array payload is refused" "$R" "must be an array"
 R=$(as_lead "select public.import_territory_doors('nope','$IN'::jsonb,'op-9')")
@@ -194,6 +253,24 @@ eq "6a. a re-import does not reset a worked door" \
    "$(q "select disposition from public.pins where id='$PIN'")" "notint"
 eq "6b. and does not touch its history" \
    "$(q "select jsonb_array_length(data->'history') from public.pins where id='$PIN'")" "1"
+# THE RE-STAMP, IN BOTH DIRECTIONS. A matched door joins the hood it was
+# imported into only when it does not already belong to a LIVE one.
+psql -X -q -d "$DB" -c "insert into public.pins (team_id, id, lat, lng, address, disposition, territory_id, data, created_by)
+  values ('$TEAM','orphan-1',41.0025,6.0025,'7 Orphan St','unworked',null,
+          '{\"prop\":{\"source\":\"osm\",\"externalId\":\"orphan-w\"}}'::jsonb,'$LEAD')" >/dev/null
+R=$(as_lead "select public.import_territory_doors('t-imp','[{\"lat\":41.0025,\"lng\":6.0025,\"source\":\"osm\",\"externalId\":\"orphan-w\"}]'::jsonb,'op-11b')")
+eq "6d. a matched door with NO hood is adopted by the one being imported" \
+   "$(q "select territory_id from public.pins where id='orphan-1'")" "t-imp"
+
+mk t-arch "$(sq 6.020 41.0 0.004)"
+psql -X -q -d "$DB" -c "update public.territories set archived = true where team_id='$TEAM' and id='t-arch'" >/dev/null
+psql -X -q -d "$DB" -c "insert into public.pins (team_id, id, lat, lng, address, disposition, territory_id, data, created_by)
+  values ('$TEAM','stranded-1',41.0026,6.0026,'8 Stranded St','unworked','t-arch',
+          '{\"prop\":{\"source\":\"osm\",\"externalId\":\"stranded-w\"}}'::jsonb,'$LEAD')" >/dev/null
+R=$(as_lead "select public.import_territory_doors('t-imp','[{\"lat\":41.0026,\"lng\":6.0026,\"source\":\"osm\",\"externalId\":\"stranded-w\"}]'::jsonb,'op-11c')")
+eq "6e. a door stranded in an ARCHIVED hood is adopted too" \
+   "$(q "select territory_id from public.pins where id='stranded-1'")" "t-imp"
+
 mk t-other "$(sq 6.010 41.0 0.004)"
 R=$(as_lead "select public.import_territory_doors('t-other','[{\"lat\":41.001,\"lng\":6.001,\"source\":\"osm\",\"externalId\":\"w1\"}]'::jsonb,'op-12')")
 eq "6c. an import cannot steal a door out of another live hood" \
@@ -219,26 +296,110 @@ eq "7d. the raw vendor object is not stored either" \
    "$(q "select (data->'prop' ? 'raw')::text from public.pins where address='9 Allow St'")" "false"
 
 echo
+echo "=== 7b. AN ACTIVITY ROW SAYS WHERE AND WHAT IT CHANGED ==="
+# Exactly the payload js/sync.js builds today: eight columns, no territory_id,
+# no prev_disposition, everything else in the blob. A v37 or v40 phone that
+# will never be rebuilt sends this too. The server must fill both columns.
+psql -X -q -d "$DB" -c "update public.pins set
+  data = jsonb_set(data,'{history}','[{\"ts\":1700000000000,\"disposition\":\"nothome\"},
+                                      {\"ts\":1700000500000,\"disposition\":\"goback\"},
+                                      {\"ts\":1700009999999,\"disposition\":\"dnk_clear\"}]')
+  where team_id='$TEAM' and id='$PIN'" >/dev/null
+psql -X -q -d "$DB" -c "insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+  values ('$TEAM','ev-ctx-1','$PIN','knock','notint',1700001000000,'$JOHN',
+          '{\"id\":\"ev-ctx-1\",\"pinId\":\"$PIN\",\"disposition\":\"notint\",\"territoryId\":\"t-imp\"}'::jsonb)" >/dev/null
+eq "7b1. the hood is filled from what the client already sends" \
+   "$(q "select territory_id from public.events where id='ev-ctx-1'")" "t-imp"
+eq "7b2. the previous status is derived from the door's own history" \
+   "$(q "select prev_disposition from public.events where id='ev-ctx-1'")" "goback"
+
+# with no territoryId in the blob at all, the door's own stamp answers
+psql -X -q -d "$DB" -c "insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+  values ('$TEAM','ev-ctx-2','$PIN','knock','sold',1700002000000,'$JOHN',
+          '{\"id\":\"ev-ctx-2\",\"pinId\":\"$PIN\",\"disposition\":\"sold\"}'::jsonb)" >/dev/null
+eq "7b3. a blob with no hood falls back to the door's stamp" \
+   "$(q "select territory_id from public.events where id='ev-ctx-2'")" "t-imp"
+
+# a dnk_clear is an administrative act, not a previous STATUS
+psql -X -q -d "$DB" -c "insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+  values ('$TEAM','ev-ctx-3','$PIN','knock','nothome',1700099999999,'$JOHN',
+          '{\"id\":\"ev-ctx-3\",\"pinId\":\"$PIN\",\"disposition\":\"nothome\"}'::jsonb)" >/dev/null
+eq "7b4. a dnk_clear is never reported as a previous status" \
+   "$(q "select prev_disposition from public.events where id='ev-ctx-3'")" "goback"
+
+# the very first knock at a door has no previous status, and must say so
+# rather than inventing one
+psql -X -q -d "$DB" -c "insert into public.pins (team_id, id, lat, lng, address, disposition, territory_id, data, created_by)
+  values ('$TEAM','fresh-door',41.0015,6.0015,'5 Fresh St','unworked','t-imp',
+          '{\"history\":[]}'::jsonb,'$LEAD')" >/dev/null
+psql -X -q -d "$DB" -c "insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+  values ('$TEAM','ev-ctx-4','fresh-door','knock','nothome',1700003000000,'$JOHN',
+          '{\"id\":\"ev-ctx-4\",\"pinId\":\"fresh-door\",\"disposition\":\"nothome\"}'::jsonb)" >/dev/null
+eq "7b5. a first knock has no previous status and does not invent one" \
+   "$(q "select coalesce(prev_disposition,'(null)') from public.events where id='ev-ctx-4'")" "(null)"
+
+# an RPC that already knows the answer keeps its own value
+eq "7b6. a value the caller supplied is never overwritten" \
+   "$(q "select territory_id from public.events where type='territory_import' limit 1")" "t-imp"
+
+# and malformed history must not break a knock
+psql -X -q -d "$DB" -c "update public.pins set data='\"a-scalar\"'::jsonb where team_id='$TEAM' and id='fresh-door'" >/dev/null
+OUT=$(psql -X -d "$DB" -tAc "insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user, data)
+  values ('$TEAM','ev-ctx-5','fresh-door','knock','notint',1700004000000,'$JOHN','{}'::jsonb)" 2>&1 || true)
+case "$OUT" in
+  *ERROR*) bad "7b7. a door whose data is a JSON scalar does not break the knock" "$OUT";;
+  *) ok "7b7. a door whose data is a JSON scalar does not break the knock";;
+esac
+
+echo
 echo "=== 8. RESET FOR RE-KNOCK ==="
 BEFORE_HIST=$(q "select data->'history' from public.pins where id='$PIN'")
-R=$(as_lead "select public.reset_territory_outcomes('t-imp','{}'::text[],false,'r-1')")
-has "8a. a leader can reset"                 "$R" '"status": "ok"'
+R=$(as_lead "select public.reset_territory_outcomes('t-imp','{nothome,notint,goback}'::text[],false,'r-1')")
+has "8a. a leader can reset the three ordinary outcomes"  "$R" '"status": "ok"'
 C1=$(q "select cycle_started_at from public.territories where id='t-imp'")
 eq  "8b. the boundary moved"                 "$(q "select (cycle_started_at is not null)::text from public.territories where id='t-imp'")" "true"
 eq  "8c. no door was written"                "$(q "select data->'history' from public.pins where id='$PIN'")" "$BEFORE_HIST"
 eq  "8d. and its stored outcome is untouched" "$(q "select disposition from public.pins where id='$PIN'")" "notint"
 eq  "8e. the reset is in the activity log" \
     "$(q "select count(*) from public.events where type='territory_reset' and territory_id='t-imp'")" "1"
-R=$(as_lead "select public.reset_territory_outcomes('t-imp','{}'::text[],false,'r-1')")
-has "8f. the same operation id is answered, not re-run" "$R" "already_committed"
-eq  "8g. the boundary did not move again" "$(q "select cycle_started_at from public.territories where id='t-imp'")" "$C1"
-R=$(as_lead "select public.reset_territory_outcomes('t-imp','{goback,sold}'::text[],false,'r-2')")
-eq  "8h. a chosen keep-list is recorded" \
-    "$(q "select cycle_keep::text from public.territories where id='t-imp'")" "{goback,sold}"
+
+# THE INVERSION THAT MATTERS. The manager ticks what BECOMES BLUE; the column
+# stores the complement. Getting this backwards would blank a worked hood.
+# dnk is always in the complement: it can never appear in the ticked list.
+eq  "8f. the column stores the COMPLEMENT of what was ticked" \
+    "$(q "select cycle_keep::text from public.territories where id='t-imp'")" "{dnk,sold,unworked}"
+R=$(as_lead "select public.reset_territory_outcomes('t-imp','{}'::text[],false,'r-1b')")
+eq  "8g. ticking NOTHING keeps every outcome — the empty list is not 'reset everything'" \
+    "$(q "select cycle_keep::text from public.territories where id='t-imp'")" "{dnk,goback,nothome,notint,sold,unworked}"
+
+R=$(as_lead "select public.reset_territory_outcomes('t-imp','{nothome,notint,goback}'::text[],false,'r-1')")
+has "8h. the same operation id is answered, not re-run" "$R" "already_committed"
+
 R=$(as_lead "select public.reset_territory_outcomes('t-imp','{banana}'::text[],false,'r-3')")
 has "8i. a bogus outcome name is refused" "$R" "is not an outcome"
-R=$(as_rep "select public.reset_territory_outcomes('t-imp','{}'::text[],false,'r-4')")
-has "8j. a rep cannot reset" "$R" "requires leader"
+# the four-letter TEXT "NULL", not a null — it is simply not an outcome
+R=$(as_lead "select public.reset_territory_outcomes('t-imp','{nothome,\"NULL\"}'::text[],false,'r-3b')")
+has "8j. the literal text NULL is treated as a typo, not a wildcard" "$R" "is not an outcome"
+R=$(as_lead "select public.reset_territory_outcomes('t-imp',array['nothome',null]::text[],false,'r-3c')")
+has "8k. a real SQL null in the list is refused too" "$R" "contains a null"
+R=$(as_lead "select public.reset_territory_outcomes('t-imp','{dnk}'::text[],false,'r-3d')")
+has "8l. ticking do-not-knock is refused and says where to go instead" "$R" "clear_pin_dnk"
+R=$(as_lead "select public.reset_territory_outcomes('t-imp','{sold}'::text[],false,'r-3e')")
+has "8m. ticking Sold is accepted, with a note that a live agreement still wins" "$R" "live agreement"
+R=$(as_rep "select public.reset_territory_outcomes('t-imp','{nothome}'::text[],false,'r-4')")
+has "8n. a rep cannot reset" "$R" "requires leader"
+
+# A KEEP-LIST BELONGS TO ITS BOUNDARY. The plain Clear Outcomes button (0014,
+# untouched by v42) moves the boundary and knows nothing about a keep-list;
+# the stamp is what stops March's exemption surviving April's clear.
+as_lead "select public.reset_territory_outcomes('t-imp','{nothome}'::text[],false,'r-6')" >/dev/null
+eq "8o. a selective reset stamps the keep-list with its own boundary" \
+   "$(q "select (cycle_keep_at = cycle_started_at)::text from public.territories where id='t-imp'")" "true"
+as_lead "select public.start_territory_cycle('t-imp', null, 'cyc-1')" >/dev/null
+eq "8p. a later plain Clear Outcomes leaves the stamp behind..." \
+   "$(q "select (cycle_keep_at < cycle_started_at)::text from public.territories where id='t-imp'")" "true"
+R=$(as_lead "select public.rally_territory_summary('t-imp')")
+has "8q. ...so the summary stops reporting a keep-list that no longer applies" "$R" '"cycle_keep": []'
 
 echo
 echo "=== 9. RESET DOES NOT CLEAR BLACK ==="

@@ -11,8 +11,26 @@ with
 -- 1. Is this the database v42 expects? 0001-0017 applied, flip live.
 base as (
   select
-    (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-      where n.nspname = 'public') as fns,
+    /* NOT a count of everything in public — that probe was BLIND. Dropping
+       clear_pin_dnk on a replica left the total at 57, still >= 43, and the
+       preflight still said READY. It counts how many of the 43 NAMED Stage
+       A/B/C functions are present, which is the question. The list is the
+       same one APPLY_v41_FLIP.sql asserts on, copied verbatim. */
+    (select count(*) from unnest(array[
+       'rally_ring_read','rally_ring_to_geom','rally_ring_problem','territories_derive_geom',
+       'rally_capabilities','rally_ms','rally_uid','rally_uid_uuid','rally_sort_entries',
+       'rally_open_entries','rally_first_open_assignee','rally_open_uuids','rally_mirror_assignments',
+       'rally_assert_ledger','rally_keep_closed_history','rally_merge_provenance','territories_assignment',
+       'rally_legacy_to_entries','rally_close_duplicate_opens','rally_unresolved_live_assignments',
+       'rally_config_guard','rally_dnk_from_history','rally_strip_forged_clears','pins_protect_dnk',
+       'events_guard_dnk_clear',
+       'rally_keep_open_history','rally_keep_server_clears','rally_require_leader','rally_my_team',
+       'rally_diff_assignees','rally_validate_assignees','set_territory_assignments','save_territory',
+       'start_territory_cycle','clear_pin_dnk','rally_split_inherit','rally_split_strip_children',
+       'smart_split_territory_v41','smart_split_territory','smart_split_territory_core',
+       'rally_overlap_tolerance_m2','rally_overlap_m2','assert_no_turf_overlap']) nm
+      where exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                     where n.nspname = 'public' and p.proname = nm)) as fns,
     (select assignment_server_authoritative from public.rally_config) as flag,
     (select count(*) from pg_trigger
       where tgrelid = 'public.territories'::regclass
@@ -69,9 +87,11 @@ noGeom as (
 )
 
 select * from (
-  select 1 as ord, 'base: public functions'          as probe,
-         b.fns::text as value,
-         case when b.fns >= 43 then 'PASS' else 'FAIL — expected at least 43' end as verdict from base b
+  select 1 as ord, 'base: the 43 named v41 functions'  as probe,
+         b.fns::text || ' of 43' as value,
+         case when b.fns = 43 then 'PASS'
+              else 'FAIL — ' || (43 - b.fns)::text || ' missing; this is not the database v42 expects'
+         end as verdict from base b
   union all
   select 2, 'base: assignment_server_authoritative', coalesce(b.flag::text,'(null)'),
          case when b.flag then 'PASS' else 'FAIL — v42 assumes the flip is live' end from base b
@@ -109,7 +129,7 @@ select * from (
   select 99, 'VERDICT',
          '',
          case
-           when (select fns from base) < 43
+           when (select fns from base) <> 43
              or (select flag from base) is not true
              or (select trg from base) <> 3
              or (select t_cols from already) not in (0,3)

@@ -23,6 +23,13 @@
 --   Any activity row. events.territory_id and events.prev_disposition are
 --   dropped as columns; the rows themselves are append-only and remain.
 --
+--   THE EFFECT OF A SELECTIVE RESET. Dropping cycle_keep does not move a
+--   door, but it changes what the map PAINTS: a hood whose last reset kept
+--   Go Backs purple loses that exemption, and every kept door goes back to
+--   blue at the next repaint. No history is lost and the boundary itself is
+--   untouched, so re-applying v42 and re-running the reset restores it —
+--   but between the rollback and that re-run, reps see a different map.
+--
 -- WHAT IT DOES RESTORE EXACTLY: the function catalog, the trigger set, the
 -- index set, and the column privileges as they were before v42.
 
@@ -32,9 +39,13 @@ begin;
 drop trigger if exists territories_number on public.territories;
 drop function if exists public.territories_number();
 
+drop trigger if exists events_derive_context on public.events;
+drop function if exists public.events_derive_context();
+
 drop function if exists public.import_territory_doors(text, jsonb, text);
 drop function if exists public.reset_territory_outcomes(text, text[], boolean, text);
 drop function if exists public.rally_territory_summary(text);
+drop function if exists public.rally_num(text);
 
 drop index if exists public.pins_point_live_gist;
 drop index if exists public.pins_provenance_live_idx;
@@ -47,6 +58,7 @@ alter table public.territories drop constraint if exists territories_uuid_uniq;
 -- grants in §I of 0018 need no separate revoke.
 alter table public.events       drop column if exists prev_disposition;
 alter table public.events       drop column if exists territory_id;
+alter table public.territories  drop column if exists cycle_keep_at;
 alter table public.territories  drop column if exists cycle_keep;
 alter table public.territories  drop column if exists uuid;
 alter table public.territories  drop column if exists seq;
@@ -58,8 +70,9 @@ begin
   select string_agg(name, ', ') into v_left from (
     select p.proname as name from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public'
-       and p.proname in ('territories_number','import_territory_doors',
-                         'reset_territory_outcomes','rally_territory_summary')
+       and p.proname in ('territories_number','events_derive_context','rally_num',
+                         'import_territory_doors','reset_territory_outcomes',
+                         'rally_territory_summary')
     union all
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public'
@@ -68,7 +81,7 @@ begin
     select a.attname from pg_attribute a
      where a.attrelid in ('public.territories'::regclass, 'public.events'::regclass)
        and not a.attisdropped and a.attnum > 0
-       and a.attname in ('seq','uuid','cycle_keep','territory_id','prev_disposition')
+       and a.attname in ('seq','uuid','cycle_keep','cycle_keep_at','territory_id','prev_disposition')
   ) x;
   if v_left is not null then
     raise exception 'ROLLBACK_v42: these v42 objects are still present (%)', v_left;

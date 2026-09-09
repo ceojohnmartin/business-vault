@@ -2,10 +2,23 @@
 -- SELECTIVE RE-KNOCK.
 --
 -- Everything here is ADDITIVE. No table is rewritten, no existing column
--- changes type, no trigger body is replaced, no policy is dropped, and NOT
--- ONE EXISTING ROW is modified except by the two explicit backfills in §B,
--- which write only columns this file creates. Applying it twice changes
+-- changes type, no trigger body is replaced, no policy is dropped, and no
+-- existing row's MEANING changes: after this file runs, every territory,
+-- pin and event row still says exactly what it said before, byte for byte,
+-- across name, polygon, geom, data, the assignee ledger, its revision, the
+-- open-assignee mirror and the cycle boundary. Applying it twice changes
 -- nothing.
+--
+-- ONE THING DOES MOVE, AND IT IS LOAD-BEARING. The §J backfill is an UPDATE,
+-- so territories_touch bumps updated_at on every territory row. That is not
+-- a side effect to be apologised for — it is the ONLY reason the new columns
+-- ever reach a phone. js/sync.js pulls with a cursor on updated_at; a row
+-- whose stamp did not move is a row no device ever asks for again, so seq
+-- and uuid would exist on the server and nowhere else. The cost is one extra
+-- page of territories per device on the first sync after the apply, applied
+-- idempotently by mergeServerOwned. Territories are counted in tens.
+--
+-- No pin row and no event row is touched at all, by anything in this file.
 --
 -- ---------------------------------------------------------------------------
 -- WHY THE SHAPE OF THIS FILE IS UNUSUAL
@@ -72,10 +85,12 @@
 
 alter table public.territories add column if not exists seq  bigint;
 alter table public.territories add column if not exists uuid uuid;
--- §C's column, added here so that ALL of this table's DDL precedes any
+-- §C's columns, added here so that ALL of this table's DDL precedes any
 -- write to it. See the note under the default below.
 alter table public.territories
   add column if not exists cycle_keep text[] not null default '{}';
+alter table public.territories
+  add column if not exists cycle_keep_at timestamptz;
 
 alter table public.territories alter column uuid set default gen_random_uuid();
 
@@ -164,7 +179,21 @@ create trigger territories_number
    Empty — the default, and therefore the behaviour of every hood already on
    production — means exactly what happens today. It is derived, additive
    and reversible: clearing the array restores the plain boundary, and no
-   door was ever written either way. */
+   door was ever written either way.
+
+   `cycle_keep_at` IS WHAT STOPS IT GOING STALE, and it is not decoration.
+   start_territory_cycle — the ordinary "Clear Outcomes" button, live since
+   0014 and NOT modified by this file — moves cycle_started_at and knows
+   nothing about a keep-list. Without a stamp, a manager who did a selective
+   reset in March and then pressed plain Clear Outcomes in April would still
+   have March's Go Backs held purple, because the array would still be
+   sitting there. So the keep-list applies ONLY while the boundary it was
+   written with is still the current one:
+
+       cycle_keep counts  <=>  cycle_keep_at >= cycle_started_at
+
+   Any later boundary from any other path silently retires it, which is
+   exactly what "clear outcomes" should mean. */
 -- (the column itself is added in §B, with the rest of this table's DDL)
 
 -- ================================================ D. ACTIVITY COMPLETENESS ===
@@ -184,6 +213,88 @@ create trigger territories_number
    would put a derived guess in an append-only log. */
 alter table public.events add column if not exists territory_id     text;
 alter table public.events add column if not exists prev_disposition text;
+
+/* AND SOMETHING HAS TO FILL THEM.
+
+   The first draft of this file added the columns and stopped, which left
+   two columns that were NULL on every row forever: js/sync.js builds the
+   events payload from a fixed list — team_id, id, pin_id, type, disposition,
+   at_ms, by_user, data — and nothing was going to put a value in either.
+
+   Adding them to that payload is the obvious fix and the wrong one. A client
+   that sent a column the server did not have yet would take a 400 from
+   PostgREST and dead-letter the whole batch of knocks, so it would create a
+   hard ordering dependency between a migration and a published build — and
+   a v37 or v40 phone, which will never be rebuilt, would never fill them at
+   all.
+
+   So the server fills them, from data it already holds:
+
+     territory_id      the client has sent data->>'territoryId' on every
+                       knock since v39; failing that, the door's own stamp.
+     prev_disposition  the most recent OUTCOME in the door's history strictly
+                       before this event. Derived rather than reported,
+                       because by the time an event is pushed the pin row
+                       already carries the new outcome — the push order is
+                       territories, pins, then events — so "what it was" is
+                       not observable from the pin at that moment.
+
+   It only ever fills a NULL. An RPC that already knows the answer — the
+   import and the reset below both do — keeps the value it supplied. */
+create or replace function public.events_derive_context()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_hist jsonb;
+  v_best jsonb;
+  v_e    jsonb;
+  v_ts   bigint;
+  v_best_ts bigint := null;
+begin
+  if new.pin_id is null then return new; end if;
+
+  if new.territory_id is null then
+    new.territory_id := nullif(btrim(coalesce(new.data->>'territoryId', '')), '');
+  end if;
+
+  if new.territory_id is null or new.prev_disposition is null then
+    select coalesce(p.data->'history', '[]'::jsonb),
+           coalesce(new.territory_id, p.territory_id)
+      into v_hist, new.territory_id
+      from public.pins p
+     where p.team_id = new.team_id and p.id = new.pin_id;
+  end if;
+
+  if new.prev_disposition is null and jsonb_typeof(v_hist) = 'array' then
+    for v_e in select * from jsonb_array_elements(v_hist)
+    loop
+      /* Only the six real outcomes. A dnk_clear is an administrative act,
+         not something that happened at the door, and naming it as a
+         "previous status" would put a value in this column that no screen
+         and no pin image knows what to do with. */
+      if jsonb_typeof(v_e) = 'object'
+         and (v_e->>'disposition') in ('unworked','nothome','goback','notint','sold','dnk')
+      then
+        v_ts := public.rally_ms(v_e->>'ts');
+        if v_ts is not null and v_ts < new.at_ms
+           and (v_best_ts is null or v_ts >= v_best_ts) then
+          v_best_ts := v_ts; v_best := v_e;
+        end if;
+      end if;
+    end loop;
+    if v_best is not null then new.prev_disposition := v_best->>'disposition'; end if;
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists events_derive_context on public.events;
+create trigger events_derive_context
+  before insert on public.events
+  for each row execute function public.events_derive_context();
 
 -- ===================================================== E. LOOKUP INDEXES ===
 /* "Which doors are inside this polygon" and "have I seen this property
@@ -213,6 +324,28 @@ create index if not exists pins_parcel_live_idx
    safe, and belongs in a later file, once that count reads zero. Until
    then §F enforces the same thing under a lock, which is what actually
    stops new duplicates. */
+
+-- ================================================== E2. A TOTAL NUMBER READ ===
+/* The one place a caller-supplied number is turned into a double.
+
+   Total by construction: every input has an answer, and the answer for
+   anything that is not a number is NULL. It exists because the alternative —
+   guessing at the shape with a regex — got it wrong twice: once by capping
+   the number of decimal places, and once by rejecting exponent notation.
+   Same discipline as rally_ms, which has answered "or NULL, never a raise"
+   for timestamps since 0010. */
+create or replace function public.rally_num(p_text text)
+returns double precision
+language plpgsql
+immutable
+set search_path = ''
+as $$
+begin
+  if p_text is null then return null; end if;
+  return p_text::double precision;
+exception when others then
+  return null;
+end $$;
 
 -- ========================================================= F. THE IMPORT ===
 /* MATCHING A DRAWN POLYGON TO PERMANENT PROPERTY RECORDS.
@@ -264,6 +397,7 @@ declare
   v_matched   int := 0;
   v_outside   int := 0;
   v_bad       int := 0;
+  v_inelig    int := 0;
   v_prior     jsonb;
 begin
   v_uid  := public.rally_require_leader();
@@ -311,19 +445,41 @@ begin
 
   for v_d in select * from jsonb_array_elements(p_doors)
   loop
-    /* The cast is guarded by an anchored numeric regex, never attempted
-       hopefully. A payload carrying "nope" for a latitude must be COUNTED
-       as unusable — a raise here would abort the whole import, so one
-       malformed row in a five-thousand-door neighbourhood would throw away
-       the other four thousand nine hundred and ninety-nine. */
-    v_lat := case when (v_d->>'lat') ~ '^-?[0-9]{1,3}(\.[0-9]{1,15})?$'
-                  then (v_d->>'lat')::double precision end;
-    v_lng := case when (v_d->>'lng') ~ '^-?[0-9]{1,3}(\.[0-9]{1,15})?$'
-                  then (v_d->>'lng')::double precision end;
+    /* A payload carrying "nope" for a latitude must be COUNTED as unusable —
+       a raise here would abort the whole import, so one malformed row in a
+       five-thousand-door neighbourhood would throw away the other four
+       thousand nine hundred and ninety-nine.
+
+       This used to be an anchored numeric regex, and the regex was WRONG in
+       a way that lost houses silently. It capped the fraction at 15 digits,
+       so a provider sending 41.0000000000000001 — 16 digits, well inside
+       what a double holds and well inside what a building centroid can be —
+       was counted "unusable" and its house was simply not imported. It also
+       rejected exponent notation, which any JSON serialiser may emit.
+
+       rally_num does the only thing that is actually total: it tries the
+       cast and answers NULL when the cast cannot be made. A JSON number is
+       taken directly, because the JSON parser already validated it. */
+    v_lat := case when jsonb_typeof(v_d->'lat') = 'number' then (v_d->>'lat')::double precision
+                  else public.rally_num(v_d->>'lat') end;
+    v_lng := case when jsonb_typeof(v_d->'lng') = 'number' then (v_d->>'lng')::double precision
+                  else public.rally_num(v_d->>'lng') end;
 
     if v_lat is null or v_lng is null
        or v_lat < -90 or v_lat > 90 or v_lng < -180 or v_lng > 180 then
       v_bad := v_bad + 1;
+      continue;
+    end if;
+
+    /* RESIDENTIAL ONLY, CHECKED HERE TOO. The client already drops what its
+       provider rules judged ineligible — a school, a church, a warehouse —
+       and sends only res.eligible. This is the server refusing to take the
+       client's word for it. It costs one comparison and it is the difference
+       between "the app promises" and "the database checked". A payload that
+       says nothing about eligibility is treated as eligible, because that is
+       what every provider path sends today. */
+    if (v_d->>'eligible') = 'false' then
+      v_inelig := v_inelig + 1;
       continue;
     end if;
 
@@ -444,12 +600,14 @@ begin
             'operationId', p_operation_id,
             'counts', jsonb_build_object('inserted', v_inserted, 'matched', v_matched,
                         'outside', v_outside, 'unusable', v_bad,
+                        'ineligible', v_inelig,
                         'sent', jsonb_array_length(p_doors))));
 
   return jsonb_build_object('status', 'ok', 'territory_id', p_territory_id,
     'operation_id', p_operation_id,
     'counts', jsonb_build_object('inserted', v_inserted, 'matched', v_matched,
                 'outside', v_outside, 'unusable', v_bad,
+                'ineligible', v_inelig,
                 'sent', jsonb_array_length(p_doors)));
 end $$;
 
@@ -460,17 +618,34 @@ end $$;
    deletes nothing, and every knock under every door survives it — a reset
    door shows blue and still answers "what happened here last July".
 
-   p_keep names the outcomes the new boundary does NOT apply to. The
-   product default is {} — Not Home, Not Interested and Go Back all return
-   to blue — and Sold and a current do-not-knock are already protected by
-   effectiveDisposition regardless of what is passed.
+   p_reset IS THE LIST THE MANAGER TICKED: the outcomes that become Blue
+   again. It is deliberately NOT the complement.
+
+   The first version of this function took p_keep — the outcomes to leave
+   alone — which is the inverse, and inverting it makes the EMPTY ARRAY mean
+   the opposite thing. Passing {} to p_keep reset EVERY door; passing {} to
+   p_reset resets nothing. A screen built against the wrong one would blank a
+   worked territory for a manager who thought they had ticked nothing, and no
+   type would have caught it. The column keeps storing the complement,
+   because that is what the paint-time rule needs; the interface speaks the
+   language of the screen.
+
+   'dnk' is REFUSED here rather than ignored: black is cleared one door at a
+   time through clear_pin_dnk, and silently swallowing it in a list would
+   read as an override that had happened. p_include_dnk returns the black
+   doors for review instead.
+
+   'sold' is accepted and has no effect on a door with a LIVE agreement:
+   effectiveDisposition answers green from the customer record, above the
+   boundary, on purpose. The return value says so rather than leaving the
+   manager to find out from the map.
 
    p_include_dnk does not clear black. It returns the doors that are black,
    for the client to clear one at a time through clear_pin_dnk(), each with
    its own reason and its own indelible event. See note 3 in the header. */
 create or replace function public.reset_territory_outcomes(
   p_territory_id text,
-  p_keep         text[],
+  p_reset        text[],
   p_include_dnk  boolean,
   p_operation_id text)
 returns jsonb
@@ -485,8 +660,11 @@ declare
   v_at     timestamptz := clock_timestamp();
   v_ms     bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
   v_ev     text := 'reset-' || p_operation_id;
-  v_keep   text[] := coalesce(p_keep, '{}');
+  v_all    constant text[] := array['unworked','nothome','goback','notint','sold','dnk'];
+  v_reset  text[] := coalesce(p_reset, '{}');
+  v_keep   text[];
   v_bad    text;
+  v_sold   boolean;
   v_dnk    jsonb := '[]'::jsonb;
   v_prior  jsonb;
 begin
@@ -497,12 +675,27 @@ begin
     raise exception 'reset: needs an operation id' using errcode = '22023';
   end if;
 
-  -- Only real outcomes may be kept. A typo would silently keep nothing.
-  select x into v_bad from unnest(v_keep) x
-   where x not in ('unworked','nothome','goback','notint','sold','dnk') limit 1;
+  /* Only real outcomes may be reset, and a NULL element is a bug in the
+     caller rather than a wildcard. Under the old p_keep spelling a typo meant
+     "keep nothing", which is the most destructive possible reading of a
+     mistake; under p_reset it means "reset nothing", and it is refused
+     outright anyway. */
+  if array_position(v_reset, null) is not null then
+    raise exception 'reset: the outcome list contains a null' using errcode = '22023';
+  end if;
+  select x into v_bad from unnest(v_reset) x where not (x = any (v_all)) limit 1;
   if v_bad is not null then
     raise exception 'reset: % is not an outcome', v_bad using errcode = '22023';
   end if;
+  if 'dnk' = any (v_reset) then
+    raise exception 'reset: a do-not-knock is cleared one door at a time through clear_pin_dnk, never in a list'
+      using errcode = '22023';
+  end if;
+  v_sold := 'sold' = any (v_reset);
+
+  -- the column stores the COMPLEMENT: what this boundary does not apply to
+  select coalesce(array_agg(x order by x), '{}') into v_keep
+    from unnest(v_all) x where not (x = any (v_reset));
 
   select data into v_prior from public.events where team_id = v_team and id = v_ev;
   if found then
@@ -534,7 +727,7 @@ begin
   end if;
 
   update public.territories
-     set cycle_started_at = v_at, cycle_keep = v_keep
+     set cycle_started_at = v_at, cycle_keep = v_keep, cycle_keep_at = v_at
    where team_id = v_team and id = p_territory_id;
 
   insert into public.events (team_id, id, pin_id, type, disposition, at_ms, by_user,
@@ -543,11 +736,15 @@ begin
           jsonb_build_object('id', v_ev, 'ts', v_ms, 'type', 'territory_reset',
             'territoryId', p_territory_id, 'repId', v_uid::text,
             'operationId', p_operation_id,
-            'cycleStartedAt', v_at, 'keep', to_jsonb(v_keep),
-            'dnkPins', v_dnk));
+            'cycleStartedAt', v_at, 'reset', to_jsonb(v_reset),
+            'keep', to_jsonb(v_keep), 'dnkPins', v_dnk));
 
   return jsonb_build_object('status', 'ok', 'territory_id', p_territory_id,
-    'cycle_started_at', v_at, 'keep', to_jsonb(v_keep), 'dnk_pins', v_dnk);
+    'cycle_started_at', v_at, 'reset', to_jsonb(v_reset), 'keep', to_jsonb(v_keep),
+    'dnk_pins', v_dnk,
+    'sold_note', case when v_sold
+      then 'a door with a live agreement stays green: its customer record, not its last knock, is what makes it green'
+      else null end);
 end $$;
 
 -- ======================================================== H. THE TWO NUMBERS ===
@@ -570,6 +767,22 @@ declare
   v_houses bigint;
   v_sales  bigint;
 begin
+  /* DISABLED IS NOT JUST "CANNOT WRITE".
+
+     rally_my_team() answers with the caller's team and nothing else — 0014
+     left the disabled check to rally_require_leader, which the two writing
+     RPCs call. This one does not require a leader, on purpose: a rep needs
+     the counts for their own turf. So it has to make the check itself, and
+     the first version did not. A disabled account could read a hood's
+     number, its permanent uuid, its house count and its sale count — the
+     one read path in RALLY that did not require an active user, when every
+     RLS policy in 0001 does.
+
+     is_active() is the same function every policy uses, and it defaults to
+     false, so a profile row that has gone missing fails closed. */
+  if not public.is_active() then
+    raise exception 'summary: this account is disabled' using errcode = '42501';
+  end if;
   v_team := public.rally_my_team();
   if v_team is null then
     raise exception 'summary: no team' using errcode = '42501';
@@ -599,14 +812,18 @@ begin
     'territory_id', p_territory_id, 'uuid', v_t.uuid,
     'seq', v_t.seq, 'of', v_total,
     'houses', v_houses, 'sales', v_sales,
-    'cycle_started_at', v_t.cycle_started_at, 'cycle_keep', to_jsonb(v_t.cycle_keep));
+    'cycle_started_at', v_t.cycle_started_at,
+    -- only report a keep-list that still belongs to the current boundary
+    'cycle_keep', case when v_t.cycle_keep_at is not null
+                        and (v_t.cycle_started_at is null or v_t.cycle_keep_at >= v_t.cycle_started_at)
+                       then to_jsonb(v_t.cycle_keep) else '[]'::jsonb end);
 end $$;
 
 -- ============================================================== I. GRANTS ===
 /* SELECT on every column this file added — see note 1 in the header. The
    pull asks for all columns; a column authenticated cannot read takes the
    whole sync down. */
-grant select (seq, uuid, cycle_keep) on public.territories to authenticated;
+grant select (seq, uuid, cycle_keep, cycle_keep_at) on public.territories to authenticated;
 grant select (territory_id, prev_disposition) on public.events to authenticated;
 
 /* A phone may WRITE the two new event columns, because a phone authors
@@ -617,6 +834,8 @@ grant select (territory_id, prev_disposition) on public.events to authenticated;
    so they are unreachable by omission. */
 grant insert (territory_id, prev_disposition) on public.events to authenticated;
 
+revoke all on function public.rally_num(text) from public, anon;
+grant execute on function public.rally_num(text) to authenticated;
 revoke all on function public.import_territory_doors(text, jsonb, text) from public, anon;
 revoke all on function public.reset_territory_outcomes(text, text[], boolean, text) from public, anon;
 revoke all on function public.rally_territory_summary(text) from public, anon;
@@ -654,7 +873,7 @@ begin
     from information_schema.column_privileges
    where table_schema = 'public' and grantee = 'authenticated'
      and privilege_type in ('INSERT','UPDATE')
-     and ((table_name = 'territories' and column_name in ('seq','uuid','cycle_keep')));
+     and ((table_name = 'territories' and column_name in ('seq','uuid','cycle_keep','cycle_keep_at')));
   if v_leak is not null then
     raise exception '0018: authenticated can write a server-owned column (%)', v_leak;
   end if;

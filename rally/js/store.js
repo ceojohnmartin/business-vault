@@ -505,6 +505,14 @@
      ids the whole team will use. */
   S.importDoorsServer = async function (props, { territoryId, operationId, onProgress } = {}) {
     if (!territoryId) throw new Error("import: which hood?");
+    /* Same three-way decision. There is no server-side import without a
+       server: in solo mode the caller wants STORE.importDoors, and saying so
+       is better than failing inside MCLOUD with a transport error. */
+    const g = S.turfGate({ needsServer: true });
+    if (!g.ok) throw new Error(g.reason);
+    if (g.code === "solo") {
+      throw new Error("No team server on this device — use STORE.importDoors instead");
+    }
     const run = operationId || MDB.uid();
     const PAGE = 400;
     let added = 0, matched = 0, outside = 0, unusable = 0, pages = 0;
@@ -519,6 +527,10 @@
         sqft: p.sqft || "", lotSqft: p.lotSqft || "",
         lastSaleDate: p.lastSaleDate || "", lastSalePrice: p.lastSalePrice || "",
         placement: p.placement || "",
+        // the provider's own eligibility verdict travels with the door, so
+        // the server can refuse what the client says is not residential
+        // rather than taking the filter on trust
+        eligible: p.eligible === false ? false : true,
       }));
       const res = await rpc("import_territory_doors", {
         p_territory_id: territoryId,
@@ -1819,13 +1831,24 @@
   // the six things that can happen AT a door — the only values any screen
   // may paint, and the only ones the map has an image for
   const OUTCOMES = { unworked: 1, nothome: 1, goback: 1, notint: 1, sold: 1, dnk: 1 };
+  // the same six, ordered, for the places that need a list rather than a set
+  const ALL_OUTCOMES = Object.keys(OUTCOMES);
 
   /* Outcomes this hood's CURRENT boundary does not apply to. A manager
      resetting for a re-knock may choose to leave Go Backs purple, because a
      booked callback is not an unworked door. Server-owned (territories
      .cycle_keep) and empty by default, which is exactly the behaviour every
      hood had before it existed. */
-  S.cycleKeep = (t) => (t && Array.isArray(t.cycleKeep) ? t.cycleKeep : []);
+  /* A keep-list belongs to the boundary it was written with. The ordinary
+     Clear Outcomes button moves the boundary and knows nothing about a
+     keep-list, so a list left over from an older, selective reset must stop
+     counting the moment any newer boundary lands — otherwise "clear
+     outcomes" would quietly not clear the outcomes a March reset had held. */
+  S.cycleKeep = function (t) {
+    if (!t || !Array.isArray(t.cycleKeep) || !t.cycleKeep.length) return [];
+    const at = t.cycleKeepAt || 0, C = t.cycleStartedAt || 0;
+    return at >= C ? t.cycleKeep : [];
+  };
 
   S.effectiveDisposition = function (pin, t, facts) {
     const f = facts || S.doorFacts();
@@ -2057,30 +2080,51 @@
      clearPinDnk() — each with its own reason and its own indelible event.
      A bulk clear would be one line here and a hole in the only audit trail
      that says who let a household off a do-not-knock list. */
-  S.resetForReknock = async function (t, keep, includeDnk) {
-    const list = Array.isArray(keep) ? keep.slice() : [];
-    if (!(window.MCLOUD && MCLOUD.enabled())) {
-      // No team server: the device is the record, and it can still do the
-      // part that is purely derived.
+  S.resetForReknock = async function (t, reset, includeDnk) {
+    // `reset` is what the manager TICKED — the outcomes that become blue.
+    // The server stores the complement; the screen never sees it.
+    const list = Array.isArray(reset) ? reset.slice() : [];
+    /* THE SAME THREE-WAY DECISION EVERY OTHER TURF OPERATION MAKES, taken
+       from the one function that encodes it rather than re-derived here:
+
+         role      not a leader — refuse
+         solo      no team server at all: the device IS the record, so a
+                   local boundary is the truth and there is nothing to
+                   disagree with
+         offline   a server exists and cannot be reached: REFUSE, because a
+                   local reset would paint the hood blue on this phone and
+                   the next pull would silently put it back. The rep would
+                   work a territory nobody reset and nobody would be told.
+
+       The first version of this function called MTURF.gate and then went
+       straight to the RPC, which meant a device with no cloud configured
+       passed the gate as "solo" and then failed inside MCLOUD. */
+    const g = S.turfGate({ needsServer: true });
+    if (!g.ok) throw new Error(g.reason);
+    if (g.code === "solo") {
       t.cycleStartedAt = Math.max(t.cycleStartedAt || 0, Date.now());
-      t.cycleKeep = list;
+      t.cycleKeep = ALL_OUTCOMES.filter((x) => list.indexOf(x) < 0);
+      t.cycleKeepAt = t.cycleStartedAt;
       await MDB.put("territories", t);
-      return { cycleStartedAt: t.cycleStartedAt, keep: list, dnkPins: [] };
+      return { cycleStartedAt: t.cycleStartedAt, reset: list, keep: t.cycleKeep, dnkPins: [] };
     }
     const res = await rpc("reset_territory_outcomes", {
       p_territory_id: t.id,
-      p_keep: list,
+      p_reset: list,
       p_include_dnk: !!includeDnk,
       p_operation_id: MDB.uid(),
     });
     const server = res && res.cycle_started_at ? Date.parse(res.cycle_started_at) : Date.now();
     t.cycleStartedAt = Math.max(t.cycleStartedAt || 0, server);
-    t.cycleKeep = (res && Array.isArray(res.keep)) ? res.keep : list;
+    t.cycleKeep = (res && Array.isArray(res.keep)) ? res.keep : [];
+    t.cycleKeepAt = t.cycleStartedAt;
     await MDB.put("territories", t);
     return {
       cycleStartedAt: t.cycleStartedAt,
+      reset: (res && res.reset) || list,
       keep: t.cycleKeep,
       dnkPins: (res && res.dnk_pins) || [],
+      soldNote: (res && res.sold_note) || null,
     };
   };
 

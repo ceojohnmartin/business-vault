@@ -487,6 +487,7 @@
       delete data.seq;
       delete data.uuid;
       delete data.cycleKeep;
+      delete data.cycleKeepAt;
       if (data.assignedTo) data.assignedTo = toProfile(data.assignedTo) || data.assignedTo;
       (data.assignments || []).forEach((a) => {
         if (a.userId) a.userId = toProfile(a.userId) || a.userId;
@@ -963,6 +964,11 @@
         changed = true;
       }
     }
+    /* The stamp travels with it. Without this the local copy could hold a
+       keep-list and no idea which boundary it belongs to, and STORE.cycleKeep
+       would fall back to treating it as current. */
+    const keepAt = row.cycle_keep_at ? Date.parse(row.cycle_keep_at) : null;
+    if (keepAt !== (rec.cycleKeepAt || null)) { rec.cycleKeepAt = keepAt; changed = true; }
     /* The hood's number and its permanent uuid. Server-assigned on insert
        and fixed for life, so this is a one-way adoption: a device that has
        them already never revises them, and a device that does not simply

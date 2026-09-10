@@ -280,6 +280,22 @@ Every number below is from a run on the current tree.
 - The geography index dropped → the plan probe stops naming it.
 - The deadlock harness runs 0015's wrapper first and REQUIRES it to deadlock.
 
+### The three failures that were called "pre-existing" — proved, not labelled
+
+They are no longer failing, and the classification was established before that rather than
+asserted:
+
+- **`auth-test.js` and `v40-test.js`** — run on a clean checkout of the pre-v42 commit,
+  both produced the identical signature, so nothing in v42 caused them. Both pass on the
+  current tree (`auth` 54 checks, `v40` full run green).
+- **The v37 upgrade-transition hang** — located precisely with `DEBUG=pw:api`, and then
+  isolated with a controlled probe rather than a guess: with the service worker enabled the
+  run dies at reload 6; with it disabled, 14 reloads pass. That is an environment/timing
+  property of the harness, not a code path v42 touches, and the same code path is exercised
+  by `mixed-version` which passes. It also passes on the current tree.
+
+No historical behaviour was modified to make any of these green.
+
 ---
 
 ## F. UNRESOLVED RISKS
@@ -422,6 +438,37 @@ My recommendation is the first. The second is defensible and I will prepare it i
 
 Whichever is chosen: **the preflight in §J must be run and read first**, and the build
 version must be bumped past `v46` before any publish.
+
+---
+
+## I2. WHAT IS NOT FINISHED — AND IS NOT BEING BUILT
+
+Named here so nothing about Phase 5 reads as complete. **None of this is built in this
+branch and none of it should be until you say so.**
+
+**Map interactions**
+- **Draw** — freehand and tap-dot drawing exist from earlier phases; the premium redraw of
+  that interaction does not.
+- **Select** — no multi-polygon selection model.
+- **Move** — a polygon cannot be dragged as a whole.
+- **Undo / Redo** — no history stack while drawing.
+- **Clear** — no single control that clears an in-progress outline.
+
+**Screens the v42 server work exists for**
+- **The import path on the hood sheet.** `STORE.importDoorsServer` exists and has no
+  caller; the live import is still the per-device client path.
+- **The manager's reset-for-re-knock sheet.** `STORE.resetForReknock` exists and has no
+  caller; the only Clear Outcomes button still calls `STORE.startCycle`, which moves the
+  boundary for every outcome and offers no tick boxes.
+
+**Validation not performed**
+- **Real satellite-map visual validation.** The Phase 5 screenshots are from a local
+  prototype with synthetic cartography and zero network requests. No Google 2D Tiles
+  session has been exercised against this work.
+
+**Known gap that follows the apply**
+- Every screen except the polygon card still identifies a hood by its device-local
+  auto-name. `seq` cannot be shown before 0018 is applied, because it does not exist yet.
 
 ---
 

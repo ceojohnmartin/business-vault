@@ -265,11 +265,38 @@ Every number below is from a run on the current tree.
 | `db/test/v42-race-test.sh` | 26 | PASS |
 | `db/test/v42-preflight-bite.sh` | 16 | PASS |
 | `tests/pin-placement-test.js` | 27 | PASS |
-| `tests/v41-logic-test.js` | 206 | PASS |
-| `tests/refusals-test.js` | 97 | PASS |
 | `tests/assign-ui-test.js` | 36 | PASS |
-| `tests/smoke.js` | full run | PASS, `ERRORS: none` |
-| `tests/release-assets-test.js` | 9 | PASS |
+
+**The whole browser battery — 25 suite runs, every one green.** Counts are `✓` markers;
+`smoke` prints its own format and ends `ERRORS: none`.
+
+| | | | | |
+|---|---|---|---|---|
+| release-assets 9 | v41-logic 206 | smoke (own format) | auth 54 | facade 13 |
+| flow2 91 | doors-fix 12 | sync 44 | realtime 19 | cloud-auth 31 |
+| font-boot 10 | backup-secrets 32 | role 56 | attribution 33 | payment-honesty 46 |
+| v40 154 | v41 65 | v41-ui 45 | refusals 97 | mixed-version 52 |
+| upgrade-transition 61 | mixed-version@v37 52 | upgrade-transition@v37 61 | smart-split 52 | torture 30 |
+
+**1,325 client checks, 0 failing**, plus **250 server checks** (territory 162, security 46,
+race 26, preflight-bite 16).
+
+`torture` ends with its two long-standing SKEW FINDINGS — a fast client clock wins
+record-level last-write-wins, and daily/weekly totals bucket on the client timestamp. Both
+predate v42, both are reported rather than silently fixed, and neither is touched here.
+
+### A correction about the runner, not the product
+
+Two suites reported `0 checks  FAILED` in one battery run and were ALL GREEN when run
+directly. I had previously put that pattern down to output truncation. **That was wrong.**
+The real cause, proved with `lsof`: a leftover `node tests/v40-test.js` server holding
+`0.0.0.0:8875` with fourteen live Chromium connections, from a run that had been killed
+part-way. The next suite to want that port gets `EADDRINUSE` and exits before printing
+anything, so the runner counts zero checks and shows no `✗` lines.
+
+`tests/run-all.sh` now clears stale test servers before the loop, and when a suite fails
+with zero checks it prints the head of that suite's output instead of nothing — so a suite
+that never ran can never again look like a suite that failed a check.
 
 **Mutation tests — the tests were tested.**
 - Every one of the 16 preflight probes has the broken condition deliberately created on a

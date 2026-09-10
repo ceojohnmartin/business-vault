@@ -20,6 +20,18 @@ total=0; failed=0
 # capability latch, do-not-knock authority, and the turf screens.
 # `refusals` is the v42 gate: the refusal LIST the count has pointed at since
 # v39, proved end to end against a server that says no to turf.
+# A suite that dies before its first check used to print "0 checks FAILED"
+# and nothing else, which reads like a broken product and is usually a
+# LEFTOVER SERVER. Every suite binds its own port; a run killed part-way
+# leaves the node server and its Chromium alive, and the next run gets
+# EADDRINUSE and exits before printing anything. Proved with lsof: pid
+# holding 0.0.0.0:8875 with fourteen live Chromium connections, from a v40
+# run that had been killed. So: clear the field first, and never let a
+# startup crash be silent (see the failure branch below).
+pkill -f 'business-vault/rally/tests/' >/dev/null 2>&1 || true
+pkill -f 'pw-browsers/chromium' >/dev/null 2>&1 || true
+sleep 1
+
 for f in release-assets v41-logic smoke auth facade flow2 doors-fix sync realtime cloud-auth font-boot \
          backup-secrets role attribution payment-honesty v40 v41 v41-ui refusals mixed-version \
          upgrade-transition mixed-version@v37 upgrade-transition@v37 smart-split torture; do
@@ -36,7 +48,12 @@ for f in release-assets v41-logic smoke auth facade flow2 doors-fix sync realtim
   if [ "$code" != "0" ]; then
     failed=$((failed+1))
     printf '%-20s %3d checks  FAILED\n' "$f" "$n"
-    printf '%s\n' "$out" | grep '✗' | head -5
+    if [ "$n" = "0" ]; then
+      # no checks ran at all: this is a crash, not a failing assertion
+      printf '%s\n' "$out" | head -6 | sed 's/^/    /'
+    else
+      printf '%s\n' "$out" | grep '✗' | head -5
+    fi
   else
     printf '%-20s %3d checks  ok\n' "$f" "$n"
   fi

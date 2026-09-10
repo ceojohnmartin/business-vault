@@ -42,10 +42,28 @@ drop function if exists public.territories_number();
 drop trigger if exists events_derive_context on public.events;
 drop function if exists public.events_derive_context();
 
+/* The membership guard reads nothing v42 added — pins.territory_id and
+   pins.data are both pre-v42 — so dropping it restores the pre-v42
+   behaviour exactly: a client write may once again clear a door out of the
+   hood it is standing in, and the blob and the column may once again
+   disagree. Any door whose blob §D2 repaired KEEPS that repair; it is
+   correct data either way, and rewriting it back to a stale value would be
+   a second wrong. */
+drop trigger if exists pins_territory_guard on public.pins;
+drop function if exists public.pins_territory_guard();
+
 drop function if exists public.import_territory_doors(text, jsonb, text);
 drop function if exists public.reset_territory_outcomes(text, text[], boolean, text);
 drop function if exists public.rally_territory_summary(text);
 drop function if exists public.rally_num(text);
+drop function if exists public.rally_txt(jsonb);
+
+/* The operation ledger. Dropping it drops the idempotency record of every
+   import and reset that ran under v42 — a retry of one of those operation
+   ids after a rollback and a re-apply would run the operation again rather
+   than being answered from the ledger. No client can read or write this
+   table, so nothing outside the two RPCs notices it is gone. */
+drop table if exists public.rally_operations;
 
 drop index if exists public.pins_point_live_gist;
 drop index if exists public.pins_provenance_live_idx;
@@ -81,11 +99,12 @@ begin
      where n.nspname = 'public'
        and p.proname in ('territories_number','events_derive_context','rally_num',
                          'import_territory_doors','reset_territory_outcomes',
-                         'rally_territory_summary')
+                         'rally_territory_summary','pins_territory_guard','rally_txt')
     union all
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public'
-       and c.relname in ('pins_point_live_gist','pins_provenance_live_idx','pins_parcel_live_idx')
+       and c.relname in ('pins_point_live_gist','pins_provenance_live_idx','pins_parcel_live_idx',
+                         'rally_operations')
     union all
     select a.attname from pg_attribute a
      where a.attrelid in ('public.territories'::regclass, 'public.events'::regclass)

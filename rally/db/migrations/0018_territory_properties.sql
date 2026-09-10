@@ -149,7 +149,28 @@ begin
 
   if new.uuid is null then new.uuid := gen_random_uuid(); end if;
 
-  -- A client cannot choose its own number: whatever arrived is discarded.
+  /* A client cannot choose its own number: whatever arrived is discarded.
+
+     THIS LOCK IS TAKEN ON EVERY PROPOSED ROW, INCLUDING ONE THAT IS ABOUT
+     TO TURN OUT TO BE AN UPDATE. PostgreSQL fires BEFORE INSERT row
+     triggers on the proposed tuple of `INSERT ... ON CONFLICT DO UPDATE`
+     BEFORE it detects the conflict, so an ordinary sync push of an existing
+     hood arrives here too. Verified on a replica: after an update-only
+     upsert the backend still holds advisory lock 24957470/hashtext(team).
+
+     Skipping it on the conflict path looks like an obvious saving and is a
+     trap: it would make the ORDER in which a transaction takes the seq lock
+     and a territory row lock depend on which rows of a batch happen to be
+     new, and an order that varies is exactly what deadlocks. The rule this
+     file holds to instead is one order, everywhere:
+
+         rally_turf_seq  BEFORE  any territories row lock.
+
+     Every client write already obeys it, because this trigger runs first.
+     The one path that did not was smart_split_territory_v41, which row-locks
+     the parent and only then inserts the children — the opposite order, and
+     a real cycle: reproduced 7 times in 8 on a replica. §K takes the same
+     lock at the top of that function so both paths agree. */
   perform pg_advisory_xact_lock(hashtext('rally_turf_seq'), hashtext(new.team_id::text));
   select coalesce(max(seq), 0) + 1 into new.seq
     from public.territories where team_id = new.team_id;
@@ -303,6 +324,103 @@ create trigger events_derive_context
   before insert on public.events
   for each row execute function public.events_derive_context();
 
+-- ============================================== D2. MEMBERSHIP IS ONE FACT ===
+/* THE DEFECT THIS EXISTS FOR, reproduced on a replica before it was written:
+   the import matched an existing door and set pins.territory_id, but every
+   RALLY client builds its local record from `data` alone (js/sync.js
+   applyPins: `localizePin(row.data)`) and pushes the column back out of
+   that record (`territory_id: rec.territoryId || null`, rowFor). So the
+   membership never reached the phone, and the rep's very next knock wrote
+   it back as NULL. A hood imported minutes earlier reported "0 Houses" and
+   "0 Sales", and the do-not-knock scan in §G stopped seeing the door.
+
+   Two writes are needed and both are here, because either alone still
+   leaves a window:
+
+     1. THE IMPORT WRITES BOTH. The match branch in §F now sets the column
+        and the blob in the same statement, so the next pull hands the
+        phone a record that already knows its hood.
+
+     2. AND THE SERVER KEEPS THEM IN STEP. A phone that pulled BEFORE the
+        import still holds the old blob, and its next push would clear the
+        column again. So a client write may not drop a door out of a hood
+        the door is physically standing in.
+
+   The second rule is deliberately narrow. It fires only on a CLEAR —
+   old hood set, incoming column NULL — because that is the whole of the
+   defect. A move from one hood to another is a different and deliberate
+   act and is left alone. It also requires the old hood to still be LIVE
+   and to have a readable outline: a deleted, archived or unreadable hood
+   cannot prove anything, so the clear stands, and the ordinary
+   reshape-and-drop-out case (the door is now OUTSIDE) is unaffected.
+   That is exactly the client's own rule — STORE.hoodOf is
+   geometry-canonical — enforced on the side that cannot be an old build.
+
+   It NEUTRALISES, it does not refuse, for 0013's reason: pins push in
+   batches and a RAISE would dead-letter the honest knocks beside it. The
+   rep's disposition, note, history and coordinates from that write are all
+   kept; one derived field is corrected.
+
+   `current_user <> 'authenticated'` is the same unspoofable test 0010 and
+   0013 use: SECURITY DEFINER functions run as the owner, so the import,
+   the reset and an admin script are never second-guessed by it. The blob
+   mirror below the check is deliberately NOT gated that way — it is an
+   invariant, not an authorization rule, and it costs nothing to hold for
+   every writer. */
+create or replace function public.pins_territory_guard()
+returns trigger
+language plpgsql
+security invoker                     -- current_user is the authorization test
+set search_path = ''
+as $$
+declare
+  v_geom gis.geometry;
+begin
+  if tg_op = 'UPDATE'
+     and current_user = 'authenticated'
+     and old.territory_id is not null
+     and new.territory_id is null
+     -- BETWEEN is false for NaN, which double precision can hold
+     and new.lat between -90 and 90 and new.lng between -180 and 180
+  then
+    select t.geom into v_geom
+      from public.territories t
+     where t.team_id = new.team_id and t.id = old.territory_id
+       and t.deleted_at is null and not t.archived;
+    /* st_covers, not st_contains: a door sitting exactly on its own hood's
+       edge is in it. The test names ONE hood, so the shared-edge ambiguity
+       between two neighbours never arises here. */
+    if v_geom is not null
+       and gis.st_covers(v_geom, gis.st_setsrid(gis.st_makepoint(new.lng, new.lat), 4326))
+    then
+      new.territory_id := old.territory_id;
+    end if;
+  end if;
+
+  /* ONE FACT, TWO PLACES. Whenever there IS a hood, the blob says the same
+     thing the column does — so a client that reads only `data` cannot be
+     told something different from the one the server counts by.
+
+     A NULL column leaves the blob alone ON PURPOSE. js/sync.js withholds
+     the column when the territory is not on the server yet, while the local
+     record keeps its hood; the claim rides in `data` until the territory
+     arrives and claimRepair re-queues the door. Mirroring a NULL would
+     erase that claim on the echo and undo the very thing this section is
+     about. */
+  if new.territory_id is not null
+     and jsonb_typeof(new.data) = 'object'
+     and new.data->>'territoryId' is distinct from new.territory_id then
+    new.data := jsonb_set(new.data, '{territoryId}', to_jsonb(new.territory_id));
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists pins_territory_guard on public.pins;
+create trigger pins_territory_guard
+  before insert or update on public.pins
+  for each row execute function public.pins_territory_guard();
+
 -- ===================================================== E. LOOKUP INDEXES ===
 /* "Which doors are inside this polygon" and "have I seen this property
    before" are the two questions the import asks, and both were sequential
@@ -321,6 +439,33 @@ create index if not exists pins_provenance_live_idx
 
 create index if not exists pins_parcel_live_idx
   on public.pins ((data->'prop'->>'parcelId'))
+  where deleted_at is null;
+
+/* THE TWO THE FIRST DRAFT GOT WRONG, and the reason the import took 83.7 s
+   for 500 doors against 60,000 pins while the client's own transport
+   deadline is 6 s (js/cloud.js TIMEOUT_MS).
+
+   The point index above is on the GEOMETRY. Tiers 3 and 4 compare
+   `::gis.geography` — metres, not degrees, which is the whole reason they
+   are written that way — and a geography operand does not match a geometry
+   operator class, so both tiers were parallel sequential scans over every
+   live pin in the database, per door. Measured on a 60k-pin replica:
+   EXPLAIN showed `Parallel Seq Scan on pins` for both.
+
+   Tier 3's address half was unindexed for the same kind of reason: the
+   predicate is lower(btrim(address)), and an index on `address` cannot
+   answer it.
+
+   Both are partial on the live rows, which is the only set either tier
+   asks about, and both are `if not exists` so a re-apply is a no-op. The
+   geometry index above is kept: it is what a future "which doors are in
+   this polygon" question wants. */
+create index if not exists pins_point_live_geog_gist
+  on public.pins using gist ((gis.st_setsrid(gis.st_makepoint(lng, lat), 4326)::gis.geography))
+  where deleted_at is null;
+
+create index if not exists pins_address_live_idx
+  on public.pins (team_id, (lower(btrim(address))))
   where deleted_at is null;
 
 /* Deliberately NOT unique. A unique index is the right long-term shape, but
@@ -353,6 +498,82 @@ begin
 exception when others then
   return null;
 end $$;
+
+/* THE SAME DISCIPLINE FOR TEXT — and the reason the "allowlist" below is
+   an allowlist at all.
+
+   `v_d->>'owner'` names the key `owner`, but `->>` on an OBJECT returns the
+   whole object serialised as text. So a provider that answers
+   `owner: {name, mailingAddress, ethnicity, estimatedIncome}` had its entire
+   response stored under an allowlisted key — protected characteristics
+   included — while the comment above it promised the opposite. Reproduced
+   on a replica, and js/property.js already builds `owner` as an object, so
+   this was not hypothetical.
+
+   This reads a value ONLY when it is a scalar. An object or an array is not
+   a property attribute RALLY knows how to store, so it becomes NULL rather
+   than a blob of somebody's schema. The length cap is the second half of
+   the same idea: a field is an attribute, not an envelope.
+
+   CLAUDE.md §7 — "Protected-characteristic vendor fields such as ethnicity
+   are never stored or exposed by RALLY. Future vendor proxies use explicit
+   field allowlists rather than forwarding full vendor responses." */
+create or replace function public.rally_txt(p_val jsonb)
+returns text
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when jsonb_typeof(p_val) in ('string','number','boolean')
+              then left(btrim(
+                     case when jsonb_typeof(p_val) = 'string' then p_val #>> '{}'
+                          else p_val::text end), 200)
+         end
+$$;
+
+-- ============================================ E3. THE OPERATION LEDGER ===
+/* WHERE "HAVE I ALREADY DONE THIS?" IS ALLOWED TO BE ANSWERED FROM.
+
+   The first draft answered it from public.events, keyed on the caller's own
+   operation id. public.events is INSERT-able by every active team member —
+   it has to be, it is where knocks land — and the policy only requires that
+   the row be the writer's own. So a rep could insert 'import-<id>' before a
+   leader used that id, and the leader's import would either be answered
+   "already_committed" with the REP'S OWN jsonb as its result, or (after the
+   first fix, which checked the type and the hood) refused outright. Both
+   are a veto by a user with no authority over turf, and events carries no
+   UPDATE or DELETE grant, so the squatted row can never be removed.
+   Reproduced on a replica both times.
+
+   Narrowing the check was the wrong shape of fix: every field it tested —
+   type, and the territory events_derive_context derives from the blob — is
+   a field the same rep can write. The ledger has to live somewhere a client
+   cannot reach at all.
+
+   THIS TABLE HAS NO POLICIES AND NO GRANTS, and RLS is on. Even if a future
+   migration granted it by accident, RLS with no policy denies every row to
+   every non-owner. The two SECURITY DEFINER RPCs run as the owner, which is
+   the only way in.
+
+   The audit trail is unchanged and still lands in public.events — but its
+   id is now a server-minted uuid rather than 'import-' || the caller's
+   string, because a predictable primary key in a client-writable table is
+   the same veto wearing a different hat: a planted row would collide and
+   abort the leader's transaction. */
+create table if not exists public.rally_operations (
+  team_id      uuid        not null references public.teams(id) on delete cascade,
+  kind         text        not null,
+  op_id        text        not null,
+  territory_id text,
+  event_id     text,
+  result       jsonb       not null default '{}'::jsonb,
+  by_user      uuid,
+  at           timestamptz not null default now(),
+  primary key (team_id, kind, op_id)
+);
+alter table public.rally_operations enable row level security;
+revoke all on public.rally_operations from public;
+revoke all on public.rally_operations from anon, authenticated;
 
 -- ========================================================= F. THE IMPORT ===
 /* MATCHING A DRAWN POLYGON TO PERMANENT PROPERTY RECORDS.
@@ -389,7 +610,9 @@ declare
   v_team      uuid;
   v_t         public.territories%rowtype;
   v_at        bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  v_ev        text   := 'import-' || p_operation_id;
+  -- server-minted, so no client can plant a colliding audit row: see §E3
+  v_ev        text   := 'import-' || pg_catalog.gen_random_uuid()::text;
+  v_out       jsonb;
   v_d         jsonb;
   v_lat       double precision;
   v_lng       double precision;
@@ -406,7 +629,6 @@ declare
   v_bad       int := 0;
   v_inelig    int := 0;
   v_prior     jsonb;
-  v_prior_type text;
   v_prior_tid  text;
 begin
   v_uid  := public.rally_require_leader();
@@ -423,31 +645,24 @@ begin
       jsonb_array_length(p_doors) using errcode = '22023';
   end if;
 
-  /* Idempotent on the operation id. The event IS the record of the import,
-     so a retry that lost its response is answered with the original counts
-     rather than importing the same neighbourhood twice. */
-  /* IDEMPOTENT ON OUR OWN RECORD, NOT ON THE ID ALONE.
+  /* Idempotent on the operation id, read from the ledger in §E3 — a table
+     no client can write, so the answer is always this function's own. A
+     retry that lost its response is answered with the original counts
+     rather than importing the same neighbourhood twice.
 
-     A rep can insert an ordinary event with any id they like — the events
-     policy only requires it be their own row. So a rep who inserted
-     'import-<id>' could make the next import with that operation id return
-     "already_committed" and import nothing, silently, and the leader would
-     see a successful-looking result with zero doors. Verified on a replica.
-
-     A retry is only answered as a retry when the row is one THIS function
-     wrote: same type, same hood. Anything else means the id has been used
-     for something else, and that is an error the caller can act on by
-     retrying with a fresh id — which every client already generates. */
-  select type, territory_id, data into v_prior_type, v_prior_tid, v_prior
-    from public.events where team_id = v_team and id = v_ev;
+     An id reused against a DIFFERENT hood is an error, not a retry: the
+     caller asked for something this ledger row is not a record of, and the
+     honest answer is to say so rather than report someone else's counts.
+     Every client already mints a fresh id per operation. */
+  select territory_id, result into v_prior_tid, v_prior
+    from public.rally_operations
+   where team_id = v_team and kind = 'territory_import' and op_id = p_operation_id;
   if found then
-    if v_prior_type is distinct from 'territory_import'
-       or v_prior_tid is distinct from p_territory_id then
-      raise exception 'import: operation id % is already in use by another record', p_operation_id
+    if v_prior_tid is distinct from p_territory_id then
+      raise exception 'import: operation id % was already used for hood %', p_operation_id, v_prior_tid
         using errcode = '23505';
     end if;
-    return jsonb_build_object('status', 'already_committed',
-      'territory_id', p_territory_id, 'counts', coalesce(v_prior->'counts', '{}'::jsonb));
+    return jsonb_set(coalesce(v_prior, '{}'::jsonb), '{status}', '"already_committed"');
   end if;
 
   select * into v_t from public.territories
@@ -516,10 +731,12 @@ begin
       continue;
     end if;
 
-    v_src    := nullif(btrim(coalesce(v_d->>'source', '')), '');
-    v_ext    := nullif(btrim(coalesce(v_d->>'externalId', '')), '');
-    v_parcel := nullif(btrim(coalesce(v_d->>'parcelId', '')), '');
-    v_addr   := nullif(btrim(coalesce(v_d->>'address', '')), '');
+    -- rally_txt, not ->> : an object under one of these keys is not an
+    -- identifier, and serialising it would make one out of somebody's schema
+    v_src    := nullif(coalesce(public.rally_txt(v_d->'source'), ''), '');
+    v_ext    := nullif(coalesce(public.rally_txt(v_d->'externalId'), ''), '');
+    v_parcel := nullif(coalesce(public.rally_txt(v_d->'parcelId'), ''), '');
+    v_addr   := nullif(coalesce(public.rally_txt(v_d->'address'), ''), '');
     v_match  := null;
 
     -- TIER 1: the provider's own identifier for this property. Exact.
@@ -559,12 +776,34 @@ begin
        doors at a duplex; that is the deliberate trade, because creating a
        second pin on a roof that already has one is the failure reps
        actually feel. */
+    /* AND IT NEVER MERGES TWO DOORS THAT BOTH CARRY AN IDENTITY AND DISAGREE.
+
+       The first version matched on distance alone, so a door arriving with
+       a provider key that matched nothing — i.e. a property the provider
+       has just told us is distinct — was merged into whichever neighbour
+       was nearest. That is how a duplex, a condo stack or two halves of a
+       semi collapse into one pin.
+
+       Refusing tier 4 outright for any identified door was the other
+       extreme and was worse: the door a rep placed by hand carries no
+       provider key at all, and proximity is the ONLY thing that can stop
+       the import putting a second pin on that same roof — which is the
+       failure the owner named first. So the rule is neither "always" nor
+       "never": tier 4 still catches a door with no identity to compare,
+       and stands aside only where both sides have one and they differ. */
     if v_match is null then
       select id into v_match from public.pins
        where team_id = v_team and deleted_at is null
          and gis.st_dwithin(
                gis.st_setsrid(gis.st_makepoint(lng, lat), 4326)::gis.geography,
                v_pt::gis.geography, 12)
+         and not (v_ext is not null and v_src is not null
+                  and coalesce(data->'prop'->>'externalId','') <> ''
+                  and (coalesce(data->'prop'->>'source',''), data->'prop'->>'externalId')
+                      is distinct from (v_src, v_ext))
+         and not (v_parcel is not null
+                  and coalesce(data->'prop'->>'parcelId','') <> ''
+                  and data->'prop'->>'parcelId' <> v_parcel)
        limit 1;
     end if;
 
@@ -572,11 +811,25 @@ begin
       /* KNOWN PROPERTY. Its outcome, its history, its notes and its
          customer are untouched — that is the entire point of a permanent
          property record. The only thing that may change is which hood it
-         currently belongs to, and only when it has none. */
+         currently belongs to, and only when it has none.
+
+         BOTH HALVES OF THE MEMBERSHIP, in one statement. The first draft
+         set only the column, and no client ever saw it: every RALLY build
+         reads `data` and pushes the column back out of it, so the next
+         knock cleared what the import had just written and the hood
+         reported zero houses. See §D2, which also stops a phone that
+         pulled before this import from clearing it again. */
       update public.pins
-         set territory_id = p_territory_id
-       where team_id = v_team and id = v_match and territory_id is distinct from p_territory_id
+         set territory_id = p_territory_id,
+             data = case when jsonb_typeof(data) = 'object'
+                         then jsonb_set(data, '{territoryId}', to_jsonb(p_territory_id))
+                         else data end
+       where team_id = v_team and id = v_match
+         and (territory_id is distinct from p_territory_id
+              or data->>'territoryId' is distinct from p_territory_id)
          and (territory_id is null
+              -- already ours: nothing is being taken, only the blob repaired
+              or territory_id = p_territory_id
               or not exists (select 1 from public.territories x
                               where x.team_id = v_team and x.id = public.pins.territory_id
                                 and x.deleted_at is null and not x.archived));
@@ -599,22 +852,32 @@ begin
               'territoryId', p_territory_id,
               'importedAt', v_at, 'createdAt', v_at, 'updatedAt', v_at,
               'geo', jsonb_build_object(
-                'city',  coalesce(v_d->>'city', ''),
-                'state', coalesce(v_d->>'state', ''),
-                'zip',   coalesce(v_d->>'zip', '')),
-              -- THE ALLOWLIST. Every stored property attribute, named.
+                'city',  coalesce(public.rally_txt(v_d->'city'), ''),
+                'state', coalesce(public.rally_txt(v_d->'state'), ''),
+                'zip',   coalesce(public.rally_txt(v_d->'zip'), '')),
+              /* THE ALLOWLIST. Every stored property attribute, named — and
+                 read as a SCALAR, so naming the key is naming the value.
+                 `owner` is the one nested shape RALLY stores, and its
+                 subkeys are named here for the same reason: a subfield a
+                 provider adds later is dropped without a code change. */
               'prop', jsonb_build_object(
                 'externalId',    v_ext,
                 'parcelId',      v_parcel,
                 'source',        coalesce(v_src, 'unknown'),
-                'propertyType',  v_d->>'propertyType',
-                'owner',         v_d->>'owner',
-                'yearBuilt',     v_d->>'yearBuilt',
-                'sqft',          v_d->>'sqft',
-                'lotSqft',       v_d->>'lotSqft',
-                'lastSaleDate',  v_d->>'lastSaleDate',
-                'lastSalePrice', v_d->>'lastSalePrice',
-                'placement',     v_d->>'placement')))
+                'propertyType',  public.rally_txt(v_d->'propertyType'),
+                'owner',         case
+                  when jsonb_typeof(v_d->'owner') = 'object' then
+                    jsonb_strip_nulls(jsonb_build_object(
+                      'name',           public.rally_txt(v_d->'owner'->'name'),
+                      'mailingAddress', public.rally_txt(v_d->'owner'->'mailingAddress'),
+                      'occupied',       public.rally_txt(v_d->'owner'->'occupied')))
+                  else to_jsonb(public.rally_txt(v_d->'owner')) end,
+                'yearBuilt',     public.rally_txt(v_d->'yearBuilt'),
+                'sqft',          public.rally_txt(v_d->'sqft'),
+                'lotSqft',       public.rally_txt(v_d->'lotSqft'),
+                'lastSaleDate',  public.rally_txt(v_d->'lastSaleDate'),
+                'lastSalePrice', public.rally_txt(v_d->'lastSalePrice'),
+                'placement',     public.rally_txt(v_d->'placement'))))
     on conflict (team_id, id) do nothing;
     if found then v_inserted := v_inserted + 1; else v_matched := v_matched + 1; end if;
   end loop;
@@ -630,12 +893,17 @@ begin
                         'ineligible', v_inelig,
                         'sent', jsonb_array_length(p_doors))));
 
-  return jsonb_build_object('status', 'ok', 'territory_id', p_territory_id,
+  v_out := jsonb_build_object('status', 'ok', 'territory_id', p_territory_id,
     'operation_id', p_operation_id,
     'counts', jsonb_build_object('inserted', v_inserted, 'matched', v_matched,
                 'outside', v_outside, 'unusable', v_bad,
                 'ineligible', v_inelig,
                 'sent', jsonb_array_length(p_doors)));
+
+  insert into public.rally_operations (team_id, kind, op_id, territory_id, event_id, result, by_user)
+  values (v_team, 'territory_import', p_operation_id, p_territory_id, v_ev, v_out, v_uid);
+
+  return v_out;
 end $$;
 
 -- ================================================= G. RESET FOR RE-KNOCK ===
@@ -686,7 +954,8 @@ declare
   v_t      public.territories%rowtype;
   v_at     timestamptz := clock_timestamp();
   v_ms     bigint := (extract(epoch from clock_timestamp()) * 1000)::bigint;
-  v_ev     text := 'reset-' || p_operation_id;
+  v_ev     text := 'reset-' || pg_catalog.gen_random_uuid()::text;   -- §E3
+  v_out    jsonb;
   /* THE FOUR OUTCOMES A BOUNDARY CAN ACTUALLY DECIDE.
 
      'sold' and 'dnk' are deliberately NOT here, and leaving them in was a
@@ -713,7 +982,6 @@ declare
   v_sold   boolean;
   v_dnk    jsonb := '[]'::jsonb;
   v_prior  jsonb;
-  v_prior_type text;
   v_prior_tid  text;
 begin
   v_uid  := public.rally_require_leader();
@@ -745,19 +1013,16 @@ begin
   select coalesce(array_agg(x order by x), '{}') into v_keep
     from unnest(v_keepable) x where not (x = any (v_reset));
 
-  -- same reasoning as the import: our own record, not the id alone
-  select type, territory_id, data into v_prior_type, v_prior_tid, v_prior
-    from public.events where team_id = v_team and id = v_ev;
+  -- same ledger, same reason: §E3. Never public.events, which a rep writes.
+  select territory_id, result into v_prior_tid, v_prior
+    from public.rally_operations
+   where team_id = v_team and kind = 'territory_reset' and op_id = p_operation_id;
   if found then
-    if v_prior_type is distinct from 'territory_reset'
-       or v_prior_tid is distinct from p_territory_id then
-      raise exception 'reset: operation id % is already in use by another record', p_operation_id
+    if v_prior_tid is distinct from p_territory_id then
+      raise exception 'reset: operation id % was already used for hood %', p_operation_id, v_prior_tid
         using errcode = '23505';
     end if;
-    return jsonb_build_object('status', 'already_committed',
-      'territory_id', p_territory_id,
-      'cycle_started_at', v_prior->>'cycleStartedAt',
-      'dnk_pins', coalesce(v_prior->'dnkPins', '[]'::jsonb));
+    return jsonb_set(coalesce(v_prior, '{}'::jsonb), '{status}', '"already_committed"');
   end if;
 
   select * into v_t from public.territories
@@ -794,12 +1059,17 @@ begin
             'cycleStartedAt', v_at, 'reset', to_jsonb(v_reset),
             'keep', to_jsonb(v_keep), 'dnkPins', v_dnk));
 
-  return jsonb_build_object('status', 'ok', 'territory_id', p_territory_id,
+  v_out := jsonb_build_object('status', 'ok', 'territory_id', p_territory_id,
     'cycle_started_at', v_at, 'reset', to_jsonb(v_reset), 'keep', to_jsonb(v_keep),
     'dnk_pins', v_dnk,
     'sold_note', case when v_sold
       then 'a door with a live agreement stays green: its customer record, not its last knock, is what makes it green'
       else null end);
+
+  insert into public.rally_operations (team_id, kind, op_id, territory_id, event_id, result, by_user)
+  values (v_team, 'territory_reset', p_operation_id, p_territory_id, v_ev, v_out, v_uid);
+
+  return v_out;
 end $$;
 
 -- ======================================================== H. THE TWO NUMBERS ===
@@ -884,6 +1154,55 @@ begin
     'cycle_keep', case when v_t.cycle_keep_at is not null
                         and (v_t.cycle_started_at is null or v_t.cycle_keep_at >= v_t.cycle_started_at)
                        then to_jsonb(v_t.cycle_keep) else '[]'::jsonb end);
+end $$;
+
+-- =============================================== K. ONE LOCK ORDER, EVERYWHERE ===
+/* THE ONLY PATH IN RALLY THAT ROW-LOCKS A TERRITORY AND THEN INSERTS ONE.
+
+   0015's wrapper calls smart_split_territory_core, which takes
+   `select ... for update` on the parent (0005:149) and afterwards inserts
+   the children — and each child insert takes rally_turf_seq in §B's
+   trigger. Every other writer takes rally_turf_seq first. Two orders is a
+   cycle, and it is not theoretical: with v42 applied, 8 concurrent splits
+   against a single-row territories upsert of the same parent deadlocked in
+   7 runs out of 8 on a replica; with §B's trigger dropped, 0 in 6.
+
+   The fix is one line, and it is here rather than in a new copy of 0015
+   because the wrapper is all that needs to change: taking the lock before
+   the core runs puts this path in the same order as every other one. The
+   body below is 0015's, unchanged apart from that line — if 0015 is ever
+   revised, revise this with it.
+
+   ROLLBACK_v42.sql restores 0015's version verbatim. */
+create or replace function public.smart_split_territory_v41(
+  p_parent_id    text,
+  p_operation_id text,
+  p_children     jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_res jsonb;
+  v_ids text[];
+  v_team uuid;
+begin
+  -- v42 §K: rally_turf_seq BEFORE any territories row lock. See §B.
+  v_team := public.rally_my_team();
+  if v_team is not null then
+    perform pg_advisory_xact_lock(hashtext('rally_turf_seq'), hashtext(v_team::text));
+  end if;
+
+  v_res := public.smart_split_territory_core(
+             p_parent_id, p_operation_id, public.rally_split_strip_children(p_children));
+  if coalesce(v_res->>'status', '') = 'already_committed' then
+    return v_res;   -- a retry must not re-inherit and re-close
+  end if;
+  select coalesce(array_agg(value #>> '{}'), '{}'::text[]) into v_ids
+    from jsonb_array_elements(coalesce(v_res->'child_ids', '[]'::jsonb));
+  perform public.rally_split_inherit(p_parent_id, v_ids, p_operation_id);
+  return v_res || jsonb_build_object('assignment_inherited', true);
 end $$;
 
 -- ============================================================== I. GRANTS ===

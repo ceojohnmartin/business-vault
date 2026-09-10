@@ -494,6 +494,61 @@ if (on()) {
   check("C15 a callback survives the boundary", cb.callbackAt === C + 5 * DAY);
   check("C16 cycleStart(null) means first cycle, not zero",
     S.cycleStart(hood("Z", rect(2000, 0, 2100, 100))) === null);
+
+  /* ---- v42 SELECTIVE RE-KNOCK: the keep-list ----
+     Not one case above sets cycleKeep, so deleting the single line in
+     effectiveDisposition that implements selective reset left every suite
+     green. These are that line's tests. `cycleKeep` names the outcomes the
+     CURRENT boundary does NOT apply to — the complement of what the manager
+     ticked, which is what the server stores. */
+  const kt = hood("K", rect(3000, 0, 4000, 1000));
+  kt.cycleStartedAt = C;
+  const kGo  = door(3010, 10, [[T0 + DAY, "goback"]]);
+  const kNh  = door(3020, 10, [[T0 + DAY, "nothome"]]);
+  const kOld = door(3030, 10, [[T0 + DAY, "goback"], [C + HOUR, "nothome"]]);
+
+  check("CK0 with no keep-list a pre-boundary Go Back reads unworked",
+    S.effectiveDisposition(kGo, kt) === "unworked");
+
+  kt.cycleKeep = ["goback"];
+  kt.cycleKeepAt = C;                      // written WITH this boundary
+  check("CK1 a kept Go Back stays purple through the boundary",
+    S.effectiveDisposition(kGo, kt) === "goback", S.effectiveDisposition(kGo, kt));
+  check("CK2 and an outcome that was NOT kept still goes blue",
+    S.effectiveDisposition(kNh, kt) === "unworked", S.effectiveDisposition(kNh, kt));
+  check("CK3 a kept outcome still loses to a knock taken after the boundary",
+    S.effectiveDisposition(kOld, kt) === "nothome", S.effectiveDisposition(kOld, kt));
+
+  /* THE STALENESS RULE. Plain Clear Outcomes (start_territory_cycle, live
+     since 0014 and untouched by v42) moves the boundary and knows nothing
+     about a keep-list. A list written for an OLDER boundary must stop
+     counting, or March's Go Backs stay purple through April's reset. */
+  kt.cycleStartedAt = C + DAY;
+  check("CK4 a keep-list older than the current boundary is ignored",
+    S.effectiveDisposition(kGo, kt) === "unworked", S.effectiveDisposition(kGo, kt));
+  check("CK5 and cycleKeep() reports it as empty rather than filtering later",
+    S.cycleKeep(kt).length === 0);
+  kt.cycleKeepAt = C + DAY;
+  check("CK6 re-stamping it with the current boundary brings it back",
+    S.effectiveDisposition(kGo, kt) === "goback");
+
+  /* sold and dnk are answered ABOVE this function, from the customer record
+     and the ledger, so they can never be keep-list entries — a kept `dnk`
+     would re-blacken a door a manager had explicitly cleared. */
+  kt.cycleKeep = ["dnk", "sold", "goback", "banana"];
+  check("CK7 only the four knock outcomes survive the keep filter",
+    JSON.stringify(S.cycleKeep(kt)) === JSON.stringify(["goback"]),
+    JSON.stringify(S.cycleKeep(kt)));
+
+  kt.cycleKeep = ["goback"];
+  kt.cycleStartedAt = null;
+  check("CK8 a keep-list on a hood with no boundary changes nothing",
+    S.effectiveDisposition(kGo, kt) === "goback" &&
+    S.effectiveDisposition(kNh, kt) === "nothome");
+  kt.cycleKeep = [];
+  kt.cycleStartedAt = C;
+  check("CK9 clearing the list restores the plain boundary",
+    S.effectiveDisposition(kGo, kt) === "unworked");
 }
 
 // ================================================================== D dnk

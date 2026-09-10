@@ -516,6 +516,55 @@ const browserRef = { b: null };   // so the crash handler can always close it
         JSON.stringify({ boot: onBoot.marker, reconcile: st2.reconcile, forward, writes: mock.writes - w }));
       await closeDevice(d);
     }
+    /* v42 — THE OTHER DIRECTION. The office imports a neighbourhood and the
+       SERVER states which hood a door the device already holds belongs to.
+       That is a server-authored field: it does not move the record's client
+       clock, so the pull sees an equal clock and treats the row as a pure
+       echo. Before latchMembership the device kept its empty hood and then
+       pushed that emptiness back, and the hood card read "0 Houses". */
+    {
+      const T = newTeam();
+      const d = await device("latch", T);
+      const ids = await S(d, async () => {
+        const hood = await STORE.addTerritory({ name: "Latch Hood", homes: 5, points: [[-98.31, 38.39], [-98.29, 38.39], [-98.29, 38.41], [-98.31, 38.41]] });
+        // a door the team already has, in NO hood — exactly what the import matches
+        await STORE.importDoors([{ lat: 38.401, lng: -98.301, address: "3 Latch Ln", city: "GB", zip: "67530", source: "t" }], {});
+        return { hood: hood.id, door: STORE.pins[0].id };
+      });
+      await drain(d);
+      const before = await S(d, (id) => (STORE.pins.find((p) => p.id === id) || {}).territoryId || null, ids.door);
+      // THE IMPORT, server-side: both halves of the membership written, and
+      // the row re-delivered — but the CLIENT clock inside data is untouched,
+      // because 0018 §F does not forge one.
+      const row = srv(T, "pins", ids.door);
+      const clockBefore = row.data.updatedAt;
+      row.territory_id = ids.hood;
+      row.data = Object.assign({}, row.data, { territoryId: ids.hood });
+      row.updated_at = new Date(++mock.clock).toISOString();
+      resetCounts();
+      await settled(d, 12);
+      const after = await S(d, (id) => (STORE.pins.find((p) => p.id === id) || {}).territoryId || null, ids.door);
+      const onDisk = await S(d, (id) => MDB.getAll("pins").then((r) => (r.find((p) => p.id === id) || {}).territoryId || null), ids.door);
+      check("PR3 a hood the SERVER states on an unchanged door is adopted, clock or no clock",
+        before === null && after === ids.hood && onDisk === ids.hood &&
+        srv(T, "pins", ids.door).data.updatedAt === clockBefore,
+        JSON.stringify({ before, after, onDisk }));
+      // and the device does not then push the emptiness back
+      const cleared = (mock.upserts.get(ids.door) || []).filter((u) => !u.territory_id).length;
+      check("PR4 and no push clears it again", cleared === 0,
+        JSON.stringify({ uploads: mock.upserts.get(ids.door) || [], col: srv(T, "pins", ids.door).territory_id }));
+      // a NULL column never clears a hood the device already holds: that is
+      // the withhold shape, and clearing on it would erase the claim
+      // claimRepair is waiting to push.
+      const r2 = srv(T, "pins", ids.door);
+      r2.territory_id = null;
+      r2.updated_at = new Date(++mock.clock).toISOString();
+      await settled(d, 12);
+      const kept = await S(d, (id) => (STORE.pins.find((p) => p.id === id) || {}).territoryId || null, ids.door);
+      check("PR5 a null column does not clear a hood the device already holds", kept === ids.hood,
+        JSON.stringify({ kept }));
+      await closeDevice(d);
+    }
   }
 
   /* ============ T — pending tombstones never resurrect ============ */

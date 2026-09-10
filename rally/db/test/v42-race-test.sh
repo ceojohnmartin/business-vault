@@ -9,15 +9,29 @@
 #
 # THE LOCKS IN PLAY, and the order each path takes them:
 #
-#   rally_turf_seq   territories_number, at INSERT time            (v42)
-#   rally_import     import_territory_doors, before it matches     (v42)
+#   rally_turf_seq   territories_number, on the PROPOSED tuple of every
+#                    territories INSERT — including the ON CONFLICT arm,
+#                    because a BEFORE INSERT trigger fires before the
+#                    conflict is detected                          (v42 §B)
+#   rally_import     import_territory_doors, before it matches     (v42 §F)
 #   rally_turf       assert_no_turf_overlap, AT COMMIT             (0016)
 #   row locks        select ... for update on one territory        (0014, v42)
 #
-# Two lock holders take two locks: a hood INSERT (seq, then turf at commit)
-# and a reset (row, then turf at commit). Both take rally_turf LAST, so no
-# cycle exists by construction — these cases are here to prove that claim
-# rather than assert it.
+# AN EARLIER VERSION OF THIS HEADER SAID "no cycle exists by construction",
+# and it was wrong. rally_turf is indeed always last, but that is not the
+# only pair: a phone's territories upsert takes rally_turf_seq and THEN
+# queues for the row lock, while smart_split_territory_core row-locks the
+# parent and only THEN inserts children, which takes rally_turf_seq. Two
+# orders, one cycle — reproduced 7 times in 8. Case 6 is that pairing, and
+# it runs BOTH ways: once with 0015's wrapper, which must deadlock, and once
+# with v42 §K's, which must not. A concurrency case that cannot be made to
+# fail is not evidence.
+#
+# Case 5 pairs a split with set_territory_assignments, which takes a row
+# lock and never inserts a territory. That pairing cannot deadlock whatever
+# the order is, so it proves liveness and ledger coherence — not the
+# absence of a cycle. It is kept, and it is no longer described as if it
+# were the stronger claim.
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 DB=rally_v42_race
@@ -242,6 +256,61 @@ else
   eq "5c. no orphan child" "$CH" "0"
 fi
 eq "5f. every number in the team is still unique" \
+   "$(q "select (count(*) = count(distinct seq))::text from public.territories where team_id='$TEAM'")" "true"
+
+# ---------------------------------------------------------------- 6 ---
+echo
+echo "=== 6. THE LOCK-ORDER CYCLE, BOTH WAYS ==="
+# A split (parent row lock -> child inserts -> rally_turf_seq) against an
+# ordinary phone push (rally_turf_seq on the proposed tuple -> the same
+# parent's row lock). This is the pairing case 5 could not reach.
+#
+# It runs with 0015's wrapper FIRST. That version must deadlock; if it does
+# not, this harness is not exercising the cycle and the "0 deadlocks" it
+# reports afterwards means nothing.
+DLRING="$(sq 26.0 41.0 0.008)"
+dl_round() {   # $1 = label ; echoes the number of deadlocks in 6 runs
+  n=0
+  for i in 1 2 3 4 5 6; do
+    psql -X -q -d "$DB" >/dev/null 2>&1 <<SQL
+delete from public.territory_splits;
+delete from public.events where type like '%split%';
+delete from public.territories where id like 'dl-%';
+insert into public.territories (team_id,id,name,polygon,archived,data,assignees,assignees_rev,open_assignees,created_by)
+values ('$TEAM','dl-parent','DL Parent','$DLRING'::jsonb,false,'{}'::jsonb,'{"entries":[]}'::jsonb,0,'{}'::uuid[],'$LEAD');
+SQL
+    ( psql -X -q -d "$DB" -tA -c "select set_config('request.jwt.claims','{\"sub\":\"$LEAD\"}',true);
+        select public.smart_split_territory_v41('dl-parent','dl-op-$1-$i',
+          '[{\"id\":\"dl-c1\",\"name\":\"c1\",\"polygon\":$(sq 26.0 41.0 0.004)},
+            {\"id\":\"dl-c2\",\"name\":\"c2\",\"polygon\":$(sq 26.004 41.0 0.004)}]'::jsonb)" 2>&1 ) > "$T/dl-a.$i" &
+    ( psql -X -q -d "$DB" -tA -c "begin;
+        insert into public.territories (team_id,id,name,polygon,archived,data,assignees,assignees_rev,open_assignees,created_by)
+        values ('$TEAM','dl-fresh-$1-$i','fresh','$(sq 27.0 41.0 0.004)'::jsonb,false,'{}'::jsonb,'{\"entries\":[]}'::jsonb,0,'{}'::uuid[],'$LEAD');
+        select pg_sleep(0.05);
+        insert into public.territories (team_id,id,name,polygon,archived,data,assignees,assignees_rev,open_assignees,created_by)
+        values ('$TEAM','dl-parent','echo from a phone','$DLRING'::jsonb,false,'{}'::jsonb,'{\"entries\":[]}'::jsonb,0,'{}'::uuid[],'$LEAD')
+        on conflict (team_id,id) do update set name = excluded.name;
+        commit;" 2>&1 ) > "$T/dl-b.$i" &
+    wait
+    if grep -qa "deadlock detected" "$T/dl-a.$i" "$T/dl-b.$i"; then n=$((n+1)); fi
+  done
+  echo "$n"
+}
+
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../migrations/0015_smart_split_v41.sql" >/dev/null 2>&1
+BROKEN=$(dl_round broken)
+psql -q -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/../APPLY_v42.sql" >/dev/null 2>&1
+FIXED=$(dl_round fixed)
+if [ "$BROKEN" -gt 0 ]; then
+  ok "6a. the harness really does exercise the cycle (0015's wrapper deadlocked $BROKEN of 6)"
+else
+  bad "6a. the harness really does exercise the cycle" \
+      "0015's wrapper deadlocked 0 of 6 — THIS TEST PROVES NOTHING"
+fi
+eq "6b. v42 §K takes rally_turf_seq first, and the cycle is gone" "$FIXED" "0"
+eq "6c. and the split still committed" \
+   "$(q "select count(*) from public.territories where id in ('dl-c1','dl-c2')")" "2"
+eq "6d. every number in the team is still unique" \
    "$(q "select (count(*) = count(distinct seq))::text from public.territories where team_id='$TEAM'")" "true"
 
 echo

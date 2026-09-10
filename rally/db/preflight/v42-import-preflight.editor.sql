@@ -51,7 +51,10 @@ already as (
       where n.nspname = 'public'
         and p.proname in ('territories_number','events_derive_context','rally_num',
                           'import_territory_doors','reset_territory_outcomes',
-                          'rally_territory_summary')) as fns
+                          'rally_territory_summary','pins_territory_guard','rally_txt')) as fns,
+    (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relkind = 'r'
+        and c.relname = 'rally_operations') as ops_table
 ),
 
 -- 3. THE QUESTION THAT DECIDES THE UNIQUE INDEX.
@@ -66,6 +69,22 @@ dupes as (
      where deleted_at is null
        and coalesce(data->'prop'->>'externalId', '') <> ''
      group by 1, 2 having count(*) > 1) d
+),
+
+-- 3b. WHAT §D2 WILL START CORRECTING.
+--     v42 makes pins.territory_id and data->>'territoryId' one fact. Every
+--     RALLY client has always written both from one record, so this should
+--     read zero — but a row that a direct PostgREST call or an old restore
+--     left half-written would be silently corrected on its next write, and
+--     the owner should know the number BEFORE that happens rather than
+--     discover it in a house count. It does not block: the correction is
+--     toward the value the server counts by, which is the right one.
+mismatch as (
+  select count(*) as n from public.pins
+   where deleted_at is null
+     and jsonb_typeof(data) = 'object'
+     and territory_id is not null
+     and data->>'territoryId' is distinct from territory_id
 ),
 
 -- 4. How much work the backfill has to do, and whether anything would
@@ -124,8 +143,9 @@ select * from (
   select 5, 'already applied: events columns', a.e_cols::text,
          case when a.e_cols in (0,2) then 'PASS' else 'FAIL — PARTIAL' end from already a
   union all
-  select 6, 'already applied: v42 functions', a.fns::text || ' of 6',
-         case when a.fns in (0,6) then 'PASS' else 'FAIL — PARTIAL' end from already a
+  select 6, 'already applied: v42 functions and the operation ledger',
+         (a.fns + a.ops_table)::text || ' of 9',
+         case when (a.fns + a.ops_table) in (0,9) then 'PASS' else 'FAIL — PARTIAL' end from already a
   union all
   select 7, 'duplicate property rows (live, same source+externalId)', d.n::text,
          case when d.n = 0 then 'PASS — a unique index would build cleanly later'
@@ -145,6 +165,11 @@ select * from (
               else 'FAIL — the apply WILL abort on these. Archive or fix each one first' end
     from badRing g
   union all
+  select 13, 'doors whose blob and column disagree today', m.n::text,
+         case when m.n = 0 then 'PASS — nothing to correct'
+              else 'NOTE — v42 still applies; each is corrected toward the column on its next write'
+         end from mismatch m
+  union all
   select 99, 'VERDICT',
          '',
          case
@@ -153,7 +178,7 @@ select * from (
              or (select trg from base) <> 3
              or (select t_cols from already) not in (0,4)
              or (select e_cols from already) not in (0,2)
-             or (select fns from already) not in (0,6)
+             or (select fns + ops_table from already) not in (0,9)
              or (select n from badRing) > 0
            then 'DO NOT APPLY — a probe above reads FAIL'
            else 'READY — db/APPLY_v42.sql may be pasted and run' end

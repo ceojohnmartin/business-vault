@@ -112,6 +112,15 @@ bite "6. a PARTIALLY applied v42 (one function) is caught" 6 \
 bite "6b. a PARTIAL v42 that only has the newest column is caught" 4 \
   "alter table public.territories add column cycle_keep_at timestamptz" verdict
 
+# 6c — and the newest FUNCTION too, for the same reason as 6b: a probe that
+# names only what the migration had when it was written goes blind the next
+# time the migration grows.
+bite "6c. a PARTIAL v42 that only has the newest function is caught" 6 \
+  "create function public.pins_territory_guard() returns trigger language plpgsql as \$\$ begin return new; end \$\$" verdict
+# and the ledger table on its own, which is neither a column nor a function
+bite "6d. a PARTIAL v42 that only has the operation ledger is caught" 6 \
+  "create table public.rally_operations (team_id uuid, kind text, op_id text)" verdict
+
 # 7 — duplicate property rows. Two live pins for one property.
 bite "7. duplicate property rows are counted" 7 \
   "insert into public.pins (team_id, id, lat, lng, address, disposition, data, created_by)
@@ -149,6 +158,15 @@ case "$V" in
   READY*) ok "8b. a null geometry with a readable outline does NOT block";;
   *) bad "8b. a null geometry with a readable outline does NOT block" "read [$V]";;
 esac
+
+# 13 — a door whose blob and column already disagree. Advisory: v42 corrects
+# it on the next write, so it must be COUNTED without blocking a safe apply.
+# The v41 seed carries no pins, so the condition has to be created rather
+# than mutated: one live door in a live hood whose blob names a different one.
+bite "11. a door whose blob and column disagree is counted, not blocked" 13 \
+  "insert into public.pins (team_id, id, lat, lng, address, disposition, territory_id, data, created_by)
+   values ('$TEAM','mismatch-1',40.0005,9.0005,'1 Split St','unworked','bf-live',
+           '{\"id\":\"mismatch-1\",\"territoryId\":\"some-other-hood\"}'::jsonb,'$LEAD')" note
 
 echo
 echo "=== the probes must also survive HOSTILE data without raising ==="

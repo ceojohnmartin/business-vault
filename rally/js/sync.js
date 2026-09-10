@@ -894,6 +894,34 @@
     (data.notes || []).forEach((n) => { n.userId = localizeRef(n.userId); });
     return data;
   }
+  /* ---------- v42: MEMBERSHIP IS SERVER-OWNED TOO ----------
+
+     Which hood a door belongs to is now authored by the server — the import
+     writes it — and a server-authored field does not move the record's
+     CLIENT clock. applyPins compares clocks and treats an equal one as a
+     pure echo that touches nothing, so a door the office imported minutes
+     ago would keep its old (usually empty) hood on every phone that already
+     held the door, and the next push would send that emptiness back. The
+     hood card then read "0 Houses" for a hood full of doors. Reproduced on
+     a replica; 0018 §D2 is the server's half of the same fix.
+
+     The alternative — having the import bump the record's updatedAt so
+     ordinary last-write-wins carries it — was rejected: a NEWER server copy
+     retires a dirty local record, so an import would have discarded every
+     unpushed knock on every door it matched.
+
+     Same shape and same discipline as mergeServerOwned above: ONE field,
+     latched from its own COLUMN, and only ever ADOPTED, never cleared. A
+     null column means "the server is not stating a hood" — which is exactly
+     what js/sync.js sends while a territory is still local-only — and
+     clearing on it would erase the claim claimRepair is waiting to push. */
+  function latchMembership(row, pin) {
+    if (!pin || !row.territory_id) return false;
+    if (pin.territoryId === row.territory_id) return false;
+    pin.territoryId = row.territory_id;
+    return true;
+  }
+
   function localizeTerritory(data) {
     data.assignedTo = localizeRef(data.assignedTo);
     (data.assignments || []).forEach((a) => { a.userId = localizeRef(a.userId); });
@@ -1057,6 +1085,7 @@
           const claimed = takenIdentities(s.pins, data.id);
           data.aka = (data.aka || []).filter((a) => a !== data.id && !claimed.has(a));
           setProven(data, provenAliases([], data.akaSure, null, data.id, s.pins));
+          latchMembership(row, data);
           s.pins.push(data);
           // a fresh device pulls BOTH copies of a team-duplicated door in
           // one page — the first must be in the index before the second
@@ -1126,6 +1155,11 @@
       if (s.dnkFromHistory && pin.disposition !== "dnk" &&
           s.dnkFromHistory(pin.history) !== null) {
         pin.disposition = "dnk";
+        if (puts.indexOf(pin) < 0) puts.push(pin);
+        changed++;
+      }
+      /* On EVERY branch, including the pure echo — see latchMembership. */
+      if (latchMembership(row, pin)) {
         if (puts.indexOf(pin) < 0) puts.push(pin);
         changed++;
       }

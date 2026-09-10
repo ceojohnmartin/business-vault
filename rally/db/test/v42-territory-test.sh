@@ -237,6 +237,16 @@ R=$(as_lead "select public.import_territory_doors('t-imp','$OUT'::jsonb,'op-6')"
 has "5a. a door outside the polygon is rejected"  "$R" '"outside": 1'
 has "5b. and not created"                          "$R" '"inserted": 0'
 eq  "5c. it exists nowhere" "$(q "select count(*) from public.pins where address='far away'")" "0"
+# THE DEMO GRID. js/property.js can lay an invented lattice for a preview,
+# and the client refuses to import it — but a client-side rule is a rule
+# until somebody calls the RPC directly, so the server refuses it too.
+DEMO='[{"lat":41.0031,"lng":6.0031,"address":"1234 Demo Ave","source":"demo","externalId":"demo-1"},
+       {"lat":41.0032,"lng":6.0032,"address":"6 Real St","source":"osm","externalId":"real-1"}]'
+R=$(as_lead "select public.import_territory_doors('t-imp','$DEMO'::jsonb,'op-demo')")
+has "5c1. a synthetic demo door is refused as ineligible" "$R" '"ineligible": 1'
+eq  "5c2. and never becomes a property record" \
+    "$(q "select count(*) from public.pins where data->'prop'->>'source'='demo'")" "0"
+has "5c3. while the real house beside it in the same payload still lands" "$R" '"inserted": 1'
 # COORDINATE FORMATS THE IMPORT MUST ACCEPT. The first guard here was a
 # regex that capped the fraction at 15 digits and rejected exponents, so a
 # provider sending an ordinary high-precision centroid lost its house
@@ -602,6 +612,27 @@ has "11g. deleting a door moves the house count" \
     "$(as_lead "select public.rally_territory_summary('t-card')")" '"houses": 2'
 has "11h. and the sale count is unaffected by it" \
     "$(as_lead "select public.rally_territory_summary('t-card')")" '"sales": 1'
+
+# THE OUTLINE IS WHAT COUNTS, NOT THE STAMP. STORE.hoodOf treats geometry as
+# canonical and the stamp as a hint, and the card has to agree with the map
+# it sits on: reshape the hood away from a door and the count must follow,
+# even though nothing touched that door's territory_id.
+STAMPS_BEFORE=$(q "select count(*) from public.pins where team_id='$TEAM' and territory_id='t-card' and deleted_at is null")
+psql -X -q -d "$DB" -c "update public.territories
+   set polygon = '$(sq 8.0 41.0 0.0015)'::jsonb
+ where team_id='$TEAM' and id='t-card'" >/dev/null
+has "11i. reshaping the hood away from a door moves the house count" \
+    "$(as_lead "select public.rally_territory_summary('t-card')")" '"houses": 1'
+eq  "11j. and not one door's stamp was touched to do it" \
+    "$(q "select count(*) from public.pins where team_id='$TEAM' and territory_id='t-card' and deleted_at is null")" "$STAMPS_BEFORE"
+# a hood the server cannot draw counts nothing and says so, rather than
+# reporting a confident zero
+psql -X -q -d "$DB" -c "set session_replication_role = replica;
+  update public.territories set geom = null where team_id='$TEAM' and id='t-card';
+  set session_replication_role = origin" >/dev/null
+R=$(as_lead "select public.rally_territory_summary('t-card')")
+has "11k. a hood with no usable outline says so"      "$R" '"outline_missing": true'
+has "11l. and does not report a confident zero alone" "$R" '"houses": 0'
 
 echo
 echo "=== 11b. THE MATCHER'S TWO INDEXES ARE ACTUALLY USABLE ==="

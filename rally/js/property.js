@@ -76,19 +76,33 @@
 
   /* ---------- WHERE A PIN GOES ----------
 
-     One pin per house, ON the house. In priority order:
+     One pin per house, ON the house. What placeAt() ACTUALLY does, in
+     order — the list here used to be the reverse of the code, which is
+     worse than no list at all:
 
-       1. the building outline's point-on-surface — always inside the
-          polygon, even when the shape is concave and its true centroid
-          is not;
-       2. the building outline's area centroid, when that point is itself
-          inside the outline (the common convex case, and the most
-          natural-looking of the three);
-       3. the bounding-box centre Overpass hands back for anything with no
-          outline — a multipolygon relation, or a node tagged as a building.
+       1. the building outline's AREA CENTROID, but only when that point is
+          itself inside the outline. On the ordinary convex house it is the
+          most natural-looking point on the roof, and the containment test
+          is what makes it safe to try first;
+       2. the outline's POINT-ON-SURFACE, which is inside by construction —
+          this is what catches the L-shaped, U-shaped and courtyard houses
+          whose true centroid falls in the notch;
+       3. the bounding-box centre, for anything that arrived with no
+          outline at all. THIS ONE IS NOT VERIFIED AGAINST A BUILDING —
+          there is no outline to verify it against — so it can land in a
+          driveway or a courtyard. It is a last resort, and the door it
+          places says so.
 
-     Every door records which of the three it got, in `placement`, so a
-     later audit can tell a rooftop from a fallback without guessing. */
+     Every door records which of the three it got, in `placement`, and that
+     value is stored on the pin — see store.js. A later audit can tell a
+     verified rooftop from an unverified fallback without guessing.
+
+     A PARCEL POINT IS NOT A ROOFTOP. Regrid answers with the parcel's own
+     representative point, which on a large or irregular lot sits in the
+     middle of the LOT. snapToBuildings() below resolves those doors onto
+     the building outline inside their own parcel, so the provider decides
+     the attributes and the FOOTPRINT decides the coordinate — which is the
+     order RALLY asked for. */
 
   // area centroid of a closed or open ring; null on a degenerate (zero-area) ring
   function ringCentroid(pts) {
@@ -163,6 +177,61 @@
     return best;
   }
 
+  // twice the |signed area| of a {lat,lon} ring, in square degrees. Only
+  // ever compared against another ring at the same latitude, so degrees
+  // are a fine unit: this picks the house out of a lot that also holds a
+  // shed and a garage.
+  function ringArea(pts) {
+    let a = 0;
+    for (let i = 0, n = pts.length; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n];
+      a += p.lon * q.lat - q.lon * p.lat;
+    }
+    return Math.abs(a);
+  }
+
+  // every OUTER ring of a GeoJSON Polygon/MultiPolygon, as [lng,lat] arrays
+  function outerRings(g) {
+    if (!g) return [];
+    if (g.type === "Polygon") return Array.isArray(g.coordinates) && g.coordinates[0] ? [g.coordinates[0]] : [];
+    if (g.type === "MultiPolygon") {
+      return (g.coordinates || []).map((poly) => poly && poly[0]).filter(Boolean);
+    }
+    return [];
+  }
+  const inGeoJson = (g, lng, lat) =>
+    outerRings(g).some((r) => r.length >= 4 && inRing(r, lng, lat));
+
+  /* THE FOOTPRINT DECIDES THE COORDINATE.
+
+     A parcel door arrives at the LOT's representative point. Where a
+     building outline sits inside that same lot, the door moves onto it —
+     the largest one, because a lot commonly holds a house, a garage and a
+     shed and the house is the one a rep knocks. A lot with no outline in it
+     keeps the point it came with, and says so in `placement`.
+
+     Pure, and separately tested: the network half is one try/catch around
+     it, so a provider outage degrades to parcel-level placement rather
+     than to no doors. */
+  function snapToBuildings(doors, buildings) {
+    let moved = 0;
+    (doors || []).forEach((d) => {
+      if (!d || !d._parcel) return;
+      let best = null, bestArea = -1;
+      (buildings || []).forEach((b) => {
+        if (!b || !b.point) return;
+        if (!inGeoJson(d._parcel, b.point.lon, b.point.lat)) return;
+        if (b.area > bestArea) { bestArea = b.area; best = b; }
+      });
+      if (best) {
+        d.lat = best.point.lat; d.lng = best.point.lon;
+        d.placement = best.how;
+        moved++;
+      }
+    });
+    return moved;
+  }
+
   function placeAt(el) {
     const g = ringOf(el.geometry) || relationRing(el);
     if (g) {
@@ -180,8 +249,50 @@
   // ---------- provider: OpenStreetMap (Overpass) ----------
   const OVERPASS = "https://overpass-api.de/api/interpreter";
 
+  // one place that talks to Overpass, so the building fetch the parcel
+  // providers use is the same request the OSM provider makes
+  async function overpass(q, onStatus, msg) {
+    if (onStatus && msg) onStatus(msg);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 28000);
+    let r;
+    try {
+      r = await fetch(OVERPASS, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "data=" + encodeURIComponent(q),
+        signal: ctrl.signal,
+      });
+    } finally { clearTimeout(t); }
+    if (!r.ok) throw new Error("Property provider unavailable (HTTP " + r.status + ")");
+    return await r.json();
+  }
+
+  const buildingQuery = (poly) => `[out:json][timeout:25];
+(way["building"](poly:"${poly}");relation["building"](poly:"${poly}"););
+out tags geom;`;
+
+  const polyOf = (ring) =>
+    ring.map(([lng, lat]) => lat.toFixed(6) + " " + lng.toFixed(6)).join(" ");
+
+  /* Every building outline in the ring, already placed and measured, for
+     snapToBuildings. Returns [] rather than throwing: a door at parcel
+     level is a worse pin than a door on the roof, but it is a far better
+     outcome than an import that fails because a free map server was busy. */
+  async function fetchBuildings(ring, onStatus) {
+    try {
+      const j = await overpass(buildingQuery(polyOf(ring)), onStatus, "Locating buildings…");
+      return ((j && j.elements) || []).map((el) => {
+        const g = ringOf(el.geometry) || relationRing(el);
+        const place = placeAt(el);
+        if (!place.point || place.how === "building_bbox" || place.how === "node") return null;
+        return { point: place.point, how: place.how, area: g ? ringArea(g) : 0 };
+      }).filter(Boolean);
+    } catch (e) { return []; }
+  }
+
   async function osmSearch(ring, onStatus) {
-    const poly = ring.map(([lng, lat]) => lat.toFixed(6) + " " + lng.toFixed(6)).join(" ");
+    const poly = polyOf(ring);
     /* `out tags geom` — and NOT "geom center".
        `out tags center` alone returns the centre of a building's BOUNDING
        BOX. On a rectangle that is the roof. On an L-shaped or U-shaped
@@ -204,23 +315,7 @@
 
        So: ask for geometry. A relation carries its rings on its MEMBERS
        rather than at the top level, and placeAt reads those. */
-    const q = `[out:json][timeout:25];
-(way["building"](poly:"${poly}");relation["building"](poly:"${poly}"););
-out tags geom;`;
-    onStatus("Searching properties…");
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 28000);
-    let r;
-    try {
-      r = await fetch(OVERPASS, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "data=" + encodeURIComponent(q),
-        signal: ctrl.signal,
-      });
-    } finally { clearTimeout(t); }
-    if (!r.ok) throw new Error("Property provider unavailable (HTTP " + r.status + ")");
-    const j = await r.json();
+    const j = await overpass(buildingQuery(poly), onStatus, "Searching properties…");
     const els = (j && j.elements) || [];
     const out = els.map((el) => {
       const place = placeAt(el);
@@ -334,6 +429,9 @@ out tags geom;`;
         parcelId: apn ? [fields.state2, fields.county, apn].filter(Boolean).join(":") : null,
         source: "regrid",
         placement,
+        // carried only as far as snapToBuildings, then deleted: it is a
+        // lot outline, not a property attribute, and nothing stores it
+        _parcel: f.geometry || null,
         lat, lng,
         address: situs,
         city: fields.scity || fields.city || "", state: fields.state2 || "",
@@ -347,6 +445,18 @@ out tags geom;`;
         lastSalePrice: numOrNull(fields.saleprice),
       };
     }).filter(Boolean);
+    /* THE FOOTPRINT DECIDES THE COORDINATE — see snapToBuildings. Regrid
+       licenses the attributes; it does not know where the house is on the
+       lot. Without this, every pin on a Regrid team sits at parcel level,
+       which is the opposite of the placement order RALLY asked for, and
+       the comment above geomCentroid claimed the preference existed when
+       no code implemented it. One extra request per import, and a failure
+       leaves the parcel points exactly as they were. */
+    if (out.some((d) => d._parcel)) {
+      const moved = snapToBuildings(out, await fetchBuildings(ring, onStatus));
+      if (moved) onStatus(`Placed ${moved.toLocaleString()} of ${out.length.toLocaleString()} on their rooftops`);
+    }
+    out.forEach((d) => { delete d._parcel; });
     if (truncated) {
       out.warnings = [`Provider stopped at ${feats.length.toLocaleString()} parcels — draw a smaller area to be sure nothing was missed`];
     }
@@ -492,8 +602,15 @@ out tags geom;`;
       .replace(/\s+/g, " ").trim();
   }
 
-  window.MPROP = { searchByPolygon, activeName, providerName: (n) => (PROVIDERS[n || activeName()] || {}).name || "", normAddr, areaKm2,
+  window.MPROP = {
+    searchByPolygon, activeName,
+    providerName: (n) => (PROVIDERS[n || activeName()] || {}).name || "",
+    normAddr, areaKm2,
     // pure geometry, exported so tests/pin-placement-test.js can prove a pin
-    // lands on an L-shaped roof rather than in its notch
-    _placeAt: placeAt };
+    // lands on an L-shaped roof rather than in its notch — and that a parcel
+    // point moves onto the building inside its own lot
+    _placeAt: placeAt,
+    _snapToBuildings: snapToBuildings,
+    _ringArea: ringArea,
+    _inGeoJson: inGeoJson };
 })();

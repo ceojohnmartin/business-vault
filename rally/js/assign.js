@@ -75,10 +75,18 @@
 
     const btn = $("#assign-save");
     btn.disabled = busy;
-    btn.textContent = busy ? "Saving…"
-      : sel.length === 0 ? "Save with nobody assigned"
-      : sel.length === 1 ? "Save assignment"
-      : "Save assignment — " + sel.length + " reps";
+    /* THE BUTTON SAYS WHAT IT DOES. It used to say "Save assignment", and
+       it saves nothing: this panel hands the selection back to the hood
+       sheet, and the hood sheet's own Save is what commits the geometry and
+       the assignment together. Two save buttons writing the same fact from
+       two places is how a half-saved hood happens — so there is one, and
+       this one is a chooser. */
+    btn.textContent = busy ? "Working…"
+      : sel.length === 0 ? "Assign nobody"
+      : sel.length === 1 ? "Use this rep"
+      : "Use these " + sel.length + " reps";
+    const hint = $("#assign-hint");
+    if (hint) hint.hidden = busy;
     $("#assign-sub").textContent = subtitle;
   }
 

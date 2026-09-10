@@ -665,6 +665,20 @@ begin
     return jsonb_set(coalesce(v_prior, '{}'::jsonb), '{status}', '"already_committed"');
   end if;
 
+  /* A STALL IS AN ERROR, NOT A COMPANY-WIDE FREEZE.
+
+     This function takes a team-wide advisory lock and the hood's row lock
+     and holds both to commit. With the matcher indexed (§E) that is
+     milliseconds — 500 doors against 60,159 pins measured at 221 ms — but
+     an unindexed replica, a lock left held by a stuck session, or a hood
+     somebody else is reshaping can still turn "slow" into "everyone waits".
+     Without a timeout there is nothing bounding that: every other manager's
+     import blocks on rally_import, and every phone's territories push
+     blocks behind the row lock. 15 seconds is well past any healthy run and
+     well inside the client's own patience, so a stall surfaces as a
+     refusal the manager can retry rather than as a frozen company. */
+  set local lock_timeout = '15s';
+
   select * into v_t from public.territories
    where team_id = v_team and id = p_territory_id for update;
   if not found then
@@ -734,6 +748,16 @@ begin
     -- rally_txt, not ->> : an object under one of these keys is not an
     -- identifier, and serialising it would make one out of somebody's schema
     v_src    := nullif(coalesce(public.rally_txt(v_d->'source'), ''), '');
+    /* THE DEMO GRID IS NOT A PROPERTY RECORD. js/property.js can lay a
+       deterministic lattice with invented street numbers for a preview,
+       one chip away in the settings sheet. The client refuses to import
+       those doors; this refuses them again, because a client-side rule is
+       a rule until somebody calls the RPC directly. Counted as ineligible
+       rather than raised: a mixed payload's real houses still land. */
+    if v_src = 'demo' then
+      v_inelig := v_inelig + 1;
+      continue;
+    end if;
     v_ext    := nullif(coalesce(public.rally_txt(v_d->'externalId'), ''), '');
     v_parcel := nullif(coalesce(public.rally_txt(v_d->'parcelId'), ''), '');
     v_addr   := nullif(coalesce(public.rally_txt(v_d->'address'), ''), '');
@@ -1025,6 +1049,8 @@ begin
     return jsonb_set(coalesce(v_prior, '{}'::jsonb), '{status}', '"already_committed"');
   end if;
 
+  set local lock_timeout = '15s';   -- same reason as the import, see §F
+
   select * into v_t from public.territories
    where team_id = v_team and id = p_territory_id for update;
   if not found then
@@ -1037,12 +1063,15 @@ begin
     v_at := v_t.cycle_started_at + interval '1 millisecond';
   end if;
 
-  if p_include_dnk then
+  /* The same definition of membership the card uses, and the same one the
+     phone repaints from: the OUTLINE. A reset applies to the doors inside
+     the polygon, not to the doors that happen to still carry its stamp. */
+  if p_include_dnk and v_t.geom is not null then
     select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'address', p.address)), '[]'::jsonb)
       into v_dnk
       from public.pins p
      where p.team_id = v_team and p.deleted_at is null
-       and p.territory_id = p_territory_id
+       and gis.st_intersects(v_t.geom, gis.st_setsrid(gis.st_makepoint(p.lng, p.lat), 4326))
        and public.rally_dnk_from_history(p.data) is not null;
   end if;
 
@@ -1134,21 +1163,46 @@ begin
   select count(*) into v_live from public.territories
    where team_id = v_team and deleted_at is null and not archived;
 
-  select count(*) into v_houses from public.pins
-   where team_id = v_team and deleted_at is null and territory_id = p_territory_id;
+  /* COUNTED BY THE OUTLINE, NOT BY THE STAMP — one definition of
+     membership, and the same one the phone uses.
 
-  select count(*) into v_sales
-    from public.customers c
-   where c.team_id = v_team and c.deleted_at is null
-     and exists (select 1 from public.pins p
-                  where p.team_id = v_team and p.deleted_at is null
-                    and p.territory_id = p_territory_id
-                    and p.id = c.data->>'pinId');
+     The first version counted `territory_id = p_territory_id`. The header
+     of this file argues, correctly, that "STORE.hoodOf treats geometry as
+     canonical with the stamp as a hint ... because a polygon can be
+     reshaped after a door is stamped" — and then the card contradicted it.
+     The two answers diverge the moment a manager reshapes a hood: the
+     phone stops drawing the door inside it and the card still counts it.
+     A card that disagrees with the map it sits on is worse than either
+     number on its own.
+
+     pins_point_live_gist indexes exactly this predicate. Hoods cannot
+     overlap (0016), so containment names at most one hood per door and the
+     counts across a team can never double-count.
+
+     A hood whose outline the server cannot read counts nothing and SAYS SO
+     (outline_missing below) rather than reporting a confident zero. */
+  if v_t.geom is null then
+    v_houses := 0; v_sales := 0;
+  else
+    select count(*) into v_houses from public.pins
+     where team_id = v_team and deleted_at is null
+       and gis.st_intersects(v_t.geom, gis.st_setsrid(gis.st_makepoint(lng, lat), 4326));
+
+    select count(*) into v_sales
+      from public.customers c
+     where c.team_id = v_team and c.deleted_at is null
+       and exists (select 1 from public.pins p
+                    where p.team_id = v_team and p.deleted_at is null
+                      and p.id = c.data->>'pinId'
+                      and gis.st_intersects(v_t.geom,
+                            gis.st_setsrid(gis.st_makepoint(p.lng, p.lat), 4326)));
+  end if;
 
   return jsonb_build_object(
     'territory_id', p_territory_id, 'uuid', v_t.uuid,
     'seq', v_t.seq, 'of', v_total, 'live_hoods', v_live,
     'houses', v_houses, 'sales', v_sales,
+    'outline_missing', (v_t.geom is null),
     'cycle_started_at', v_t.cycle_started_at,
     -- only report a keep-list that still belongs to the current boundary
     'cycle_keep', case when v_t.cycle_keep_at is not null

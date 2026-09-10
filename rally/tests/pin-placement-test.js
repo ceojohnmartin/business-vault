@@ -10,8 +10,20 @@ const src = fs.readFileSync(path.join(__dirname, "..", "js", "property.js"), "ut
 const window = {};
 const STORE = { settings: {} };
 const MDATA = { ELIGIBILITY: { maxAreaKm2: 9 }, DEFAULT_REGRID_KEY: "" };
-new Function("window", "STORE", "MDATA", "fetch", "AbortController", "setTimeout", "clearTimeout", src)(
-  window, STORE, MDATA, () => {}, function () { this.signal = null; this.abort = () => {}; }, () => 0, () => {});
+// property.js reaches for MGEO.inRing; the ray cast is the same one used
+// below, so the test supplies it rather than pulling in the whole geo module
+const MGEO = {
+  inRing: (ring, x, y) => {
+    let hit = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  },
+};
+new Function("window", "STORE", "MDATA", "MGEO", "fetch", "AbortController", "setTimeout", "clearTimeout", src)(
+  window, STORE, MDATA, MGEO, () => {}, function () { this.signal = null; this.abort = () => {}; }, () => 0, () => {});
 
 const placeAt = window.MPROP._placeAt;
 let pass = 0, fail = 0;
@@ -128,6 +140,81 @@ const out = (src.match(/^out tags[^;\n]*;/m) || [""])[0];
 !/geom\s+center/.test(out)
   ? ok("7b. and does not put center after geom, which would drop it")
   : bad("7b. 'geom center' returns centres and NO geometry", out);
+
+/* ---- 8. THE FOOTPRINT DECIDES THE COORDINATE ----
+   Regrid answers with the LOT's representative point. On a big lot that is
+   the middle of the field, not the house — and the file used to claim the
+   building outline was "preferred when one exists" while no code path
+   implemented any such preference. snapToBuildings is that preference. */
+const snap = window.MPROP._snapToBuildings;
+const ringArea = window.MPROP._ringArea;
+const inGeoJson = window.MPROP._inGeoJson;
+
+// a 100 m-ish square lot, with a small house in one corner and a shed in
+// another; the parcel point is dead centre, in the grass between them
+const lot = { type: "Polygon", coordinates: [[[0, 0], [0.001, 0], [0.001, 0.001], [0, 0.001], [0, 0]]] };
+const house = [P(0.0001, 0.0001), P(0.0004, 0.0001), P(0.0004, 0.0004), P(0.0001, 0.0004), P(0.0001, 0.0001)];
+const shed  = [P(0.0008, 0.0008), P(0.0009, 0.0008), P(0.0009, 0.0009), P(0.0008, 0.0009), P(0.0008, 0.0008)];
+const bOf = (ring) => {
+  const pl = placeAt({ geometry: ring });
+  return { point: pl.point, how: pl.how, area: ringArea(ring) };
+};
+const buildings = [bOf(shed), bOf(house)];      // shed first, on purpose
+
+let doors = [{ lat: 0.0005, lng: 0.0005, placement: "parcel_point", _parcel: lot }];
+let moved = snap(doors, buildings);
+moved === 1 ? ok("8. a parcel door is moved onto a building inside its own lot")
+            : bad("8.", JSON.stringify(doors));
+inside(house, doors[0].lng, doors[0].lat)
+  ? ok("8b. and onto the HOUSE, not the shed — the largest outline in the lot wins")
+  : bad("8b. it landed off the house", JSON.stringify(doors[0]));
+doors[0].placement === "building_centroid"
+  ? ok("8c. and the door now says it is on a building, not on a parcel point")
+  : bad("8c.", doors[0].placement);
+
+// a lot with no building in it keeps exactly the point it came with
+doors = [{ lat: 0.0005, lng: 0.0005, placement: "parcel_point", _parcel: lot }];
+snap(doors, [bOf([P(9, 9), P(9.0001, 9), P(9.0001, 9.0001), P(9, 9.0001), P(9, 9)])]);
+doors[0].lat === 0.0005 && doors[0].placement === "parcel_point"
+  ? ok("8d. a lot with no outline in it keeps its parcel point, unchanged")
+  : bad("8d.", JSON.stringify(doors[0]));
+
+// no buildings at all — a provider outage must not move or lose a door
+doors = [{ lat: 0.0005, lng: 0.0005, placement: "parcel_point", _parcel: lot }];
+snap(doors, []);
+doors[0].lat === 0.0005 && doors[0].placement === "parcel_point"
+  ? ok("8e. a failed building lookup leaves every door where it was")
+  : bad("8e.", JSON.stringify(doors[0]));
+
+// an OSM door has no parcel; it is already on its roof and must not move
+doors = [{ lat: 1, lng: 1, placement: "building_surface" }];
+snap(doors, buildings);
+doors[0].lat === 1 && doors[0].placement === "building_surface"
+  ? ok("8f. a door with no parcel is never moved") : bad("8f.", JSON.stringify(doors[0]));
+
+// a MultiPolygon lot is a lot too
+const multi = { type: "MultiPolygon", coordinates: [lot.coordinates] };
+inGeoJson(multi, 0.0005, 0.0005) && !inGeoJson(multi, 0.5, 0.5)
+  ? ok("8g. a MultiPolygon parcel is tested against its outer rings")
+  : bad("8g. MultiPolygon containment", "in=" + inGeoJson(multi, 0.0005, 0.0005));
+
+/* ---- 9. PLACEMENT IS STORED. property.js computes it for every door and
+   store.js used to drop it, so the audit trail the file promises existed
+   nowhere. ---- */
+const storeSrc = fs.readFileSync(path.join(__dirname, "..", "js", "store.js"), "utf8");
+/placement:\s*prop\.placement/.test(storeSrc)
+  ? ok("9. the imported pin records how its coordinate was chosen")
+  : bad("9. store.js drops `placement` on the floor", "no `placement: prop.placement` in importDoors");
+
+/* ---- 10. THE DEMO GRID IS NOT A PROPERTY RECORD ---- */
+/SYNTHETIC\[prop\.source\]/.test(storeSrc)
+  ? ok("10. importDoors refuses synthetic demo doors")
+  : bad("10. the demo grid can still become permanent pins", "no source guard in importDoors");
+const mig = fs.readFileSync(path.join(__dirname, "..", "db", "migrations",
+  "0018_territory_properties.sql"), "utf8");
+/v_src = 'demo'/.test(mig)
+  ? ok("10b. and so does the server, for a client that routes around it")
+  : bad("10b. import_territory_doors accepts source='demo'", "no demo guard in 0018");
 
 console.log("\n================================\nPASS " + pass + "   FAIL " + fail);
 process.exit(fail ? 1 : 0);

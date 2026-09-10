@@ -139,6 +139,20 @@ const server = http.createServer((req, res) => {
     check("no territory was created by the panel",
       (await page.evaluate(() => STORE.territories.length)) === before);
 
+    section("the button says what it does — this panel chooses, it does not save");
+    await page.evaluate(() => { window.MASSIGN.close(); window.MASSIGN.open({
+      preselect: [], subtitle: "x", onSave: async () => {} }); });
+    await page.waitForTimeout(120);
+    check("with nobody picked it offers to assign nobody",
+      (await page.textContent("#assign-save")).trim() === "Assign nobody",
+      await page.textContent("#assign-save"));
+    check("and it never claims to be saving anything",
+      !/save/i.test(await page.textContent("#assign-save")),
+      await page.textContent("#assign-save"));
+    check("the hint says where the save actually happens",
+      /save the hood/i.test(await page.textContent("#assign-hint")));
+    await page.evaluate(() => window.MASSIGN.close());
+
     section("a failing save keeps the panel open with the reason");
     await page.evaluate(() => window.MASSIGN.open({
       preselect: [], subtitle: "x",
@@ -153,6 +167,11 @@ const server = http.createServer((req, res) => {
     await page.evaluate(() => window.MASSIGN.close());
 
     section("the polygon card shows two numbers and no more");
+    /* THE REAL RENDERER, NOT THE MARKUP. This section used to type
+       "Polygon 10 of 100 / 563 / 68" into the DOM itself and then assert it
+       back, so it passed with showCard() deleted and tested nothing but
+       index.html. It now stubs the SUMMARY — the one thing that would
+       otherwise need a server — and calls hoods.js's own showCard. */
     await page.evaluate(async () => {
       const P = MGEOM.project(40);
       const at = (x, y) => { const ll = P.toLngLat(x, y); return [ll[0], ll[1] + 40]; };
@@ -160,24 +179,75 @@ const server = http.createServer((req, res) => {
         { id: "card-hood", name: "Card Hood", points: [at(0, 0), at(300, 0), at(300, 300), at(0, 300)] }, []);
       window.__t.seq = 10;
       await MDB.put("territories", window.__t);
+      window.__realSummary = STORE.territorySummary;
     });
-    await page.evaluate(() => {
-      const c = document.querySelector("#polycard");
-      c.hidden = false;
-      document.querySelector("#pc-id").textContent = "Polygon 10 of 100";
-      document.querySelector("#pc-houses").textContent = "563";
-      document.querySelector("#pc-sales").textContent = "68";
+    await page.evaluate(async () => {
+      STORE.territorySummary = async () => ({
+        source: "server", outlineMissing: false,
+        seq: 10, of: 100, houses: 563, sales: 68,
+      });
+      await window.MHOODS._showCard(window.__t, null);
     });
     await page.waitForTimeout(80);
-    const cardText = (await page.textContent("#polycard")).replace(/\s+/g, " ").trim();
+    // innerText, not textContent: the "this device only" note is in the
+    // markup at all times and hidden, and only innerText respects that
+    /* Read the VISIBLE text. innerText would be the natural way to skip the
+       hidden "this device only" note, but the card sits in a view the
+       harness never lays out, so Chromium falls back to textContent for the
+       whole subtree. Walking the card's own unhidden children is exact. */
+    const visibleCardText = () => page.evaluate(() =>
+      [...document.querySelector("#polycard").children]
+        .filter((el) => !el.hidden)
+        .map((el) => el.textContent).join(" ").replace(/\s+/g, " ").trim());
+    const cardText = await visibleCardText();
     check("it reads exactly the two numbers", cardText === "Polygon 10 of 100 563 Houses 68 Sales", cardText);
     check("no drive time, coverage or acreage on it",
       !/drive|acre|%|residential|vacant/i.test(cardText));
+    check("the card is actually visible", await page.evaluate(() =>
+      !document.querySelector("#polycard").hidden));
+
+    /* A SCAN'S OWN COUNT IS NOT THE TEAM'S COUNT. showCard used to render
+       scan.eligible.length — every roof the vendor just returned, including
+       the ones the team already holds as pins — over the top of the
+       server's number, so the same hood read two different house counts one
+       second apart. */
+    await page.evaluate(async () => {
+      await window.MHOODS._showCard(window.__t, { eligible: new Array(999) });
+    });
+    await page.waitForTimeout(80);
+    check("a fresh scan does not overwrite the team's house count with its own",
+      (await page.textContent("#pc-houses")).trim() === "563",
+      await page.textContent("#pc-houses"));
+
+    section("a count this device made on its own says so");
+    await page.evaluate(async () => {
+      STORE.territorySummary = async () => ({
+        source: "device", outlineMissing: false,
+        seq: 10, of: null, houses: 4, sales: 1,
+      });
+      await window.MHOODS._showCard(window.__t, null);
+    });
+    await page.waitForTimeout(80);
+    check("the card is labelled as this device's own",
+      await page.evaluate(() => !document.querySelector("#pc-note").hidden));
+    check("and it does not invent an 'of M' the server never issued",
+      (await page.textContent("#pc-id")).trim() === "Polygon 10",
+      await page.textContent("#pc-id"));
+    await page.evaluate(async () => {
+      STORE.territorySummary = async () => ({
+        source: "server", outlineMissing: false, seq: 10, of: 100, houses: 563, sales: 68 });
+      await window.MHOODS._showCard(window.__t, null);
+    });
+    await page.waitForTimeout(80);
+    check("and the label goes away again on the team's answer",
+      await page.evaluate(() => document.querySelector("#pc-note").hidden));
+    await page.evaluate(() => { STORE.territorySummary = window.__realSummary; });
 
     section("the summary is derived, not typed");
     const sum = await page.evaluate(async () => await STORE.territorySummary(window.__t));
     check("a device with no cloud says so", sum.source === "device", JSON.stringify(sum));
     check("and still answers with a house count", typeof sum.houses === "number");
+    check("and does NOT guess at the team's denominator", sum.of === null, JSON.stringify(sum));
 
     check("no uncaught page errors", errors.length === 0, errors.join(" | "));
   } catch (e) {

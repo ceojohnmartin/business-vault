@@ -23,12 +23,31 @@
 --   Any activity row. events.territory_id and events.prev_disposition are
 --   dropped as columns; the rows themselves are append-only and remain.
 --
---   THE EFFECT OF A SELECTIVE RESET. Dropping cycle_keep does not move a
---   door, but it changes what the map PAINTS: a hood whose last reset kept
---   Go Backs purple loses that exemption, and every kept door goes back to
---   blue at the next repaint. No history is lost and the boundary itself is
---   untouched, so re-applying v42 and re-running the reset restores it —
---   but between the rollback and that re-run, reps see a different map.
+--   THE EFFECT OF A SELECTIVE RESET — and this paragraph used to be wrong
+--   in both directions, so read it carefully.
+--
+--   Dropping cycle_keep moves no door and loses no history. What it does
+--   NOT do is change what a phone paints. The map is painted from the
+--   DEVICE's own record, and S.cycleKeep reads the device's cycleKeep and
+--   cycleKeepAt. ALTER TABLE ... DROP COLUMN does not move
+--   territories.updated_at, and js/sync.js pulls territories on an
+--   updated_at cursor — so after this rollback no device re-pulls those
+--   hoods, and every phone that already had the exemption keeps painting
+--   it, indefinitely, until some unrelated write bumps that hood's row.
+--   Rolling back does not "put the doors back to blue"; it leaves the
+--   fleet exactly where it was and takes away the server's copy.
+--
+--   Nor can the exemption be restored by re-running the original reset.
+--   reset_territory_outcomes is idempotent on its operation id, and the
+--   ledger it reads (public.rally_operations) is dropped by this file —
+--   so a re-apply plus a replay would run as a NEW reset with a NEW
+--   boundary, which blues every door worked since the first one. There is
+--   no way back to the exact prior paint. If that matters, do not roll
+--   back; leave v42 applied and change the keep-list forward.
+--
+--   If the intent is for a rollback to actually reach the phones, this
+--   file is not enough on its own: the hoods have to be touched so the
+--   updated_at cursor delivers them again.
 --
 -- WHAT IT DOES RESTORE EXACTLY: the function catalog, the trigger set, the
 -- index set, and the column privileges as they were before v42.

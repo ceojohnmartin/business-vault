@@ -1186,6 +1186,13 @@ body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 .pc-nums{display:flex;gap:14px;margin-top:5px;font-size:12.5px;color:var(--t2)}
 .pc-nums b{font-size:15px;font-weight:700;color:var(--t1);font-variant-numeric:tabular-nums}
 .pc-sales b{color:var(--sold-ink)}
+/* The team could not be reached, so these are this phone's own counts. It
+   is said, not implied: a leader cannot tell a stale local number from the
+   team's answer by looking at it. */
+.pc-note{margin-top:4px;font-size:10.5px;font-weight:600;letter-spacing:.02em;
+  text-transform:uppercase;color:var(--t3,var(--t2));opacity:.85}
+.pc-note[hidden]{display:none}
+.polycard.local .pc-nums b{color:var(--t2)}
 
 /* ================= v42: ASSIGN A TERRITORY ================= */
 #assign-panel[hidden]{display:none}
@@ -1234,5 +1241,7 @@ body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
   border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
 .aempty{padding:22px 4px;color:var(--t3);font-size:14px;text-align:center}
 .afoot{padding-top:12px;border-top:1px solid var(--line-soft);margin-top:8px}
+.ahint{margin:7px 0 0;text-align:center;font-size:11.5px;color:var(--t3)}
+.ahint[hidden]{display:none}
 .anote{display:flex;gap:8px;margin-top:10px;font-size:11.5px;line-height:1.45;color:var(--t3)}
 .anote svg{width:14px;height:14px;flex:none;margin-top:1px;stroke:var(--t3);fill:none;stroke-width:1.7}

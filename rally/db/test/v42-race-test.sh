@@ -313,6 +313,38 @@ eq "6c. and the split still committed" \
 eq "6d. every number in the team is still unique" \
    "$(q "select (count(*) = count(distinct seq))::text from public.territories where team_id='$TEAM'")" "true"
 
+# ---------------------------------------------------------------- 7 ---
+echo
+echo "=== 7. A STALL IS AN ERROR, NOT A COMPANY-WIDE FREEZE ==="
+# Both RPCs hold a team-wide advisory lock and a hood's row lock to commit.
+# Without a lock_timeout, one stuck session freezes every turf write in the
+# team for as long as it lives. This holds the row lock from another
+# connection and asserts the RPC gives up and says so.
+mk stall-hood "$(sq 28.0 41.0 0.004)"
+cat > "$T/holder.sql" <<SQL
+begin;
+select * from public.territories where team_id = '$TEAM' and id = 'stall-hood' for update;
+select pg_sleep(20);
+commit;
+SQL
+psql -X -q -d "$DB" -f "$T/holder.sql" > "$T/holder.out" 2>&1 &
+PH=$!
+sleep 1
+S7=$(date +%s)
+R7=$(psql -X -d "$DB" -tA -c "select set_config('request.jwt.claims','{\"sub\":\"$LEAD\"}',true);
+  select public.import_territory_doors('stall-hood','[{\"lat\":41.001,\"lng\":28.001}]'::jsonb,'stall-op')" 2>&1 | tr '\n' ' ')
+E7=$(date +%s)
+kill $PH 2>/dev/null || true; wait $PH 2>/dev/null || true
+case "$R7" in
+  *"lock timeout"*|*"canceling statement"*) ok "7a. the import gives up on a held row lock instead of waiting forever";;
+  *) bad "7a. the import gives up on a held row lock" "got [$R7]";;
+esac
+if [ $((E7-S7)) -le 18 ]; then
+  ok "7b. and it gives up in seconds, not for the life of the other session ($((E7-S7))s)"
+else
+  bad "7b. it waited too long" "$((E7-S7))s"
+fi
+
 echo
 echo "================================================================"
 echo "PASS $pass   FAIL $fail"

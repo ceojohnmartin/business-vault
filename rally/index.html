@@ -161,6 +161,9 @@
         <span><b id="pc-houses">0</b> Houses</span>
         <span class="pc-sales"><b id="pc-sales">0</b> Sales</span>
       </div>
+      <!-- shown only when the team's answer could not be reached and these
+           are this phone's own partial counts -->
+      <div class="pc-note" id="pc-note" hidden>this device only</div>
     </div>
     <div class="draw-bar" id="draw-bar" hidden>
       <span id="draw-msg">Trace the area with your finger</span>
@@ -524,10 +527,11 @@
       <div class="asec">Available reps</div>
       <div id="assign-list" role="group" aria-labelledby="assign-title"></div>
       <div class="afoot">
-        <button class="btn btn-gold" id="assign-save" type="button">Save assignment</button>
+        <button class="btn btn-gold" id="assign-save" type="button">Use this rep</button>
+        <p class="ahint" id="assign-hint">Applied when you save the hood.</p>
         <p class="anote">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>
-          The territory reaches the rep once this is saved. Removing a rep later
+          The territory reaches the rep once the hood is saved. Removing a rep later
           never deletes the turf, its doors, or their history.
         </p>
       </div>

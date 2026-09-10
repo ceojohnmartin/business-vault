@@ -200,22 +200,42 @@
       $("#pc-id").textContent = "New polygon";
       $("#pc-houses").textContent = houses == null ? "—" : houses;
       $("#pc-sales").textContent = "0";
+      $("#pc-note").hidden = true;
       return;
     }
     $("#pc-id").textContent = hood.seq ? "Polygon " + hood.seq : "Polygon";
-    $("#pc-houses").textContent = houses == null ? "…" : houses;
+    $("#pc-houses").textContent = "…";
     $("#pc-sales").textContent = "…";
     try {
       const sum = await STORE.territorySummary(hood);
       if (gen !== cardGen) return;                 // another polygon since
       $("#pc-id").textContent = sum.seq
         ? "Polygon " + sum.seq + (sum.of ? " of " + sum.of : "") : "Polygon";
-      $("#pc-houses").textContent = houses == null ? sum.houses : houses;
+      /* ONE DEFINITION OF "N HOUSES", AND IT IS THE TEAM'S.
+
+         This line used to read `houses == null ? sum.houses : houses`,
+         where `houses` is scan.eligible.length — the raw count of roofs the
+         vendor just returned, which includes every house the team already
+         holds as a pin. So a hood with 40 doors, re-scanned, read "N
+         Houses" as 40-something one second and 40 the next, and neither
+         number was the one the server counts by. The scan's count is a
+         property of the SCAN and it already has a home in the status line;
+         the card is the team's answer or it is nothing.
+
+         `source: "device"` means the RPC could not be reached and the
+         numbers are this phone's own partial copy. It is labelled rather
+         than shown as if it were the team's, because a leader deciding
+         whether a hood is worked cannot tell the difference otherwise. */
+      const local = sum.source === "device";
+      $("#pc-houses").textContent = sum.outlineMissing ? "—" : sum.houses;
       $("#pc-sales").textContent = sum.sales;
+      $("#polycard").classList.toggle("local", local);
+      $("#pc-note").hidden = !local;
     } catch (_) {
       if (gen !== cardGen) return;
-      $("#pc-houses").textContent = houses == null ? "—" : houses;
+      $("#pc-houses").textContent = "—";
       $("#pc-sales").textContent = "—";
+      $("#pc-note").hidden = true;
     }
   }
 
@@ -318,7 +338,14 @@
     });
     lastScan = null;
     MMAP.refreshPins();
-    if (r.failed) toast(`Imported ${r.added} doors — ${r.failed} failed (storage may be full)`);
+    if (r.synthetic) {
+      /* The demo grid previews the flow on a solo device and is refused on a
+         team, because those doors would be permanent shared property records
+         for houses that do not exist. STORE.importDoors makes that call; the
+         manager has to be told why nothing appeared. */
+      toast(`Demo data is a preview, not real houses — it cannot be imported into a team. ` +
+        `Pick a real provider in More → Property data.`);
+    } else if (r.failed) toast(`Imported ${r.added} doors — ${r.failed} failed (storage may be full)`);
     else toast(`Import complete — ${r.added} door${r.added === 1 ? "" : "s"} pinned` +
       (r.skipped ? ` · ${r.skipped} already existed` : ""));
     return r;
@@ -831,5 +858,8 @@
     bind,
     isDrawing: () => mode !== null,
     createFromPoints: (pts) => openHoodSheet(pts, null), // lasso → hood
+    // the real renderer, exported so a test can drive it rather than type
+    // the card's own text into the DOM and assert it back
+    _showCard: showCard,
   };
 })();

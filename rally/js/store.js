@@ -548,12 +548,35 @@
     return { added, matched, outside, unusable, pages };
   };
 
+  /* THE DEMO GRID NEVER REACHES A TEAM.
+
+     js/property.js's demo provider lays a deterministic ~30 m x 34 m
+     lattice with invented street numbers, and it is one chip away in More →
+     Property data. On a device with no team server that is a harmless
+     preview of the whole flow, and it stays available — the chip would be
+     pointless otherwise.
+
+     On a device WITH a team server it is refused, because those doors are
+     permanent, syncing property records shared with everybody. Two things
+     go wrong at once: a company's database fills with houses that do not
+     exist, and the door index then treats a later REAL scan's building as
+     already present within ~15 m — so the synthetic grid BLOCKS the actual
+     houses it was standing in for. The owner's rule is "do not fake
+     nationwide house locations".
+
+     import_territory_doors refuses source='demo' outright, so a client that
+     routed around this could still not put one in a team's database. */
+  const SYNTHETIC = { demo: true };
+  const onATeam = () => !!(window.MCLOUD && MCLOUD.enabled());
+
   S.importDoors = async function (props, { territoryId, onProgress } = {}) {
     const idx = S.buildDoorIndex();
     const now = Date.now();
-    let added = 0, skipped = 0, failed = 0;
+    const team = onATeam();
+    let added = 0, skipped = 0, failed = 0, synthetic = 0;
     for (let i = 0; i < props.length; i++) {
       const prop = props[i];
+      if (SYNTHETIC[prop.source] && team) { synthetic++; continue; }
       if (idx.match(prop)) { skipped++; continue; }
       const pin = {
         id: MDB.uid(), lat: prop.lat, lng: prop.lng,
@@ -569,6 +592,14 @@
           yearBuilt: prop.yearBuilt || null, sqft: prop.sqft || null,
           lotSqft: prop.lotSqft || null,
           lastSaleDate: prop.lastSaleDate || null, lastSalePrice: prop.lastSalePrice || null,
+          /* HOW THIS PIN GOT ITS COORDINATE. js/property.js computes it for
+             every door and this object used to drop it on the floor, so the
+             file's promise that "a later audit can tell a rooftop from a
+             fallback without guessing" was true of nothing that was stored.
+             A door placed at a bounding-box centre or a parcel point is not
+             the same fact as a door on a verified footprint, and after a
+             thousand imports nobody can tell them apart by looking. */
+          placement: prop.placement || null,
         },
         importedAt: now, createdAt: now, updatedAt: now,
       };
@@ -581,7 +612,7 @@
       } catch (_) { failed++; }
       if (onProgress && (i % 25 === 24 || i === props.length - 1)) onProgress(i + 1, props.length);
     }
-    return { added, skipped, failed };
+    return { added, skipped, failed, synthetic };
   };
 
   S.updatePin = async function (pin) {
@@ -2083,10 +2114,30 @@
 
   /* RESET FOR RE-KNOCK — Clear Outcomes, with a choice.
 
-     `keep` names the outcomes this new pass leaves alone; [] is the
-     product default and the behaviour Clear Outcomes always had. Sold and a
-     current do-not-knock are protected by effectiveDisposition whatever is
-     passed.
+     NOTE — THERE IS NO SCREEN FOR THIS YET. Nothing in the app calls this
+     function; the only Clear Outcomes button (turf.js confirmCycle) still
+     calls S.startCycle, which moves the boundary for every outcome. The
+     manager's tick-box sheet is unbuilt and deliberately so. Read that
+     before assuming the behaviour below is reachable in the field.
+
+     `reset` NAMES THE OUTCOMES THAT BECOME BLUE — what the manager ticked.
+     It is not the complement, and an earlier version of this comment
+     described the complement, which is the inverse of what the function
+     does. So:
+
+         reset = []                      resets NOTHING. Every outcome is
+                                         kept; the pass changes no colour.
+         reset = the four knock outcomes  is the behaviour plain Clear
+                                         Outcomes always had.
+
+     The server stores the complement in territories.cycle_keep; the screen
+     never sees it.
+
+     Sold and a current do-not-knock are NOT protected "whatever is passed"
+     — they are answered above the cycle entirely, from the customer record
+     and the ledger, and the server refuses to put either in a keep-list
+     (0018 §G). The distinction matters: a KEPT dnk would re-blacken a door
+     a manager had explicitly cleared.
 
      `includeDnk` does NOT clear black. It asks the server which doors ARE
      black, and returns them for the caller to clear one at a time through
@@ -2143,23 +2194,42 @@
 
   /* THE TWO NUMBERS ON THE DRAW CARD — "Polygon 10 of 100", houses, sales.
      Read from the server so the count is the team's, not this phone's
-     partial copy of it. Falls back to what this device can see when there
-     is no cloud, and says which it gave. */
+     partial copy of it. Falls back to what this device can see, and SAYS
+     SO — `source` is read by hoods.js and rendered, which it was not when
+     this comment first claimed it.
+
+     Three things the fallback deliberately does NOT do:
+
+       - it does not guess at "of M". The denominator is the highest number
+         ever issued to the team, which only the server knows; live.length
+         is a different quantity and rendering it would put a confident
+         wrong number on the card. Null means the card shows "Polygon 7".
+       - it does not use a different sale rule from the server's. The
+         server counts customers whose pinId is a door in the hood; so does
+         this. Counting "doors with an active customer" instead made the
+         two answers differ even when both were right about their own data.
+       - it does not spend a doomed request. An offline device is told so
+         by turfGate rather than waiting out a timeout first. */
   S.territorySummary = async function (t) {
-    if (window.MCLOUD && MCLOUD.enabled()) {
+    const gate = S.turfGate({ needsServer: true });
+    if (window.MCLOUD && MCLOUD.enabled() && gate.code !== "offline") {
       try {
         const res = await rpc("rally_territory_summary", { p_territory_id: t.id });
-        if (res) return Object.assign({ source: "server" }, res);
+        if (res) {
+          return Object.assign({ source: "server" }, res,
+            { outlineMissing: !!res.outline_missing });
+        }
       } catch (e) { /* fall through to the local count rather than showing nothing */ }
     }
-    const live = S.territories.filter((x) => S.isLive(x));
     const doors = S.pins.filter((p) => !p.deletedAt && S.hoodOf(p) && S.hoodOf(p).id === t.id);
+    const ids = {};
+    doors.forEach((p) => { ids[p.id] = true; });
     return {
-      source: "device",
+      source: "device", outlineMissing: false,
       territory_id: t.id, uuid: t.uuid || null,
-      seq: t.seq || null, of: live.length,
+      seq: t.seq || null, of: null,
       houses: doors.length,
-      sales: doors.filter((p) => S.activeCustomerOf(p)).length,
+      sales: S.customers.filter((c) => !c.deletedAt && c.pinId && ids[c.pinId]).length,
     };
   };
 

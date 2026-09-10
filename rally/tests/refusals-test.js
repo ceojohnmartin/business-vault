@@ -517,6 +517,34 @@ async function reopen(page) {
   await page.click("#hood-sheet .grab");
   await page.waitForTimeout(250);
 
+  /* ===== L* — THE DEMO GRID NEVER REACHES A TEAM =====
+     js/property.js can lay a deterministic lattice with invented street
+     numbers, one chip away in the settings sheet. On a solo device that is
+     a preview and stays allowed. On a device with a team server those doors
+     would be permanent, shared property records for houses that do not
+     exist — and the ~15 m door index would then let them BLOCK the real
+     houses they were standing in for. This suite runs with a cloud. */
+  section("L* — a synthetic demo door cannot become a team property record");
+  const demoRes = await page.evaluate(async () => {
+    const before = STORE.pins.length;
+    const r = await STORE.importDoors([
+      { lat: 30.951, lng: -91.951, address: "1234 Demo Ave", source: "demo",
+        externalId: "demo-x1", eligible: true, placement: "synthetic_grid" },
+      { lat: 30.952, lng: -91.952, address: "8 Real St", source: "osm",
+        externalId: "osm-way-9001", eligible: true, placement: "building_centroid" },
+    ], {});
+    return { r, before, after: STORE.pins.length,
+      demoPins: STORE.pins.filter((p) => p.prop && p.prop.source === "demo").length,
+      realPin: STORE.pins.find((p) => p.prop && p.prop.externalId === "osm-way-9001") || null };
+  });
+  check("L*1 the demo door was refused", demoRes.r.synthetic === 1, JSON.stringify(demoRes.r));
+  check("L*2 and no synthetic pin exists", demoRes.demoPins === 0, JSON.stringify(demoRes));
+  check("L*3 the real house in the same payload still landed",
+    demoRes.r.added === 1 && !!demoRes.realPin, JSON.stringify(demoRes.r));
+  check("L*4 and it records how its coordinate was chosen",
+    demoRes.realPin && demoRes.realPin.prop.placement === "building_centroid",
+    JSON.stringify(demoRes.realPin && demoRes.realPin.prop));
+
   // ================= G: the chip answers its own question =================
   section("G — the Map chip");
   if (await page.$eval("#refused-sheet", (e) => e.classList.contains("open"))) {

@@ -129,9 +129,17 @@
   <div class="screen" id="screen-map">
     <div id="mapwrap"><div id="map"></div><canvas id="draw-canvas" hidden></canvas></div>
     <div class="map-chrome">
-      <div class="map-brand">
-        <div class="wordmark">RALLY</div>
-        <div class="today" id="brand-today">0 doors today</div>
+      <!-- THREE NUMBERS AND THE WORDMARK. No hood name, no territory
+           label, no extra stats: the rep already knows the blue area is
+           theirs, and a label over the middle of the map costs imagery. -->
+      <div class="map-brand p-glass" id="map-brand">
+        <div class="mb-mark">RALLY</div>
+        <div class="mb-stats">
+          <div class="mb-cell"><b class="num" id="mb-doors">0</b><span>Doors</span></div>
+          <div class="mb-cell"><b class="num" id="mb-dms">0</b><span>DMs</span></div>
+          <div class="mb-cell sold"><b class="num" id="mb-sold">0</b><span>Sold</span></div>
+        </div>
+        <div class="today" id="brand-today" hidden></div>
         <button class="brand-hood" id="brand-hood" hidden></button>
       </div>
       <div class="map-actions">

@@ -161,68 +161,88 @@
     return `rgb(${r},${g},${b})`;
   }
 
-  function makePinImage(color) {
+  /* THE PIN, v42 — COMPACT, WHITE-HALOED, AIMED AT THE BUILDING.
+
+     Three changes from the glossy version, all of them about reading a pin
+     ON SATELLITE PHOTOGRAPHY rather than on flat cartography:
+
+       1. A WHITE HALO. Roofs, driveways and lawns run the whole tonal
+          range, so a coloured rim disappears against something. A white
+          ring plus a soft drop shadow separates the pin from ANY imagery
+          underneath, which is what makes a dense street readable.
+       2. LESS GLOSS. The heavy 3D bloom read as a game asset next to Apple
+          and Google's own map furniture. A single soft vertical gradient
+          keeps the form without the shine.
+       3. SMALLER, WITH A LONGER TIP. The point is the claim about which
+          BUILDING this is — the head can shrink for density as long as the
+          tip stays sharp and anchored.
+
+     Everything is still drawn at 2x on canvas and registered as a map
+     image, so this costs no runtime and no extra request. */
+  function makePinImage(color, opts) {
+    const o = opts || {};
     const S = 96; // 48 CSS px @2x
     const cv = document.createElement("canvas");
     cv.width = S; cv.height = S;
     const ctx = cv.getContext("2d");
-    const x = S / 2, headR = S * 0.30, headCy = S * 0.335, tipY = S * 0.955;
+    const x = S / 2, headR = S * 0.255, headCy = S * 0.315, tipY = S * 0.945;
 
     const tear = () => {
       ctx.beginPath();
       ctx.moveTo(x, tipY);
-      ctx.bezierCurveTo(x - headR * 0.52, tipY - S * 0.24, x - headR, headCy + headR * 0.72, x - headR, headCy);
-      ctx.arc(x, headCy, headR, Math.PI, 0); // top semicircle (sweeps through 12 o'clock)
-      ctx.bezierCurveTo(x + headR, headCy + headR * 0.72, x + headR * 0.52, tipY - S * 0.24, x, tipY);
+      ctx.bezierCurveTo(x - headR * 0.40, tipY - S * 0.30, x - headR, headCy + headR * 0.80, x - headR, headCy);
+      ctx.arc(x, headCy, headR, Math.PI, 0); // top semicircle
+      ctx.bezierCurveTo(x + headR, headCy + headR * 0.80, x + headR * 0.40, tipY - S * 0.30, x, tipY);
       ctx.closePath();
     };
+
+    // separation from the imagery: a soft shadow under the whole shape
+    ctx.save();
+    ctx.shadowColor = "rgba(8,12,20,.38)";
+    ctx.shadowBlur = 7;
+    ctx.shadowOffsetY = 2;
+    tear();
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fill();
+    ctx.restore();
+
+    // THE HALO — a white ring the imagery cannot swallow
+    tear();
+    ctx.lineWidth = o.halo || 5.5;
+    ctx.strokeStyle = "#FFFFFF";
+    ctx.lineJoin = "round";
+    ctx.stroke();
 
     // body
     tear();
     ctx.fillStyle = color;
     ctx.fill();
 
-    // 3D shading: darker toward the lower-right…
-    tear();
-    const dark = ctx.createLinearGradient(x - headR, headCy - headR, x + headR, tipY);
-    dark.addColorStop(0, "rgba(0,0,0,0)");
-    dark.addColorStop(1, "rgba(0,0,0,.30)");
-    ctx.fillStyle = dark;
-    ctx.fill();
-
-    // …and a soft gloss bloom on the upper-left
+    // one soft vertical gradient — form, not shine
     tear();
     ctx.save();
     ctx.clip();
-    const gloss = ctx.createRadialGradient(
-      x - headR * 0.42, headCy - headR * 0.48, headR * 0.08,
-      x - headR * 0.2, headCy - headR * 0.2, headR * 1.5);
-    gloss.addColorStop(0, "rgba(255,255,255,.85)");
-    gloss.addColorStop(0.35, "rgba(255,255,255,.28)");
-    gloss.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = gloss;
+    const g = ctx.createLinearGradient(0, headCy - headR, 0, tipY);
+    g.addColorStop(0, "rgba(255,255,255,.30)");
+    g.addColorStop(0.45, "rgba(255,255,255,.04)");
+    g.addColorStop(1, "rgba(0,0,0,.20)");
+    ctx.fillStyle = g;
     ctx.fill();
     ctx.restore();
 
-    // rim — light on dark pins (DNK black), dark on bright pins
-    tear();
+    // a hairline of the colour's own shade keeps the edge crisp inside the halo
     const lum = parseInt(color.slice(1), 16);
     const isDark = (((lum >> 16) & 255) + ((lum >> 8) & 255) + (lum & 255)) / 3 < 70;
-    ctx.strokeStyle = isDark ? "rgba(255,255,255,.5)" : shade(color, -0.28);
-    ctx.lineWidth = 2;
+    tear();
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = isDark ? "rgba(255,255,255,.42)" : shade(color, -0.30);
     ctx.stroke();
 
-    // the white hole
+    // the white hole, smaller than before so the colour still reads at 12px
     ctx.beginPath();
-    ctx.arc(x, headCy, headR * 0.42, 0, Math.PI * 2);
+    ctx.arc(x, headCy, headR * 0.36, 0, Math.PI * 2);
     ctx.fillStyle = "#FFFFFF";
     ctx.fill();
-    // faint inner shadow at the hole's top edge sells the depth
-    ctx.beginPath();
-    ctx.arc(x, headCy, headR * 0.42 - 1, Math.PI * 1.05, Math.PI * 1.95);
-    ctx.strokeStyle = "rgba(0,0,0,.18)";
-    ctx.lineWidth = 2.5;
-    ctx.stroke();
 
     return ctx.getImageData(0, 0, S, S);
   }
@@ -306,7 +326,16 @@
             properties: {
               id: t.id, name: t.name || "Hood",
               rep: u ? u.name : "",
-              color: STORE.hoodColor(t),
+              /* TURF IS BLUE ON THE REP MAP, and only on the rep map.
+
+                 A rep sees exactly one thing here — their own area — so a
+                 per-rep colour communicates nothing to them and costs a
+                 colour that then cannot mean anything else. Blue is
+                 RALLY's interaction colour; the blue shape IS "yours".
+
+                 A MANAGER still gets the per-rep palette, because telling
+                 four reps' areas apart is the entire job of that view. */
+              color: manager ? STORE.hoodColor(t) : "#0A84FF",
               fresh: heatMode ? STORE.freshness(t).color : "#000",
               dim,
             },
@@ -321,8 +350,11 @@
     const dimmed = (full, faded) => ["case", ["==", ["get", "dim"], 1], faded, full];
     map.setPaintProperty("hoods-fill", "fill-color", colorProp);
     map.setPaintProperty("hoods-line", "line-color", colorProp);
-    map.setPaintProperty("hoods-fill", "fill-opacity", heatMode ? 0.25 : dimmed(0.16, 0.05));
-    map.setPaintProperty("hoods-line", "line-opacity", heatMode ? 0.75 : dimmed(0.7, 0.3));
+    /* Translucent fill, STRONG outline — the locked look. Over satellite
+       photography a weak edge disappears into rooftops, and the edge is the
+       part that answers "am I still on my turf?". */
+    map.setPaintProperty("hoods-fill", "fill-opacity", heatMode ? 0.25 : dimmed(0.15, 0.04));
+    map.setPaintProperty("hoods-line", "line-opacity", heatMode ? 0.75 : dimmed(0.92, 0.28));
     const heatLegend = $("#heat-legend");
     if (heatLegend) heatLegend.hidden = !heatMode;
     updateHint(); // swaps the disposition legend out while heat is on
@@ -404,7 +436,7 @@
       layout: { "line-join": "round", "line-cap": "round" },
       paint: {
         "line-color": ["get", "color"],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 1.4, 17, 2.5],
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 2.0, 17, 3.6],
         "line-opacity": dimmed(0.7, 0.3),
       },
     });
@@ -531,7 +563,12 @@
     if (map && map.getSource("route")) map.getSource("route").setData(emptyFC());
   }
 
-  const PIN_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 10, 0.30, 14, 0.52, 16, 0.72, 18, 0.95];
+  /* Compact enough for a dense block, and it can be: the white halo does
+     the legibility work the old size was doing. The selected door gets its
+     own slightly larger layer rather than a size expression, so the bump is
+     visible at every zoom. */
+  const PIN_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 10, 0.26, 14, 0.44, 16, 0.62, 18, 0.82];
+  const PIN_ICON_SIZE_SEL = ["interpolate", ["linear"], ["zoom"], 10, 0.34, 14, 0.56, 16, 0.78, 18, 1.02];
 
   function init() {
     if (typeof maplibregl === "undefined") {
@@ -624,10 +661,10 @@
         source: "pins",
         filter: ["all", single, ["==", ["get", "id"], ""]],
         paint: {
-          "circle-color": "rgba(94,160,255,.18)",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 7, 14, 11, 17, 15],
+          "circle-color": "rgba(10,132,255,.20)",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 14, 13, 17, 18],
           "circle-stroke-width": 2.5,
-          "circle-stroke-color": "#5EA0FF",
+          "circle-stroke-color": "#FFFFFF",
         },
       });
       // a due callback pulses: purple ring under the pin says "go NOW"
@@ -704,6 +741,25 @@
           "text-allow-overlap": true,
         },
         paint: { "text-color": "#FFFFFF" },
+      });
+      /* THE SELECTED DOOR, DRAWN AGAIN AND LARGER, above everything else.
+         A size expression on the shared layer cannot do this — the whole
+         layer would grow — and the emphasis has to survive at every zoom,
+         because "which pin did I just tap" is the question a rep asks most
+         often on a dense street. Same image, same anchor, so the tip does
+         not move a pixel when a door is selected. */
+      map.addLayer({
+        id: "pins-icon-sel",
+        type: "symbol",
+        source: "pins",
+        filter: ["all", single, ["==", ["get", "id"], ""]],
+        layout: {
+          "icon-image": ["concat", "pin-", ["get", "disposition"]],
+          "icon-size": PIN_ICON_SIZE_SEL,
+          "icon-anchor": "bottom",
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
       });
       addRouteLayers();
       addHoodLabelLayer();
@@ -807,8 +863,13 @@
 
   function updateBrandToday() {
     const t = STORE.todayStats(STORE.myId()); // my doors today, not the team's
-    $("#brand-today").innerHTML =
-      `${t.doors} doors · ${t.dms} DMs · <b>${t.sales} sold</b> today`;
+    /* THREE NUMBERS. The panel used to read them as one sentence and also
+       carried a hood name underneath. The locked direction is Doors, DMs,
+       Sold and nothing else — a rep reading a map at arm's length wants
+       three glanceable figures, not a caption. */
+    $("#mb-doors").textContent = t.doors;
+    $("#mb-dms").textContent = t.dms;
+    $("#mb-sold").textContent = t.sales;
     const st = window.MSYNC && MSYNC.status();
     const chip = $("#sync-chip");
     if (st && st.on) { // cloud era: the chip shows work waiting to upload
@@ -840,6 +901,13 @@
   function updateHoodStrip() {
     const el = $("#brand-hood");
     if (!el) return;
+    /* THE TERRITORY LABEL IS GONE FROM THE REP MAP, on purpose. The blue
+       area IS the message; naming it in the middle of the imagery was
+       clutter over the one thing the rep is actually reading. The element
+       stays in the DOM so the manager surfaces that do want a hood name can
+       keep using it, and so nothing that reads it has to guard. */
+    el.hidden = true;
+    return;
     let hood = null;
     if (map) {
       const c = map.getCenter();
@@ -867,6 +935,10 @@
 
   function setSelected(id) {
     selectedPinId = id || "";
+    if (map && map.getLayer("pins-icon-sel")) {
+      map.setFilter("pins-icon-sel",
+        ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], selectedPinId]]);
+    }
     if (map && map.getLayer("pins-selected")) {
       map.setFilter("pins-selected",
         ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], selectedPinId]]);

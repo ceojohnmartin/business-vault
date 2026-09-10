@@ -491,3 +491,33 @@ the paste.
 
 Advisory probes: duplicate property rows, scale counts, and doors whose blob and column
 disagree today.
+
+### It has been run against production. READ ONLY — nothing was changed.
+
+Run 2026-09-10 against project `xwjreykfjzvlmgjzfnzt`. One SELECT; no insert, no update,
+no DDL.
+
+| # | Probe | Value | Verdict |
+|---|---|---|---|
+| 1 | the 43 named v41 functions | 43 of 43 | PASS |
+| 2 | `assignment_server_authoritative` | true | PASS |
+| 3 | territories triggers present | 3 | PASS |
+| 4 | already applied: territories columns | 0 of 4 | PASS — not applied |
+| 5 | already applied: events columns | 0 | PASS |
+| 6 | already applied: v42 functions + ledger | 0 of 10 | PASS |
+| 7 | duplicate property rows | 0 | PASS — a unique index would build cleanly later |
+| 8 | hoods to number | 27 | INFO |
+| 9 | live hoods | 20 | INFO |
+| 10 | live doors | 687 | INFO |
+| 11 | activity rows | 56 | INFO |
+| 12 | live hoods with an unreadable outline | 0 | PASS |
+| 13 | doors whose blob and column disagree | 0 | PASS — nothing to correct |
+| **99** | **VERDICT** | | **READY — `db/APPLY_v42.sql` may be pasted and run** |
+
+So the database is in exactly the state v42 expects, v42 is not partially applied, and the
+one condition that would abort the apply is absent. The backfill would number 27 hoods and
+issue 27 uuids; no pin, event or customer row would be written.
+
+**READY is a statement about the DATABASE, not a recommendation to apply.** The
+recommendation is still NO-GO, for the reason in §I: the screens are missing, not the
+schema.

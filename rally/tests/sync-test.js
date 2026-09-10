@@ -360,13 +360,13 @@ const server = http.createServer((req, res) => {
 
   // ---- import dedupe: both phones import the same three doors
   await S(A, async () => {
-    const mk = (i) => ({ externalId: "door-" + i, parcelId: "p-" + i, source: "demo",
+    const mk = (i) => ({ externalId: "door-" + i, parcelId: "p-" + i, source: "osm",
       lat: 38.5 + i * 0.001, lng: -98.4, address: (100 + i) + " Demo Ave",
       city: "Great Bend", state: "KS", zip: "67530", propertyType: "sfr" });
     await STORE.importDoors([mk(0), mk(1), mk(2)]);
   });
   await S(B, async () => {
-    const mk = (i) => ({ externalId: "door-" + i, parcelId: "p-" + i, source: "demo",
+    const mk = (i) => ({ externalId: "door-" + i, parcelId: "p-" + i, source: "osm",
       lat: 38.5 + i * 0.001, lng: -98.4, address: (100 + i) + " Demo Ave",
       city: "Great Bend", state: "KS", zip: "67530", propertyType: "sfr" });
     await STORE.importDoors([mk(0), mk(1), mk(2)]);
@@ -397,7 +397,7 @@ const server = http.createServer((req, res) => {
   await S(A, async () => {
     const props = [];
     for (let i = 0; i < 520; i++) props.push({
-      externalId: "tie-" + i, parcelId: "tp-" + i, source: "demo",
+      externalId: "tie-" + i, parcelId: "tp-" + i, source: "osm",
       lat: 39.0 + i * 0.0005, lng: -99.0, address: (1 + i) + " Tie St",
       city: "Hays", state: "KS", zip: "67601", propertyType: "sfr" });
     await STORE.importDoors(props);

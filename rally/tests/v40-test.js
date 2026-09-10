@@ -935,7 +935,7 @@ const browserRef = { b: null };   // so the crash handler can always close it
   if (want("K")) {
     section("K — proven identities (akaSure): tier gating, uniqueness, transitivity, alias deletion");
     const PROP = { externalId: "prop-777", parcelId: "par-777", address: "777 Same St", city: "Great Bend",
-      state: "KS", zip: "67530", source: "demo", lat: 38.55, lng: -98.45 };
+      state: "KS", zip: "67530", source: "osm", lat: 38.55, lng: -98.45 };
     // K1 — tier gating: two rep-dropped pins ~12 m apart, no address: coordinate tier only
     {
       const T = newTeam();

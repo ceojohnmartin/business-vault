@@ -76,6 +76,7 @@ drop function if exists public.reset_territory_outcomes(text, text[], boolean, t
 drop function if exists public.rally_territory_summary(text);
 drop function if exists public.rally_num(text);
 drop function if exists public.rally_txt(jsonb);
+drop function if exists public.rally_hood_covers(uuid, text, double precision, double precision);
 
 /* The operation ledger. Dropping it drops the idempotency record of every
    import and reset that ran under v42 — a retry of one of those operation
@@ -118,7 +119,7 @@ begin
      where n.nspname = 'public'
        and p.proname in ('territories_number','events_derive_context','rally_num',
                          'import_territory_doors','reset_territory_outcomes',
-                         'rally_territory_summary','pins_territory_guard','rally_txt')
+                         'rally_territory_summary','pins_territory_guard','rally_txt','rally_hood_covers')
     union all
     select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
      where n.nspname = 'public'

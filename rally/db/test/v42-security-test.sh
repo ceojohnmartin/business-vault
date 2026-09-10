@@ -177,6 +177,60 @@ has "9a. even a leader's direct write cannot choose a number" "$R" "permission d
 eq  "9b. and no such hood exists" "$(q "select count(*) from public.territories where id='forge-1'")" "0"
 
 echo
+echo "=== 10. THE CLIENT CANNOT REACH SCHEMA gis, AND v42 STILL WORKS ==="
+# RALLY revokes USAGE on schema gis from its clients. Anything v42 adds that
+# runs AS THE CLIENT therefore may not name a gis type or call a gis
+# function — and the first version of pins_territory_guard did both, in a
+# BEFORE trigger on public.pins. With the revoke genuinely in place it did
+# not merely misbehave, it FAILED TO COMPILE, which would have refused every
+# knock, note and disposition a rep writes. The build() above revokes from
+# `authenticated`; PUBLIC's own grant survives that, so this revokes both
+# and then exercises the write paths a rep actually uses.
+# a door INSIDE sec-hood, so the guard has something real to protect
+psql -X -q -d "$DB" -c "insert into public.pins (team_id,id,lat,lng,address,disposition,territory_id,data,created_by)
+  values ('$TEAM','gis-in',41.002,30.002,'2 Gis St','unworked','sec-hood',
+          '{\"id\":\"gis-in\",\"territoryId\":\"sec-hood\"}'::jsonb,'$LEAD')" >/dev/null 2>&1
+psql -X -q -d "$DB" -c "revoke usage on schema gis from public, authenticated" >/dev/null 2>&1
+eq "10a. the client really has no access to schema gis" \
+   "$(q "select has_schema_privilege('authenticated','gis','usage')::text")" "false"
+
+R=$(as "$JOHN" "insert into public.pins (team_id,id,lat,lng,address,disposition,created_by,data)
+  values ('$TEAM','gis-new',41.0035,30.0035,'1 Gis St','unworked','$JOHN','{\"id\":\"gis-new\"}'::jsonb)")
+case "$R" in
+  *ERROR*) bad "10b. a rep can still create a door" "$R";;
+  # this also settles the OTHER gis question v42 raises: five of its new
+  # indexes are gis expressions, and maintaining them on an ordinary client
+  # INSERT does not need the writer to hold USAGE on the schema
+  *) ok "10b. a rep can still create a door (and maintain five gis indexes)";;
+esac
+R=$(as "$JOHN" "update public.pins set disposition='nothome',
+   data = jsonb_set(data,'{disposition}','\"nothome\"')
+   where team_id='$TEAM' and id='gis-new'")
+case "$R" in
+  *ERROR*) bad "10c. and knock it — the guard trigger compiles for a client" "$R";;
+  *) ok "10c. and knock it — the guard trigger compiles for a client";;
+esac
+eq "10d. the knock really landed" \
+   "$(q "select disposition from public.pins where id='gis-new'")" "nothome"
+
+# and the membership guard still does its job through the definer helper
+psql -X -q -d "$DB" -c "update public.pins set territory_id='sec-hood'
+  where team_id='$TEAM' and id='gis-in'" >/dev/null 2>&1
+R=$(as "$JOHN" "update public.pins set territory_id = null
+  where team_id='$TEAM' and id='gis-in'")
+case "$R" in
+  *ERROR*) bad "10e. the guard still runs with gis revoked" "$R";;
+  *) eq "10e. and still refuses to drop a door out of the hood it stands in" \
+        "$(q "select coalesce(territory_id,'(CLEARED)') from public.pins where id='gis-in'")" "sec-hood";;
+esac
+R=$(as "$JOHN" "insert into public.events (team_id,id,pin_id,type,disposition,at_ms,by_user,data)
+  values ('$TEAM','gis-ev','gis-new','knock','nothome',1700009000000,'$JOHN','{\"id\":\"gis-ev\"}'::jsonb)")
+case "$R" in
+  *ERROR*) bad "10f. a rep can still write an activity row" "$R";;
+  *) ok "10f. a rep can still write an activity row";;
+esac
+
+echo
 echo "================================================================"
 echo "PASS $pass   FAIL $fail"
 [ "$fail" -eq 0 ] || exit 1

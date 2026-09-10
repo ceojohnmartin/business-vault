@@ -51,7 +51,8 @@ already as (
       where n.nspname = 'public'
         and p.proname in ('territories_number','events_derive_context','rally_num',
                           'import_territory_doors','reset_territory_outcomes',
-                          'rally_territory_summary','pins_territory_guard','rally_txt')) as fns,
+                          'rally_territory_summary','pins_territory_guard','rally_txt',
+                          'rally_hood_covers')) as fns,
     (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
       where n.nspname = 'public' and c.relkind = 'r'
         and c.relname = 'rally_operations') as ops_table
@@ -144,8 +145,8 @@ select * from (
          case when a.e_cols in (0,2) then 'PASS' else 'FAIL — PARTIAL' end from already a
   union all
   select 6, 'already applied: v42 functions and the operation ledger',
-         (a.fns + a.ops_table)::text || ' of 9',
-         case when (a.fns + a.ops_table) in (0,9) then 'PASS' else 'FAIL — PARTIAL' end from already a
+         (a.fns + a.ops_table)::text || ' of 10',
+         case when (a.fns + a.ops_table) in (0,10) then 'PASS' else 'FAIL — PARTIAL' end from already a
   union all
   select 7, 'duplicate property rows (live, same source+externalId)', d.n::text,
          case when d.n = 0 then 'PASS — a unique index would build cleanly later'
@@ -178,7 +179,7 @@ select * from (
              or (select trg from base) <> 3
              or (select t_cols from already) not in (0,4)
              or (select e_cols from already) not in (0,2)
-             or (select fns + ops_table from already) not in (0,9)
+             or (select fns + ops_table from already) not in (0,10)
              or (select n from badRing) > 0
            then 'DO NOT APPLY — a probe above reads FAIL'
            else 'READY — db/APPLY_v42.sql may be pasted and run' end

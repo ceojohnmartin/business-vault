@@ -367,14 +367,46 @@ create trigger events_derive_context
    mirror below the check is deliberately NOT gated that way — it is an
    invariant, not an authorization rule, and it costs nothing to hold for
    every writer. */
+/* THE GEOMETRY TEST LIVES IN ITS OWN DEFINER FUNCTION, and that is not
+   tidiness — the trigger below cannot do it itself.
+
+   RALLY revokes USAGE on schema `gis` from clients. A SECURITY INVOKER
+   trigger runs as `authenticated`, so naming `gis.geometry` in its DECLARE
+   block or calling `gis.st_covers` in its body makes it FAIL TO COMPILE for
+   exactly the users it exists to police — and because it is a BEFORE
+   trigger on public.pins, that is every knock, every note and every
+   disposition a rep writes. Reproduced on a replica with the revoke in
+   place: "compilation of PL/pgSQL function pins_territory_guard".
+
+   So the geometry read is a SECURITY DEFINER function and the trigger stays
+   SECURITY INVOKER, which is what keeps `current_user` an unspoofable test
+   of who is writing.
+
+   st_covers, not st_contains: a door sitting exactly on its own hood's edge
+   is in it. The test names ONE hood, so the shared-edge ambiguity between
+   two neighbours never arises here. */
+create or replace function public.rally_hood_covers(
+  p_team uuid, p_hood text, p_lng double precision, p_lat double precision)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.territories t
+     where t.team_id = p_team and t.id = p_hood
+       and t.deleted_at is null and not t.archived
+       and t.geom is not null
+       and gis.st_covers(t.geom, gis.st_setsrid(gis.st_makepoint(p_lng, p_lat), 4326)))
+$$;
+
 create or replace function public.pins_territory_guard()
 returns trigger
 language plpgsql
 security invoker                     -- current_user is the authorization test
 set search_path = ''
 as $$
-declare
-  v_geom gis.geometry;
 begin
   if tg_op = 'UPDATE'
      and current_user = 'authenticated'
@@ -382,19 +414,9 @@ begin
      and new.territory_id is null
      -- BETWEEN is false for NaN, which double precision can hold
      and new.lat between -90 and 90 and new.lng between -180 and 180
+     and public.rally_hood_covers(new.team_id, old.territory_id, new.lng, new.lat)
   then
-    select t.geom into v_geom
-      from public.territories t
-     where t.team_id = new.team_id and t.id = old.territory_id
-       and t.deleted_at is null and not t.archived;
-    /* st_covers, not st_contains: a door sitting exactly on its own hood's
-       edge is in it. The test names ONE hood, so the shared-edge ambiguity
-       between two neighbours never arises here. */
-    if v_geom is not null
-       and gis.st_covers(v_geom, gis.st_setsrid(gis.st_makepoint(new.lng, new.lat), 4326))
-    then
-      new.territory_id := old.territory_id;
-    end if;
+    new.territory_id := old.territory_id;
   end if;
 
   /* ONE FACT, TWO PLACES. Whenever there IS a hood, the blob says the same
@@ -1296,6 +1318,14 @@ grant insert (team_id, id, pin_id, type, disposition, at_ms, by_user, data, crea
 
 revoke all on function public.rally_num(text) from public, anon;
 grant execute on function public.rally_num(text) to authenticated;
+revoke all on function public.rally_txt(jsonb) from public, anon;
+grant execute on function public.rally_txt(jsonb) to authenticated;
+/* The membership guard runs AS the client, so the client must be able to
+   call the definer function that reads the outline for it. It answers one
+   boolean about one hood in the caller's own team and reveals nothing a
+   client cannot already read from territories. */
+revoke all on function public.rally_hood_covers(uuid, text, double precision, double precision) from public, anon;
+grant execute on function public.rally_hood_covers(uuid, text, double precision, double precision) to authenticated;
 revoke all on function public.import_territory_doors(text, jsonb, text) from public, anon;
 revoke all on function public.reset_territory_outcomes(text, text[], boolean, text) from public, anon;
 revoke all on function public.rally_territory_summary(text) from public, anon;

@@ -9,6 +9,12 @@
 
   let mode = null;          // null | "pencil" | "dots" | "lasso"
   let dots = [];            // [[lng,lat],...] while tap-drawing
+  /* REDO. Undo alone punishes a slip: a manager who removes one corner too
+     many had to re-place it by eye, and on a traced boundary "by eye" is a
+     different shape. The stack holds the corners undo took, newest last,
+     and ANY new corner clears it — the standard rule, and the only one that
+     cannot resurrect a corner from a shape the manager has moved on from. */
+  let redoStack = [];
   let pending = null;       // points awaiting the save sheet
   let editingId = null;     // hood being edited in the sheet
   /* The reps this hood WILL have when the sheet is saved. A SET: one hood
@@ -25,10 +31,38 @@
     MMAP.setDraftRing(dots);
     $("#draw-done").disabled = dots.length < 3;
     $("#draw-undo").disabled = dots.length === 0;
+    const r = $("#draw-redo");
+    if (r) r.disabled = redoStack.length === 0;
+    setToolState();
+  }
+
+  function undoDot() {
+    if (!dots.length) return;
+    redoStack.push(dots.pop());
+    refreshDraft();
+  }
+  function redoDot() {
+    if (!redoStack.length) return;
+    dots.push(redoStack.pop());
+    refreshDraft();
+  }
+  function addDot(pt) {
+    dots.push(pt);
+    redoStack = [];      // a new corner ends the old branch
+    refreshDraft();
+  }
+
+  // the territory under the map centre — what "Move" acts on
+  function hoodAtCentre() {
+    const c = MMAP.getCenter ? MMAP.getCenter() : null;
+    if (!c) return null;
+    return STORE.activeTerritories().find((t) =>
+      t.points && t.points.length >= 3 && STORE.inHood(t, c.lng, c.lat)) || null;
   }
 
   function clearDraft() {
     dots = [];
+    redoStack = [];
     MMAP.setDraftRing(dots);
   }
 
@@ -37,10 +71,12 @@
     if (!MMAP.isReady()) { toast("Map is still loading"); return; }
     stopMode();
     mode = m;
-    $("#hood-menu").hidden = true;
+    closeToolsIfOpen();
     $("#draw-bar").hidden = false;
     const dotMode = m === "dots";
     $("#draw-undo").hidden = !dotMode;
+    const r = $("#draw-redo");
+    if (r) r.hidden = !dotMode;
     $("#draw-done").hidden = !dotMode;
     $("#draw-msg").textContent =
       m === "lasso" ? "Circle the doors you want to work with" :
@@ -168,8 +204,7 @@
   function handleMapClick(e) {
     if (mode !== "dots") return false;
     tick();
-    dots.push([e.lng, e.lat]);
-    refreshDraft();
+    addDot([e.lng, e.lat]);
     return true; // consumed — no knock behind a draw tap
   }
 
@@ -671,7 +706,7 @@
       row.addEventListener("click", (e) => {
         if (e.target.closest(".hood-give")) return;
         tick();
-        $("#hood-menu").hidden = true;
+        closeToolsIfOpen();
         MMAP.focusRep(row.dataset.id);
       }));
     $$("#hood-reps-panel .hood-give").forEach((b) =>
@@ -730,46 +765,123 @@
       row.addEventListener("click", (e) => {
         if (e.target.closest(".hood-edit")) return;
         const t = STORE.territories.find((x) => x.id === row.dataset.id);
-        if (t) { $("#hood-menu").hidden = true; MMAP.focusHood(t); }
+        if (t) { closeToolsIfOpen(); MMAP.focusHood(t); }
       }));
     $$("#hood-list .hood-edit").forEach((b) =>
       b.addEventListener("click", () => {
         const t = STORE.territories.find((x) => x.id === b.dataset.id);
-        if (t) { $("#hood-menu").hidden = true; openHoodSheet(t.points, t); }
+        if (t) { closeToolsIfOpen(); openHoodSheet(t.points, t); }
       }));
+  }
+
+  /* ---------- MANAGER MAP TOOLS (the glass sheet) ----------
+
+     The dropdown this replaces was four emoji rows over the imagery. The
+     sheet is the same tools with room to say what each one does, and it is
+     the place the drawing verbs now live so a manager is not hunting for
+     Undo in a toolbar that only appears mid-draw.
+
+     GATING IS UNCHANGED AND STILL SERVER-BACKED: canManageTerritories()
+     decides, RLS (0003) decides again, and a rep never sees the sheet at
+     all — their turf list opens instead. */
+  function toolsOpen() { return !$("#mtools").hidden; }
+  function closeToolsIfOpen() { if (toolsOpen()) closeTools(); }
+
+  function openTools() {
+    const manager = STORE.canManageTerritories();
+    $("#mtools-sub").textContent = manager
+      ? "Manager tools — reps never see these"
+      : "Your turf";
+    // the leadership half is hidden wholesale for a rep, not merely disabled
+    $$("#mtools .mt-group").forEach((g, i) => { if (i < 2) g.hidden = !manager; });
+    $("#mt-heat").hidden = !manager;
+    $("#mt-assign").hidden = !manager;
+    $("#mt-clear").hidden = mode === null;
+    $("#mt-heat").querySelector(".mtr-t").innerHTML = MMAP.heatMode()
+      ? `Ownership view<i>Back to who works which area</i>`
+      : `Freshness view<i>How long since each area was worked</i>`;
+    setToolState();
+    renderRepsPanel(manager);
+    renderHoodList();
+    $("#mtools-veil").hidden = false;
+    $("#mtools").hidden = false;
+    requestAnimationFrame(() => {
+      $("#mtools-veil").classList.add("open");
+      $("#mtools").classList.add("open");
+    });
+  }
+
+  function closeTools() {
+    $("#mtools-veil").classList.remove("open");
+    $("#mtools").classList.remove("open");
+    setTimeout(() => {
+      if (!$("#mtools").classList.contains("open")) {
+        $("#mtools").hidden = true; $("#mtools-veil").hidden = true;
+      }
+    }, 220);
+  }
+
+  /* Undo and Redo are only meaningful while corners are being tapped, and
+     Move/Select only on a saved shape. A tool that cannot do anything says
+     so by being dim rather than by doing nothing when pressed. */
+  function setToolState() {
+    const dotMode = mode === "dots";
+    const t = (id, on) => { const b = $(id); if (b) b.classList.toggle("off", !on); };
+    t("#mt-undo", dotMode && dots.length > 0);
+    t("#mt-redo", dotMode && redoStack.length > 0);
+    t("#mt-select", !!STORE.activeTerritories().length);
+    t("#mt-move", !!STORE.activeTerritories().length);
+    const b = $("#draw-redo");
+    if (b) b.disabled = redoStack.length === 0;
   }
 
   function bind() {
     $("#fab-hoods").addEventListener("click", () => {
       tick();
-      const menu = $("#hood-menu");
-      menu.hidden = !menu.hidden;
-      if (!menu.hidden) {
-        // drawing and the heat view are leadership tools (RLS agrees —
-        // see 0003); reps get their turf list only
-        const manager = STORE.canManageTerritories();
-        $("#hood-pencil").hidden = !manager;
-        $("#hood-dots").hidden = !manager;
-        $("#hood-heat").hidden = !manager;
-        // lasso stays for everyone — reps use it to route a pocket of doors
-        $("#hood-heat").textContent = MMAP.heatMode() ? "🎨 Ownership view" : "🔥 Freshness view";
-        renderRepsPanel(manager);
-        renderHoodList();
-      }
+      if (toolsOpen()) closeTools(); else openTools();
     });
-    $("#hood-heat").addEventListener("click", () => {
+    $("#mtools-veil").addEventListener("click", closeTools);
+    $("#mtools .grab").addEventListener("click", closeTools);
+
+    $("#mt-heat").addEventListener("click", () => {
       tick();
       MMAP.setHeatMode(!MMAP.heatMode());
-      $("#hood-menu").hidden = true;
+      closeTools();
       toast(MMAP.heatMode()
         ? "Freshness view — red and pink turf is ready to work"
         : "Back to ownership colors");
     });
-    $("#hood-pencil").addEventListener("click", () => { tick(); startMode("pencil"); });
-    $("#hood-dots").addEventListener("click", () => { tick(); startMode("dots"); });
-    $("#hood-lasso").addEventListener("click", () => { tick(); startMode("lasso"); });
+    $("#mt-trace").addEventListener("click", () => { tick(); closeTools(); startMode("pencil"); });
+    $("#mt-corners").addEventListener("click", () => { tick(); closeTools(); startMode("dots"); });
+    $("#mt-lasso").addEventListener("click", () => { tick(); closeTools(); startMode("lasso"); });
+    $("#mt-undo").addEventListener("click", () => { tick(); undoDot(); setToolState(); });
+    $("#mt-redo").addEventListener("click", () => { tick(); redoDot(); setToolState(); });
+    $("#mt-clear").addEventListener("click", () => { tick(); stopMode(); closeTools(); });
+    $("#mt-assign").addEventListener("click", () => {
+      tick();
+      // the reps panel is already rendered in the sheet; scroll it into view
+      const p = $("#hood-reps-panel");
+      if (p) p.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    /* SELECT and MOVE both mean "pick a shape, then edit its outline", which
+       is what MTEDIT already does — Select arms the picking, Move opens the
+       editor on the hood under the map centre. Neither invents a second
+       editor. */
+    $("#mt-select").addEventListener("click", () => {
+      tick(); closeTools();
+      toast("Tap a territory outline to select it");
+    });
+    $("#mt-move").addEventListener("click", async () => {
+      tick();
+      const t = hoodAtCentre();
+      if (!t) { toast("Centre the map on a territory first"); return; }
+      closeTools();
+      if (window.MTEDIT) await MTEDIT.open(t);
+    });
+
     $("#draw-cancel").addEventListener("click", () => { tick(); stopMode(); });
-    $("#draw-undo").addEventListener("click", () => { tick(); dots.pop(); refreshDraft(); });
+    $("#draw-undo").addEventListener("click", () => { tick(); undoDot(); });
+    $("#draw-redo").addEventListener("click", () => { tick(); redoDot(); });
     const ap = $("#hood-assign-open");
     if (ap) ap.addEventListener("click", () => { tick(); openAssignPanel(); });
     $("#draw-done").addEventListener("click", () => {
@@ -858,6 +970,7 @@
     bind,
     isDrawing: () => mode !== null,
     createFromPoints: (pts) => openHoodSheet(pts, null), // lasso → hood
+    closeTools: () => closeToolsIfOpen(),
     // the real renderer, exported so a test can drive it rather than type
     // the card's own text into the DOM and assert it back
     _showCard: showCard,

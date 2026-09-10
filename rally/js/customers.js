@@ -139,7 +139,7 @@
     if (sanitationBlocked()) return;
     cur = stampAuthor(blank()); curId = null;
     returnTo = "customers";
-    openEditor("Creating Customer");
+    openEditor("Create Customer");
   }
 
   function startForPin(pin) {
@@ -155,7 +155,7 @@
       cur.address.zip = (pin.geo && pin.geo.zip) || "";
     }
     if (pin.note) cur.notesForever = pin.note;
-    openEditor("Creating Customer");
+    openEditor("Create Customer");
   }
 
   function open(id) {
@@ -1052,13 +1052,20 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
   let flt = { stage: "all", scope: "all", service: "all", sales: "all", sort: "newest" };
   let panelOpen = false;
 
+  /* THE FOUR OPERATIONAL STATUSES, AND NOTHING ELSE.
+
+     This list used to mix a sales stage (Sold), a pipeline stage (Lead, via
+     stageOf's "sold" fallback) and three operational ones. A customer book
+     answers one question — is service booked, done, or neither — so these
+     are STORE.custOpStatus's four ids and the word "All statuses". */
   const FILTER_OPTS = [
-    ["all", "All"], ["sold", "Sold"], ["scheduled", "Scheduled"],
-    ["notsched", "Not scheduled"], ["active", "Active"], ["canceled", "Canceled"],
+    ["all", "All statuses"],
+    ["notsched", "Not scheduled"], ["pending", "Pending"],
+    ["serviced", "Serviced"], ["canceled", "Canceled"],
   ];
   const SORT_OPTS = [
-    ["newest", "Newest sold"], ["oldest", "Oldest sold"],
-    ["earliest", "Earliest scheduled"], ["latest", "Latest scheduled"],
+    ["newest", "Newest sold"], ["added", "Newest added"],
+    ["oldest", "Oldest sold"], ["earliest", "Earliest scheduled"],
   ];
   const SERVICE_OPTS = [
     ["all", "All"], ["needed", "Service needed"], ["agreement", "Agreement needed"],
@@ -1077,10 +1084,8 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
   }
 
   function matches(c) {
-    if (flt.stage !== "all") {
-      const st = stageOf(c);
-      if (flt.stage === "sold" ? !STORE.custSignedAt(c) || st === "canceled" : st !== flt.stage) return false;
-    }
+    // one definition of status, shared with the row's own badge
+    if (flt.stage !== "all" && STORE.custOpStatus(c).id !== flt.stage) return false;
     if (flt.scope === "mine" && !STORE.custIsMine(c)) return false;
     if (flt.sales === "active" && (c.acct === "frozen" || c.acct === "canceled")) return false;
     if (flt.sales === "frozen" && c.acct !== "frozen") return false;
@@ -1098,6 +1103,7 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
   function sortList(list) {
     const soldTs = (c) => c.soldAt || c.createdAt || 0;
     const schedTs = (c) => { const n = STORE.nextAppointment(c); return n ? n.ts : Infinity; };
+    if (flt.sort === "added") return list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     if (flt.sort === "oldest") return list.sort((a, b) => soldTs(a) - soldTs(b));
     if (flt.sort === "earliest") return list.sort((a, b) => schedTs(a) - schedTs(b));
     if (flt.sort === "latest") return list.sort((a, b) => (schedTs(b) === Infinity ? -1 : schedTs(b)) - (schedTs(a) === Infinity ? -1 : schedTs(a)));
@@ -1204,30 +1210,95 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
         : "";
       note.onclick = () => { flt.scope = "all"; renderList(); };
     }
+    const countEl = $("#cust-count");
+    if (countEl) {
+      countEl.textContent = all.length === list.length
+        ? `${all.length.toLocaleString()} customer${all.length === 1 ? "" : "s"}`
+        : `${list.length.toLocaleString()} of ${all.length.toLocaleString()}`;
+    }
     if (!all.length) {
       $("#cust-list").innerHTML = `<div class="empty plain">No customers yet.</div>`;
       return;
     }
-    $("#cust-list").innerHTML = list.map((c) => {
-      const stage = STORE.custStage(c);
-      const signed = STORE.custSignedAt(c);
-      const when = signed ? new Date(signed).getTime() : (c.soldAt || c.createdAt);
-      const who = esc(STORE.custSoldByLabel(c));
-      const flag = c.acct === "frozen" ? " · ❄️ Frozen" : c.acct === "canceled" ? " · Canceled" : "";
-      return `<button class="cust-row" data-cid="${c.id}" type="button">
-         <div class="crn">${esc(STORE.custName(c))}
-           <span class="stage-tag" style="color:${stage.chip};border-color:${stage.chip}">${stage.label}</span></div>
-         <div class="cra">${esc(STORE.custAddress(c)) || "No address"}${flag}</div>
-         <div class="crs">${signed ? "Sold" : "Added"}: ${MUI.fmtDate(when)}${who ? " by " + who : " · unattributed"}</div>
-         <div class="crst">${actionLine(c, stage)}</div>
-       </button>`;
-    }).join("") || `<div class="empty plain">Nothing matches those filters.</div>`;
+    paint(list);
+  }
 
-    $$("#cust-list .cust-row").forEach((b) => {
-      const c = STORE.customers.find((x) => x.id === b.dataset.cid);
-      b.addEventListener("click", () => { if (!pressFired) open(b.dataset.cid); });
-      if (c) armLongPress(b, c);
-    });
+  /* ---------- PAINTING THE BOOK, AT ANY SIZE ----------
+
+     The old renderer built one innerHTML string for every matching record.
+     At a hundred customers that is fine; at ten thousand it is ~10 MB of
+     string and a layout of 40,000 nodes on every keystroke of the search
+     box, which is a frozen phone.
+
+     So rows go in PAGES, and a sentinel at the bottom asks for the next one
+     when it scrolls into view. Scanning stays instant because the first
+     page paints in a frame, and the list is still the whole book — nothing
+     is hidden, it just arrives as you reach it. The observer is rebuilt per
+     paint and disconnected first, so a re-filter can never leave two
+     observers appending into the same list. */
+  const PAGE = 60;
+  let pageObs = null;
+
+  function paint(list) {
+    const host = $("#cust-list");
+    if (pageObs) { pageObs.disconnect(); pageObs = null; }
+    host.innerHTML = "";
+    if (!list.length) {
+      host.innerHTML = `<div class="empty plain">Nothing matches those filters.</div>`;
+      return;
+    }
+    let shown = 0;
+    const sentinel = document.createElement("div");
+    sentinel.className = "cust-more";
+
+    const more = () => {
+      const slice = list.slice(shown, shown + PAGE);
+      shown += slice.length;
+      const frag = document.createElement("div");
+      frag.innerHTML = slice.map(rowHtml).join("");
+      Array.from(frag.children).forEach((el) => {
+        const c = STORE.customers.find((x) => x.id === el.dataset.cid);
+        el.addEventListener("click", () => { if (!pressFired) open(el.dataset.cid); });
+        if (c) armLongPress(el, c);
+        host.insertBefore(el, sentinel);
+      });
+      const left = list.length - shown;
+      sentinel.textContent = left ? `${left.toLocaleString()} more` : "";
+      sentinel.hidden = !left;
+      if (!left && pageObs) { pageObs.disconnect(); pageObs = null; }
+    };
+
+    host.appendChild(sentinel);
+    more();
+    if (shown < list.length && "IntersectionObserver" in window) {
+      pageObs = new IntersectionObserver((es) => {
+        if (es.some((e) => e.isIntersecting)) more();
+      }, { root: host.closest(".screen") || null, rootMargin: "400px" });
+      pageObs.observe(sentinel);
+    }
+  }
+
+  /* ONE ROW = NAME, ADDRESS, WHEN AND WHO SOLD IT, AND THE STATUS.
+     Dense enough to scan a screenful, and every line earns its place: the
+     status badge carries its own time (booked for / serviced on) so the
+     row never needs a second date to explain the first. */
+  function rowHtml(c) {
+    const st = STORE.custOpStatus(c);
+    const signed = STORE.custSignedAt(c);
+    const when = signed ? new Date(signed).getTime() : (c.soldAt || c.createdAt);
+    const who = esc(STORE.custSoldByLabel(c));
+    const stTime = st.at
+      ? `<i>${MUI.fmtDate(st.at)} ${MUI.fmtTime(st.at)}</i>` : "";
+    return `<button class="cust-row" data-cid="${c.id}" type="button">
+       <div class="cr-main">
+         <div class="cr-name">${esc(STORE.custName(c))}</div>
+         <div class="cr-addr">${esc(STORE.custAddress(c)) || "No address"}</div>
+         <div class="cr-meta">${signed ? "Sold" : "Added"} ${MUI.fmtDate(when)}${who ? " · " + who : " · unattributed"}</div>
+       </div>
+       <div class="cr-side">
+         <span class="opst ${st.cls}">${st.label}${stTime}</span>
+       </div>
+     </button>`;
   }
 
   function actionLine(c, stage) {

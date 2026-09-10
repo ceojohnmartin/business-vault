@@ -830,6 +830,46 @@
       `→ Run the sit · ${MUI.fmtDate(next.ts)} ${MUI.fmtTime(next.ts)}`, "agree");
     return stageInfo("lead", "→ Sign them, or book the sit", "agree");
   };
+  /* ---------- THE OPERATIONAL STATUS OF A CUSTOMER ----------
+
+     Four states, and deliberately only four. This is the question the
+     office and the rep both actually ask about an existing customer —
+     "is service booked, done, or neither?" — and it is DERIVED, never a
+     dropdown somebody forgets to update:
+
+       NOT SCHEDULED  charcoal   nothing booked and nothing done
+       PENDING        blue       an appointment is booked (carries when)
+       CANCELED       red        the account is canceled
+       SERVICED       green      service has been performed (carries when)
+
+     LEAD is deliberately absent. It is a SALES-pipeline stage, not an
+     operational one, and putting it in the customer book meant the list
+     mixed "someone I might sell" with "someone I owe service to". The
+     pipeline (MDATA.PIPELINE / custStage) still has it and is untouched;
+     this is a second, narrower reading of the same record.
+
+     CANCELED is checked FIRST: a canceled account with a stale future
+     appointment on it is canceled, not pending. SERVICED beats PENDING for
+     the opposite reason — work that happened outranks work that is booked,
+     and a recurring customer always has both. */
+  const OP_STATUS = {
+    notsched: { id: "notsched", label: "NOT SCHEDULED", cls: "notsched" },
+    pending:  { id: "pending",  label: "PENDING",       cls: "pending" },
+    canceled: { id: "canceled", label: "CANCELED",      cls: "canceled" },
+    serviced: { id: "serviced", label: "SERVICED",      cls: "serviced" },
+  };
+
+  S.custOpStatus = function (c) {
+    if (!c) return Object.assign({ at: null }, OP_STATUS.notsched);
+    if (c.acct === "canceled") return Object.assign({ at: null }, OP_STATUS.canceled);
+    const serviced = S.lastServiced(c);
+    if (serviced) return Object.assign({ at: serviced }, OP_STATUS.serviced);
+    const next = S.nextAppointment(c);
+    if (next) return Object.assign({ at: next.ts }, OP_STATUS.pending);
+    return Object.assign({ at: null }, OP_STATUS.notsched);
+  };
+  S.OP_STATUSES = OP_STATUS;
+
   function stageInfo(id, nextLabel, nextTab) {
     const st = MDATA.PIPELINE.find((s) => s.id === id);
     return { id, label: st.label, chip: st.chip, idx: MDATA.PIPELINE.indexOf(st), nextLabel, nextTab };

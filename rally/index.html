@@ -100,13 +100,19 @@
 
   <!-- ================= CUSTOMERS ================= -->
   <div class="screen" id="screen-customers">
-    <div class="cust-top">
-      <span class="rmark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 20V4h6.2c2.9 0 4.8 1.6 4.8 4.2 0 2-1.1 3.4-2.9 4L18.6 20h-3.4l-3.1-7H10v7H7Zm3-9.6h3c1.4 0 2.1-.8 2.1-2.1 0-1.3-.7-2-2.1-2h-3v4.1Z"/></svg></span>
-      <div class="guide-search" style="flex:1;margin:0"><input id="cust-q" type="search" placeholder="Search Customers" autocomplete="off"></div>
+    <!-- premium header: the wordmark, the screen, and how many -->
+    <div class="pscr-head">
+      <div class="ph-mark">RALLY</div>
+      <h1 class="p-h1">Customers</h1>
+      <div class="ph-count" id="cust-count">0 customers</div>
+    </div>
+    <div class="psearch">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.6"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="cust-q" type="search" placeholder="Search customers or address" autocomplete="off">
     </div>
     <div class="cust-pills">
-      <button class="pill" id="cf-filter" type="button">All <span class="pill-arrow">▾</span></button>
-      <button class="pill" id="cf-sort" type="button">Newest sold <span class="pill-arrow">▾</span></button>
+      <button class="ppill" id="cf-filter" type="button">All statuses <span class="pill-arrow">▾</span></button>
+      <button class="ppill" id="cf-sort" type="button">Newest sold <span class="pill-arrow">▾</span></button>
       <span class="pill-note" id="cf-scope-note" hidden></span>
     </div>
     <div class="cust-panel" id="cust-panel" hidden></div>
@@ -152,14 +158,7 @@
         <button class="fab" id="fab-street" aria-label="Street mode — work one street door by door">
           <svg viewBox="0 0 24 24"><path d="M5 21 9.5 3M19 21 14.5 3"/><path d="M12 4v3M12 10.5v3M12 17v3"/></svg>
         </button>
-        <div class="layer-menu hood-menu" id="hood-menu" hidden>
-          <button class="lm-opt" id="hood-pencil">➕ Create territory — trace it</button>
-          <button class="lm-opt" id="hood-dots">📍 Create territory — tap corners</button>
-          <button class="lm-opt" id="hood-lasso">⭕ Lasso doors</button>
-          <button class="lm-opt" id="hood-heat">🔥 Freshness view</button>
-          <div class="hood-list" id="hood-reps-panel" hidden></div>
-          <div class="hood-list" id="hood-list"></div>
-        </div>
+        <div class="layer-menu hood-menu" id="hood-menu" hidden aria-hidden="true"></div>
       </div>
     </div>
     <!-- the two numbers, and nothing else -->
@@ -176,11 +175,80 @@
     <div class="draw-bar" id="draw-bar" hidden>
       <span id="draw-msg">Trace the area with your finger</span>
       <div class="db-btns">
-        <button id="draw-undo" hidden>Undo</button>
-        <button id="draw-cancel">Cancel</button>
+        <button id="draw-undo" hidden aria-label="Undo the last corner">Undo</button>
+        <button id="draw-redo" hidden aria-label="Redo the corner you removed">Redo</button>
+        <button id="draw-cancel">Clear</button>
         <button id="draw-done" class="primary" hidden disabled>Done</button>
       </div>
     </div>
+
+    <!-- ===== MANAGER MAP TOOLS — a premium glass sheet, not a dropdown.
+         Manager-only: MTURF/STORE.canManageTerritories gates the button that
+         opens it, and every row inside is a leadership action. ===== -->
+    <div class="sheet-veil" id="mtools-veil" hidden></div>
+    <section class="sheet mtools" id="mtools" hidden role="dialog" aria-modal="true"
+             aria-labelledby="mtools-title">
+      <div class="grab"></div>
+      <h2 id="mtools-title">Map tools</h2>
+      <div class="sub" id="mtools-sub">Manager tools — reps never see these</div>
+
+      <div class="mt-group">
+        <div class="p-cap">Create territory</div>
+        <div class="mt-grid">
+          <button class="mt-tile" id="mt-trace" type="button">
+            <svg viewBox="0 0 24 24"><path d="M4 17c3-9 13-9 16 0"/><circle cx="4" cy="17" r="1.8"/><circle cx="20" cy="17" r="1.8"/></svg>
+            <span>Trace</span></button>
+          <button class="mt-tile" id="mt-corners" type="button">
+            <svg viewBox="0 0 24 24"><path d="M5 6h14v12H5z"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><circle cx="5" cy="18" r="2"/></svg>
+            <span>Tap corners</span></button>
+        </div>
+      </div>
+
+      <div class="mt-group">
+        <div class="p-cap">Edit the shape</div>
+        <div class="mt-grid four">
+          <button class="mt-tile" id="mt-select" type="button">
+            <svg viewBox="0 0 24 24"><path d="M6 4l12 7-5 1.5L10.5 18z"/></svg>
+            <span>Select</span></button>
+          <button class="mt-tile" id="mt-move" type="button">
+            <svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>
+            <span>Move</span></button>
+          <button class="mt-tile" id="mt-undo" type="button">
+            <svg viewBox="0 0 24 24"><path d="M9 7L4 12l5 5"/><path d="M4 12h9a6 6 0 0 1 0 12h-1"/></svg>
+            <span>Undo</span></button>
+          <button class="mt-tile" id="mt-redo" type="button">
+            <svg viewBox="0 0 24 24"><path d="M15 7l5 5-5 5"/><path d="M20 12h-9a6 6 0 0 0 0 12h1"/></svg>
+            <span>Redo</span></button>
+        </div>
+      </div>
+
+      <div class="mt-group">
+        <div class="p-cap">Work the map</div>
+        <button class="mt-row" id="mt-lasso" type="button">
+          <span class="mtr-ic"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="10" rx="8" ry="6"/><path d="M12 16v4"/></svg></span>
+          <span class="mtr-t">Lasso doors<i>Select a group of doors to route or work</i></span>
+          <span class="chev">›</span></button>
+        <button class="mt-row" id="mt-heat" type="button">
+          <span class="mtr-ic"><svg viewBox="0 0 24 24"><path d="M12 3c3 4 5 6 5 9a5 5 0 0 1-10 0c0-3 2-5 5-9Z"/></svg></span>
+          <span class="mtr-t">Freshness view<i>How long since each area was worked</i></span>
+          <span class="chev">›</span></button>
+        <button class="mt-row" id="mt-assign" type="button">
+          <span class="mtr-ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3 19c.7-3.6 3-5.6 6-5.6s5.3 2 6 5.6"/><path d="M18 8v6M15 11h6"/></svg></span>
+          <span class="mtr-t">Manage &amp; assign reps<i id="mt-assign-sub">Hand turf out or take it back</i></span>
+          <span class="chev">›</span></button>
+        <button class="mt-row danger" id="mt-clear" type="button" hidden>
+          <span class="mtr-ic"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
+          <span class="mtr-t">Clear drawing<i>Throw away the outline in progress</i></span>
+          <span class="chev">›</span></button>
+      </div>
+
+      <!-- the reps panel and the turf list keep their ids: the renderers
+           that fill them are unchanged, only their home is -->
+      <div class="mt-list" id="mt-hoods">
+        <div class="hood-list" id="hood-reps-panel" hidden></div>
+        <div class="hood-list" id="hood-list"></div>
+      </div>
+    </section>
     <button class="sync-chip" id="sync-chip" hidden><span class="dot"></span><span id="sync-chip-n"></span></button>
     <div class="net-hint" id="net-hint" hidden>Loading imagery…</div>
     <div id="gattr" hidden aria-hidden="true">Google</div>
@@ -316,16 +384,19 @@
   <!-- ================= CUSTOMER EDITOR ================= -->
   <div class="screen editor" id="screen-custedit">
     <div class="ce-head">
-      <button class="backbtn" id="ce-back" aria-label="Back">←</button>
-      <div class="ce-title" id="ce-title">Creating Customer</div>
+      <button class="backbtn" id="ce-back" aria-label="Back">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="ce-title" id="ce-title">Create Customer</div>
       <span style="width:34px"></span>
     </div>
-    <div class="ce-tabs">
-      <button class="ce-tab active" data-t="info">INFO</button>
-      <button class="ce-tab" data-t="service">SERVICE</button>
-      <button class="ce-tab" data-t="payment">PAYMENT</button>
-      <button class="ce-tab" data-t="agree">AGREE</button>
-      <button class="ce-tab" data-t="files">FILES</button>
+    <!-- segmented, not a grey CRM tab strip -->
+    <div class="ce-tabs" role="tablist">
+      <button class="ce-tab active" data-t="info" role="tab">INFO</button>
+      <button class="ce-tab" data-t="service" role="tab">SERVICE</button>
+      <button class="ce-tab" data-t="payment" role="tab">PAYMENT</button>
+      <button class="ce-tab" data-t="agree" role="tab">AGREE</button>
+      <button class="ce-tab" data-t="files" role="tab">FILES</button>
     </div>
 
     <div class="ce-body">

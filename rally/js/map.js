@@ -355,6 +355,14 @@
        part that answers "am I still on my turf?". */
     map.setPaintProperty("hoods-fill", "fill-opacity", heatMode ? 0.25 : dimmed(0.15, 0.04));
     map.setPaintProperty("hoods-line", "line-opacity", heatMode ? 0.75 : dimmed(0.92, 0.28));
+    /* The hood NAME is a manager's tool — see addHoodLabelLayer. A rep gets
+       the blue area and nothing written across it. Freshness view is a
+       manager view too, and there the label is how you tell which area a
+       colour belongs to, so it comes back. */
+    if (map.getLayer("hoods-label")) {
+      const wanted = (STORE.canManageTerritories() || heatMode) ? "visible" : "none";
+      map.setLayoutProperty("hoods-label", "visibility", wanted);
+    }
     const heatLegend = $("#heat-legend");
     if (heatLegend) heatLegend.hidden = !heatMode;
     updateHint(); // swaps the disposition legend out while heat is on
@@ -445,6 +453,13 @@
   // labels ride ABOVE the pins (added after them): the dark halo keeps the
   // name readable over the densest pin clutter, which is exactly where
   // the rep needs to know whose turf this is
+  /* THE LABEL IS A MANAGER'S TOOL, NOT A REP'S.
+
+     A rep sees one blue area and it is theirs; writing "Territory 12 / John
+     Martin" across the middle of it tells them nothing they do not know and
+     costs the imagery they are actually reading. A MANAGER looking at four
+     areas needs to tell them apart, so the layer stays and its visibility
+     follows the same manager test everything else on this map uses. */
   function addHoodLabelLayer() {
     map.addLayer({
       id: "hoods-label", type: "symbol", source: "hoods-labels",
@@ -567,8 +582,8 @@
      the legibility work the old size was doing. The selected door gets its
      own slightly larger layer rather than a size expression, so the bump is
      visible at every zoom. */
-  const PIN_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 10, 0.26, 14, 0.44, 16, 0.62, 18, 0.82];
-  const PIN_ICON_SIZE_SEL = ["interpolate", ["linear"], ["zoom"], 10, 0.34, 14, 0.56, 16, 0.78, 18, 1.02];
+  const PIN_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 10, 0.20, 14, 0.32, 16, 0.44, 18, 0.62];
+  const PIN_ICON_SIZE_SEL = ["interpolate", ["linear"], ["zoom"], 10, 0.28, 14, 0.44, 16, 0.60, 18, 0.84];
 
   function init() {
     if (typeof maplibregl === "undefined") {
@@ -823,7 +838,7 @@
       }
     });
 
-    map.on("dragstart", () => { $("#hood-menu").hidden = true; clearEmphasis(); });
+    map.on("dragstart", () => { if (window.MHOODS && MHOODS.closeTools) MHOODS.closeTools(); clearEmphasis(); });
 
     /* "move", not "moveend": a handle that only catches up when the pan
        STOPS visibly slides away from its corner for the whole gesture. */
@@ -883,7 +898,11 @@
     } else {
       const q = STORE.queuedCount();
       chip.hidden = q === 0;
-      $("#sync-chip-n").textContent = q + " queued for FieldRoutes";
+      /* NOT "queued for FieldRoutes". FieldRoutes is a benchmark and a
+         legacy-migration reference, not a destination RALLY sends work to
+         (CLAUDE.md §4) — and on a device with no team server this queue is
+         simply work this phone is holding. Say that. */
+      $("#sync-chip-n").textContent = q + " waiting on this device";
     }
     /* The chip and the first-door hint were written to the same spot — same
        left, same bottom, same z-index — and the hint only hides once there

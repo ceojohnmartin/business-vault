@@ -169,6 +169,22 @@ async function buildings() {
     page.evaluate(({ lng, lat, zoom }) => MMAP.jumpTo(lng, lat, zoom), { lng, lat, zoom });
   const settleMap = async (n) => { for (let i = 0; i < (n || 24); i++) await page.waitForTimeout(500); };
 
+  /* THE SHOTS ARE TWO DIFFERENT PEOPLE. A rep and a manager do not see the
+     same map, and photographing both as an owner would have shown the owner
+     twice: the first run put "Territory 12 / John Martin" across the middle
+     of what was labelled the rep's screen, which is exactly what the rep
+     view must never do. applyServerRole IS the app's own role door — the
+     same one a server profile comes through — so this changes who is looking,
+     not what the app is willing to show them. */
+  const beRole = async (role) => {
+    await page.evaluate(async (r) => {
+      await STORE.applyServerRole(r, Date.now());
+      if (window.MAPP && MAPP.roleChanged) MAPP.roleChanged();
+      if (window.MMAP) { MMAP.refreshHoods(); MMAP.refreshPins(); MMAP.updateBrandToday(); }
+    }, role);
+    await page.waitForTimeout(900);
+  };
+
   try {
     await page.goto(`http://localhost:${PORT}/`, { waitUntil: "domcontentloaded", timeout: 60000 });
     await page.waitForSelector("#gate:not([hidden])", { timeout: 60000 });
@@ -186,6 +202,14 @@ async function buildings() {
       const out = { doors: 0, customers: 0, knocks: 0 };
       const me = STORE.currentUser();
       if (me) { me.name = "John Martin"; me.role = "owner"; await STORE.updateUser(me); }
+      /* The review sheet's house count comes from the PROPERTY PROVIDER, not
+         from the pins already on the map, and no provider key reaches this
+         container — so the first run photographed "Property provider
+         unreachable". The demo provider is deterministic, needs no network,
+         and labels itself "via Demo data" on the sheet, which is the honest
+         thing for a screenshot to say. */
+      STORE.settings.propertySource = "demo";
+      await STORE.saveSettings();
       const jake = await STORE.addUser({ name: "Jake Rowe", role: "rep" });
       const mia = await STORE.addUser({ name: "Mia Cole", role: "rep" });
       const dev = await STORE.addUser({ name: "Dev Patel", role: "rep" });
@@ -306,11 +330,15 @@ async function buildings() {
       await page.waitForTimeout(600);
       if (await page.evaluate(() => !document.querySelector("#gattr").hidden)) break;
     }
+    // 05-07 and 12-13 are a NORMAL REP: one blue turf, no manager tools,
+    // no territory label written across the imagery
+    await beRole("rep");
+    await goTo(CENTRE.lng, CENTRE.lat, 15.1); // the WHOLE assigned area in frame
     await page.evaluate(() => { MMAP.refreshPins(); MMAP.refreshHoods(); MMAP.updateBrandToday(); });
     await settleMap(20);
     await shot("05-map-rep-turf");
 
-    await goTo(CENTRE.lng, CENTRE.lat, 18.1);
+    await goTo(CENTRE.lng, CENTRE.lat, 17.3); // a whole dense block, pins uncluttered
     await settleMap(16);
     await shot("06-map-dense-pins");
 
@@ -324,6 +352,7 @@ async function buildings() {
     await page.waitForTimeout(600);
 
     // ------------------------------------------------------ MANAGER TOOLS
+    await beRole("owner");
     await page.evaluate(() => document.querySelector("#fab-hoods").click());
     await page.waitForTimeout(900);
     await shot("08-manager-tools");
@@ -336,6 +365,68 @@ async function buildings() {
     }
     await page.waitForTimeout(900);
     await shot("09-drawing-territory");
+
+    // -------------------------------------------- TERRITORY REVIEW + ASSIGN
+    await page.evaluate(() => { MHOODS.closeTools && MHOODS.closeTools(); });
+    await page.evaluate(() => document.querySelector("#draw-done").click());
+    await page.waitForTimeout(1400);
+    /* The review sheet is the point of this shot BECAUSE of what the scan
+       says — house count and how trustworthy the property source is. Shot it
+       at a fixed delay once and photographed "Searching properties…". */
+    await page.waitForFunction(() => {
+      const el = document.querySelector("#hood-source");
+      return el && !el.hidden && (el.textContent || "").trim().length > 0;
+    }, null, { timeout: 30000 }).catch(() => {});
+    await page.waitForTimeout(900);
+    await shot("10-territory-review");
+
+    await page.evaluate(() => document.querySelector("#hood-assign-open").click());
+    await page.waitForTimeout(900);
+    /* Re-query between clicks. The panel re-renders its whole list on every
+       toggle, so a NodeList captured once goes stale after the first click
+       and the next two land on detached nodes — which is how a MULTI-rep
+       screen photographed with exactly one rep ticked. */
+    for (const i of [0, 1, 2]) {
+      await page.evaluate((n) => {
+        const rows = document.querySelectorAll("#assign-list .arep");
+        if (rows[n]) rows[n].click();
+      }, i);
+      await page.waitForTimeout(250);
+    }
+    await page.waitForTimeout(600);
+    await shot("11-multi-rep-assign");
+    await page.evaluate(() => window.MASSIGN && MASSIGN.close());
+    await page.waitForTimeout(500);
+    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
+    await page.waitForTimeout(500);
+
+    // ------------------------------------------------------- STREET MODE
+    // back to the rep: Street Mode and Route are their day, not a manager's
+    await beRole("rep");
+    // the draft polygon card belongs to the drawing that just ended
+    await page.evaluate(() => { const c = document.querySelector("#polycard"); if (c) c.hidden = true; });
+    await page.evaluate(() => document.querySelector("#fab-street").click());
+    await page.waitForTimeout(1500);
+    await shot("12-street-mode");
+    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
+    await page.waitForTimeout(500);
+
+    // -------------------------------------------------------------- ROUTE
+    await page.evaluate(() => MAPP.show("schedule"));
+    await page.waitForTimeout(1400);
+    await shot("13-route");
+
+    // ---------------------------------------------------------- FRESHNESS
+    // freshness is a manager tool and says so — the rep never sees it
+    await beRole("owner");
+    await page.evaluate(() => MAPP.show("map"));
+    await page.waitForTimeout(900);
+    await page.evaluate(() => MMAP.resize());
+    await goTo(CENTRE.lng, CENTRE.lat, 15.4);
+    await page.evaluate(() => MMAP.setHeatMode(true));
+    await settleMap(20);
+    await shot("14-freshness");
+    await page.evaluate(() => MMAP.setHeatMode(false));
 
     console.log(`== done == tiles ok: ${tiles} | tiles failed: ${tileFail}`);
   } catch (e) {

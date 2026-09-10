@@ -1434,12 +1434,17 @@ body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 .ce-body .field{margin-bottom:11px}
 .ce-body .field label{font-size:12.5px;font-weight:600;color:var(--t2);
   letter-spacing:0;text-transform:none;margin-bottom:5px;display:block}
-.ce-body input[type=text],.ce-body input[type=tel],.ce-body input[type=email],
-.ce-body input[type=number],.ce-body input[type=date],.ce-body input[type=time],
-.ce-body select,.ce-body textarea{
+/* The grouped iOS form rows. SCOPED TO .field ON PURPOSE: the SERVICE tab's
+   price cards are their own control — the big green number IS the input — and
+   an unscoped .ce-body input rule silently repainted them grey and stretched
+   them full width. Only #cs-term-custom lives outside a .field and still
+   wants the ordinary treatment. */
+.ce-body .field input,.ce-body .field select,.ce-body .field textarea,
+.ce-body input#cs-term-custom{
   width:100%;background:var(--s2);border:1px solid transparent;border-radius:var(--r-md);
   padding:12px 13px;font-size:16px;color:var(--t1);outline:none}
-.ce-body input:focus,.ce-body select:focus,.ce-body textarea:focus{
+.ce-body .field input:focus,.ce-body .field select:focus,.ce-body .field textarea:focus,
+.ce-body input#cs-term-custom:focus{
   background:var(--s1);border-color:var(--blue-line);box-shadow:0 0 0 3px var(--blue-dim)}
 
 /* ---------- MANAGER MAP TOOLS SHEET ---------- */
@@ -1448,7 +1453,7 @@ body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
   -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
   border-top-left-radius:var(--r-xl);border-top-right-radius:var(--r-xl);
   box-shadow:var(--lift-lg)}
-.mtools h2{font-family:var(--disp);font-size:22px;font-weight:750;letter-spacing:-.018em}
+.mtools h2{font-family:var(--disp);font-size:19px;font-weight:750;letter-spacing:-.016em}
 .mt-group{margin-top:18px}
 .mt-group .p-cap{margin-bottom:9px}
 .mt-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -1476,10 +1481,195 @@ body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 .mt-row.danger .mtr-ic{background:rgba(229,72,77,.11);color:var(--notint-ink)}
 .mt-list{margin-top:16px}
 
-/* draw bar, in the glass language */
+/* Draw bar, in the glass language — and DOWN THE BOTTOM. It used to float
+   under the top chrome, where it sat across the RALLY panel and the control
+   rail; the corner you are trying to tap is also usually the ground under
+   your thumb, so the bar belongs at the near edge with the rest of the
+   sheet language. It rides above the sync chip when both are up. */
 .draw-bar{background:var(--glass-sheet);
   -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
-  border-radius:var(--r-lg);box-shadow:var(--lift);border:1px solid rgba(255,255,255,.55)}
+  border-radius:var(--r-lg);box-shadow:var(--lift);border:1px solid rgba(255,255,255,.55);
+  top:auto;bottom:calc(var(--tab-h) + var(--safe-b) + 16px)}
+body.has-sync-chip .draw-bar{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 .draw-bar button{border-radius:var(--r-sm);font-weight:640}
 .draw-bar button.primary{background:var(--blue);color:#fff}
 .draw-bar button:disabled{opacity:.35}
+
+/* ---------- TERRITORY REVIEW SHEET ---------- */
+.sheet#hood-sheet{background:var(--glass-sheet);
+  -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
+  border-top-left-radius:var(--r-xl);border-top-right-radius:var(--r-xl)}
+#hood-sheet h2{font-family:var(--disp);font-size:19px;font-weight:750;letter-spacing:-.016em}
+
+.trev{display:flex;gap:8px;margin:14px 0 10px}
+.trev-cell{flex:1;background:var(--s2);border-radius:var(--r-md);padding:11px 12px;
+  display:flex;flex-direction:column;gap:3px}
+.trev-cell b{font-size:21px;font-weight:750;letter-spacing:-.02em;color:var(--t1);line-height:1}
+.trev-cell span{font-size:10.5px;font-weight:650;letter-spacing:.06em;text-transform:uppercase;color:var(--t3)}
+.trev.local .trev-cell b{color:var(--t2)}
+
+/* where the houses came from — the thing a manager needs before handing
+   turf out, and cannot recover by looking at the map afterwards */
+.tsrc{font-size:12.5px;line-height:1.45;color:var(--t2);background:var(--s2);
+  border-radius:var(--r-sm);padding:9px 11px;margin-bottom:12px}
+.tsrc.warn{background:rgba(245,179,1,.12);color:#7A5A00}
+
+.topt{margin:14px 0 6px;border-top:1px solid var(--hair);padding-top:12px}
+.topt summary{font-size:13.5px;font-weight:620;color:var(--t2);cursor:pointer;
+  list-style:none;padding:4px 0}
+.topt summary::-webkit-details-marker{display:none}
+.topt summary::after{content:"›";float:right;color:var(--t3);font-size:18px;line-height:1}
+.topt[open] summary::after{content:"⌄"}
+
+/* the rep chips, in the premium language */
+#hood-reps .rep-chip{border-radius:var(--r-pill);background:var(--s2);border:none;
+  font-size:13.5px;font-weight:600;padding:8px 13px}
+#hood-reps .rep-chip.sel{background:var(--blue);color:#fff}
+#hood-reps .rep-chip.sel .dot{box-shadow:0 0 0 2px rgba(255,255,255,.55)}
+
+/* ---------- STREET MODE + ROUTE + FRESHNESS, same language ---------- */
+.sheet#street-sheet,.sheet#route-sheet{background:var(--glass-sheet);
+  -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
+  border-top-left-radius:var(--r-xl);border-top-right-radius:var(--r-xl)}
+.sheet#street-sheet h2,.sheet#route-sheet h2{
+  font-family:var(--disp);font-size:19px;font-weight:750;letter-spacing:-.016em}
+
+/* Route: compact rows, one tone. No rainbow progress bars — a bar that
+   changes hue with its value reads as six different meanings. */
+.turf-card{border-radius:var(--r-lg);border:1px solid var(--hair);box-shadow:none;
+  background:var(--s1);padding:14px}
+.turf-name{font-size:16px;font-weight:650;letter-spacing:-.01em}
+/* the markup uses <span>, not <i> — the earlier selector matched nothing
+   and the bar stayed charcoal. Progress is an ACTIVE state, so it is blue. */
+.turf-bar{height:6px;border-radius:3px;background:var(--s3);overflow:hidden}
+.turf-bar span{background:var(--blue)}
+.turf-bar.done span{background:var(--sold)}
+
+/* white-first everywhere: the grey header band was the old identity */
+.brandbar{background:var(--bg);border-bottom:1px solid var(--hair)}
+.brandbar .wordmark{font-size:16px}
+.turf-card{background:var(--s1);border:1px solid var(--hair);border-radius:var(--r-lg);box-shadow:none}
+.sw-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.cb-route-btn{border-radius:var(--r-pill);background:var(--blue);color:#fff;
+  font-size:13px;font-weight:640;padding:8px 13px;border:none}
+
+/* freshness legend, glassed like everything else over the map */
+.legend.heat{border-radius:var(--r-lg);padding:11px 13px;
+  background:var(--glass-map);
+  -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
+  border:1px solid rgba(255,255,255,.55);box-shadow:var(--lift)}
+.legend.heat .li{font-size:11.5px;gap:8px}
+.legend.heat .sw{border-radius:4px;box-shadow:0 0 0 1px rgba(16,24,40,.10)}
+/* seven rows is taller than the map's bottom gutter, so it lifts clear of
+   the sync chip instead of having its last row cut in half by it */
+body.has-sync-chip .legend.heat{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
+
+/* street + route rows in the premium language */
+.st-chip,.sf-chip{border-radius:var(--r-pill);background:var(--s2);border:none;
+  font-size:13px;font-weight:600;padding:8px 13px}
+.st-chip.sel,.sf-chip.sel{background:var(--blue);color:#fff}
+.st-chip b{margin-left:5px;opacity:.62;font-weight:700}
+.st-chip.sel b{opacity:.85}
+
+.street-row,.route-stop{border-radius:var(--r-md);border:none;background:none;
+  padding:11px 8px;border-bottom:1px solid var(--hair)}
+.street-row:active,.route-stop:active{background:var(--s2)}
+.stn,.rs-n{background:var(--s2);color:var(--t2);border-radius:var(--r-sm);
+  font-weight:700;font-size:13px}
+.route-stop .rs-n{background:var(--blue);color:#fff}
+.stb b,.rs-body b{font-size:15px;font-weight:620;letter-spacing:-.01em}
+.su-cta{color:var(--blue-ink);font-weight:640;font-size:13.5px}
+.rs-opp{background:var(--s2);border-radius:var(--r-sm);font-weight:700;font-size:13px;color:var(--t2)}
+
+/* ---------- POLISH PASS: scale and contrast inside glass ----------
+   Two things the first review shots showed. Everything in the sheets was
+   reading about a fifth too large on a 390pt phone — premium is generous
+   spacing around RESTRAINED type, not big type. And a surface tinted
+   #F3F4F6 sitting on a 94%-white blurred sheet is invisible, so the tiles
+   and stat cells looked like floating labels. They get a faint ink wash and
+   a hairline instead of a grey fill. */
+.sheet h2,.mtools h2,#hood-sheet h2{font-size:19px;letter-spacing:-.016em}
+.sheet .sub{font-size:12.5px;margin-bottom:12px}
+.sheet .p-cap{font-size:10.5px;letter-spacing:.085em}
+
+.mt-tile,.trev-cell{background:rgba(16,24,40,.045);border:1px solid var(--hair)}
+.mt-tile{padding:12px 6px;font-size:11.5px;gap:6px}
+.mt-tile svg{width:20px;height:20px}
+.mt-grid.four .mt-tile{font-size:10.5px;padding:10px 3px}
+.mt-grid.four .mt-tile svg{width:18px;height:18px}
+.mt-row{padding:10px 4px;gap:11px}
+.mtr-ic{width:31px;height:31px}
+.mtr-ic svg{width:17px;height:17px}
+.mtr-t{font-size:14.5px}
+.mtr-t i{font-size:12px}
+
+.trev{gap:7px;margin:12px 0 9px}
+.trev-cell{padding:10px 11px}
+.trev-cell b{font-size:19px}
+.trev-cell span{font-size:9.5px}
+
+#hood-reps .rep-chip{font-size:12.5px;padding:7px 12px}
+.sheet .btn{border-radius:var(--r-md);font-size:15px;font-weight:640}
+.sheet .btn-ghost{background:rgba(16,24,40,.045);border:1px solid var(--hair);color:var(--t1)}
+.sheet .btn-gold{background:var(--accent-btn);color:#fff}
+.tsrc{font-size:12px;padding:8px 10px}
+.topt summary{font-size:13px}
+
+/* ---------- CUSTOMERS: SCANNABLE DENSITY ----------
+   The first pass fitted six rows on a screen. A book of a thousand needs to
+   be readable at a glance and moved through with a thumb, so the row loses
+   a few points of leading and the status badge stops being a two-line
+   block: the label and its time sit on one line, right-aligned. */
+.pscr-head{padding-top:calc(env(safe-area-inset-top,0px) + 14px);padding-bottom:10px}
+.p-h1{font-size:27px}
+.ph-count{font-size:12.5px}
+.psearch{height:39px;margin-bottom:9px}
+.cust-pills{margin-bottom:2px}
+.ppill{height:31px;font-size:13px;padding:0 12px}
+
+.cust-row{padding:10px 2px;gap:10px}
+.cr-name{font-size:15px}
+.cr-addr{margin-top:1px;font-size:12.5px}
+.cr-meta{margin-top:2px;font-size:11.5px}
+.opst{flex-direction:row;align-items:center;gap:6px;padding:4px 8px;font-size:9.5px}
+.opst i{font-size:10.5px;opacity:.9}
+#cust-list{padding-bottom:96px}
+/* the new-customer button is a shortcut, not the subject of the screen */
+.fab-new{width:52px;height:52px;border-radius:17px;box-shadow:var(--lift)}
+.fab-new svg{width:23px;height:23px}
+
+/* ---------- THE DOOR SHEET (premium) ----------
+   The one screen a rep touches more than any other. It keeps every control
+   it had; what changes is that the address leads, the outcome swatches read
+   as one row of equal targets, and the coordinates stop competing with the
+   street name for second place. */
+.sheet.prop-sheet{background:var(--glass-sheet);
+  -webkit-backdrop-filter:var(--blur); backdrop-filter:var(--blur);
+  border-top-left-radius:var(--r-xl);border-top-right-radius:var(--r-xl);max-height:74vh}
+.lead-head .addr{font-family:var(--disp);font-size:19px;font-weight:750;letter-spacing:-.018em}
+.lead-head .coords{font-size:11px;color:var(--t3);opacity:.75}
+.lead-head .badge{border-radius:var(--r-pill);font-size:12px;font-weight:700;padding:6px 11px;
+  background:rgba(16,24,40,.05);border:1px solid var(--hair)}
+.lead-cb{font-size:13px;font-weight:640}
+.lead-opp{margin-top:8px}
+
+.pq-row{gap:6px;margin:12px 0 4px}
+.pq{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:11px 4px;border-radius:var(--r-md);background:rgba(16,24,40,.045);
+  border:1px solid var(--hair);font-size:11px;font-weight:620;line-height:1.2;text-align:center}
+.pq .sw{width:13px;height:13px;border-radius:50%;box-shadow:0 0 0 2px rgba(255,255,255,.9),0 1px 2px rgba(16,24,40,.2)}
+.pq.sel{background:var(--blue);color:#fff;border-color:transparent}
+.pq.sel .sw{box-shadow:0 0 0 2px rgba(255,255,255,.75)}
+.pq:active{transform:scale(.97)}
+
+/* filter chips scroll rather than wrap: two ragged rows of pills is the
+   look of a form, not of a tool a thumb runs along */
+#street-streets,#street-filters{display:flex;flex-wrap:nowrap;overflow-x:auto;
+  gap:7px;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+#street-streets::-webkit-scrollbar,#street-filters::-webkit-scrollbar{display:none}
+#street-streets .reason,#street-filters .reason{flex:none}
+
+/* the street row already carries the house number on the left — repeating
+   it at the head of the address was the list saying the same thing twice */
+.street-row .stb b{font-size:14.5px}
+.stn{min-width:46px;text-align:center}

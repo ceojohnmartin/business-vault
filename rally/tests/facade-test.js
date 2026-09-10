@@ -59,7 +59,7 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
 
   // ---- dot-draw goes through onMapClick, draft ring renders ----
   await page.click("#fab-hoods"); await page.waitForTimeout(350);
-  await page.click("#hood-dots"); await page.waitForTimeout(300);
+  await page.click("#mt-corners"); await page.waitForTimeout(300);
   for (const [x,y] of [[90,320],[300,320],[300,520],[90,520]]) {
     await page.mouse.click(x,y); await page.waitForTimeout(140);
   }

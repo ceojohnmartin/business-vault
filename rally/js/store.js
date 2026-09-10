@@ -1010,6 +1010,31 @@
      Deterministic (S.firstOpenAssignee orders by assignedAt then userId), so
      two devices paint the same hood the same colour, and the leader panel
      shows the full set beside it rather than hiding the others. */
+  /* WHAT A TERRITORY IS CALLED, in one place.
+
+     The owner's rule is: no hood NAMES, an automatic sequential number.
+     `seq` is server-assigned and does not exist until 0018 is applied, so
+     this is written to want the number and to degrade honestly without it:
+
+         seq present   ->  "Territory 12"
+         nickname only ->  the nickname the office chose
+         neither       ->  "Territory"
+
+     Every screen that shows a hood should call this rather than reading
+     .name, so the day numbering lands the whole app changes together and
+     no screen is left showing a device-local auto-name. */
+  S.hoodLabel = function (t) {
+    if (!t) return "Territory";
+    if (t.seq) return "Territory " + t.seq;
+    const n = (t.name || "").trim();
+    return n || "Territory";
+  };
+  S.hoodShortLabel = function (t) {
+    if (!t) return "—";
+    if (t.seq) return String(t.seq);
+    return (t.name || "").trim() || "—";
+  };
+
   S.hoodColor = (t) => {
     const u = S.firstOpenAssignee(t) && S.userById(S.firstOpenAssignee(t));
     return u ? u.color : (t.color || "#8A93A6"); // unassigned = neutral

@@ -81,12 +81,12 @@
       : `<b>${m.remaining}</b> left of ${m.actionable}`;
     return `<div class="turf-row" data-tid="${t.id}">
         <div class="turf-head">
-          <span class="turf-name"><span class="dot" style="background:${STORE.hoodColor(t)}"></span>${esc(t.name || "Hood")}</span>
+          <span class="turf-name"><span class="dot" style="background:${STORE.hoodColor(t)}"></span>${esc(STORE.hoodLabel(t))}</span>
           <span class="turf-pct num">${m.pct === null ? "—" : m.pct + "%"}</span>
         </div>
         ${pctBar(m)}
         <div class="turf-meta dim">${left} · ${esc(who)}</div>
-        <div class="turf-meta dim">${cycle}${m.callbacks ? ` · ⏰ ${m.callbacks} callback${m.callbacks === 1 ? "" : "s"}` : ""}${
+        <div class="turf-meta dim">${cycle}${m.callbacks ? ` · ${m.callbacks} callback${m.callbacks === 1 ? "" : "s"}` : ""}${
           m.salesThisCycle ? ` · ${m.salesThisCycle} sold this cycle` : ""}${
           m.salesUnknown ? ` <span title="signed, but no recoverable sale event">(+${m.salesUnknown} unconfirmed)</span>` : ""}</div>
         ${evidenceNote(m)}
@@ -156,7 +156,7 @@
   function openAssign(t) {
     sheetHood = t;
     sheetSet = STORE.currentAssignees(t).slice();
-    $("#turf-assign-title").textContent = t.name || "Hood";
+    $("#turf-assign-title").textContent = STORE.hoodLabel(t);
     renderAssignChips();
     renderAssignHistory(t);
     openSheet("turf-assign-sheet");

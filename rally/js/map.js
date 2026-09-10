@@ -324,7 +324,7 @@
             type: "Feature",
             geometry: { type: "Polygon", coordinates: [[...t.points, t.points[0]]] },
             properties: {
-              id: t.id, name: t.name || "Hood",
+              id: t.id, name: STORE.hoodLabel(t),
               rep: u ? u.name : "",
               /* TURF IS BLUE ON THE REP MAP, and only on the rep map.
 
@@ -344,6 +344,17 @@
     };
   }
 
+  /* Who is allowed to see a territory's name written across the imagery.
+     It lives on its own because a DEMOTION has to take it away NOW: the role
+     door calls refreshHoods(), and when this gate sat inside applyHeatPaint
+     only a heat toggle could move it — so a rep whose role had just been
+     corrected kept reading "Territory 12 / John Martin" over their houses. */
+  function applyHoodLabelGate() {
+    if (!map || !map.getLayer("hoods-label")) return;
+    map.setLayoutProperty("hoods-label", "visibility",
+      (STORE.canManageTerritories() || heatMode) ? "visible" : "none");
+  }
+
   function applyHeatPaint() {
     if (!map || !map.getLayer("hoods-fill")) return;
     const colorProp = ["get", heatMode ? "fresh" : "color"];
@@ -359,10 +370,7 @@
        the blue area and nothing written across it. Freshness view is a
        manager view too, and there the label is how you tell which area a
        colour belongs to, so it comes back. */
-    if (map.getLayer("hoods-label")) {
-      const wanted = (STORE.canManageTerritories() || heatMode) ? "visible" : "none";
-      map.setLayoutProperty("hoods-label", "visibility", wanted);
-    }
+    applyHoodLabelGate();
     const heatLegend = $("#heat-legend");
     if (heatLegend) heatLegend.hidden = !heatMode;
     updateHint(); // swaps the disposition legend out while heat is on
@@ -421,6 +429,7 @@
     if (src) src.setData(data);
     const lsrc = map.getSource("hoods-labels");
     if (lsrc) lsrc.setData(hoodLabelsGeoJSON(data));
+    applyHoodLabelGate();
   }
 
   function addHoodLayers() {
@@ -741,10 +750,15 @@
         id: "pins-clusters", type: "circle", source: "pins",
         filter: ["has", "point_count"],
         paint: {
-          "circle-color": "#1B1C1E",
-          "circle-radius": ["step", ["get", "point_count"], 14, 25, 18, 100, 23, 500, 28],
+          /* A cluster is a NAVIGATION affordance — tap it and the map goes
+             there — so it takes the interaction colour rather than the
+             charcoal used for primary actions. Charcoal bubbles also read
+             as do-not-knock pins at a glance, which is the one colour on
+             this map that must never be ambiguous. */
+          "circle-color": "#0A84FF",
+          "circle-radius": ["step", ["get", "point_count"], 13, 25, 17, 100, 21, 500, 26],
           "circle-stroke-width": 2.5, "circle-stroke-color": "#FFFFFF",
-          "circle-opacity": 0.92,
+          "circle-opacity": 0.94,
         },
       });
       map.addLayer({

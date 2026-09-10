@@ -187,7 +187,7 @@ const server = http.createServer((req, res) => {
   await page.click("#fab-hoods");
   await sleep(300);
   await shot("15-hood-menu");
-  await page.click("#hood-dots");
+  await page.click("#mt-corners");
   await sleep(300);
   await page.mouse.click(90, 300);
   await page.mouse.click(300, 290);
@@ -197,6 +197,10 @@ const server = http.createServer((req, res) => {
   await shot("16-hood-draft");
   await page.click("#draw-done");
   await sleep(400);
+  // a nickname is OPTIONAL now and lives behind a disclosure — the
+  // territory is identified by its number, not by something typed here
+  await page.evaluate(() => { const d = document.querySelector("#hood-more"); if (d) d.open = true; });
+  await sleep(150);
   await page.fill("#hood-name", "Cypress Bend");
   await page.fill("#hood-homes", "184");
   await page.click('.rep-chip[data-u="+"]');
@@ -215,7 +219,7 @@ const server = http.createServer((req, res) => {
     return { doors: h.doors, sales: h.sales, sessions: h.sessions.length, rep0: h.sessions[0] && h.sessions[0].rep };
   });
   console.log("area history:", JSON.stringify(hist));
-  await page.click("#hood-heat");
+  await page.click("#mt-heat");
   await sleep(600);
   await shot("26-heat-view");
   const heat = await page.evaluate(() => ({
@@ -224,7 +228,7 @@ const server = http.createServer((req, res) => {
   }));
   console.log("heat:", JSON.stringify(heat));
   await page.click("#fab-hoods");
-  await page.click("#hood-heat"); // back to ownership
+  await page.click("#mt-heat"); // back to ownership
   await sleep(300);
   // tap the rep row -> zoom to their turf with others faded
   await page.click("#fab-hoods");
@@ -265,7 +269,7 @@ const server = http.createServer((req, res) => {
   await sleep(300);
   await shot("30-pipeline-chips");
   const danaStage = await page.evaluate(() =>
-    document.querySelector(".cust-row .stage-tag").textContent.trim());
+    document.querySelector(".cust-row .opst").textContent.trim());
   console.log("Dana stage:", danaStage);
   // create a lead: name only, no agreement
   await page.click("#cust-fab");
@@ -319,7 +323,7 @@ const server = http.createServer((req, res) => {
   await sleep(300);
   const lenaStage = await page.evaluate(() => {
     const r = [...document.querySelectorAll(".cust-row")].find((x) => x.textContent.includes("Lena"));
-    return r ? r.querySelector(".stage-tag").textContent.trim() : "MISSING";
+    return r ? r.querySelector(".opst").textContent.trim() : "MISSING";
   });
   console.log("Lena stage:", lenaStage);
   // home shows the leads row? (Lena has an appointment now, so leads row may be gone — check upnext includes appointment)
@@ -486,7 +490,7 @@ const server = http.createServer((req, res) => {
   });
   await page.click("#fab-hoods");
   await sleep(200);
-  await page.click("#hood-lasso");
+  await page.click("#mt-lasso");
   await sleep(300);
   // circle around where the pin actually sits on screen (focusPin offsets
   // the camera so the pin rides above the sheet area, not dead center)
@@ -638,7 +642,7 @@ const server = http.createServer((req, res) => {
   // CREATE TERRITORY → tap corners → done
   await page.click("#fab-hoods");
   await sleep(200);
-  await page.click("#hood-dots");
+  await page.click("#mt-corners");
   await sleep(300);
   await page.mouse.click(70, 250);
   await page.mouse.click(330, 250);
@@ -655,6 +659,7 @@ const server = http.createServer((req, res) => {
   }));
   console.log("territory scan:", JSON.stringify(scan1));
   await shot("45-territory-scan");
+  await page.evaluate(() => { const d = document.querySelector("#hood-more"); if (d) d.open = true; });
   await page.fill("#hood-name", "Demo Meadows");
   await page.click("#hood-save");
   await sleep(2500);

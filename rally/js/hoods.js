@@ -222,6 +222,59 @@
      stale house count over a map showing something else. */
   function closeHoodSheet() { hideCard(); closeSheet(); }
 
+  /* THE REVIEW STRIP AND THE SOURCE LINE.
+
+     Three numbers and one sentence about where the houses came from. The
+     numbers are the server's when it can be reached — the same call the
+     polygon card makes, so the sheet and the card can never disagree — and
+     this device's own count when it cannot, said plainly.
+
+     The source line is the part a manager actually needs before handing
+     turf out: a scan that placed every door on a building footprint is a
+     different proposition from one that fell back to parcel points, and
+     after the fact nobody can tell by looking at the map. */
+  async function fillReview(hood, scan) {
+    const id = $("#hr-id"), houses = $("#hr-houses"), sales = $("#hr-sales");
+    if (!id) return;
+    const src = $("#hood-source");
+    id.textContent = hood && hood.seq ? hood.seq : "New";
+    houses.textContent = scan ? scan.eligible.length : "…";
+    sales.textContent = "…";
+
+    if (scan) {
+      const n = scan.eligible.length;
+      const roof = scan.eligible.filter((d) =>
+        d.placement === "building_centroid" || d.placement === "building_surface").length;
+      const bits = [`${n.toLocaleString()} eligible ${n === 1 ? "house" : "houses"}`];
+      if (roof === n && n) bits.push("every one on a building outline");
+      else if (roof) bits.push(`${roof} on a building outline, ${n - roof} at a parcel or block point`);
+      else if (n) bits.push("none on a building outline — parcel-level placement only");
+      if (scan.warnings && scan.warnings.length) bits.push(scan.warnings[0]);
+      src.textContent = bits.join(" · ");
+      src.hidden = false;
+      src.classList.toggle("warn", roof < n || !!(scan.warnings && scan.warnings.length));
+    } else if (!hood) {
+      src.hidden = true;
+    }
+
+    if (!hood) { sales.textContent = "0"; if (!scan) houses.textContent = "—"; return; }
+    try {
+      const sum = await STORE.territorySummary(hood);
+      id.textContent = sum.seq ? sum.seq + (sum.of ? " of " + sum.of : "") : "—";
+      if (!scan) houses.textContent = sum.houses;
+      sales.textContent = sum.sales;
+      const local = sum.source === "device";
+      $("#hood-review").classList.toggle("local", local);
+      if (local && src.hidden) {
+        src.textContent = "Counted on this device — the team's numbers need a connection";
+        src.hidden = false; src.classList.add("warn");
+      }
+    } catch (_) {
+      if (!scan) houses.textContent = "—";
+      sales.textContent = "—";
+    }
+  }
+
   async function showCard(hood, scan) {
     const c = $("#polycard");
     if (!c) return;
@@ -281,6 +334,10 @@
                      : (preAssign ? [preAssign] : []);
     preAssign = null;
     $("#hood-sheet-title").textContent = hood ? "Edit territory" : "New territory";
+    $("#hood-sheet-sub").textContent = hood
+      ? "Change who works it, or reshape it on the map"
+      : "Review what is in it, then hand it out";
+    fillReview(hood, null);
     $("#hood-name").value = hood ? hood.name : "";
     $("#hood-homes").value = hood && hood.homes ? hood.homes : "";
     $("#hood-delete").hidden = !hood;
@@ -338,6 +395,7 @@
     const dupes = res.eligible.length - fresh.length;
     lastScan = { fresh, res, forId: hood ? hood.id : null };
     showCard(hood, res);                 // the card's house count is the scan's
+    fillReview(hood, res);               // …and so is the review strip's
     const acres = Math.max(1, Math.round(res.areaKm2 * 247.105));
     if (!res.eligible.length) {
       st.innerHTML = `No residential doors found in this area` +
@@ -429,7 +487,7 @@
     tick();
     const t = STORE.territories.find((x) => x.id === editingId);
     if (!t) return;
-    if (!confirm(`Split “${t.name}” into ${n} balanced hoods? The original is replaced (pins keep their history).`)) return;
+    if (!confirm(`Split “${STORE.hoodLabel(t)}” into ${n} balanced hoods? The original is replaced (pins keep their history).`)) return;
     let kids;
     try {
       kids = await STORE.splitTerritory(t, n);
@@ -471,7 +529,7 @@
     MASSIGN.open({
       preselect: assignSet.slice(),
       subtitle: hood && hood.seq ? "Polygon " + hood.seq
-              : hood ? hood.name : "New polygon — not saved yet",
+              : hood ? STORE.hoodLabel(hood) : "New polygon — not saved yet",
       onSave: async (ids) => {
         assignSet = ids.slice();
         renderRepChips();
@@ -612,7 +670,12 @@
       const moving = creating || assignSet.slice().sort().join() !== cur.slice().sort().join();
       if (!(await MTURF.gate(creating ? "creating a hood" : "changing who works it", moving))) return;
     }
-    const name = $("#hood-name").value.trim() || "Hood " + (STORE.territories.length + 1);
+    /* NO AUTO-NAME. This used to mint "Hood 7" when the field was blank,
+       which is exactly the device-local auto-name the numbering is meant to
+       replace — and it then showed up on every screen as though a person
+       had chosen it. A blank nickname stays blank; the territory is
+       identified by its server-assigned number. */
+    const name = $("#hood-name").value.trim();
     const homes = Math.max(0, Math.min(100000, Number($("#hood-homes").value) || 0)) || null;
     // a typed-but-unadded new rep still counts — nobody loses that keystroke
     const newRepName = $("#hood-newrep-wrap").hidden ? "" : $("#hood-newrep").value.trim();
@@ -749,7 +812,7 @@
         : `${u ? MUI.esc(u.name) + " · " : ""}${doors}${prog}`;
       return `<div class="hood-row${t.pendingSplit ? " pending" : ""}" data-id="${t.id}">
          <span class="dot" style="background:${STORE.hoodColor(t)}"></span>
-         <span class="hn">${MUI.esc(t.name)}<span class="hr">${sub}</span></span>
+         <span class="hn">${MUI.esc(STORE.hoodLabel(t))}<span class="hr">${sub}</span></span>
          ${manager ? `<button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>` : ""}
        </div>`;
     }).join("") +
@@ -757,7 +820,7 @@
       ? `<div class="hood-sec">Archived</div>` + archived.map((t) =>
           `<div class="hood-row archived" data-id="${t.id}">
              <span class="dot" style="background:#B9BEC7"></span>
-             <span class="hn">${MUI.esc(t.name)}<span class="hr">archived</span></span>
+             <span class="hn">${MUI.esc(STORE.hoodLabel(t))}<span class="hr">archived</span></span>
              <button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>
            </div>`).join("")
       : "");
@@ -904,12 +967,12 @@
     });
     $("#hood-delete").addEventListener("click", async () => {
       if (!editingId) return;
-      if (!confirm("Delete this hood? Pins inside it are not affected.")) return;
+      if (!confirm("Delete this territory? The houses inside it are not affected.")) return;
       if (!(await STORE.deleteTerritory(editingId))) return; // storage failure: nothing changed
       editingId = null;
       MMAP.refreshHoods();
       closeHoodSheet();
-      toast("Hood deleted");
+      toast("Territory deleted");
     });
     $("#hood-archive").addEventListener("click", async () => {
       const t = editingId && STORE.territories.find((x) => x.id === editingId);
@@ -921,8 +984,8 @@
       closeHoodSheet();
       renderHoodList();
       toast(t.archived
-        ? `${t.name} archived — doors and history are untouched`
-        : `${t.name} is back on the map`);
+        ? `${STORE.hoodLabel(t)} archived — doors and history are untouched`
+        : `${STORE.hoodLabel(t)} is back on the map`);
     });
     // doors block: scan an existing territory, import, or go back to drawing
     $("#hd-scan").addEventListener("click", () => {

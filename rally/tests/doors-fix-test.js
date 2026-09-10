@@ -139,15 +139,18 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
   });
   await page.click("#fab-hoods");
   await page.waitForTimeout(400);
-  const dotsBtn = await page.$("#hood-dots");
+  const dotsBtn = await page.$("#mt-corners");
   if (dotsBtn) {
-    await page.click("#hood-dots");
+    await page.click("#mt-corners");
     await page.waitForTimeout(300);
     for (const [x,y] of [[80,300],[300,300],[300,500],[80,500]]) {
       await page.mouse.click(x,y); await page.waitForTimeout(120);
     }
     await page.click("#draw-done");
-    await page.waitForSelector("#hood-name", {timeout: 8000});
+    await page.waitForSelector("#hood-name", {timeout: 8000, state: "attached"});
+    // the nickname is optional and behind a disclosure now
+    await page.evaluate(() => { const d = document.querySelector("#hood-more"); if (d) d.open = true; });
+    await page.waitForTimeout(150);
     await page.fill("#hood-name", "DoubleTap");
     // two immediate taps on Save
     await page.click("#hood-save");

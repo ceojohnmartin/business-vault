@@ -593,7 +593,10 @@ async function reopen(page) {
      whole panel off the right edge of the phone with its buttons
      unreachable. Nothing in the battery looked at whether a control was
      still ON the screen, so nothing caught it. */
-  section("M — the turf menu fits the phone");
+  /* The turf DROPDOWN became a glass bottom sheet. What this section is
+     for has not changed — a manager's tools have to fit the phone and every
+     option has to be tappable — so it drives the sheet instead. */
+  section("M — the map-tools sheet fits the phone");
   if (await page.$eval("#refused-sheet", (e) => e.classList.contains("open"))) {
     await page.click("#refused-sheet .grab");
     await page.waitForTimeout(250);
@@ -610,23 +613,27 @@ async function reopen(page) {
   await page.click("#fab-hoods");
   await page.waitForTimeout(400);
   const box = await page.evaluate(() => {
-    const el = document.querySelector("#hood-menu");
+    const el = document.querySelector("#mtools");
     if (!el || el.hidden) return null;
     const r = el.getBoundingClientRect();
-    return { left: r.left, right: r.right, width: r.width, vw: window.innerWidth };
+    return { left: r.left, right: r.right, width: r.width, top: r.top,
+      vw: window.innerWidth, vh: window.innerHeight };
   });
-  check("M1 the menu is open", !!box, JSON.stringify(box));
+  check("M1 the sheet is open", !!box, JSON.stringify(box));
   check("M2 its right edge is on the screen",
     box && box.right <= box.vw + 0.5, JSON.stringify(box));
   check("M3 and so is its left edge — it did not just overflow the other way",
     box && box.left >= -0.5, JSON.stringify(box));
   check("M4 it is never wider than the phone",
     box && box.width <= box.vw, JSON.stringify(box));
+  check("M4b and it does not start above the top of the screen",
+    box && box.top >= -0.5, JSON.stringify(box));
   /* Reachability is the thing the owner actually lost: a button whose
      centre is off-screen cannot be tapped, whatever the box says. */
   const reachable = await page.evaluate(() => {
     const out = [];
-    for (const sel of ["#hood-pencil", "#hood-dots", "#hood-lasso", "#hood-heat"]) {
+    for (const sel of ["#mt-trace", "#mt-corners", "#mt-lasso", "#mt-heat",
+                       "#mt-select", "#mt-move", "#mt-undo", "#mt-redo"]) {
       const el = document.querySelector(sel);
       if (!el) { out.push([sel, "missing"]); continue; }
       const r = el.getBoundingClientRect();
@@ -636,7 +643,7 @@ async function reopen(page) {
     }
     return out;
   });
-  check("M5 every option in the menu can actually be tapped",
+  check("M5 every tool in the sheet can actually be tapped",
     reachable.every((r) => r[1] === "ok"), JSON.stringify(reachable));
   const repRow = await page.evaluate(() => {
     const el = document.querySelector("#hood-reps-panel .rep-row");

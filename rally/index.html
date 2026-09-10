@@ -593,7 +593,7 @@
       <div class="grab"></div>
       <header class="ahead">
         <div>
-          <h2 id="assign-title">Assign rep</h2>
+          <h2 id="assign-title">Assign reps</h2>
           <div class="asub" id="assign-sub"></div>
         </div>
         <button class="ax" id="assign-close" type="button" aria-label="Close">&times;</button>
@@ -740,16 +740,24 @@
 
   <div class="sheet" id="hood-sheet">
     <div class="grab"></div>
-    <h2 id="hood-sheet-title">Name this hood</h2>
-    <div class="sub">The area paints the map in its rep's color</div>
-    <div class="field"><label for="hood-name">Hood name</label><input id="hood-name" placeholder="Willow Creek east" autocomplete="off"></div>
-    <div class="field"><label for="hood-homes">Homes in this hood <span style="text-transform:none;letter-spacing:0">(for % complete — optional)</span></label>
-      <input id="hood-homes" type="number" inputmode="numeric" min="0" placeholder="e.g. 184"></div>
-    <div class="field"><label>Assigned rep</label>
+    <h2 id="hood-sheet-title">New territory</h2>
+    <div class="sub" id="hood-sheet-sub">Review what is in it, then hand it out</div>
+
+    <!-- THE REVIEW STRIP: the number, the houses, the sales. The same three
+         facts the polygon card carries, so the sheet and the map agree. -->
+    <div class="trev" id="hood-review">
+      <div class="trev-cell"><b id="hr-id">—</b><span>Territory</span></div>
+      <div class="trev-cell"><b class="num" id="hr-houses">—</b><span>Houses</span></div>
+      <div class="trev-cell"><b class="num" id="hr-sales">—</b><span>Sales</span></div>
+    </div>
+    <!-- where the houses came from, and anything the scan is unsure about -->
+    <div class="tsrc" id="hood-source" hidden></div>
+
+    <div class="field"><label>Assigned reps</label>
       <div class="reasons" id="hood-reps"></div>
-      <!-- the full-screen picker, for a team too big to browse as chips -->
+      <!-- the full-screen picker: one hood can be worked by SEVERAL reps -->
       <button class="btn btn-ghost" id="hood-assign-open" type="button"
-              style="margin:8px 0 4px">Assign rep&hellip;</button>
+              style="margin:8px 0 4px">Assign reps&hellip;</button>
     <div class="dim" id="hood-reps-note" style="font-size:12.5px;margin:-4px 0 8px" hidden></div>
       <div id="hood-newrep-wrap" hidden style="margin-top:8px">
         <input id="hood-newrep" placeholder="New rep's name" autocomplete="off"
@@ -762,20 +770,30 @@
       <div id="hd-import-row" hidden style="margin-bottom:12px">
         <button type="button" class="reason imp-chip" id="hd-import-btn"></button>
       </div>
-      <button class="btn btn-ghost" id="hd-scan" style="margin-bottom:10px" hidden>🔍 Scan for doors</button>
-      <button class="btn btn-ghost" id="hd-redraw" style="margin-bottom:10px" hidden>✏️ Edit the area</button>
+      <button class="btn btn-ghost" id="hd-scan" style="margin-bottom:10px" hidden>Scan for houses</button>
+      <button class="btn btn-ghost" id="hd-redraw" style="margin-bottom:10px" hidden>Edit the area</button>
     </div>
+    <!-- A NAME IS OPTIONAL AND LAST. The territory is identified by its
+         number; a nickname is a convenience for the office, never a
+         requirement standing between a manager and a saved boundary. -->
+    <details class="topt" id="hood-more">
+      <summary>Optional details</summary>
+      <div class="field"><label for="hood-name">Nickname</label>
+        <input id="hood-name" placeholder="Willow Creek east" autocomplete="off"></div>
+      <div class="field"><label for="hood-homes">Homes, if you already know the count</label>
+        <input id="hood-homes" type="number" inputmode="numeric" min="0" placeholder="e.g. 184"></div>
+    </details>
     <div id="hood-history"></div>
     <!-- the outline is edited ON THE MAP: corners you can drag, a shape you
          can move, and a live warning if it lands on a neighbour -->
-    <button class="btn btn-ghost" id="hood-edit-shape" style="margin-bottom:10px" hidden>📐 Reshape this hood on the map</button>
+    <button class="btn btn-ghost" id="hood-edit-shape" style="margin-bottom:10px" hidden>Reshape this territory on the map</button>
     <div id="hood-split-wrap" hidden>
-      <button class="btn btn-ghost" id="hood-split" style="margin-bottom:10px">✂️ Smart Split — cut into balanced hoods</button>
+      <button class="btn btn-ghost" id="hood-split" style="margin-bottom:10px">Smart Split — cut into balanced areas</button>
       <div class="reasons" id="hood-split-n" hidden></div>
     </div>
-    <button class="btn btn-gold" id="hood-save">Save hood</button>
-    <button class="btn btn-ghost" id="hood-archive" style="margin-top:10px" hidden>🗄 Archive territory</button>
-    <button class="btn btn-danger" id="hood-delete" style="margin-top:10px" hidden>Delete hood</button>
+    <button class="btn btn-gold" id="hood-save">Save territory</button>
+    <button class="btn btn-ghost" id="hood-archive" style="margin-top:10px" hidden>Archive territory</button>
+    <button class="btn btn-danger" id="hood-delete" style="margin-top:10px" hidden>Delete territory</button>
   </div>
 
   <div class="sheet" id="team-sheet">

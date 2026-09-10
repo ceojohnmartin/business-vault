@@ -43,7 +43,11 @@ const t = (page, sel) => page.$eval(sel, e => e.textContent.trim());
   check("empty state is exactly 'No customers yet.'", (await t(page,"#cust-list")) === "No customers yet.", await t(page,"#cust-list"));
   const tabs = await page.$$eval("#tabbar .tab", els => els.map(e=>e.textContent.trim()));
   check("tab order Customers·Map·Route·Leaderboard·More", JSON.stringify(tabs)===JSON.stringify(["Customers","Map","Route","Leaderboard","More"]), tabs.join(","));
-  check("R mark present", !!(await page.$(".rmark svg")));
+  // the R badge became the locked premium header: RALLY / Customers / count
+  const chead = await page.$$eval(".pscr-head > *", els => els.map(e=>e.textContent.trim()));
+  check("premium header is RALLY / Customers / count",
+        chead[0] === "RALLY" && chead[1] === "Customers" && /customers?$/.test(chead[2] || ""),
+        chead.join(" | "));
   await page.screenshot({path:SHOTS+"/f2-01-customers-empty.png"});
 
   // ---- More: bubbles ----
@@ -307,7 +311,12 @@ const t = (page, sel) => page.$eval(sel, e => e.textContent.trim());
   check("row appears in list", (await t(page,"#cust-list")).includes("Dana"));
   await page.click("#cf-filter"); await page.waitForTimeout(200);
   const menu = await page.$$eval(".pop-menu button", els=>els.map(e=>e.textContent.trim()));
-  check("filter menu options", menu.some(m=>m.startsWith("Sold")) && menu.some(m=>m.startsWith("Canceled")) && !menu.some(m=>/lead/i.test(m)), menu.join(","));
+  // the four LOCKED operational statuses, and nothing else. LEAD is not a
+  // customer-book status and "Sold" was never one either.
+  check("filter menu is the four operational statuses",
+        JSON.stringify(menu.map(m=>m.replace(/\s*✓$/,"").trim())) ===
+        JSON.stringify(["All statuses","Not scheduled","Pending","Serviced","Canceled"]),
+        menu.join(","));
   await page.click('.pop-menu button[data-v="all"]'); await page.waitForTimeout(150);
 
   // long-press delete with double confirm

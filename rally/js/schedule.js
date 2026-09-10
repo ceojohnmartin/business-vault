@@ -33,8 +33,8 @@
 
     if (callbacks.length) {
       html += `<div class="sched-warn cbs">
-        <div class="sw-title">⏰ Callbacks (${callbacks.length})
-          <button class="cb-route-btn" id="cb-route" type="button">🧭 Re-knock route</button></div>` +
+        <div class="sw-title">Callbacks (${callbacks.length})
+          <button class="cb-route-btn" id="cb-route" type="button">Re-knock route</button></div>` +
         callbacks.slice(0, 8).map((p) => {
           const overdue = p.callbackAt <= Date.now();
           const where = p.address || (p.lat.toFixed(4) + ", " + p.lng.toFixed(4));

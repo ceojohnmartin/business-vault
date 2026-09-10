@@ -1287,8 +1287,13 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
     const signed = STORE.custSignedAt(c);
     const when = signed ? new Date(signed).getTime() : (c.soldAt || c.createdAt);
     const who = esc(STORE.custSoldByLabel(c));
+    /* A SHORT DATE. The year is noise in an operational list — nobody is
+       scanning a customer book wondering which decade a visit is in — and
+       spending eight characters on it squeezed the address into an
+       ellipsis. Month/day plus the time is what a dispatcher reads. */
     const stTime = st.at
-      ? `<i>${MUI.fmtDate(st.at)} ${MUI.fmtTime(st.at)}</i>` : "";
+      ? `<i>${new Date(st.at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })} ` +
+        `${MUI.fmtTime(st.at)}</i>` : "";
     return `<button class="cust-row" data-cid="${c.id}" type="button">
        <div class="cr-main">
          <div class="cr-name">${esc(STORE.custName(c))}</div>

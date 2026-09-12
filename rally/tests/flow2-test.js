@@ -44,7 +44,9 @@ const t = (page, sel) => page.$eval(sel, e => e.textContent.trim());
   const tabs = await page.$$eval("#tabbar .tab", els => els.map(e=>e.textContent.trim()));
   check("tab order Customers·Map·Route·Leaderboard·More", JSON.stringify(tabs)===JSON.stringify(["Customers","Map","Route","Leaderboard","More"]), tabs.join(","));
   // the R badge became the locked premium header: RALLY / Customers / count
-  const chead = await page.$$eval(".pscr-head > *", els => els.map(e=>e.textContent.trim()));
+  // scoped: EVERY screen carries a .pscr-head now, which is the point
+  const chead = await page.$$eval("#screen-customers .pscr-head > *",
+    els => els.map(e => e.textContent.trim()).filter(Boolean));
   check("premium header is RALLY / Customers / count",
         chead[0] === "RALLY" && chead[1] === "Customers" && /customers?$/.test(chead[2] || ""),
         chead.join(" | "));

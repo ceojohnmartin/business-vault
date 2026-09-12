@@ -107,7 +107,8 @@
   // license, goals, preferences — backs up and restores normally.
   // googleSessions is here because it holds live Map Tiles session tokens,
   // not a preference.
-  const SETTINGS_SECRETS = ["frKey", "frToken", "regridKey", "googleKey", "googleSessions"];
+  const SETTINGS_SECRETS = ["frKey", "frToken", "regridKey", "googleKey", "googleSessions",
+                            "mapkitToken"];
 
   // Returns a copy with the credential fields removed; never mutates the
   // record it is handed.

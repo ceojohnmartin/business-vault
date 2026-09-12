@@ -136,6 +136,20 @@ async function buildings() {
 
   // Google, fetched in Node and handed to the page (see the header)
   if (g) {
+    /* Apple, fetched in Node exactly as the tiles are: Chromium's tunnel
+       to Apple dies at this container's egress relay. The library is
+       Apple's, byte for byte. Without a developer token Apple answers 401,
+       which is the state being photographed. */
+    await ctx.route(/apple-mapkit\.com|apple\.com/, async (route) => {
+      try {
+        const r = await fetch(route.request().url(), { signal: AbortSignal.timeout(30000),
+          headers: { referer: `http://localhost:${PORT}/`, origin: `http://localhost:${PORT}` } });
+        const buf = Buffer.from(await r.arrayBuffer());
+        return route.fulfill({ status: r.status, body: buf,
+          headers: { "content-type": r.headers.get("content-type") || "application/octet-stream",
+                     "access-control-allow-origin": "*" } });
+      } catch (_) { return route.fulfill({ status: 504, body: "" }); }
+    });
     await ctx.route(/tile\.googleapis\.com\/v1\/createSession/, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(g.j) }));
     await ctx.route(/tile\.googleapis\.com\/v1\/2dtiles/, async (route) => {
@@ -427,6 +441,46 @@ async function buildings() {
     await settleMap(20);
     await shot("14-freshness");
     await page.evaluate(() => MMAP.setHeatMode(false));
+
+    // ------------------------------------------------ APPLE MAPKIT, HONESTLY
+    // 15: the Map setting that carries the token, showing which map is live
+    await page.evaluate(() => MAPP.show("more"));
+    await page.waitForTimeout(500);
+    await page.evaluate(() => document.querySelector("#more-mapengine").click());
+    await page.waitForTimeout(700);
+    await shot("15-map-settings");
+    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
+    await page.waitForTimeout(300);
+
+    /* 16: what a device with a token Apple REFUSES actually sees. The
+       real library is loaded from Apple's real CDN, mapkit.init() runs,
+       Apple answers 401, and RALLY says so and falls back — loudly. This
+       is the one MapKit state that can be photographed without an Apple
+       Developer token, and it is photographed as itself. */
+    await page.evaluate(async () => {
+      STORE.settings.mapEngine = "mapkit";
+      STORE.settings.mapkitToken = "not-a-token-apple-will-accept";
+      await STORE.saveSettings();
+      MAPP.show("map");
+      await MMAP.init();
+    });
+    await page.waitForTimeout(1500);
+    await page.evaluate(() => MMAP.resize());
+    // the session is cached, so the fallback's imagery lands inside the
+    // toast's lifetime — the frame shows both
+    for (let i = 0; i < 6; i++) {
+      await page.waitForTimeout(400);
+      if (await page.evaluate(() => !document.querySelector("#gattr").hidden)) break;
+    }
+    await settleMap(4);
+    await shot("16-mapkit-refused");
+    console.log("  mapkit report:", JSON.stringify(await page.evaluate(() => {
+      const r = MMAP.engineReport(); return { engine: r.engine, fellBack: r.fellBack, reason: r.reason };
+    })));
+    await page.evaluate(async () => {
+      STORE.settings.mapEngine = "auto"; STORE.settings.mapkitToken = "";
+      await STORE.saveSettings();
+    });
 
     console.log(`== done == tiles ok: ${tiles} | tiles failed: ${tileFail}`);
   } catch (e) {

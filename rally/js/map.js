@@ -1,18 +1,37 @@
 /* RALLY — the knocking map.
-   One view, on purpose: Google hybrid — vivid satellite imagery with
-   Google's own street labels, 512px retina tiles, the same look the top
-   competitor apps run. No basemap menu, no fallback cartography; the
-   built-in office key makes imagery a given, not a setting. Glyphs for
-   hood labels are bundled with the app, so the map has exactly one
-   external dependency: Google tiles. Offline, cached tiles keep knocked
-   neighborhoods rendering; brand-new ground waits for signal.
-   Pins are glossy 3D teardrop markers in the disposition colors; hoods
-   (rep territories) render as tinted polygons under the pins. */
+
+   THIS FILE NO LONGER DRAWS ANYTHING. It decides WHAT the map should
+   show — which door is which colour, whose turf is emphasised, what a tap
+   means, what the knock sheet says — and hands the result to a renderer
+   as plain GeoJSON. Two renderers implement that contract:
+
+     js/map-render-mk.js   Apple MapKit, satellite. The primary experience.
+     js/map-render-gl.js   MapLibre over Google tiles. The fallback, and
+                           the only one that works with no signal and no
+                           Apple account.
+
+   js/map-engine.js picks between them and hands one back here as R.
+
+   THE SEAM IS GEOJSON AND LNG/LAT, deliberately. Everything a renderer is
+   told is data RALLY already had, and nothing is ever read back out of an
+   engine and kept — which is why swapping engines mid-session loses
+   nothing: the pins, the territories, the selected door, the draft ring
+   and the queued knocks all live here and in STORE, and re-issuing four
+   calls repaints the lot.
+
+   What stays here: the knock sheet, the property card, quick outcomes,
+   the CRM rows, the brand panel, the Google session and its error
+   wording. None of that is a map, and none of it should be written
+   twice. */
 (function () {
   const { $, $$, openSheet, closeSheet, toast, tick } = MUI;
   const D = MDATA.DISPOSITIONS;
 
-  let map = null;
+  /* THE ACTIVE RENDERER. Null until MENGINE.boot() answers, and null
+     again if BOTH engines fail — every call site checks, because a
+     device with no map must still be able to knock from Street Mode and
+     the Customers list. */
+  let R = null;
   const clickHandlers = []; // MMAP.onMapClick registrations, first-consume-wins
   /* MMAP.onMapMove registrations. The vertex editor draws its handles as
      HTML over the canvas, so it needs to know when the camera moved in
@@ -20,28 +39,14 @@
      floating where the corner used to be. It is a notification, not a
      hook: nothing here can steer the camera. */
   const moveHandlers = [];
-  let tempMarker = null;
-  let puck = null;
   let selectedPinId = "";
   let knock = null; // {mode:'new'|'re', lat, lng, pinId, disposition, reason, dm}
   let currentLead = null;
   let lastGoogleError = ""; // Google's own explanation when imagery is refused
-  let wiringP = null;       // in-flight imagery wire-up, shared by all callers
+  let wiringP = null;
+  let engineNote = null;   // what MENGINE decided, for Settings and the tests
+  let stripHoodId = null;       // in-flight imagery wire-up, shared by all callers
 
-  // ---------- style ----------
-  // Near-black ground: in dead zones with no cached tiles, pins and hoods
-  // float on premium dark instead of a beige void.
-  function baseStyle() {
-    const dir = new URL(".", location.href).href;
-    return {
-      version: 8,
-      glyphs: dir + "fonts/{fontstack}/{range}.pbf",
-      sources: {},
-      layers: [
-        { id: "bg", type: "background", paint: { "background-color": "#DDDEE0" } },
-      ],
-    };
-  }
 
   // ---------- Google imagery (Map Tiles API) ----------
   // the office key ships built in; a device key wins if a rep sets one
@@ -110,38 +115,38 @@
     return wiringP;
   }
 
+  /* THE SESSION IS RALLY'S; THE RASTER SOURCE IS THE ENGINE'S.
+
+     Under MapKit there is nothing to wire at all — Apple's satellite IS
+     the base map — so this reports what the renderer says and stops. It
+     does not fetch a Google session on a MapKit device, because that
+     would spend a quota and a round trip on imagery nothing will draw. */
   async function wireImagery() {
-    {
-      const sess = await googleSession();
-      updateNetHint(!!sess);
-      const styleReady = map && map.isStyleLoaded && map.isStyleLoaded();
-      if (!sess || !styleReady) return !!sess;
-      const src = map.getSource("g-hyb");
-      if (src) {
-        // session rotated → point the existing source at the new URL
-        try { src.setTiles([tileUrl(sess)]); } catch (_) {}
-      } else {
-        try {
-          map.addSource("g-hyb", {
-            type: "raster", tiles: [tileUrl(sess)],
-            tileSize: 512, maxzoom: 22,
-          });
-          map.addLayer(
-            { id: "g-hyb", type: "raster", source: "g-hyb" },
-            map.getLayer("hoods-fill") ? "hoods-fill" : undefined
-          );
-        } catch (_) { return false; }
-      }
-      const gattr = $("#gattr");
-      if (gattr) gattr.hidden = false; // Google attribution is required on-screen
-      return true;
+    const gattr = $("#gattr");
+    if (!R) return false;
+    if (R.name !== "maplibre") {
+      /* Apple's imagery, Apple's attribution (MapKit draws its own).
+         Google's error line is left alone: it belongs to the Google path
+         and must not start reporting Apple's authorisation problems. */
+      const im = R.imagery();
+      if (gattr) gattr.hidden = true;
+      updateNetHint(im.live);
+      return im.live;
     }
+    const sess = await googleSession();
+    const ok = sess ? R.setImagery({ url: tileUrl(sess) }) : false;
+    /* Google's on-screen attribution is a provider requirement whenever
+       Google imagery is live — the one DOM line the engine move dropped. */
+    if (gattr) gattr.hidden = !ok;
+    updateNetHint(ok);
+    return ok;
   }
+
 
   function updateNetHint(haveImagery) {
     const el = $("#net-hint");
     if (!el) return;
-    el.hidden = haveImagery || !!(map && map.getSource("g-hyb"));
+    el.hidden = haveImagery || !!(R && R.imagery().live);
     if (!el.hidden) {
       el.textContent = navigator.onLine
         ? (lastGoogleError || "Loading imagery…")
@@ -149,17 +154,6 @@
     }
   }
 
-  // ---------- teardrop pin images ----------
-  // Glossy 3D map pins (the classic teardrop with a white hole), one per
-  // disposition color, drawn on canvas at 2x and registered as map images.
-  function shade(hex, f) {
-    // f > 0 lightens toward white, f < 0 darkens toward black
-    const n = parseInt(hex.slice(1), 16);
-    let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    const t = f < 0 ? 0 : 255, p = Math.abs(f);
-    r = Math.round((t - r) * p + r); g = Math.round((t - g) * p + g); b = Math.round((t - b) * p + b);
-    return `rgb(${r},${g},${b})`;
-  }
 
   /* THE PIN, v42 — COMPACT, WHITE-HALOED, AIMED AT THE BUILDING.
 
@@ -178,92 +172,13 @@
           tip stays sharp and anchored.
 
      Everything is still drawn at 2x on canvas and registered as a map
-     image, so this costs no runtime and no extra request. */
-  function makePinImage(color, opts) {
-    const o = opts || {};
-    const S = 96; // 48 CSS px @2x
-    const cv = document.createElement("canvas");
-    cv.width = S; cv.height = S;
-    const ctx = cv.getContext("2d");
-    const x = S / 2, headR = S * 0.255, headCy = S * 0.315, tipY = S * 0.945;
-
-    const tear = () => {
-      ctx.beginPath();
-      ctx.moveTo(x, tipY);
-      ctx.bezierCurveTo(x - headR * 0.40, tipY - S * 0.30, x - headR, headCy + headR * 0.80, x - headR, headCy);
-      ctx.arc(x, headCy, headR, Math.PI, 0); // top semicircle
-      ctx.bezierCurveTo(x + headR, headCy + headR * 0.80, x + headR * 0.40, tipY - S * 0.30, x, tipY);
-      ctx.closePath();
-    };
-
-    // separation from the imagery: a soft shadow under the whole shape
-    ctx.save();
-    ctx.shadowColor = "rgba(8,12,20,.38)";
-    ctx.shadowBlur = 7;
-    ctx.shadowOffsetY = 2;
-    tear();
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fill();
-    ctx.restore();
-
-    // THE HALO — a white ring the imagery cannot swallow
-    tear();
-    ctx.lineWidth = o.halo || 5.5;
-    ctx.strokeStyle = "#FFFFFF";
-    ctx.lineJoin = "round";
-    ctx.stroke();
-
-    // body
-    tear();
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    // one soft vertical gradient — form, not shine
-    tear();
-    ctx.save();
-    ctx.clip();
-    const g = ctx.createLinearGradient(0, headCy - headR, 0, tipY);
-    g.addColorStop(0, "rgba(255,255,255,.30)");
-    g.addColorStop(0.45, "rgba(255,255,255,.04)");
-    g.addColorStop(1, "rgba(0,0,0,.20)");
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.restore();
-
-    // a hairline of the colour's own shade keeps the edge crisp inside the halo
-    const lum = parseInt(color.slice(1), 16);
-    const isDark = (((lum >> 16) & 255) + ((lum >> 8) & 255) + (lum & 255)) / 3 < 70;
-    tear();
-    ctx.lineWidth = 1.6;
-    ctx.strokeStyle = isDark ? "rgba(255,255,255,.42)" : shade(color, -0.30);
-    ctx.stroke();
-
-    // the white hole, smaller than before so the colour still reads at 12px
-    ctx.beginPath();
-    ctx.arc(x, headCy, headR * 0.36, 0, Math.PI * 2);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.fill();
-
-    return ctx.getImageData(0, 0, S, S);
-  }
 
   /* NOT-HOME DEPTH. A door nobody answered once and a door nobody answered
      four times are not the same prospect, and a rep walking past should be
      able to tell without opening anything. So not-home darkens toward
      orange with each attempt IN THE CURRENT CYCLE — a fresh pass starts
      every door back at one. Two extra images, keyed like any other. */
-  const NH_DEPTH = { nothome2: "#E39A00", nothome3: "#D97A16" };
 
-  function registerPinImages() {
-    Object.keys(D).forEach((k) => {
-      const id = "pin-" + k;
-      if (!map.hasImage(id)) map.addImage(id, makePinImage(D[k].color), { pixelRatio: 2 });
-    });
-    Object.keys(NH_DEPTH).forEach((k) => {
-      const id = "pin-" + k;
-      if (!map.hasImage(id)) map.addImage(id, makePinImage(NH_DEPTH[k]), { pixelRatio: 2 });
-    });
-  }
 
   /* THE ONE PLACE A DOOR'S COLOUR IS DECIDED.
 
@@ -344,58 +259,11 @@
     };
   }
 
-  /* Who is allowed to see a territory's name written across the imagery.
-     It lives on its own because a DEMOTION has to take it away NOW: the role
-     door calls refreshHoods(), and when this gate sat inside applyHeatPaint
-     only a heat toggle could move it — so a rep whose role had just been
-     corrected kept reading "Territory 12 / John Martin" over their houses. */
-  function applyHoodLabelGate() {
-    if (!map || !map.getLayer("hoods-label")) return;
-    map.setLayoutProperty("hoods-label", "visibility",
-      (STORE.canManageTerritories() || heatMode) ? "visible" : "none");
-  }
-
-  function applyHeatPaint() {
-    if (!map || !map.getLayer("hoods-fill")) return;
-    const colorProp = ["get", heatMode ? "fresh" : "color"];
-    const dimmed = (full, faded) => ["case", ["==", ["get", "dim"], 1], faded, full];
-    map.setPaintProperty("hoods-fill", "fill-color", colorProp);
-    map.setPaintProperty("hoods-line", "line-color", colorProp);
-    /* Translucent fill, STRONG outline — the locked look. Over satellite
-       photography a weak edge disappears into rooftops, and the edge is the
-       part that answers "am I still on my turf?". */
-    map.setPaintProperty("hoods-fill", "fill-opacity", heatMode ? 0.25 : dimmed(0.15, 0.04));
-    map.setPaintProperty("hoods-line", "line-opacity", heatMode ? 0.75 : dimmed(0.92, 0.28));
-    /* The hood NAME is a manager's tool — see addHoodLabelLayer. A rep gets
-       the blue area and nothing written across it. Freshness view is a
-       manager view too, and there the label is how you tell which area a
-       colour belongs to, so it comes back. */
-    applyHoodLabelGate();
-    const heatLegend = $("#heat-legend");
-    if (heatLegend) heatLegend.hidden = !heatMode;
-    updateHint(); // swaps the disposition legend out while heat is on
-  }
-
   function setHeatMode(on) {
     heatMode = !!on;
-    refreshHoods();
-    applyHeatPaint();
+    refreshHoods();   // one repaint decides colour, opacity AND the label gate
   }
 
-  // manager taps a rep: fit their turf, fade everyone else until the next
-  // map touch
-  function focusRep(userId) {
-    const hoods = STORE.hoodsOf(userId).filter((t) => t.points && t.points.length);
-    if (!map || !hoods.length) { toast("No hoods assigned yet — give them one"); return; }
-    let minX = 180, minY = 90, maxX = -180, maxY = -90;
-    hoods.forEach((t) => t.points.forEach(([lng, lat]) => {
-      minX = Math.min(minX, lng); maxX = Math.max(maxX, lng);
-      minY = Math.min(minY, lat); maxY = Math.max(maxY, lat);
-    }));
-    emphasizeRep = userId;
-    refreshHoods();
-    map.fitBounds([[minX, minY], [maxX, maxY]], { padding: 70, maxZoom: 16.5 });
-  }
 
   function clearEmphasis() {
     if (!emphasizeRep) return;
@@ -403,174 +271,60 @@
     refreshHoods();
   }
 
-  // One Point per hood at the ring centroid: MapLibre anchors the label
-  // there instead of once per tile-clipped polygon slice, so a hood shows
-  // exactly one name at working zooms.
-  function hoodLabelsGeoJSON(data) {
-    return {
-      type: "FeatureCollection",
-      features: data.features.map((f) => {
-        const ring = f.geometry.coordinates[0];
-        let x = 0, y = 0;
-        ring.forEach(([lng, lat]) => { x += lng; y += lat; });
-        return {
-          type: "Feature",
-          geometry: { type: "Point", coordinates: [x / ring.length, y / ring.length] },
-          properties: f.properties,
-        };
-      }),
-    };
-  }
 
-  function refreshHoods() {
-    if (!map) return;
-    const data = hoodsGeoJSON();
-    const src = map.getSource("hoods");
-    if (src) src.setData(data);
-    const lsrc = map.getSource("hoods-labels");
-    if (lsrc) lsrc.setData(hoodLabelsGeoJSON(data));
-    applyHoodLabelGate();
-  }
 
-  function addHoodLayers() {
-    // The label rides a SEPARATE source on purpose: MapLibre parses all of
-    // a source's layers in one worker job, so a symbol layer waiting on
-    // glyphs would stall the fill and line of the same source. Split
-    // sources = the tint always renders (glyphs are bundled locally now,
-    // but the isolation stays cheap insurance).
-    const data = hoodsGeoJSON();
-    map.addSource("hoods", { type: "geojson", data });
-    map.addSource("hoods-labels", { type: "geojson", data: hoodLabelsGeoJSON(data) });
-    const dimmed = (full, faded) =>
-      ["case", ["==", ["get", "dim"], 1], faded, full];
-    map.addLayer({
-      id: "hoods-fill", type: "fill", source: "hoods",
-      paint: { "fill-color": ["get", "color"], "fill-opacity": dimmed(0.16, 0.05) },
-    });
-    map.addLayer({
-      id: "hoods-line", type: "line", source: "hoods",
-      minzoom: 10,
-      layout: { "line-join": "round", "line-cap": "round" },
-      paint: {
-        "line-color": ["get", "color"],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 2.0, 17, 3.6],
-        "line-opacity": dimmed(0.7, 0.3),
-      },
-    });
-  }
 
   // labels ride ABOVE the pins (added after them): the dark halo keeps the
   // name readable over the densest pin clutter, which is exactly where
-  // the rep needs to know whose turf this is
   /* THE LABEL IS A MANAGER'S TOOL, NOT A REP'S.
 
-     A rep sees one blue area and it is theirs; writing "Territory 12 / John
-     Martin" across the middle of it tells them nothing they do not know and
-     costs the imagery they are actually reading. A MANAGER looking at four
-     areas needs to tell them apart, so the layer stays and its visibility
-     follows the same manager test everything else on this map uses. */
-  function addHoodLabelLayer() {
-    map.addLayer({
-      id: "hoods-label", type: "symbol", source: "hoods-labels",
-      minzoom: 11,
-      layout: {
-        "text-field": ["case", ["!=", ["get", "rep"], ""],
-          ["format",
-            ["get", "name"], {},
-            "\n", {},
-            ["get", "rep"], { "font-scale": 0.8, "text-color": "rgba(255,255,255,.82)" }],
-          ["format", ["get", "name"], {}]],
-        "text-font": ["Noto Sans Bold"],
-        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 11.5, 16, 14],
-        "text-line-height": 1.25,
-      },
-      paint: {
-        // white labels with a dark casing read on imagery at any zoom
-        "text-color": "#FFFFFF",
-        "text-halo-color": "rgba(14,17,22,.78)",
-        "text-halo-width": 1.8,
-        "text-opacity": dimmedExpr(1, 0.45),
-      },
-    });
-  }
-  const dimmedExpr = (full, faded) => ["case", ["==", ["get", "dim"], 1], faded, full];
+     A rep sees one blue area and it is theirs; writing "Territory 12 /
+     John Martin" across the middle of it tells them nothing they do not
+     know and costs the imagery they are actually reading. A MANAGER
+     looking at four areas needs to tell them apart, so the label exists
+     and this decides who gets it. Freshness is a manager view too, and
+     there the label is how you tell which area a colour belongs to.
 
-  // ---------- re-knock route rendering ----------
+     It is computed on EVERY repaint rather than toggled, because a
+     demotion has to take it away now: the role door calls refreshHoods(),
+     and a gate that only a heat toggle could reach left a just-demoted
+     rep reading a manager's label over their houses. */
+  const labelsAllowed = () => STORE.canManageTerritories() || heatMode;
+
   const emptyFC = () => ({ type: "FeatureCollection", features: [] });
 
-  // ---------- territory draft ring (owned here so hoods.js never touches
-  // the engine; the shapes and paint are exactly what hoods.js drew) ----------
-  let draftDots = [];
-  function draftData() {
-    const pts = draftDots.map((p) => ({
-      type: "Feature", geometry: { type: "Point", coordinates: p }, properties: {},
-    }));
-    const shapes = [];
-    if (draftDots.length >= 2) {
-      shapes.push({ type: "Feature", properties: {},
-        geometry: { type: "LineString", coordinates: draftDots } });
-    }
-    if (draftDots.length >= 3) {
-      shapes.push({ type: "Feature", properties: {},
-        geometry: { type: "Polygon", coordinates: [[...draftDots, draftDots[0]]] } });
-    }
-    return { type: "FeatureCollection", features: [...shapes, ...pts] };
+  function refreshHoods() {
+    if (!R) return;
+    R.setHoods(hoodsGeoJSON(), { heat: heatMode, labels: labelsAllowed() });
+    const hl = $("#heat-legend");
+    if (hl) hl.hidden = !heatMode;
+    updateHint(); // swaps the disposition legend out while heat is on
   }
 
-  function ensureDraftLayers() {
-    if (map.getSource("hood-draft")) return;
-    map.addSource("hood-draft", { type: "geojson", data: draftData() });
-    map.addLayer({ id: "hood-draft-fill", type: "fill", source: "hood-draft",
-      filter: ["==", ["geometry-type"], "Polygon"],
-      paint: { "fill-color": "#0A6CF0", "fill-opacity": 0.12 } });
-    map.addLayer({ id: "hood-draft-line", type: "line", source: "hood-draft",
-      filter: ["!=", ["geometry-type"], "Point"],
-      paint: { "line-color": "#0A6CF0", "line-width": 2.5, "line-dasharray": [1.6, 1.2] } });
-    map.addLayer({ id: "hood-draft-pts", type: "circle", source: "hood-draft",
-      filter: ["==", ["geometry-type"], "Point"],
-      paint: { "circle-color": "#FFFFFF", "circle-radius": 6,
-        "circle-stroke-color": "#0A6CF0", "circle-stroke-width": 3 } });
+  function refreshPins() {
+    if (R) R.setPins(pinsGeoJSON(), selectedPinId);
+    updateHint();
+    updateBrandToday();
   }
+
+  function setSelected(id) {
+    selectedPinId = id || "";
+    if (R) R.setSelected(selectedPinId);
+  }
+
+  // ---------- the outline being drawn (owned here so hoods.js never
+  // touches an engine; the renderer decides how a dashed ring is drawn) ----
+  let draftDots = [];
 
   function setDraftRing(dots) {
     draftDots = Array.isArray(dots) ? dots : [];
-    if (!map) return;
-    if (!draftDots.length && !map.getSource("hood-draft")) return; // nothing to clear
-    try {
-      ensureDraftLayers();
-      map.getSource("hood-draft").setData(draftData());
-    } catch (_) { /* style mid-reload — the next set repaints it */ }
+    if (R) R.setDraft(draftDots);
   }
 
-  function addRouteLayers() {
-    map.addSource("route", { type: "geojson", data: emptyFC() });
-    map.addLayer({
-      id: "route-line", type: "line", source: "route",
-      filter: ["==", ["geometry-type"], "LineString"],
-      paint: { "line-color": "#5EA0FF", "line-width": 3, "line-dasharray": [0.8, 1.6], "line-opacity": 0.9 },
-    });
-    map.addLayer({
-      id: "route-stops", type: "circle", source: "route",
-      filter: ["==", ["geometry-type"], "Point"],
-      paint: {
-        "circle-color": "#0A6CF0", "circle-radius": 9.5,
-        "circle-stroke-color": "#FFFFFF", "circle-stroke-width": 2,
-      },
-    });
-    map.addLayer({
-      id: "route-nums", type: "symbol", source: "route",
-      filter: ["==", ["geometry-type"], "Point"],
-      layout: {
-        "text-field": ["get", "n"], "text-font": ["Noto Sans Bold"], "text-size": 11,
-        "text-allow-overlap": true,
-      },
-      paint: { "text-color": "#FFFFFF" },
-    });
-  }
-
+  // ---------- re-knock route ----------
   function showRoute(pins) {
-    if (!map || !map.getSource("route")) return;
-    map.getSource("route").setData({
+    if (!R) return;
+    R.setRoute({
       type: "FeatureCollection",
       features: [
         { type: "Feature", properties: {},
@@ -583,306 +337,73 @@
     });
   }
 
-  function clearRoute() {
-    if (map && map.getSource("route")) map.getSource("route").setData(emptyFC());
+  function clearRoute() { if (R) R.setRoute(emptyFC()); }
+
+  // ---------- camera helpers ----------
+  function focusRep(userId) {
+    const hoods = STORE.hoodsOf(userId).filter((t) => t.points && t.points.length);
+    if (!R || !hoods.length) { toast("No hoods assigned yet — give them one"); return; }
+    let minX = 180, minY = 90, maxX = -180, maxY = -90;
+    hoods.forEach((t) => t.points.forEach(([lng, lat]) => {
+      minX = Math.min(minX, lng); maxX = Math.max(maxX, lng);
+      minY = Math.min(minY, lat); maxY = Math.max(maxY, lat);
+    }));
+    emphasizeRep = userId;
+    refreshHoods();
+    R.fitBounds([[minX, minY], [maxX, maxY]], 70, 16.5);
   }
 
-  /* Compact enough for a dense block, and it can be: the white halo does
-     the legibility work the old size was doing. The selected door gets its
-     own slightly larger layer rather than a size expression, so the bump is
-     visible at every zoom. */
-  const PIN_ICON_SIZE = ["interpolate", ["linear"], ["zoom"], 10, 0.20, 14, 0.32, 16, 0.44, 18, 0.62];
-  const PIN_ICON_SIZE_SEL = ["interpolate", ["linear"], ["zoom"], 10, 0.28, 14, 0.44, 16, 0.60, 18, 0.84];
-
-  function init() {
-    if (typeof maplibregl === "undefined") {
-      const hint = $("#knock-hint");
-      hint.hidden = false;
-      hint.textContent = "Map engine failed to load — reopen the app";
-      bindKnockSheet();
-      bindLeadSheet();
-      return;
+  // jump from a customer card to their door on the map
+  function focusPin(pinId) {
+    const p = STORE.pins.find((x) => x.id === pinId);
+    if (!p) return;
+    if (R) {
+      R.resize();
+      R.easeTo({
+        lng: p.lng, lat: p.lat, zoom: Math.max(R.getZoom(), 17.5),
+        // the property card covers ~2/3 of the screen — put the pin in the
+        // strip above it
+        offsetY: Math.round(innerHeight * 0.22),
+      });
     }
-    const s = STORE.settings;
-
-    bindKnockSheet();
-    bindLeadSheet();
-    $("#fab-locate").addEventListener("click", locate);
-    // the legend teaches, then retires — tap it once and it stays gone
-    $("#map-legend").addEventListener("click", () => {
-      STORE.settings.mapLegendHidden = true;
-      STORE.saveSettings();
-      updateHint();
-    });
-    // signal returning is the moment to fetch a session and light imagery up
-    addEventListener("online", () => reloadImagery());
-    updateHint();
-    updateBrandToday();
-
-    map = new maplibregl.Map({
-      container: "map",
-      style: baseStyle(),
-      center: s.lastCenter || [-98.35, 39.5],
-      zoom: s.lastZoom != null ? s.lastZoom : (s.lastCenter ? 16 : 4),
-      attributionControl: { compact: true },
-      maxPitch: 0,
-      dragRotate: false,
-    });
-    map.touchZoomRotate.disableRotation();
-    // Failed tile fetches are routine in dead zones — never surface them as errors.
-    map.on("error", (e) => {
-      if (e && e.error && /tile|source|ajax|fetch|glyph/i.test(String(e.error.message || ""))) return;
-    });
-
-    map.on("style.load", () => {
-      registerPinImages();
-      addHoodLayers();
-      // Clustered source: a full territory import can drop thousands of
-      // doors at once — street level shows every pin, zoomed out they
-      // collapse into count bubbles so the map never turns to soup.
-      map.addSource("pins", {
-        type: "geojson", data: pinsGeoJSON(),
-        cluster: true, clusterMaxZoom: 15, clusterRadius: 54,
-      });
-      const single = ["!", ["has", "point_count"]];
-      // Imported inventory ("unworked") draws as a small flat dot until the
-      // rep is basically on the street — hundreds of full teardrops at
-      // neighborhood zoom is what made the map feel crowded. Worked doors
-      // keep their teardrops at every zoom: they're the story of the day.
-      const DOT_MAX_ZOOM = 16.5;
-      const isUnworked = ["==", ["get", "disposition"], "unworked"];
-      const notUnworked = ["!=", ["get", "disposition"], "unworked"];
-      map.addLayer({
-        id: "pins-dots",
-        type: "circle",
-        source: "pins",
-        maxzoom: DOT_MAX_ZOOM,
-        filter: ["all", single, isUnworked],
-        paint: {
-          "circle-color": "#2E86FF",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 2.5, 15, 4, 16.4, 5],
-          "circle-stroke-width": 1.25,
-          "circle-stroke-color": "#FFFFFF",
-          "circle-opacity": 0.85,
-        },
-      });
-      // soft contact shadow at the pin's tip so it floats on any ground
-      map.addLayer({
-        id: "pins-shadow",
-        type: "circle",
-        source: "pins",
-        filter: ["all", single, notUnworked],
-        paint: {
-          "circle-color": "rgba(0,0,0,.35)",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 14, 4.5, 17, 7],
-          "circle-blur": 1.1,
-          "circle-translate": [1, 1],
-        },
-      });
-      map.addLayer({
-        id: "pins-selected",
-        type: "circle",
-        source: "pins",
-        filter: ["all", single, ["==", ["get", "id"], ""]],
-        paint: {
-          "circle-color": "rgba(10,132,255,.20)",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 14, 13, 17, 18],
-          "circle-stroke-width": 2.5,
-          "circle-stroke-color": "#FFFFFF",
-        },
-      });
-      // a due callback pulses: purple ring under the pin says "go NOW"
-      map.addLayer({
-        id: "pins-cbdue",
-        type: "circle",
-        source: "pins",
-        filter: ["all", single, ["==", ["get", "cbdue"], 1]],
-        paint: {
-          "circle-color": "rgba(124,92,252,.16)",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 12, 8, 16, 13, 18, 17],
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#7C5CFC",
-          "circle-stroke-opacity": 0.85,
-        },
-      });
-      map.addLayer({
-        id: "pins-icon",
-        type: "symbol",
-        source: "pins",
-        filter: ["all", single, notUnworked],
-        layout: {
-          "icon-image": ["concat", "pin-", ["get", "disposition"]],
-          "icon-size": PIN_ICON_SIZE,
-          "icon-anchor": "bottom",
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-        },
-      });
-      map.addLayer({
-        id: "pins-shadow-unworked",
-        type: "circle",
-        source: "pins",
-        minzoom: DOT_MAX_ZOOM,
-        filter: ["all", single, isUnworked],
-        paint: {
-          "circle-color": "rgba(0,0,0,.35)",
-          "circle-radius": 7,
-          "circle-blur": 1.1,
-          "circle-translate": [1, 1],
-        },
-      });
-      map.addLayer({
-        id: "pins-icon-unworked",
-        type: "symbol",
-        source: "pins",
-        minzoom: DOT_MAX_ZOOM,
-        filter: ["all", single, isUnworked],
-        layout: {
-          "icon-image": ["concat", "pin-", ["get", "disposition"]],
-          "icon-size": PIN_ICON_SIZE,
-          "icon-anchor": "bottom",
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-        },
-      });
-      // cluster bubbles: the brand tile with a count
-      map.addLayer({
-        id: "pins-clusters", type: "circle", source: "pins",
-        filter: ["has", "point_count"],
-        paint: {
-          /* A cluster is a NAVIGATION affordance — tap it and the map goes
-             there — so it takes the interaction colour rather than the
-             charcoal used for primary actions. Charcoal bubbles also read
-             as do-not-knock pins at a glance, which is the one colour on
-             this map that must never be ambiguous. */
-          "circle-color": "#0A84FF",
-          "circle-radius": ["step", ["get", "point_count"], 13, 25, 17, 100, 21, 500, 26],
-          "circle-stroke-width": 2.5, "circle-stroke-color": "#FFFFFF",
-          "circle-opacity": 0.94,
-        },
-      });
-      map.addLayer({
-        id: "pins-cluster-n", type: "symbol", source: "pins",
-        filter: ["has", "point_count"],
-        layout: {
-          "text-field": ["get", "point_count_abbreviated"],
-          "text-font": ["Noto Sans Bold"], "text-size": 12,
-          "text-allow-overlap": true,
-        },
-        paint: { "text-color": "#FFFFFF" },
-      });
-      /* THE SELECTED DOOR, DRAWN AGAIN AND LARGER, above everything else.
-         A size expression on the shared layer cannot do this — the whole
-         layer would grow — and the emphasis has to survive at every zoom,
-         because "which pin did I just tap" is the question a rep asks most
-         often on a dense street. Same image, same anchor, so the tip does
-         not move a pixel when a door is selected. */
-      map.addLayer({
-        id: "pins-icon-sel",
-        type: "symbol",
-        source: "pins",
-        filter: ["all", single, ["==", ["get", "id"], ""]],
-        layout: {
-          "icon-image": ["concat", "pin-", ["get", "disposition"]],
-          "icon-size": PIN_ICON_SIZE_SEL,
-          "icon-anchor": "bottom",
-          "icon-allow-overlap": true,
-          "icon-ignore-placement": true,
-        },
-      });
-      addRouteLayers();
-      addHoodLabelLayer();
-      refreshPins();
-      refreshHoods();
-      reloadImagery();
-    });
-
-    map.on("click", (e) => {
-      /* THE OUTLINE EDITOR OWNS THE SURFACE. While it is open the map is a
-         drawing board, not a door list, so a tap here must never open a
-         door sheet on top of it.
-
-         This is also the only thing standing between a hood-move gesture
-         and a spurious door tap. Moving the whole shape has to call
-         preventDefault() on the pointerdown to stop the browser's own
-         text-selection/scroll gesture — and per the pointer-events spec
-         that also suppresses the COMPATIBILITY mousedown. The engine's
-         "did the finger travel too far to be a tap?" test compares against
-         the position it recorded on mousedown, so with no mousedown it has
-         nothing to compare against and lets the click through, however far
-         the drag went. */
-      if (window.MTEDIT && MTEDIT.isOpen()) return;
-      // registered handlers (hood dot-drawing) consume clicks first —
-      // they see a plain {lng, lat}, never an engine event
-      const norm = { lng: e.lngLat.lng, lat: e.lngLat.lat };
-      for (const h of clickHandlers) {
-        try { if (h(norm)) return; } catch (_) {}
-      }
-      clearEmphasis();
-      // 16px tolerance box: fat-fingering near a pin opens it instead of
-      // silently creating a duplicate door
-      const T = 16;
-      const bbox = [[e.point.x - T, e.point.y - T], [e.point.x + T, e.point.y + T]];
-      // a cluster bubble zooms in — it must never read as an empty spot
-      const clusters = map.getLayer("pins-clusters")
-        ? map.queryRenderedFeatures(bbox, { layers: ["pins-clusters"] })
-        : [];
-      if (clusters.length) {
-        const cid = clusters[0].properties.cluster_id;
-        const center = clusters[0].geometry.coordinates;
-        const go = (z) => map.easeTo({
-          center, zoom: Math.min((z != null ? z : map.getZoom() + 2) + 0.3, 18),
-        });
-        try {
-          const r = map.getSource("pins").getClusterExpansionZoom(cid, (err, z) => { if (!err) go(z); });
-          if (r && typeof r.then === "function") r.then(go).catch(() => go());
-        } catch (_) { go(); }
-        return;
-      }
-      const hitLayers = ["pins-icon", "pins-icon-unworked", "pins-dots"]
-        .filter((l) => map.getLayer(l));
-      const hits = hitLayers.length
-        ? map.queryRenderedFeatures(bbox, { layers: hitLayers })
-        : [];
-      if (hits.length) {
-        const pin = STORE.pins.find((p) => p.id === hits[0].properties.id);
-        if (pin) openLead(pin);
-      } else {
-        startKnock(e.lngLat.lat, e.lngLat.lng);
-      }
-    });
-
-    map.on("dragstart", () => { if (window.MHOODS && MHOODS.closeTools) MHOODS.closeTools(); clearEmphasis(); });
-
-    /* "move", not "moveend": a handle that only catches up when the pan
-       STOPS visibly slides away from its corner for the whole gesture. */
-    map.on("move", () => {
-      for (const h of moveHandlers) { try { h(); } catch (_) {} }
-    });
-    let saveT = null;
-    map.on("moveend", () => {
-      updateHoodStrip();
-      for (const h of moveHandlers) { try { h(); } catch (_) {} }
-      clearTimeout(saveT);
-      saveT = setTimeout(() => {
-        const c = map.getCenter();
-        STORE.settings.lastCenter = [c.lng, c.lat];
-        STORE.settings.lastZoom = map.getZoom();
-        STORE.saveSettings();
-      }, 600);
-    });
-    $("#brand-hood").addEventListener("click", () => {
-      const t = STORE.territories.find((x) => x.id === stripHoodId);
-      if (t) focusHood(t);
-    });
+    openLead(p);
   }
 
-  function refreshPins() {
-    const src = map && map.getSource("pins");
-    if (src) src.setData(pinsGeoJSON());
-    updateHint();
-    updateBrandToday();
+  // fit the map to a hood and highlight it briefly
+  function focusHood(t) {
+    if (!R || !t.points || !t.points.length) return;
+    let minX = 180, minY = 90, maxX = -180, maxY = -90;
+    t.points.forEach(([lng, lat]) => {
+      minX = Math.min(minX, lng); maxX = Math.max(maxX, lng);
+      minY = Math.min(minY, lat); maxY = Math.max(maxY, lat);
+    });
+    R.fitBounds([[minX, minY], [maxX, maxY]], 70, 17);
   }
+
+  // ---------- locate ----------
+  function locate() {
+    if (!navigator.geolocation || !R) { toast("Location not available"); return; }
+    const btn = $("#fab-locate");
+    btn.classList.add("armed");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        btn.classList.remove("armed");
+        const { latitude, longitude } = pos.coords;
+        R.easeTo({ lng: longitude, lat: latitude, zoom: Math.max(R.getZoom(), 16.5) });
+        R.setPuck({ lng: longitude, lat: latitude });
+      },
+      () => { btn.classList.remove("armed"); toast("Couldn't get your location"); },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
+    );
+  }
+
+
+
+
+
+
+
+
 
   function updateHint() {
     const hasPins = STORE.pins.length > 0;
@@ -929,91 +450,24 @@
     updateHoodStrip();
   }
 
-  // "THIS IS MY AREA": the hood under the map center, with live progress.
-  let stripHoodId = null;
+  /* THE TERRITORY LABEL IS GONE FROM THE REP MAP, on purpose. The blue
+     area IS the message; naming it in the middle of the imagery was
+     clutter over the one thing the rep is actually reading. The element
+     stays in the DOM so manager surfaces that do want a hood name can keep
+     using it, and so nothing that reads it has to guard. */
   function updateHoodStrip() {
     const el = $("#brand-hood");
-    if (!el) return;
-    /* THE TERRITORY LABEL IS GONE FROM THE REP MAP, on purpose. The blue
-       area IS the message; naming it in the middle of the imagery was
-       clutter over the one thing the rep is actually reading. The element
-       stays in the DOM so the manager surfaces that do want a hood name can
-       keep using it, and so nothing that reads it has to guard. */
-    el.hidden = true;
-    return;
-    let hood = null;
-    if (map) {
-      const c = map.getCenter();
-      hood = STORE.activeTerritories().find((t) =>
-        t.points && t.points.length >= 3 && STORE.inHood(t, c.lng, c.lat)) || null;
-    }
-    if (!hood) {
-      // off-turf: fall back to the rep's own first hood so the goal stays visible
-      const me = STORE.currentUser();
-      if (me && !STORE.seesWholeTeam()) hood = STORE.hoodsOf(me.id)[0] || null;
-    }
-    stripHoodId = hood ? hood.id : null;
-    el.hidden = !hood;
-    if (!hood) return;
-    const st = STORE.hoodStats(hood);
-    const u = hood.assignedTo && STORE.userById(hood.assignedTo);
-    el.innerHTML =
-      `<span class="bh-dot" style="background:${STORE.hoodColor(hood)}"></span>` +
-      `<b>${MUI.esc(hood.name)}</b> · ` +
-      (st.homes
-        ? `${st.knocked}/${st.homes} knocked · <b>${st.pct}%</b>`
-        : `${st.knocked} knocked`) +
-      (u ? ` · ${MUI.esc(u.name)}` : "");
+    if (el) el.hidden = true;
   }
 
-  function setSelected(id) {
-    selectedPinId = id || "";
-    if (map && map.getLayer("pins-icon-sel")) {
-      map.setFilter("pins-icon-sel",
-        ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], selectedPinId]]);
-    }
-    if (map && map.getLayer("pins-selected")) {
-      map.setFilter("pins-selected",
-        ["all", ["!", ["has", "point_count"]], ["==", ["get", "id"], selectedPinId]]);
-    }
-  }
 
-  // ---------- locate ----------
-  function locate() {
-    if (!navigator.geolocation || !map) { toast("Location not available"); return; }
-    const btn = $("#fab-locate");
-    btn.classList.add("armed");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        btn.classList.remove("armed");
-        const { latitude, longitude } = pos.coords;
-        map.flyTo({ center: [longitude, latitude], zoom: Math.max(map.getZoom(), 16.5) });
-        if (!puck) {
-          const el = document.createElement("div");
-          el.style.cssText =
-            "width:16px;height:16px;border-radius:50%;background:#0A6CF0;border:3px solid #fff;box-shadow:0 0 0 6px rgba(10,108,240,.22),0 1px 4px rgba(16,24,40,.3)";
-          puck = new maplibregl.Marker({ element: el }).setLngLat([longitude, latitude]).addTo(map);
-        } else {
-          puck.setLngLat([longitude, latitude]);
-        }
-      },
-      () => { btn.classList.remove("armed"); toast("Couldn't get your location"); },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
-    );
-  }
 
   // ---------- knock sheet ----------
   function startKnock(lat, lng, pin) {
     knock = pin
       ? { mode: "re", pinId: pin.id, lat: pin.lat, lng: pin.lng, disposition: null, reason: null, dm: false, callbackAt: null }
       : { mode: "new", lat, lng, disposition: null, reason: null, dm: false, callbackAt: null };
-    if (!pin && map) {
-      if (tempMarker) tempMarker.remove();
-      const el = document.createElement("div");
-      el.style.cssText =
-        "width:18px;height:18px;border-radius:50%;background:rgba(94,160,255,.25);border:2px solid #5EA0FF";
-      tempMarker = new maplibregl.Marker({ element: el }).setLngLat([lng, lat]).addTo(map);
-    }
+    if (!pin && R) R.setTemp({ lng, lat });
     // reset sheet
     $$("#knock-sheet .disp-btn").forEach((b) => b.classList.remove("sel"));
     $$("#knock-sheet .reason").forEach((b) => b.classList.remove("sel"));
@@ -1157,9 +611,8 @@
     knock = null;
   }
 
-  function clearTemp() {
-    if (tempMarker) { tempMarker.remove(); tempMarker = null; }
-  }
+
+  function clearTemp() { if (R) R.setTemp(null); }
 
   async function reverseGeocode(pin) {
     if (!navigator.onLine) return;
@@ -1457,30 +910,145 @@
     });
   }
 
-  // jump from a customer card to their door on the map
-  function focusPin(pinId) {
-    const p = STORE.pins.find((x) => x.id === pinId);
-    if (!p) return;
-    if (map) {
-      map.resize();
-      map.flyTo({
-        center: [p.lng, p.lat], zoom: Math.max(map.getZoom(), 17.5),
-        // the property card covers ~2/3 of the screen — put the pin in the strip above it
-        offset: [0, -Math.round(innerHeight * 0.22)],
-      });
+
+
+
+  /* BOOT. Two things changed when a second engine arrived.
+
+     It is ASYNC now. MapLibre could be constructed synchronously from a
+     vendored global; MapKit has to download a script from Apple and
+     complete a token handshake before a map may exist. app.js still calls
+     MMAP.init() and does not await it — the sheets are bound before the
+     first await so knocking works whether or not a map ever appears.
+
+     And it can END WITH NO MAP. That is a supported state, not a crash:
+     Street Mode, the Customers list, Route and the whole knock flow are
+     coordinate-based and keep working. The hint says which of the three
+     things went wrong — no Apple token, no engine, or no imagery — rather
+     than a single blank "map failed". */
+  async function init() {
+    /* app.js calls this WITHOUT awaiting (and inside a try/catch that a
+       rejected promise would sail straight past), so a failure here must
+       never become an unhandled rejection. It resolves, always; what went
+       wrong is reported in the hint and in MMAP.engineReport(). */
+    try { await boot(); } catch (e) {
+      const hint = $("#knock-hint");
+      if (hint) { hint.hidden = false; hint.textContent = "Map engine failed to load — reopen the app"; }
+      engineNote = { renderer: null, engine: "", wanted: "", fellBack: false,
+                     reason: String((e && e.message) || e) };
     }
-    openLead(p);
   }
 
-  // fit the map to a hood and highlight it briefly
-  function focusHood(t) {
-    if (!map || !t.points || !t.points.length) return;
-    let minX = 180, minY = 90, maxX = -180, maxY = -90;
-    t.points.forEach(([lng, lat]) => {
-      minX = Math.min(minX, lng); maxX = Math.max(maxX, lng);
-      minY = Math.min(minY, lat); maxY = Math.max(maxY, lat);
+  let bound = false;   // the sheets and buttons are wired exactly once
+
+  async function boot() {
+    const s = STORE.settings;
+
+    /* init() runs again on every engine switch. The sheets, the locate
+       button and the legend are DOM that survives the switch, so binding
+       them again would stack a second handler on each — the property
+       card's quick outcomes then fired twice and cancelled themselves. */
+    if (!bound) {
+      bound = true;
+      bindKnockSheet();
+      bindLeadSheet();
+      $("#fab-locate").addEventListener("click", locate);
+      // the legend teaches, then retires — tap it once and it stays gone
+      $("#map-legend").addEventListener("click", () => {
+        STORE.settings.mapLegendHidden = true;
+        STORE.saveSettings();
+        updateHint();
+      });
+      // signal returning is the moment to fetch a session and light imagery up
+      addEventListener("online", () => reloadImagery());
+      $("#brand-hood").addEventListener("click", () => {
+        const t = STORE.territories.find((x) => x.id === stripHoodId);
+        if (t) focusHood(t);
+      });
+    }
+    updateHint();
+    updateBrandToday();
+
+    const res = await MENGINE.boot({
+      container: "map",
+      center: s.lastCenter || [-98.35, 39.5],
+      zoom: s.lastZoom != null ? s.lastZoom : (s.lastCenter ? 16 : 4),
+      on: { tap: onTap, move: onMove, moveEnd: onMoveEnd, dragStart: onDragStart, ready: onReady },
     });
-    map.fitBounds([[minX, minY], [maxX, maxY]], { padding: 70, maxZoom: 17 });
+    R = res.renderer;
+    engineNote = res;
+    if (!R) {
+      const hint = $("#knock-hint");
+      hint.hidden = false;
+      hint.textContent = res.reason || "Map engine failed to load — reopen the app";
+      return;
+    }
+    /* A fallback is never silent. A rep who thinks they are on Apple's
+       imagery and is not will report the wrong bug, and an office that
+       pasted a bad token needs to find out from the app. */
+    if (res.fellBack) {
+      toast("Apple Maps unavailable — using the offline-capable map. " + (res.reason || ""), 6000);
+    }
+    refreshPins();
+    refreshHoods();
+    setDraftRing(draftDots);
+    reloadImagery();
+  }
+
+  /* ONE TAP, AND THE ORDER MATTERS. A registered handler — drawing a
+     territory — consumes the tap BEFORE any door is considered, which is
+     why the renderers report a tap plus what was under it rather than
+     firing their own annotation-selected events. */
+  function onTap(ll, hit) {
+    /* THE OUTLINE EDITOR OWNS THE SURFACE. While it is open the map is a
+       drawing board, not a door list, so a tap here must never open a door
+       sheet on top of it. */
+    if (window.MTEDIT && MTEDIT.isOpen()) return;
+    for (const h of clickHandlers) {
+      try { if (h(ll)) return; } catch (_) {}
+    }
+    clearEmphasis();
+    if (hit && hit.kind === "cluster") {
+      // a cluster bubble zooms in — it must never read as an empty spot
+      if (R.expandCluster) R.expandCluster(hit);
+      else R.easeTo({ lng: hit.lng, lat: hit.lat, zoom: Math.min(R.getZoom() + 2.3, 18) });
+      return;
+    }
+    if (hit && hit.kind === "pin") {
+      const pin = STORE.pins.find((p) => p.id === hit.id);
+      if (pin) { openLead(pin); return; }
+    }
+    startKnock(ll.lat, ll.lng);
+  }
+
+  function onDragStart() {
+    if (window.MHOODS && MHOODS.closeTools) MHOODS.closeTools();
+    clearEmphasis();
+  }
+  /* A renderer whose layers arrived AFTER boot resolved (MapLibre's
+     style.load can lose an 8 s race on a slow phone) says so here, and
+     everything is painted again onto the layers that now exist. */
+  function onReady() {
+    refreshPins();
+    refreshHoods();
+    setDraftRing(draftDots);
+    reloadImagery();
+  }
+  function onMove() {
+    for (const h of moveHandlers) { try { h(); } catch (_) {} }
+  }
+  let saveT = null;
+  function onMoveEnd() {
+    updateHoodStrip();
+    clearTimeout(saveT);
+    saveT = setTimeout(() => {
+      if (!R) return;
+      const c = R.getCenter();
+      if (!c) return;
+      STORE.settings.lastCenter = [c.lng, c.lat];
+      STORE.settings.lastZoom = R.getZoom();
+      STORE.saveSettings();
+    }, 600);
   }
 
   window.MMAP = {
@@ -1490,14 +1058,18 @@
     googleError: () => lastGoogleError,
     usingOwnKey: () => !!STORE.settings.googleKey,
     clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
-    resize: () => { if (map) map.resize(); },
-    // engine-neutral surface — everything an adapter must provide, and
-    // nothing that leaks the engine. (getMap is gone on purpose.)
-    isReady: () => !!map,
-    getCenter: () => { if (!map) return null; const c = map.getCenter(); return { lng: c.lng, lat: c.lat }; },
-    project: (lng, lat) => { if (!map) return null; const p = map.project([lng, lat]); return { x: p.x, y: p.y }; },
-    unproject: (x, y) => { if (!map) return null; const ll = map.unproject([x, y]); return { lng: ll.lng, lat: ll.lat }; },
-    jumpTo: (lng, lat, zoom) => { if (map) map.jumpTo({ center: [lng, lat], zoom: zoom != null ? zoom : map.getZoom() }); },
+    resize: () => { if (R) R.resize(); },
+    /* Engine-neutral surface — everything an adapter must provide, and
+       nothing that leaks the engine. getMap is gone on purpose, and now
+       that there are genuinely two engines behind it, it stays gone: the
+       whole reason a MapKit renderer could be added without touching
+       hoods.js, turfedit.js, select.js, street.js or route.js is that not
+       one of them was ever handed an engine object. */
+    isReady: () => !!R && R.ready(),
+    getCenter: () => (R ? R.getCenter() : null),
+    project: (lng, lat) => (R ? R.project(lng, lat) : null),
+    unproject: (x, y) => (R ? R.unproject(x, y) : null),
+    jumpTo: (lng, lat, zoom) => { if (R) R.jumpTo(lng, lat, zoom); },
     onMapClick: (fn) => { if (typeof fn === "function") clickHandlers.push(fn); },
     onMapMove: (fn) => { if (typeof fn === "function") moveHandlers.push(fn); },
     /* Hand the camera over. While a leader is dragging a whole hood, the
@@ -1506,10 +1078,13 @@
        and the map slides away instead. Intercepting pointer events is not
        enough: the engine listens for mousedown and touchstart, which are
        different events from the pointerdown an overlay can stop. */
-    setDragPan: (on) => {
-      if (!map || !map.dragPan) return;
-      if (on) map.dragPan.enable(); else map.dragPan.disable();
-    },
+    setDragPan: (on) => { if (R) R.setDragPan(on); },
     setDraftRing,
+    /* WHICH MAP AM I LOOKING AT? Settings shows it, the fallback toast
+       explains it, and the tests assert on it. A rep should never have to
+       guess whether they are on Apple's imagery. */
+    engine: () => (R ? R.name : ""),
+    engineReport: () => engineNote || { renderer: null, engine: "", wanted: "", fellBack: false, reason: "" },
+    imagery: () => (R ? R.imagery() : { live: false, provider: "", error: "" }),
   };
 })();

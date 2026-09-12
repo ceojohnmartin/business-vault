@@ -8,7 +8,7 @@
     goback:  { label: "Go Back",        color: "#7C5CFC", contact: true  },
     nothome: { label: "Not Home",       color: "#F5B301", contact: false },
     notint:  { label: "Not Interested", color: "#E5484D", contact: true  },
-    dnk:     { label: "Do Not Knock",   color: "#0B0F16", contact: false },
+    dnk:     { label: "Do Not Knock / Danger", color: "#0B0F16", contact: false },
   };
 
   // Optional "why" for a Do Not Knock / Not Qualified door.

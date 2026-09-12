@@ -165,6 +165,20 @@
   }
 
   // ---------- more ----------
+  /* WHICH MAP AM I ON, AND WHY. A rep who believes they are on Apple's
+     imagery when they are not will report the wrong bug, and an office
+     that pasted a bad token needs to find that out from the app rather
+     than from a blank screen. */
+  function engineState() {
+    const s = STORE.settings;
+    const r = window.MMAP && MMAP.engineReport ? MMAP.engineReport() : null;
+    if (r && r.engine === "mapkit") return "Apple Maps — satellite";
+    if (r && r.fellBack) return "Offline-capable map — " + (r.reason || "Apple Maps unavailable");
+    if (r && !r.engine) return r.reason || "No map is running";
+    if (!(s.mapkitToken || "").trim()) return "Offline-capable map — no Apple token on this device";
+    return "Offline-capable map";
+  }
+
   function renderMore() {
     const ofc = $("#mb-office-sub");
     if (ofc) ofc.textContent = STORE.settings.officeName
@@ -187,6 +201,7 @@
     $("#more-fr-sub").textContent = s.frSubdomain
       ? s.frSubdomain + ".pestroutes.com"
       : "Not connected — customers queue locally";
+    $("#more-mapengine-sub").textContent = engineState();
     const own = !!s.googleKey;
     const anyKey = own || !!MDATA.DEFAULT_GOOGLE_KEY;
     $("#more-gmaps-sub").textContent = s.googleSessions
@@ -583,6 +598,29 @@
       renderMore(); closeSheet(); toast("Connection details saved");
     });
 
+    $("#more-mapengine").addEventListener("click", () => {
+      $("#set-mapengine").value = STORE.settings.mapEngine || "auto";
+      $("#set-mapkit-token").value = STORE.settings.mapkitToken || "";
+      $("#mapengine-state").textContent = engineState();
+      openSheet("mapengine-sheet");
+    });
+    $("#mapengine-save").addEventListener("click", async () => {
+      STORE.settings.mapEngine = $("#set-mapengine").value;
+      STORE.settings.mapkitToken = $("#set-mapkit-token").value.trim();
+      STORE.settings.mapkitLastError = "";
+      await STORE.saveSettings();
+      closeSheet();
+      /* Rebuild the map on the spot. Nothing is lost by it: the doors,
+         the turf, the selected door and anything queued live in the store,
+         and the new renderer is handed the same GeoJSON the old one had. */
+      if (window.MMAP) await MMAP.init();
+      renderMore();
+      const r = window.MMAP ? MMAP.engineReport() : null;
+      if (!r || !r.engine) toast((r && r.reason) || "No map could be started", 7000);
+      else if (r.fellBack) toast("Apple Maps unavailable — using the offline-capable map. " + (r.reason || ""), 7000);
+      else toast(r.engine === "mapkit" ? "Apple Maps is on" : "Using the offline-capable map");
+    });
+
     $("#more-gmaps").addEventListener("click", () => {
       $("#set-gkey").value = STORE.settings.googleKey;
       openSheet("gmaps-sheet");
@@ -594,6 +632,13 @@
       await STORE.saveSettings();
       closeSheet();
       renderMore();
+      /* On the Apple engine there is no Google imagery to check. The key
+         is kept for the offline-capable map; say that, and say nothing
+         about Google having accepted anything. */
+      if (window.MMAP && MMAP.engine() === "mapkit") {
+        toast("Apple Maps is the active map — the Google key is saved for the offline-capable map");
+        return;
+      }
       if (STORE.settings.googleKey || MDATA.DEFAULT_GOOGLE_KEY) toast("Checking with Google…", 9000);
       const upgraded = window.MMAP ? await MMAP.reloadImagery() : false;
       if (upgraded) {

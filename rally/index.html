@@ -94,7 +94,7 @@
 
   <!-- ================= HOME ================= -->
   <div class="screen" id="screen-home">
-    <div class="brandbar"><button class="backbtn" id="home-back" aria-label="Back">‹ More</button><span class="sub">Today</span></div>
+    <div class="pscr-head has-back"><button class="backbtn" id="home-back" aria-label="Back">‹ More</button><h1 class="p-h1">Today</h1></div>
     <div id="home-body"></div>
   </div>
 
@@ -105,6 +105,9 @@
       <div class="ph-mark">RALLY</div>
       <h1 class="p-h1">Customers</h1>
       <div class="ph-count" id="cust-count">0 customers</div>
+      <button class="ph-action" id="cust-fab" aria-label="New customer">
+        <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6"/><path d="M4 20c.7-3.7 3-5.7 6-5.7 1.2 0 2.3.3 3.2.9"/><path d="M18 14v6M15 17h6"/></svg>
+      </button>
     </div>
     <div class="psearch">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.6"/><path d="M16 16l4.5 4.5"/></svg>
@@ -117,14 +120,11 @@
     </div>
     <div class="cust-panel" id="cust-panel" hidden></div>
     <div id="cust-list"></div>
-    <button class="fab-new" id="cust-fab" aria-label="New customer">
-      <svg viewBox="0 0 24 24"><circle cx="10" cy="8" r="3.6"/><path d="M4 20c.7-3.7 3-5.7 6-5.7 1.2 0 2.3.3 3.2.9"/><path d="M18 14v6M15 17h6"/></svg>
-    </button>
   </div>
 
   <!-- ================= SCHEDULE ================= -->
   <div class="screen" id="screen-schedule">
-    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Route</span></div>
+    <div class="pscr-head"><div class="ph-mark">RALLY</div><h1 class="p-h1">Route</h1></div>
     <!-- turf progress leads the Route tab: where to go next comes before
          what is already booked -->
     <div id="sched-turf" hidden></div>
@@ -275,7 +275,7 @@
 
   <!-- ================= LEADERBOARD ================= -->
   <div class="screen" id="screen-rank">
-    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">Leaderboard · this week</span></div>
+    <div class="pscr-head"><div class="ph-mark">RALLY</div><h1 class="p-h1">Leaderboard</h1><div class="ph-count">This week</div></div>
     <div class="seg" id="rank-seg">
       <button class="seg-opt sel" data-v="team">Team</button>
       <button class="seg-opt" data-v="me">My numbers</button>
@@ -355,7 +355,7 @@
 
   <!-- ================= MORE ================= -->
   <div class="screen" id="screen-more">
-    <div class="brandbar"><span class="wordmark">RALLY</span><span class="sub">More</span></div>
+    <div class="pscr-head"><div class="ph-mark">RALLY</div><h1 class="p-h1">More</h1></div>
     <div class="more-bubbles">
       <button class="mb" id="mb-home"><span class="mb-ic">🏠</span><span class="mb-t">Home</span><span class="mb-d">Today's numbers &amp; start knocking</span></button>
       <button class="mb" id="mb-customers"><span class="mb-ic">👥</span><span class="mb-t">Customers</span><span class="mb-d">Full book — every filter</span></button>
@@ -368,6 +368,7 @@
       <button class="more-item" id="more-profile"><span class="ic">👤</span><span><span class="tt">Profile</span><br><span class="dd" id="more-profile-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-mapengine"><span class="ic">🗺️</span><span><span class="tt">Map</span><br><span class="dd" id="more-mapengine-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-gmaps"><span class="ic">🛰️</span><span><span class="tt">Google map imagery</span><br><span class="dd" id="more-gmaps-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-prop"><span class="ic">🏘️</span><span><span class="tt">Property data</span><br><span class="dd" id="more-prop-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers (JSON)</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
@@ -636,7 +637,7 @@
       <button class="disp-btn" data-d="goback"><span class="sw goback"></span>Go Back</button>
       <button class="disp-btn" data-d="nothome"><span class="sw nothome"></span>Not Home</button>
       <button class="disp-btn" data-d="notint"><span class="sw notint"></span>Not Interested</button>
-      <button class="disp-btn" data-d="dnk"><span class="sw dnk"></span>Do Not Knock</button>
+      <button class="disp-btn" data-d="dnk"><span class="sw dnk"></span>Do Not Knock / Danger</button>
     </div>
     <div id="knock-reasons-wrap" hidden>
       <div class="sub" style="margin-bottom:8px">Why not?</div>
@@ -695,7 +696,7 @@
       <button type="button" class="pq" data-q="notint"><span class="sw notint"></span>No</button>
       <button type="button" class="pq" data-q="goback"><span class="sw goback"></span>Callback</button>
       <button type="button" class="pq" data-q="sold"><span class="sw sold"></span>Sold</button>
-      <button type="button" class="pq" data-q="dnk"><span class="sw dnk"></span>Not qualified</button>
+      <button type="button" class="pq" data-q="dnk"><span class="sw dnk"></span>Do Not Knock</button>
     </div>
     <div class="reasons" id="prop-cbchips" hidden>
       <button type="button" class="reason pcb" data-cb="30m">In 30 min</button>
@@ -1005,6 +1006,28 @@
     <button class="btn btn-gold" id="fr-save">Save</button>
   </div>
 
+  <div class="sheet" id="mapengine-sheet">
+    <div class="grab"></div>
+    <h2>Map</h2>
+    <div class="sub">Apple Maps is the intended RALLY map: Apple satellite imagery under RALLY's own
+      territories and pins. It needs a <b>MapKit JS token</b> from your Apple Developer account —
+      a signed key the office pastes here. Without one, RALLY uses the offline-capable map instead,
+      which keeps working with no signal.</div>
+    <div class="field"><label for="set-mapengine">Which map</label>
+      <select id="set-mapengine">
+        <option value="auto">Automatic — Apple when a token is set</option>
+        <option value="mapkit">Apple Maps (MapKit)</option>
+        <option value="maplibre">Offline-capable map</option>
+      </select></div>
+    <div class="field"><label for="set-mapkit-token">Apple MapKit JS token</label>
+      <input id="set-mapkit-token" autocapitalize="off" autocomplete="off" spellcheck="false"
+             placeholder="eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9…"></div>
+    <p class="dim" id="mapengine-state" style="font-size:12.5px;margin:-4px 0 10px"></p>
+    <button class="btn btn-gold" id="mapengine-save">Save &amp; switch map</button>
+    <p style="font-size:12px;color:var(--t3);margin-top:10px">The token is a credential. It is stored
+      only on this device and is never written to a backup, a log or the team server.</p>
+  </div>
+
   <div class="sheet" id="gmaps-sheet">
     <div class="grab"></div>
     <h2>Google map imagery</h2>
@@ -1045,6 +1068,14 @@
 <script src="js/property.js?v=46"></script>
 <script src="js/crm.js?v=46"></script>
 <script src="js/contract.js?v=46"></script>
+<!-- MAP: shared pin art, the two renderers, the engine switch, then the
+     map logic that drives whichever renderer was chosen. Apple's
+     mapkit.js is NOT here on purpose — it is a cross-origin script and
+     is fetched by map-render-mk.js only on a device that selects it. -->
+<script src="js/map-pin.js?v=46"></script>
+<script src="js/map-render-gl.js?v=46"></script>
+<script src="js/map-render-mk.js?v=46"></script>
+<script src="js/map-engine.js?v=46"></script>
 <script src="js/map.js?v=46"></script>
 <script src="js/assign.js?v=46"></script>
 <script src="js/hoods.js?v=46"></script>

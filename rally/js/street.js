@@ -66,8 +66,9 @@
     $("#street-list").innerHTML = doors.map((d) => {
       const p = d.pin;
       const disp = MDATA.DISPOSITIONS[p.disposition];
+      /* The address ALREADY starts with the house number. A separate number
+         column repeated it on every row — "1200  1200 Brougham Dr". */
       return `<button class="street-row" data-pid="${p.id}" type="button">
-        <span class="stn num">${d.num}</span>
         <span class="stb"><b>${esc((p.address || "").split(",")[0])}</b>
           <span class="dim"><span class="sw ${p.disposition}"></span>${disp ? disp.label : esc(p.disposition)}${p.callbackAt ? " · ⏰ " + MUI.fmtTime(p.callbackAt) : ""} · ${MUI.fmtAgo(p.updatedAt)}</span></span>
         <span class="su-cta">Map ›</span>

@@ -18,6 +18,12 @@
       companyAddress: "", companyLicense: "",
       frSubdomain: "", frKey: "", frToken: "",
       googleKey: "", googleSessions: null, googleLastError: "",
+      /* THE MAP ENGINE. "mapkit" is the intended primary experience;
+         "maplibre" is the fallback that works with no Apple account and
+         keeps cached imagery offline. mapkitToken is Apple's signed
+         developer JWT and is a CREDENTIAL — it lives here beside
+         googleKey and is stripped from every backup by the same list. */
+      mapEngine: "auto", mapkitToken: "", mapkitLastError: "",
       propertySource: "auto", regridKey: "", // door-import provider (More → Property data)
       lastCenter: null, lastZoom: null,
       currentUserId: null, // whose device this is

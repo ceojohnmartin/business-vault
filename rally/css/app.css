@@ -1354,12 +1354,25 @@ body.has-sync-chip .knock-hint{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 .pc-nums b{font-size:18px;font-weight:750}
 
 /* ---------- PREMIUM FULL-SCREEN LIST (Customers) ---------- */
-.pscr-head{margin:-18px -16px 12px;padding:calc(env(safe-area-inset-top,0px) + 18px) 16px 12px;
+.pscr-head{position:relative;margin:-18px -16px 12px;
+  padding:calc(env(safe-area-inset-top,0px) + 18px) 16px 12px;
   background:var(--bg);border-bottom:1px solid var(--hair)}
 .ph-mark{font-family:var(--disp);font-weight:800;font-size:11.5px;letter-spacing:.32em;
   color:var(--t3);margin-bottom:8px}
 .pscr-head h1{margin:0}
 .ph-count{margin-top:4px;font-size:13.5px;color:var(--t3);font-variant-numeric:tabular-nums}
+/* The screen's own action, in the header. It used to be a 60px circle
+   floating over the list, which meant it sat on top of a customer's status
+   badge — the one thing on the row you scan for. iOS puts create in the nav
+   bar; so does this, and nothing is covered. */
+.ph-action{position:absolute;right:16px;bottom:14px;width:42px;height:42px;
+  border-radius:50%;background:var(--accent-btn);color:#fff;border:none;
+  display:flex;align-items:center;justify-content:center;box-shadow:var(--lift)}
+.ph-action svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.ph-action:active{transform:scale(.93)}
+.pscr-head.has-back .backbtn{display:inline-flex;align-items:center;background:none;
+  border:none;padding:0;margin:0 0 8px;font-size:15px;font-weight:600;color:var(--blue)}
 
 .psearch{display:flex;align-items:center;gap:9px;background:var(--s2);
   border:1px solid transparent;border-radius:var(--r-md);padding:0 13px;height:42px;margin-bottom:11px}
@@ -1545,9 +1558,17 @@ body.has-sync-chip .draw-bar{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)}
 .turf-bar span{background:var(--blue)}
 .turf-bar.done span{background:var(--sold)}
 
-/* white-first everywhere: the grey header band was the old identity */
-.brandbar{background:var(--bg);border-bottom:1px solid var(--hair)}
-.brandbar .wordmark{font-size:16px}
+/* white-first everywhere: the grey header band was the old identity.
+   Route, Leaderboard, More and Home now carry the SAME .pscr-head as
+   Customers — the inline "RALLY  ROUTE" bar was the last place the screens
+   disagreed about what a RALLY header looks like. .brandbar survives only
+   for anything not yet converted, and is styled to match. */
+.brandbar{background:var(--bg);border-bottom:1px solid var(--hair);
+  flex-direction:column;align-items:flex-start;gap:6px}
+.brandbar .wordmark{font-family:var(--disp);font-weight:800;font-size:11.5px;
+  letter-spacing:.32em;color:var(--t3)}
+.brandbar .sub{font-family:var(--disp);font-size:27px;font-weight:800;
+  letter-spacing:-.022em;color:var(--t1);text-transform:none}
 .turf-card{background:var(--s1);border:1px solid var(--hair);border-radius:var(--r-lg);box-shadow:none}
 .sw-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
 .cb-route-btn{border-radius:var(--r-pill);background:var(--blue);color:#fff;
@@ -1673,3 +1694,63 @@ body.has-sync-chip .legend.heat{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)
    it at the head of the address was the list saying the same thing twice */
 .street-row .stb b{font-size:14.5px}
 .stn{min-width:46px;text-align:center}
+
+/* ================= APPLE MAPKIT ANNOTATIONS =================
+   MapKit has no sprite atlas, no text layer and no zoom-driven icon size,
+   so everything RALLY draws on an Apple map is a DOM element styled here.
+   The pin ART is not redefined — map-pin.js renders the identical canvas
+   for both engines and this only places and scales it, which is what
+   keeps a door looking the same whichever map is underneath.
+
+   ONE CSS VARIABLE DOES THE ZOOM CURVE. The renderer writes --mkpin-s on
+   the map container once per region change; setting a transform on 900
+   elements per frame is what makes a DOM-annotation map feel slow, and
+   setting one custom property does not. */
+.mkpin{width:48px;height:48px;pointer-events:none;
+  transform:scale(var(--mkpin-s,.44));transform-origin:50% 100%;
+  transition:transform .12s ease-out}
+.mkpin img{width:48px;height:48px;display:block}
+.mkpin.sel{transform:scale(var(--mkpin-ssel,.60));z-index:5}
+/* a due callback pulses: purple ring under the pin says "go NOW" */
+.mkpin.cbdue::before{content:"";position:absolute;left:50%;bottom:-3px;width:26px;height:26px;
+  margin-left:-13px;border-radius:50%;background:rgba(124,92,252,.16);
+  border:2px solid rgba(124,92,252,.85)}
+.mkpin.sel::after{content:"";position:absolute;left:50%;bottom:-4px;width:34px;height:34px;
+  margin-left:-17px;border-radius:50%;background:rgba(10,132,255,.20);border:2.5px solid #fff}
+/* Imported inventory draws as a small flat dot until the rep is basically
+   on the street — hundreds of full teardrops at neighborhood zoom is what
+   made the map feel crowded. The container carries the zoom test. */
+/* The dot is drawn INSIDE the same 48px box, centred on its bottom edge —
+   the anchor MapKit measured at creation. Shrinking the element to 12px
+   left MapKit's anchor at (24,48) of a box that no longer existed and put
+   every imported door 40px north-west of its house. */
+.mk-dots .mkpin.unworked:not(.sel){transform:none}
+.mk-dots .mkpin.unworked:not(.sel) img{display:none}
+/* the chosen door is always a full teardrop — a dot with a ring floating
+   above it is not a selection anyone can read */
+.mk-dots .mkpin.unworked.sel::before{display:none}
+.mk-dots .mkpin.unworked:not(.sel)::before{content:"";position:absolute;left:50%;bottom:-6px;
+  width:12px;height:12px;margin-left:-6px;border-radius:50%;
+  background:#2E86FF;border:1.5px solid #fff;opacity:.85;
+  box-shadow:0 1px 3px rgba(16,24,40,.35)}
+.mkpin{position:relative}
+
+.mkpin-cluster{min-width:28px;height:28px;padding:0 7px;border-radius:999px;
+  background:#0A84FF;border:2.5px solid #fff;color:#fff;font-size:12px;font-weight:750;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 8px rgba(16,24,40,.35);font-variant-numeric:tabular-nums}
+
+/* territory name — a manager's tool, and MapKit's only way to draw text */
+.mkhood-label{text-align:center;color:#fff;pointer-events:none;
+  text-shadow:0 1px 3px rgba(11,15,22,.9),0 0 8px rgba(11,15,22,.65)}
+.mkhood-label b{display:block;font-family:var(--disp);font-size:14px;font-weight:800;
+  letter-spacing:-.01em}
+.mkhood-label i{display:block;font-style:normal;font-size:11.5px;font-weight:650;opacity:.92}
+
+.mkstop{width:19px;height:19px;border-radius:50%;background:#0A6CF0;border:2px solid #fff;
+  color:#fff;font-size:11px;font-weight:750;display:flex;align-items:center;justify-content:center}
+.mkdot{width:12px;height:12px;border-radius:50%;background:#fff;border:3px solid #0A6CF0}
+.mkpuck{width:16px;height:16px;border-radius:50%;background:#0A6CF0;border:3px solid #fff;
+  box-shadow:0 0 0 6px rgba(10,108,240,.22),0 1px 4px rgba(16,24,40,.3)}
+.mktemp{width:18px;height:18px;border-radius:50%;background:rgba(94,160,255,.25);
+  border:2px solid #5EA0FF}

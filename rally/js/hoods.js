@@ -351,6 +351,9 @@
       ? "Change who works it, or reshape it on the map"
       : "Review what is in it, then hand it out";
     fillReview(hood, null);
+    // a sheet reopened for another hood starts at its title, not wherever
+    // the last one was scrolled to
+    const sheetEl = $("#hood-sheet"); if (sheetEl) sheetEl.scrollTop = 0;
     $("#hood-name").value = hood ? hood.name : "";
     $("#hood-homes").value = hood && hood.homes ? hood.homes : "";
     $("#hood-delete").hidden = !hood;
@@ -415,15 +418,26 @@
     const acres = Math.max(1, Math.round(res.areaKm2 * 247.105));
     renderReview(res, fresh, dupes, acres);
     if (!res.eligible.length) return;
-    if (fresh.length) {
+    /* The button promises the number that will actually be sent. On a
+       team the demo grid is never shipped (the server would only refuse
+       it), so those doors are not in the count — the same number the
+       review's "Will be imported" line shows. */
+    const importable = importableOf(fresh).length;
+    if (importable) {
       importOn = !hood; // creating: import is the point, default ON
       const btn = $("#hd-import-btn");
       btn.textContent = hood
-        ? `⬇️ Import ${fresh.length} new door${fresh.length === 1 ? "" : "s"}`
-        : `⬇️ Import ${fresh.length} door${fresh.length === 1 ? "" : "s"} when I save`;
+        ? `⬇️ Import ${importable} new door${importable === 1 ? "" : "s"}`
+        : `⬇️ Import ${importable} door${importable === 1 ? "" : "s"} when I save`;
       btn.classList.toggle("sel", importOn);
       $("#hd-import-row").hidden = false;
     }
+  }
+
+  // the doors an import will actually send: on a team, never the demo grid
+  function importableOf(fresh) {
+    const team = !!(window.MCLOUD && MCLOUD.enabled());
+    return team ? fresh.filter((p) => p.placement !== "synthetic_grid" && p.source !== "demo") : fresh;
   }
 
   /* THE REVIEW. What the scan found, where it came from, how sure it is
@@ -486,6 +500,10 @@
       line("Excluded (not residential)", res.excluded + (reasons ? ` <i>${reasons}</i>` : "")) +
       line("Already in RALLY (matched, not duplicated)", dupes) +
       line("Will be imported", willImport, "total") +
+      /* "Already in RALLY" is what THIS phone knows. The server matches
+         against the whole team's doors when it imports, so its answer can
+         be smaller than this promise — never larger, never a duplicate. */
+      (team ? `<div class="hr-warn dim">Matched against the doors on this phone; the server matches against the whole team's when it imports.</div>` : "") +
       (res.warnings || []).map((w) => `<div class="hr-warn">${MUI.esc(w)}</div>`).join("") +
       (demo && team ? `<div class="hr-warn">Demo houses are refused by the team server — pick a real provider in More → Property data.</div>` : "");
     rv.hidden = false;
@@ -516,38 +534,53 @@
     const opId = lastScan.opId || (lastScan.opId = MDB.uid());
     const st = $("#hd-status");
     const progress = (i, n) => { if (st) st.textContent = `Importing ${i} of ${n} doors…`; };
+    const n = (k) => `${k} door${k === 1 ? "" : "s"}`;
 
     const gate = STORE.turfGate({ needsServer: true });
     if (!gate.ok) {
+      if (st) st.innerHTML = `<b>Not imported</b> — ${MUI.esc(gate.reason)}`;
       toast(gate.reason, 6000);
-      return Object.assign({}, none, { refused: gate.reason });
+      return Object.assign({}, none, { refused: gate.reason, retry: true });   // lastScan is kept for the retry
     }
     let r;
     if (gate.code === "solo") {
       const l = await STORE.importDoors(fresh, { territoryId, onProgress: progress });
       r = { added: l.added, matched: l.skipped, failed: l.failed, synthetic: l.synthetic, where: "device" };
     } else {
+      const send = importableOf(fresh);   // the demo grid never goes over the wire
       try {
-        const s = await STORE.importDoorsServer(fresh, { territoryId, operationId: opId, onProgress: progress });
+        const s = await STORE.importDoorsServer(send, { territoryId, operationId: opId, onProgress: progress });
         r = { added: s.added, matched: s.matched, outside: s.outside, ineligible: s.ineligible,
-              unusable: s.unusable, pages: s.pages, where: "server" };
+              unusable: s.unusable, pages: s.pages, where: "server", demoDropped: fresh.length - send.length };
         // the doors exist on the server now; ask for them rather than waiting for the next wake
         if (window.MSYNC && MSYNC.syncNow) { try { MSYNC.syncNow(); } catch (_) {} }
       } catch (err) {
         const msg = String((err && err.message) || err);
-        if (/could not find the function|PGRST202|does not exist/i.test(msg)) {
+        const part = (err && err.partial) || null;
+        if (err && err.cloud === "net") {
+          /* THE CONNECTION DROPPED, WHICH IS NOT A REFUSAL. Whatever pages
+             answered before it did commit, and the ledger will answer them
+             again under the same operation id — so the scan and its id are
+             kept, the committed doors are asked for, and the button stays:
+             the retry sends the whole run and imports only what is left. */
+          const landed = part && part.pages ? ` ${n(part.added)} confirmed before it dropped;` : "";
+          if (st) st.innerHTML = `<b>Import not confirmed</b> — the server could not be reached.${landed} tap Import again to finish (nothing is imported twice).`;
+          toast(`Import not confirmed — the server could not be reached.${landed} Import again to finish; nothing is imported twice.`, 8000);
+          if (part && part.pages && window.MSYNC && MSYNC.syncNow) { try { MSYNC.syncNow(); } catch (_) {} }
+          return Object.assign({}, none, { unconfirmed: msg, partial: part, retry: true });
+        }
+        if (/PGRST202/.test(String(err && err.code)) || /could not find the function|PGRST202|does not exist/i.test(msg)) {
           const l = await STORE.importDoors(fresh, { territoryId, onProgress: progress });
           r = { added: l.added, matched: l.skipped, failed: l.failed, synthetic: l.synthetic, where: "device-fallback" };
         } else {
           if (st) st.innerHTML = `<b>Import refused</b> — ${MUI.esc(msg)}`;
           toast("Import refused — " + msg, 7000);
-          return Object.assign({}, none, { refused: msg });   // lastScan is kept: Save again retries
+          return Object.assign({}, none, { refused: msg, retry: true });   // lastScan is kept for the retry
         }
       }
     }
     lastScan = null;
     MMAP.refreshPins();
-    const n = (k) => `${k} door${k === 1 ? "" : "s"}`;
     if (r.synthetic) {
       /* The demo grid previews the flow on a solo device and is refused on a
          team, because those doors would be permanent shared property records
@@ -561,8 +594,10 @@
       // the server's own refusals: demo-grid doors and non-residential ones
       if (r.ineligible) bits.push(`${r.ineligible} refused as not residential or demo`);
       if (r.unusable) bits.push(`${r.unusable} unusable`);
+      if (r.demoDropped) bits.push(`${r.demoDropped} demo-grid doors not sent`);
+      r.summary = `Server confirmed — ${bits.join(" · ")}`;
       if (st) st.innerHTML = `<b>Server confirmed</b> — ${bits.join(" · ")}`;
-      toast(`Server confirmed — ${bits.join(" · ")}`);
+      toast(r.summary);
     } else if (r.where === "device-fallback") {
       if (st) st.innerHTML = `<b>Imported on this device</b> — queued to sync. The server-confirmed import needs migration 0018.`;
       toast(`Imported ${n(r.added)} on this device and queued to sync — the server-confirmed import needs migration 0018`, 7000);
@@ -872,9 +907,23 @@
     closeHoodSheet();
     renderHoodList();
     const label = STORE.hoodLabel(t) + (name ? ` (${name})` : "");
-    toast(imported && imported.added
-      ? `${label} — ${imported.added} doors ${imported.where === "server" ? "confirmed by the server" : "pinned"}${who ? ", assigned to " + who : ""}`
-      : (who ? `${label} — assigned to ${who}` : `${label} saved`));
+    const assigned = who ? ` · assigned to ${who}` : "";
+    /* ONE toast, and the import's verdict is in it. runImport's own toast
+       fired a tick before this one and was replaced by it, so a manager
+       whose server import was refused used to read "Territory 12 —
+       assigned to Jake" and nothing about the missing doors. */
+    if (imported && (imported.refused || imported.unconfirmed)) {
+      const why = imported.refused || "the server could not be reached";
+      toast(`${label} saved${assigned} — doors NOT imported: ${why}. Open the territory and scan again to retry.`, 9000);
+    } else if (imported && imported.where === "device-fallback") {
+      toast(`${label} saved${assigned} — ${imported.added} doors pinned on this device and queued to sync; the server-confirmed import needs migration 0018`, 8000);
+    } else if (imported && imported.where === "server") {
+      toast(`${label} saved${assigned} — ${imported.summary || (imported.added + " doors confirmed by the server")}`, 7000);
+    } else if (imported && imported.added) {
+      toast(`${label} — ${imported.added} doors pinned${assigned}`);
+    } else {
+      toast(who ? `${label} — assigned to ${who}` : `${label} saved`);
+    }
   }
 
   // ---------- manager rep panel ----------
@@ -1133,11 +1182,21 @@
       if (!lastScan || !lastScan.fresh.length) return;
       if (editingId) {
         // saved territory: the button IS the confirmation
-        const btn = $("#hd-import-btn");
+        const btn = $("#hd-import-btn"), scan = $("#hd-scan");
         btn.disabled = true;
-        try { await runImport(editingId); }
+        if (scan) scan.disabled = true;   // a scan mid-import would be thrown away by the import's cleanup
+        let r = null;
+        try { r = await runImport(editingId); }
         catch (_) { toast("Import hit an error — scan the territory again to retry"); }
-        finally { btn.disabled = false; }
+        finally { btn.disabled = false; if (scan) scan.disabled = false; }
+        if (r && r.retry) return;   // refused or unconfirmed: the scan, its id and the button stay for the retry
+        if (r && r.where === "server") {
+          /* The server holds the doors and this phone does not yet — they
+             arrive on the pull. Re-rendering from local counts here read
+             "No doors pinned in this territory yet" over the confirmation. */
+          $("#hd-import-row").hidden = true;
+          return;
+        }
         const t = STORE.territories.find((x) => x.id === editingId);
         setupDoorsBlock(pending, t || null);
       } else {

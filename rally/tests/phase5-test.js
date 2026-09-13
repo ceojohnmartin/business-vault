@@ -195,9 +195,22 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
         r.rows === 60 && !r.moreHidden && r.more === (n - 60).toLocaleString() + " more", JSON.stringify(r));
     }
     console.log("    render times (ms): " + JSON.stringify(timings));
+    /* Three UNSIGNED drafts (no agreement — the records Home counts as
+       leads) and one legacy-shaped record with no address object, added on
+       top of the book: their rows must read NOT SCHEDULED / "Added", never
+       a LEAD word. */
+    await page.evaluate(async () => {
+      const now = Date.now(), HOUR = 3600e3, extra = [];
+      for (let k = 0; k < 3; k++) extra.push({ id: MDB.uid(), createdAt: now - k * HOUR, status: "queued",
+        first: "Draft", last: "Unsigned" + k, phones: [], appointments: [], address: { street: (900 + k) + " Draft Ln", city: "Olathe", state: "KS", zip: "66062" },
+        soldAt: now - k * HOUR, soldByUserId: window.__crew.me, agreement: null });
+      extra.push({ id: MDB.uid(), createdAt: now - 50 * HOUR, status: "queued", first: "Legacy", last: "Record", phones: [], appointments: [], soldAt: now - 50 * HOUR });
+      await MDB.bulkPut("customers", extra); extra.forEach((c) => STORE.customers.push(c)); MCUST.renderList();
+    });
 
     const rowShape = await page.evaluate(() => {
-      const el = document.querySelector("#cust-list .cust-row");
+      // a SIGNED customer's row (the drafts added above sort to the top)
+      const el = Array.from(document.querySelectorAll("#cust-list .cust-row")).find((r) => !/Draft Unsigned|Legacy Record/.test(r.querySelector(".cr-name").textContent));
       const c = STORE.customers.find((x) => x.id === el.dataset.cid);
       const meta = el.querySelector(".cr-meta").textContent;
       return {
@@ -225,6 +238,17 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       statuses.seen.notsched === "NOT SCHEDULED" && statuses.seen.pending === "PENDING" &&
       statuses.seen.canceled === "CANCELED" && statuses.seen.serviced === "SERVICED", JSON.stringify(statuses.seen));
     check("no LEAD status anywhere in the book or the filter menu", !statuses.anyLead && !/LEAD/i.test(statuses.labelsInMenu), statuses.labelsInMenu);
+    const drafts = await page.evaluate(() => {
+      MCUST.setFilter("all");
+      const rows = Array.from(document.querySelectorAll("#cust-list .cust-row"));
+      const want = rows.filter((el) => /Draft Unsigned|Legacy Record/.test(el.querySelector(".cr-name").textContent));
+      return { n: want.length, rows: want.map((el) => ({ meta: el.querySelector(".cr-meta").textContent.trim(), badge: el.querySelector(".opst").textContent.trim(), addr: el.querySelector(".cr-addr").textContent.trim() })),
+        leadWord: rows.some((el) => /\bLead\b/i.test(el.textContent)) };
+    });
+    check("unsigned drafts and a legacy record render as NOT SCHEDULED with an 'Added' date — no row anywhere says Lead",
+      drafts.n === 4 && drafts.rows.every((r) => /^Added /.test(r.meta) && /^NOT SCHEDULED/.test(r.badge)) && drafts.rows.some((r) => r.addr === "No address") && !drafts.leadWord, JSON.stringify(drafts));
+    const unsigned = await page.evaluate(() => { MCUST.showUnsigned(); const rows = document.querySelectorAll("#cust-list .cust-row"); const out = { n: rows.length, names: Array.from(rows).map((r) => r.querySelector(".cr-name").textContent) }; MCUST.clearFilters(); return out; });
+    check("Home's 'leads to work' lands on exactly the unsigned customers (Agreement needed), with no LEAD status", unsigned.n === 4 && unsigned.names.every((n) => /Draft Unsigned|Legacy Record/.test(n)), JSON.stringify(unsigned));
     check("the filter menu offers All + the four statuses and nothing else",
       /All statuses/.test(statuses.labelsInMenu) && /Not scheduled/.test(statuses.labelsInMenu) && /Pending/.test(statuses.labelsInMenu) &&
       /Serviced/.test(statuses.labelsInMenu) && /Canceled/.test(statuses.labelsInMenu) && !/Sold|Active/.test(statuses.labelsInMenu), statuses.labelsInMenu);
@@ -249,6 +273,31 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       }, id);
       check(`filter "${id}" at 10,000: every visible row wears it and the total equals the book's count (${r.want})`, r.bad === 0 && r.shown === r.want && r.want > 0, JSON.stringify(r));
     }
+    const svc = await page.evaluate(() => {
+      // reach the Service lever the way the More → Customers panel does, then read what is listed
+      MCUST.openAdvanced();
+      const pick = (id) => { const pill = document.querySelector('#cust-panel .fp[data-f="service"]'); if (!pill) return false; pill.click(); const b = document.querySelector(`.pop-menu button[data-v="${id}"]`); if (b) b.click(); else { const m = document.querySelector(".pop-menu"); if (m) m.remove(); } return !!b; };
+      const out = {};
+      for (const id of ["needed", "pending", "serviced"]) {
+        if (!pick(id)) { out[id] = "no-control"; continue; }
+        const rows = Array.from(document.querySelectorAll("#cust-list .cust-row"));
+        out[id] = rows.filter((el) => /CANCELED/.test(el.querySelector(".opst").textContent)).length;
+      }
+      pick("all"); MCUST.clearFilters();
+      return out;
+    });
+    check("the Service filters never list a CANCELED account under needed / pending / serviced", Object.values(svc).every((v) => v === 0 || v === "no-control") && Object.values(svc).some((v) => v === 0), JSON.stringify(svc));
+    const sortChk = await page.evaluate(async () => {
+      // a draft saved Monday and signed Friday must sort by the Friday it prints
+      const c = STORE.customers.find((x) => x.last === "Unsigned0");
+      c.soldAt = Date.now() - 400 * 3600e3; c.agreement = { signedAt: Date.now() + 1000, plan: "Q" }; await MDB.put("customers", c);
+      MCUST.setFilter("all");
+      const first = document.querySelector("#cust-list .cust-row");
+      const out = { top: first.dataset.cid === c.id, meta: first.querySelector(".cr-meta").textContent.trim() };
+      c.agreement = null; c.soldAt = Date.now(); await MDB.put("customers", c); MCUST.clearFilters();
+      return out;
+    });
+    check("'Newest sold' sorts by the date the row prints (the agreement's), not the draft's creation", sortChk.top && /^Sold /.test(sortChk.meta), JSON.stringify(sortChk));
     await page.evaluate(() => MCUST.setFilter("all"));
 
     // ================================================== B. CREATE CUSTOMER
@@ -354,8 +403,9 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     const pinsBefore = await page.evaluate(() => STORE.pins.length);
     await page.evaluate(() => { window.__toasts = []; const t = document.querySelector("#toast"); if (t) new MutationObserver(() => { if (t.textContent.trim()) window.__toasts.push(t.textContent.trim()); }).observe(t, { childList: true, characterData: true, subtree: true }); });
     await page.evaluate(() => document.querySelector("#hood-save").click());
-    await page.waitForFunction((n) => STORE.pins.length > n, pinsBefore, { timeout: 30000 });
-    await sleep(800);
+    // the save's deterministic end: the sheet closes only after the import loop has finished
+    await page.waitForFunction(() => !document.querySelector("#hood-sheet").classList.contains("open") && window.__toasts.some((t) => /doors pinned/.test(t)), null, { timeout: 60000 });
+    await sleep(200);
     const saved = await page.evaluate(({ willImport, pinsBefore }) => {
       const t = STORE.territories[STORE.territories.length - 1];
       const mine = STORE.pins.filter((p) => p.territoryId === t.id);
@@ -409,6 +459,55 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("re-importing the same properties through the store adds nothing", dupPins === imp2.pins, dupPins);
     await page.evaluate(() => MUI.closeSheet());
     await sleep(200);
+
+    // ============================= D2. THE CALLER'S VERDICT BRANCHES (mocked server)
+    section("D2. The import caller's four server verdicts, driven through the real button (server mocked at STORE)");
+    const verdicts = await page.evaluate(async (id) => {
+      const realGate = STORE.turfGate, realSrv = STORE.importDoorsServer, realDev = STORE.importDoors;
+      STORE.turfGate = () => ({ ok: true, code: "authoritative" });   // pretend: a team device, online, capability latched
+      const out = {};
+      const scanAgain = async () => {
+        MHOODS.openExisting(id);
+        // a rescan of a hood that already holds its doors matches everything, so hand it fresh ones
+        await new Promise((r) => setTimeout(r, 200));
+        document.querySelector("#hd-scan").click();
+        await new Promise((r) => setTimeout(r, 900));
+      };
+      const fakeFresh = () => { /* the scan matched everything; give runImport something to send by shifting the hood */ };
+      const run = async (label, srv) => {
+        STORE.importDoorsServer = srv;
+        // make the scan see "fresh" doors: temporarily hide this hood's pins from the door index
+        const mine = STORE.pins.filter((p) => p.territoryId === id); const rest = STORE.pins.filter((p) => p.territoryId !== id);
+        STORE.pins = rest;
+        await scanAgain();
+        // the hood's own doors stay hidden until the import has answered, so a device-side import has something to pin
+        const pinsBefore = STORE.pins.length; window.__toasts = [];
+        const btn = document.querySelector("#hd-import-btn");
+        btn.click();
+        await new Promise((r) => setTimeout(r, 900));
+        out[label] = { status: document.querySelector("#hd-status").textContent.trim().slice(0, 200), rowHidden: document.querySelector("#hd-import-row").hidden,
+          btnEnabled: !btn.disabled, scanEnabled: !document.querySelector("#hd-scan").disabled, pinsAdded: STORE.pins.length - pinsBefore, toast: (window.__toasts.slice(-1)[0] || "").slice(0, 200) };
+        STORE.pins = STORE.pins.concat(mine);
+        MUI.closeSheet();
+        // any device-imported doors are cleaned up so the next case starts equal
+        for (const p of STORE.pins.filter((p) => p.territoryId === id && !mine.includes(p))) { await MDB.del("pins", p.id); }
+        STORE.pins = STORE.pins.filter((p) => p.territoryId !== id || mine.includes(p));
+      };
+      await run("net", async () => { const e = new Error("Can't reach RALLY cloud"); e.cloud = "net"; e.partial = { added: 400, matched: 0, outside: 0, ineligible: 0, unusable: 0, pages: 1 }; throw e; });
+      await run("refused", async () => { const e = new Error("turf: requires leader, manager or owner (role rep)"); e.code = "42501"; e.status = 400; throw e; });
+      await run("missing", async () => { const e = new Error("Could not find the function public.import_territory_doors in the schema cache"); e.code = "PGRST202"; e.status = 404; throw e; });
+      await run("ok", async (props) => ({ added: props.length - 1, matched: 1, outside: 0, ineligible: 0, unusable: 0, pages: 1 }));
+      STORE.turfGate = realGate; STORE.importDoorsServer = realSrv; STORE.importDoors = realDev;
+      return out;
+    }, saved.id);
+    check("connection dropped mid-run → 'Import not confirmed', the committed pages named, the button and the scan kept for a retry, nothing pinned locally",
+      /Import not confirmed/.test(verdicts.net.status) && /400 doors confirmed before it dropped/.test(verdicts.net.status) && !verdicts.net.rowHidden && verdicts.net.btnEnabled && verdicts.net.scanEnabled && verdicts.net.pinsAdded === 0, JSON.stringify(verdicts.net));
+    check("server REFUSAL (42501) → 'Import refused' with the server's reason, the retry kept, nothing pinned locally",
+      /Import refused/.test(verdicts.refused.status) && /requires leader/.test(verdicts.refused.status) && !verdicts.refused.rowHidden && verdicts.refused.pinsAdded === 0 && /Import refused/.test(verdicts.refused.toast), JSON.stringify(verdicts.refused));
+    check("server WITHOUT the import (PGRST202) → pinned on this device, queued to sync, and the toast says the server-confirmed import needs 0018",
+      verdicts.missing.pinsAdded > 0 && new RegExp("Imported " + verdicts.missing.pinsAdded + " doors on this device").test(verdicts.missing.toast) && /needs migration 0018/.test(verdicts.missing.toast) && verdicts.missing.rowHidden, JSON.stringify(verdicts.missing));
+    check("server CONFIRMED → the confirmation stays on the sheet (not overwritten by local counts), the import row closes, no local pin is written",
+      /Server confirmed/.test(verdicts.ok.status) && /matched, not duplicated/.test(verdicts.ok.status) && verdicts.ok.rowHidden && verdicts.ok.pinsAdded === 0, JSON.stringify(verdicts.ok));
 
     // ============================================= F(part 2). REMOVE ONE REP
     section("F2. Remove one rep, keep the other; the assignment history survives");
@@ -506,11 +605,11 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("a worked day is on the hood: not home, not interested, go back, sold and a do-not-knock (SYNTHETIC knocks)", knocked.eff.nothome > 0 && knocked.eff.notint > 0 && knocked.eff.goback > 0 && knocked.eff.sold > 0 && knocked.eff.dnk > 0, JSON.stringify(knocked));
     const prev = await page.evaluate((id) => MRESET.preview(STORE.territories.find((x) => x.id === id)), saved.id);
     check("MRESET.preview: the list Confirm would send is exactly ['nothome','notint'], never 'dnk', never 'sold', never 'goback'", prev.reset.join() === "nothome,notint" && prev.includeDnk === false, JSON.stringify(prev));
-    check("the preview counts agree with the map's effective outcomes", JSON.stringify(prev.counts) === JSON.stringify({ unworked: knocked.eff.unworked || 0, nothome: knocked.eff.nothome, notint: knocked.eff.notint, goback: knocked.eff.goback, sold: knocked.eff.sold, dnk: knocked.eff.dnk }), JSON.stringify([prev.counts, knocked.eff]));
+    check("the preview counts agree with the map's effective outcomes (every Sold here is customer-record-backed)", JSON.stringify(prev.counts) === JSON.stringify({ unworked: knocked.eff.unworked || 0, nothome: knocked.eff.nothome, notint: knocked.eff.notint, goback: knocked.eff.goback, sold: knocked.eff.sold, soldKnock: 0, dnk: knocked.eff.dnk }), JSON.stringify([prev.counts, knocked.eff]));
     check("with Go Back doors present the reset is PARKED", prev.parked === true);
     await page.evaluate((id) => { window.__resetCalls = 0; const real = STORE.resetForReknock; STORE.resetForReknock = async function () { window.__resetCalls++; return real.apply(this, arguments); }; MAPP.show("route"); MTURF.render(); }, saved.id);
     await sleep(300);
-    await page.evaluate(() => { const b = Array.from(document.querySelectorAll('.mini[data-act="cycle"]')).find((x) => x.closest("[data-id]") ? true : true); b.click(); });
+    await page.evaluate((id) => document.querySelector(`.mini[data-act="cycle"][data-tid="${id}"]`).click(), saved.id);
     await sleep(400);
     const rs = await page.evaluate(() => {
       const row = (cls) => { const r = document.querySelector(`#rs-rows .rs-row.${cls}`); return r ? { n: Number(r.querySelector(".rs-n").textContent), to: r.querySelector(".rs-to").textContent.trim() } : null; };
@@ -522,7 +621,7 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check(`the preview reads "${rs.reset && rs.reset.n} Not Home / Not Interested → Unworked"`, rs.reset && rs.reset.n === prev.counts.nothome + prev.counts.notint && rs.reset.to === "Unworked", JSON.stringify(rs.reset));
     check(`"${rs.pending && rs.pending.n} Go Back → DECISION PENDING"`, rs.pending && rs.pending.n === prev.counts.goback && rs.pending.to === "DECISION PENDING", JSON.stringify(rs.pending));
     check(`"${rs.sold && rs.sold.n} Sold → protected" and "${rs.dnk && rs.dnk.n} Do Not Knock → protected"`, rs.sold && rs.sold.n === prev.counts.sold && /protected/.test(rs.sold.to) && rs.dnk && rs.dnk.n === prev.counts.dnk && /protected/.test(rs.dnk.to), JSON.stringify([rs.sold, rs.dnk]));
-    check("the sheet says a fresh pass moves one date, writes one event, deletes nothing", /moves one date, writes one event, deletes nothing/.test(rs.sub), rs.sub);
+    check("the sheet says a fresh pass moves one date and deletes nothing", /moves one date and deletes nothing/.test(rs.sub), rs.sub);
     check("Confirm is disabled and says it is waiting on the Go Back decision", rs.disabled && /waiting on the Go Back decision/.test(rs.btn) && /product decision/.test(rs.note), JSON.stringify({ btn: rs.btn, note: rs.note }));
     const forced = await page.evaluate(async () => { const b = document.querySelector("#rs-confirm"); b.disabled = false; b.dispatchEvent(new MouseEvent("click", { bubbles: true })); await new Promise((r) => setTimeout(r, 300)); return { calls: window.__resetCalls, cycle: STORE.territories.find((t) => t.seq === 12).cycleStartedAt || null }; });
     check("even a forced click on the parked Confirm calls STORE.resetForReknock ZERO times and moves no cycle boundary", forced.calls === 0 && forced.cycle === null, JSON.stringify(forced));
@@ -536,23 +635,58 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       const t = await STORE.createTerritory({ name: "", homes: 0, points: ring }, [window.__crew.jake]);
       t.seq = 13; await MDB.put("territories", t);   // SIMULATED number
       const now = Date.now();
-      const OUT = ["nothome", "nothome", "notint", "sold", "dnk", "unworked", "nothome"];
+      // "soldknock": a door green only by its last knock — no customer record
+      const OUT = ["nothome", "nothome", "notint", "sold", "dnk", "unworked", "nothome", "soldknock"];
       const ids = [];
       for (let i = 0; i < OUT.length; i++) {
         const lat = cy - dy * 0.6 + (i * dy * 1.2) / OUT.length, lng = cx - dx * 0.5 + (i % 3) * dx * 0.4;
-        const p = await STORE.addKnock({ lat, lng, disposition: OUT[i] === "unworked" ? "nothome" : OUT[i], reason: null, dm: false, note: "", callbackAt: null });
+        const p = await STORE.addKnock({ lat, lng, disposition: OUT[i] === "unworked" ? "nothome" : OUT[i] === "soldknock" ? "sold" : OUT[i], reason: null, dm: false, note: "", callbackAt: null });
         if (OUT[i] === "unworked") { p.disposition = "unworked"; p.history = []; await MDB.put("pins", p); }
         if (OUT[i] === "sold") { const c = await STORE.addCustomer({ first: "Green", last: "Door", phones: [], appointments: [], pinId: p.id }); c.soldAt = now; c.agreement = { signedAt: now, plan: "Quarterly" }; c.acct = "active"; await MDB.put("customers", c); }
         ids.push(p.id);
       }
       const snap = (id) => { const p = STORE.pins.find((x) => x.id === id); return { disp: p.disposition, hist: (p.history || []).length }; };
-      return { id: t.id, ids, before: ids.map(snap), events: STORE.events.length, preview: MRESET.preview(t) };
+      const facts = STORE.doorFacts();
+      const knockOnly = ids[OUT.indexOf("soldknock")], recordSold = ids[OUT.indexOf("sold")];
+      return { id: t.id, ids, before: ids.map(snap), events: STORE.events.length, preview: MRESET.preview(t), knockOnly, recordSold,
+        effKnockOnly: STORE.effectiveDisposition(STORE.pins.find((x) => x.id === knockOnly), t, facts) };
     }, { CENTRE });
     check("Territory 13 (SYNTHETIC) has no Go Back doors, so its preview is NOT parked", t2.preview.parked === false && t2.preview.counts.goback === 0, JSON.stringify(t2.preview));
+    // a door green only by its last knock — no customer record — is NOT protected, and the sheet says so
+    const knockOnly = await page.evaluate((id) => {
+      const t = STORE.territories.find((x) => x.id === id);
+      const before = MRESET.preview(t);
+      MRESET.open(t);
+      const row = Array.from(document.querySelectorAll("#rs-rows .rs-row")).find((r) => /no customer record/.test(r.textContent));
+      const out = { soldKnock: before.counts.soldKnock, sold: before.counts.sold, willReset: before.willReset,
+        row: row ? row.textContent.replace(/\s+/g, " ").trim() : null, btn: document.querySelector("#rs-confirm").textContent };
+      document.querySelector("#rs-cancel").click();
+      return out;
+    }, t2.id);
+    check("a knock-only Sold (no customer record) paints green but is NOT protected: its own row says → Unworked and it is in the reset count",
+      t2.effKnockOnly === "sold" && knockOnly.soldKnock === 1 && knockOnly.sold === 1 && /Sold at the door, no customer record/.test(knockOnly.row) && /Unworked/.test(knockOnly.row) && new RegExp("reset " + knockOnly.willReset + " doors").test(knockOnly.btn), JSON.stringify({ knockOnly, eff: t2.effKnockOnly }));
+    // a team server WITHOUT 0018 answers "function not found": the sheet refuses, never falls back to the every-outcome reset
+    const no18 = await page.evaluate(async (id) => {
+      const t = STORE.territories.find((x) => x.id === id);
+      const realReset = STORE.resetForReknock, realCycle = STORE.startCycle;
+      let cycleCalls = 0;
+      STORE.resetForReknock = async () => { const e = new Error("Could not find the function public.reset_territory_outcomes(p_include_dnk, p_operation_id, p_reset, p_territory_id) in the schema cache"); e.code = "PGRST202"; throw e; };
+      STORE.startCycle = async () => { cycleCalls++; return realCycle.apply(STORE, arguments); };
+      MRESET.open(t);
+      document.querySelector("#rs-confirm").click();
+      await new Promise((r) => setTimeout(r, 400));
+      const out = { cycleCalls, note: document.querySelector("#rs-note").textContent, open: document.querySelector("#reset-sheet").classList.contains("open"),
+        enabled: !document.querySelector("#rs-confirm").disabled, cycle: t.cycleStartedAt || null, toast: window.__toasts.slice(-1)[0] };
+      STORE.resetForReknock = realReset; STORE.startCycle = realCycle;
+      document.querySelector("#rs-cancel").click();
+      return out;
+    }, t2.id);
+    check("without 0018 on the server the sheet REFUSES ('needs migration 0018'), calls start_territory_cycle zero times, moves no boundary, and stays open for a retry",
+      no18.cycleCalls === 0 && /needs migration 0018/.test(no18.note) && no18.open && no18.enabled && no18.cycle === null && /needs migration 0018/.test(no18.toast), JSON.stringify(no18));
     await page.evaluate((id) => MRESET.open(STORE.territories.find((x) => x.id === id)), t2.id);
     await sleep(300);
     const rs2 = await page.evaluate(() => ({ btn: document.querySelector("#rs-confirm").textContent, disabled: document.querySelector("#rs-confirm").disabled, note: document.querySelector("#rs-note").textContent }));
-    check(`Confirm is live and says "Start a fresh pass — reset ${t2.preview.counts.nothome + t2.preview.counts.notint} doors"`, !rs2.disabled && new RegExp("reset " + (t2.preview.counts.nothome + t2.preview.counts.notint) + " doors").test(rs2.btn) && /Sold stays green and Do Not Knock stays black/.test(rs2.note), JSON.stringify(rs2));
+    check(`Confirm is live and says "Start a fresh pass — reset ${t2.preview.willReset} doors" (Not Home + Not Interested + the knock-only Sold)`, !rs2.disabled && t2.preview.willReset === t2.preview.counts.nothome + t2.preview.counts.notint + 1 && new RegExp("reset " + t2.preview.willReset + " doors").test(rs2.btn) && /Sold stays green and Do Not Knock stays black/.test(rs2.note), JSON.stringify(rs2));
     await page.evaluate(() => document.querySelector("#rs-confirm").click());
     await sleep(700);
     const done = await page.evaluate(({ id, ids, before, events }) => {
@@ -565,7 +699,8 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("Confirm called STORE.resetForReknock exactly once with the solo device recording the boundary", done.calls === 1 && done.cycle > 0, JSON.stringify({ calls: done.calls, cycle: done.cycle }));
     check("the kept list never contains 'dnk' and never the two outcomes being reset", Array.isArray(done.keep) && !done.keep.includes("dnk") && !done.keep.includes("nothome") && !done.keep.includes("notint"), JSON.stringify(done.keep));
     check("after the pass: Not Home and Not Interested doors are effectively Unworked", done.after.filter((a) => a.disp === "nothome" || a.disp === "notint").every((a) => a.eff === "unworked"), JSON.stringify(done.after));
-    check("after the pass: the Sold door is still Sold and the Do Not Knock door is still black", done.after.some((a) => a.eff === "sold") && done.after.some((a) => a.eff === "dnk"), JSON.stringify(done.after));
+    check("after the pass: the customer-record Sold door is still Sold, the knock-only Sold door is Unworked, and the Do Not Knock door is still black",
+      done.after[t2.ids.indexOf(t2.recordSold)].eff === "sold" && done.after[t2.ids.indexOf(t2.knockOnly)].eff === "unworked" && done.after.some((a) => a.eff === "dnk"), JSON.stringify(done.after));
     check("HISTORY STAYS: every pin's raw disposition and history length are unchanged, and no event was deleted", done.sameRaw && done.events, JSON.stringify(done.after));
     check("the sheet closes and the toast says how many doors went back to unworked", !done.sheet && done.toasts.some((x) => /Territory 13 — fresh pass started/.test(x)), JSON.stringify(done.toasts));
 
@@ -619,7 +754,6 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       await MMAP.init();   // the same path the Settings save button takes: destroy, re-boot
       await new Promise((r) => setTimeout(r, 600));
       const c = MMAP.getCenter();
-      const a = STORE.pins.find((x) => x.id === window.__selA);
       return { engine: MMAP.engine(), report: MMAP.engineReport(), sel: window.__sel, hoodN: window.__hoodN, center: [c.lng, c.lat], lead: document.querySelector("#lead-sheet").classList.contains("open"),
         pins: STORE.pins.length, events: STORE.events.length, canvases: document.querySelectorAll("#map canvas").length };
     });
@@ -629,6 +763,35 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("the assigned turf is re-drawn in full (same hood count) and Mia still holds hers", j1.hoodN === j0.hoods && jb.mia === j0.mia && jb.mia > 0, JSON.stringify({ hoodN: j1.hoodN, hoods: j0.hoods, mia: jb.mia }));
     check("the callback and the note survived the switch untouched", jb.cb === j0.cb && jb.notes === j0.notes, JSON.stringify({ before: [j0.cb, j0.notes], after: [jb.cb, jb.notes] }));
     check("no knock or event was lost or duplicated", j1.pins === j0.pins && j1.events === j0.events, JSON.stringify({ pins: [j0.pins, j1.pins], events: [j0.events, j1.events] }));
+    const overlay = await page.evaluate(async () => {
+      // a route on screen and a located puck, then a switch: both must be re-issued to the new renderer
+      window.__route = null; window.__puck = null;
+      const gl = MRENDER_GL; const rr = gl.setRoute, rp = gl.setPuck;
+      gl.setRoute = function (fc) { window.__route = fc; return rr.call(this, fc); };
+      gl.setPuck = function (ll) { window.__puck = ll; return rp.call(this, ll); };
+      const pins = STORE.pins.filter((p) => p.territoryId === window.__t1).slice(0, 5);
+      MMAP.showRoute(pins);
+      const c = MMAP.getCenter();
+      navigator.geolocation.getCurrentPosition = (ok) => ok({ coords: { latitude: c.lat, longitude: c.lng } });
+      document.querySelector("#fab-locate").click();
+      await new Promise((r) => setTimeout(r, 300));
+      const before = { route: window.__route && window.__route.features.length, puck: !!window.__puck };
+      window.__route = null; window.__puck = null;
+      await MMAP.init();
+      await new Promise((r) => setTimeout(r, 500));
+      const after = { route: window.__route && window.__route.features.length, puck: !!window.__puck, engine: MMAP.engine() };
+      MMAP.clearRoute();
+      return { before, after, cleared: window.__route && window.__route.features.length };
+    });
+    check("the re-knock route (line + 5 stops) and the location puck survive the switch, and clearRoute still clears", overlay.before.route === 6 && overlay.before.puck && overlay.after.route === 6 && overlay.after.puck && overlay.after.engine === "maplibre" && overlay.cleared === 0, JSON.stringify(overlay));
+    const triple = await page.evaluate(async () => {
+      // launch-style boot with two more requests while it runs: every caller gets the map, none a null renderer
+      const opts = { container: "map", center: [-94.77, 38.862], zoom: 16, on: {} };
+      const rs = await Promise.all([MENGINE.boot(opts), MENGINE.boot(opts), MENGINE.boot(opts)]);
+      await MMAP.init();   // hand the map back to map.js's own callbacks
+      return { engines: rs.map((r) => r.engine), renderers: rs.map((r) => !!r.renderer), canvases: document.querySelectorAll("#map canvas").length };
+    });
+    check("three overlapping boots all answer with a live renderer (never a null 'No map could be started'), one canvas", triple.renderers.every(Boolean) && triple.engines.every((e) => e === "maplibre") && triple.canvases === 1, JSON.stringify(triple));
     const dist = Math.hypot(j1.center[0] - j0.center[0], j1.center[1] - j0.center[1]);
     check("the map position is kept (camera within ~30 m of where it was)", dist < 0.0004, JSON.stringify({ before: j0.center, after: j1.center, dist }));
     check("queued work is unchanged by a renderer swap", jb.queued === j0.queued, JSON.stringify([j0.queued, jb.queued]));
@@ -644,8 +807,16 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       return { ms: Math.round(performance.now() - t0), engine: MMAP.engine(), wanted: r.wanted, fellBack: r.fellBack, reason: r.reason, lastError: STORE.settings.mapkitLastError,
         more: document.querySelector("#more-mapengine-sub").textContent, toasts: window.__toasts.slice(-2), canvases: document.querySelectorAll("#map canvas").length, sel: window.__sel, lead: document.querySelector("#lead-sheet").classList.contains("open") };
     });
-    check("MapKit requested with no token: MapLibre runs instead and the report says so (fellBack, wanted mapkit, a reason)", fb.engine === "maplibre" && fb.wanted === "mapkit" && fb.fellBack === true && fb.reason.length > 5, JSON.stringify(fb));
-    check("the fallback is loud: a toast and the Settings line both say Apple Maps is unavailable and why", fb.toasts.some((t) => /Apple Maps unavailable/.test(t)) && /Offline-capable map —/.test(fb.more), JSON.stringify({ toasts: fb.toasts, more: fb.more }));
+    check("MapKit requested with NO TOKEN: MapLibre runs instead and the report says exactly that (fellBack, wanted mapkit, reason = no token; Apple is never contacted)", fb.engine === "maplibre" && fb.wanted === "mapkit" && fb.fellBack === true && /No Apple MapKit token/.test(fb.reason), JSON.stringify(fb));
+    check("no token is a standing configuration, not news: the Settings line says why, and there is NO six-second toast on every launch", !fb.toasts.some((t) => /Apple Maps unavailable/.test(t)) && /Offline-capable map —/.test(fb.more) && /token/i.test(fb.more), JSON.stringify({ toasts: fb.toasts, more: fb.more }));
+    const badTok = await page.evaluate(async () => {
+      window.__toasts = [];
+      STORE.settings.mapEngine = "mapkit"; STORE.settings.mapkitToken = "not-a-token-apple-will-accept"; await STORE.saveSettings();
+      await MMAP.init(); await new Promise((r) => setTimeout(r, 400));
+      const r = MMAP.engineReport(); STORE.settings.mapkitToken = ""; await STORE.saveSettings();
+      return { engine: r.engine, fellBack: r.fellBack, quiet: r.quiet, toasts: window.__toasts.slice(-2) };
+    });
+    check("a token present but Apple's library UNREACHABLE (this container blocks the CDN) IS toasted — the real 401 refusal is proven against Apple's library in mapkit-test.js", badTok.engine === "maplibre" && badTok.fellBack && !badTok.quiet && badTok.toasts.some((t) => /Apple Maps unavailable/.test(t)), JSON.stringify(badTok));
     check("the reason is recorded for Settings and never faked as imagery (one live canvas, the selection kept)", fb.lastError === fb.reason && fb.canvases === 1 && fb.sel === j0.a, JSON.stringify({ lastError: fb.lastError, canvases: fb.canvases }));
     console.log("    NOTE: in this container Apple's CDN is unreachable, so the reason is a load failure; the real 401 'Unauthorized' path is proven in tests/mapkit-test.js");
     const auto = await page.evaluate(async () => { STORE.settings.mapEngine = "auto"; await STORE.saveSettings(); return MENGINE.wanted(); });
@@ -674,14 +845,31 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       out.mine = STORE.hoodsOf(STORE.myId()).length;
       document.querySelector("#more-mapengine").click();
       out.tokenRow = document.querySelector("#mapengine-token-row").hidden;
+      out.tokenValue = document.querySelector("#set-mapkit-token").value;
       MUI.closeSheet();
       MAPP.show("route"); MTURF.render();
       out.turfRows = document.querySelectorAll(".turf-name").length;
+      MAPP.show("home");
+      const r = document.querySelector("#hm-turf h3 .r");
+      out.home = r ? r.textContent.trim() : null;
       return out;
     });
+    check('the rep\'s Home names their one hood "Territory 12" (never "1 hood")', rep.home === "Territory 12", rep.home);
     check("a rep cannot manage territories and the tools sheet reads 'Your turf'", !rep.can && /Your turf/.test(rep.sub), rep.sub);
     check("the two leadership tool groups (draw / edit) are hidden wholesale, Freshness and Manage reps too", rep.groups[0] === true && rep.groups[1] === true && rep.heat && rep.assign && rep.corners, JSON.stringify(rep.groups));
-    check("the Apple token field is DEV/leader-only: hidden for a rep", rep.tokenRow === true);
+    check("the Apple token field is DEV/leader-only: hidden for a rep, and the hidden input holds NO token", rep.tokenRow === true && rep.tokenValue === "", JSON.stringify({ row: rep.tokenRow, value: rep.tokenValue }));
+    const demoted = await page.evaluate(async () => {
+      await STORE.applyServerRole("owner", Date.now()); MAPP.roleChanged();
+      await STORE.saveSettings();
+      STORE.settings.mapkitToken = "left-over-token"; MMAP.setHeatMode(true);
+      const on = { heat: MMAP.heatMode(), opts: (window.__hoodsOpts || {}).heat };
+      await STORE.applyServerRole("rep", Date.now()); MAPP.roleChanged(); MMAP.refreshHoods();
+      const off = { heat: MMAP.heatMode(), opts: (window.__hoodsOpts || {}).heat, labels: (window.__hoodsOpts || {}).labels };
+      document.querySelector("#more-mapengine").click(); const tok = document.querySelector("#set-mapkit-token").value; MUI.closeSheet();
+      STORE.settings.mapkitToken = "";
+      return { on, off, tok };
+    });
+    check("a manager demoted with the freshness view on loses it (no heat, no labels) — and the leftover token never reaches their DOM", demoted.on.heat === true && demoted.off.heat === false && demoted.off.opts === false && demoted.off.labels === false && demoted.tok === "", JSON.stringify(demoted));
     check("territory labels are off for a rep; their own hood is full-strength blue and every other hood is faded",
       rep.labels === false && rep.mine === 1 && rep.dims.length === 2 &&
       rep.dims.every((d) => (d.seq === 12 ? d.dim === 0 : d.dim === 1) && d.color === "#0A84FF"), JSON.stringify({ labels: rep.labels, dims: rep.dims, mine: rep.mine }));

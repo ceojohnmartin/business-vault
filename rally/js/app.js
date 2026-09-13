@@ -600,9 +600,11 @@
 
     $("#more-mapengine").addEventListener("click", () => {
       $("#set-mapengine").value = STORE.settings.mapEngine || "auto";
-      $("#set-mapkit-token").value = STORE.settings.mapkitToken || "";
-      // a rep can choose the map; only a leader's device carries the token
-      $("#mapengine-token-row").hidden = !STORE.canManageTerritories();
+      // a rep can choose the map; only a leader's device carries the token —
+      // and the credential is never put into the DOM of a screen that hides it
+      const leader = STORE.canManageTerritories();
+      $("#set-mapkit-token").value = leader ? (STORE.settings.mapkitToken || "") : "";
+      $("#mapengine-token-row").hidden = !leader;
       $("#mapengine-state").textContent = engineState();
       openSheet("mapengine-sheet");
     });

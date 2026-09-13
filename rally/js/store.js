@@ -529,6 +529,12 @@
     const run = operationId || MDB.uid();
     const PAGE = 400;
     let added = 0, matched = 0, outside = 0, ineligible = 0, unusable = 0, pages = 0;
+    /* A run of several pages can die between pages. The pages that
+       answered DID commit — the server's ledger holds them under
+       run-0 … run-(k-1) — so the error carries their counts as `partial`
+       rather than throwing them away, and a retry under the same run id
+       is answered from the ledger for those pages and imports the rest. */
+    const fail = (err) => { err.partial = { added, matched, outside, ineligible, unusable, pages }; throw err; };
     for (let i = 0; i < props.length; i += PAGE) {
       const slice = props.slice(i, i + PAGE).map((p) => ({
         // the wire shape the RPC allowlists — nothing else is sent
@@ -545,11 +551,14 @@
         // rather than taking the filter on trust
         eligible: p.eligible === false ? false : true,
       }));
-      const res = await rpc("import_territory_doors", {
-        p_territory_id: territoryId,
-        p_doors: slice,
-        p_operation_id: run + "-" + pages,
-      });
+      let res;
+      try {
+        res = await rpc("import_territory_doors", {
+          p_territory_id: territoryId,
+          p_doors: slice,
+          p_operation_id: run + "-" + pages,
+        });
+      } catch (err) { fail(err); }
       const c = (res && res.counts) || {};
       added += Number(c.inserted || 0);
       matched += Number(c.matched || 0);
@@ -1981,7 +1990,7 @@
     const C = S.cycleStart(hood);
     if (C === null) return OUTCOMES[pin.disposition] ? pin.disposition : "unworked";
     const keep = S.cycleKeep(hood);
-    let best = null, kept = null;
+    let best = null, last = null;
     (pin.history || []).forEach((h) => {
       /* Only real OUTCOMES. A dnk_clear is a record of an administrative
          act, not something that happened at the door — and returning it
@@ -1989,13 +1998,17 @@
          renders as nothing at all: the door would silently vanish. */
       if (!OUTCOMES[h.disposition]) return;
       if (h.ts >= C) { if (!best || h.ts >= best.ts) best = h; return; }
-      /* BEFORE the boundary, and an outcome the reset was told to keep. It
-         still loses to anything that happened AFTER — a kept Go Back that
-         has since been knocked is whatever the knock made it. */
-      if (keep.indexOf(h.disposition) >= 0 && (!kept || h.ts >= kept.ts)) kept = h;
+      /* BEFORE the boundary: remember the door's LAST outcome there. */
+      if (!last || h.ts >= last.ts) last = h;
     });
     if (best) return best.disposition;
-    return kept ? kept.disposition : "unworked";
+    /* The keep-list applies to what the door WAS at the boundary — its
+       latest outcome — never to anything older in its history. The first
+       version searched the whole pre-boundary history for any kept
+       outcome, so a Go Back that a later Not Interested had already
+       superseded came back purple after a reset that kept Go Backs: a
+       callback nobody booked, resurrected from history. */
+    return last && keep.indexOf(last.disposition) >= 0 ? last.disposition : "unworked";
   };
 
   /* Not-home depth for the CURRENT cycle: 1 -> yellow, 2 -> darker,
@@ -2164,7 +2177,14 @@
     const r = await MCLOUD.api("/rest/v1/rpc/" + name, { method: "POST", body });
     if (!r || !r.ok) {
       const msg = (r && r.data && (r.data.message || r.data.hint)) || ("rpc " + name + " failed");
-      throw new Error(msg);
+      const e = new Error(msg);
+      // the server's verdict travels with the error, so a caller can tell a
+      // refusal (42501, 22023, P0001) from a function the server lacks
+      // (PGRST202) without parsing prose — a transport failure never gets
+      // here: MCLOUD.api throws it with e.cloud === "net"
+      e.code = (r && r.data && r.data.code) || "";
+      e.status = r ? r.status : 0;
+      throw e;
     }
     return r.data;
   };

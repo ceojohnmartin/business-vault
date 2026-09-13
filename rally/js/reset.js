@@ -17,8 +17,8 @@
        typed reason and an indelible event, done from the door itself.
      - A SOLD DOOR STAYS GREEN. Green comes from the customer record, not
        from the last knock; a reset cannot touch it and does not try.
-     - HISTORY STAYS. A reset moves one timestamp — the cycle boundary —
-       and writes one event. Every knock, note and callback is kept.
+     - HISTORY STAYS. A reset moves one timestamp — the cycle boundary.
+       Every knock, note and callback is kept; no pin is written.
 
    THE GO BACK RULE IS PARKED. Whether a purple door is reset to blue or
    kept purple on a fresh pass is a product decision the owner has not
@@ -45,17 +45,24 @@
      yesterday does. */
   function tally(t) {
     const facts = STORE.doorFacts();
-    const by = { unworked: 0, nothome: 0, notint: 0, goback: 0, sold: 0, dnk: 0 };
+    const by = { unworked: 0, nothome: 0, notint: 0, goback: 0, sold: 0, soldKnock: 0, dnk: 0 };
     STORE.pins.forEach((p) => {
       const h = STORE.hoodOf(p);
       if (!h || h.id !== t.id) return;
       const eff = STORE.effectiveDisposition(p, h, facts);
+      /* "Sold" is protected by the CUSTOMER RECORD. A door that is green
+         only because its last knock said sold — no customer, or a customer
+         who has since cancelled — has nothing protecting it: the reset
+         returns it to unworked like any other knock, and the sheet must
+         say so rather than show a padlock it cannot honour. */
+      if (eff === "sold") { if (STORE.activeCustomerOf(p, facts)) by.sold++; else by.soldKnock++; return; }
       if (by[eff] != null) by[eff]++;
     });
     return by;
   }
 
   const RESET_LIST = ["nothome", "notint"];   // the outcomes a fresh pass returns to blue
+  const resetCount = (c) => c.nothome + c.notint + c.soldKnock;
 
   function row(n, what, arrow, verdict, cls) {
     return `<div class="rs-row ${cls}">
@@ -68,14 +75,16 @@
 
   function render() {
     const c = counts;
-    const resetN = c.nothome + c.notint;
+    const resetN = resetCount(c);
     $("#rs-title").textContent = STORE.hoodLabel(hood);
+    // "one date" is the whole of what a reset writes to a door: none of them
     $("#rs-sub").textContent =
-      `${c.unworked + resetN + c.goback + c.sold + c.dnk} doors · a fresh pass moves one date, writes one event, deletes nothing`;
+      `${c.unworked + resetN + c.goback + c.sold + c.dnk} doors · a fresh pass moves one date and deletes nothing`;
     $("#rs-rows").innerHTML =
-      row(resetN, "Not Home / Not Interested", "→", "Unworked", "reset") +
+      row(c.nothome + c.notint, "Not Home / Not Interested", "→", "Unworked", "reset") +
+      (c.soldKnock ? row(c.soldKnock, "Sold at the door, no customer record", "→", "Unworked", "reset") : "") +
       row(c.goback, "Go Back", "→", "DECISION PENDING", "pending") +
-      row(c.sold, "Sold", "", `<i class="lock"></i>protected`, "protected sold") +
+      row(c.sold, "Sold (customer record)", "", `<i class="lock"></i>protected`, "protected sold") +
       row(c.dnk, "Do Not Knock", "", `<i class="lock"></i>protected`, "protected dnk") +
       row(c.unworked, "Unworked", "", "unchanged", "same");
 
@@ -109,29 +118,59 @@
     openSheet("reset-sheet");
   }
 
+  const stillOpen = (t) => hood === t && $("#reset-sheet").classList.contains("open");
+
+  /* The parked rule is checked against the doors AS THEY ARE NOW, not as
+     they were when the sheet opened: a Go Back a rep books while the
+     manager reads the sheet, or one that lands from a pull during the
+     gate's round trip, parks the reset just the same. */
+  function parkedNow(t) {
+    counts = tally(t);
+    if (counts.goback > 0) { render(); return true; }
+    return false;
+  }
+
   async function confirm() {
-    if (!hood || !counts || counts.goback > 0) return;
+    const t = hood;
+    if (!t || !counts) return;
     tick();
+    const btn = $("#rs-confirm");
+    if (btn.disabled) return;
+    btn.disabled = true;               // before anything is awaited: one tap, one reset
+    if (parkedNow(t)) return;
     /* The gate says who owns the answer: a solo device records the
        boundary itself; a team device asks the server and refuses offline
        rather than painting a hood blue that the next pull would repaint. */
-    if (window.MTURF && !(await MTURF.gate("starting a fresh pass"))) return;
-    const btn = $("#rs-confirm");
-    btn.disabled = true;
+    if (window.MTURF && !(await MTURF.gate("starting a fresh pass"))) { if (stillOpen(t)) render(); return; }
+    // Cancel during the gate's round trip means cancel
+    if (!stillOpen(t)) return;
+    if (parkedNow(t)) return;
+    const resetN = resetCount(counts);
     try {
-      // NEVER 'dnk' (the server would refuse it), NEVER 'sold' (nothing to
-      // reset — green is the customer record), NEVER 'goback' (parked).
-      await STORE.resetForReknock(hood, RESET_LIST.slice(), false);
+      /* NEVER 'dnk' (the server would refuse it), NEVER 'sold' (nothing to
+         reset — green is the customer record), NEVER 'goback' (parked). */
+      await STORE.resetForReknock(t, RESET_LIST.slice(), false);
     } catch (err) {
-      btn.disabled = false;
-      toast((err && err.message) || "Couldn't start the pass — try again", 6000);
+      if (stillOpen(t)) btn.disabled = false;
+      const missing = /PGRST202/.test(String(err && err.code)) ||
+        /could not find the function|does not exist/i.test(String((err && err.message) || err));
+      /* A team server WITHOUT 0018 has only start_territory_cycle, which
+         moves the boundary for EVERY outcome — including Go Backs this
+         phone has not pulled yet. Falling back to it would decide the
+         parked rule by implication, so the sheet refuses instead and says
+         what it needs, exactly as the door import does. */
+      const msg = missing
+        ? "The server-confirmed reset needs migration 0018 — nothing was changed"
+        : ((err && err.message) || "Couldn't start the pass — try again");
+      if (stillOpen(t)) $("#rs-note").textContent = msg;
+      toast(msg, 7000);
       return;
     }
-    closeSheet();
+    if (stillOpen(t)) closeSheet();
     if (window.MMAP && MMAP.isReady && MMAP.isReady()) MMAP.refreshPins();
     if (window.MTURF) MTURF.render();
-    toast(`${STORE.hoodLabel(hood)} — fresh pass started · ${counts.nothome + counts.notint} doors back to unworked`);
-    hood = null; counts = null;
+    toast(`${STORE.hoodLabel(t)} — fresh pass started · ${resetN} doors back to unworked`);
+    if (hood === t) { hood = null; counts = null; }
   }
 
   function bind() {
@@ -146,7 +185,7 @@
     // read by tests: the exact list Confirm would send, and why it might not
     preview: (t) => {
       const c = tally(t);
-      return { counts: c, reset: RESET_LIST.slice(), parked: c.goback > 0, includeDnk: false };
+      return { counts: c, reset: RESET_LIST.slice(), parked: c.goback > 0, includeDnk: false, willReset: resetCount(c) };
     },
   };
 })();

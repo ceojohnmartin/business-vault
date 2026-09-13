@@ -378,9 +378,8 @@ input::placeholder,textarea::placeholder{color:var(--t3)}
 #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);
   bottom:calc(var(--tab-h) + var(--safe-b) + 18px);z-index:120;background:#17181A;color:#fff;
   border:1px solid #17181A;border-radius:999px;padding:11px 22px;font-size:14px;font-weight:600;
-  opacity:0;pointer-events:none;transition:all .25s ease;white-space:normal;max-width:92vw;
-  text-align:center;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
-  border-radius:18px;box-shadow:0 8px 24px rgba(16,24,40,.25)}
+  opacity:0;pointer-events:none;transition:all .25s ease;white-space:normal;width:max-content;max-width:92vw;
+  text-align:center;line-height:1.35;border-radius:18px;box-shadow:0 8px 24px rgba(16,24,40,.25)}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* sale celebration */

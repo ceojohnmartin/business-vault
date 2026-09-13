@@ -44,6 +44,17 @@ const PG = {
   user: process.env.PGUSER || "postgres",
 };
 const PSQL = path.join(PG.bin, "psql");
+/* THE LOCAL-ONLY GUARD, on the PostgreSQL side too. The browser half of
+   this suite aborts every non-localhost request (checks 1d/9d); the psql
+   half used to take whatever PGHOST the environment carried, and would
+   have copied a template and applied 0018 on ANY cluster it named. It
+   runs only against a unix socket or the loopback address, and never
+   inherits a password, a service file or a TLS mode from the environment. */
+const LOCAL_PG = PG.host.startsWith("/") || /^(localhost|127\.0\.0\.1|::1)$/.test(PG.host);
+if (!LOCAL_PG) {
+  console.log(`REFUSED: PGHOST=${PG.host} is not a unix socket or localhost. This suite runs ONLY against the 0018 LOCAL REPLICA.`);
+  process.exit(2);
+}
 const TEMPLATE = process.env.RALLY_IMPORT_TEMPLATE || "rally_v42_test"; // built by db/test/v42-territory-test.sh
 const DB = "rally_import_caller";       // a fresh copy per run
 // the seed identities that suite uses
@@ -56,6 +67,8 @@ const pgEnv = Object.assign({}, process.env, {
   PATH: PG.bin + ":" + (process.env.PATH || ""),
   PGHOST: PG.host, PGPORT: PG.port, PGUSER: PG.user,
 });
+["PGPASSWORD", "PGPASSFILE", "PGSERVICE", "PGSERVICEFILE", "PGSSLMODE", "PGHOSTADDR", "PGDATABASE", "PGREQUIRESSL"]
+  .forEach((k) => { delete pgEnv[k]; });
 // synchronous psql for setup and for reading rows back; throws on error
 function q(db, sql) {
   return execFileSync(PSQL, ["-X", "-tA", "-v", "ON_ERROR_STOP=1", "-d", db, "-c", sql],
@@ -143,7 +156,7 @@ const PROCS = "select string_agg(proname, ',' order by proname) from pg_proc whe
 const WANT_PROCS = "import_territory_doors,rally_territory_summary,save_territory";
 
 // ---------------- mock Supabase: GoTrue + PostgREST, RPCs forwarded ----------------
-const mock = { users: {}, profiles: {}, access: {}, refresh: {}, rpcLog: [], rawBodies: [] };
+const mock = { users: {}, profiles: {}, access: {}, refresh: {}, rpcLog: [], rawBodies: [], rpcSeen: 0, fakeWrites: [] };
 function mint(id) {
   const a = "at-" + crypto.randomBytes(8).toString("hex");
   const r = "rt-" + crypto.randomBytes(8).toString("hex");
@@ -165,6 +178,7 @@ async function handleRest(req, res, u, raw, body) {
 
   if (p.startsWith("rpc/")) {
     const name = p.slice(4);
+    mock.rpcSeen++;   // every RPC that reached the shim, forwarded or not
     if (req.method !== "POST") return j(res, 405, { message: "method" });
     const t0 = Date.now();
     const r = await rpcToReplica(name, body, uid); // the token's user IS the claim
@@ -180,6 +194,7 @@ async function handleRest(req, res, u, raw, body) {
   // pull (answer: nothing yet) and push (answer: stored) — none of that is
   // what this suite is about, and pins reach a device only via a pull.
   if (req.method === "GET") return j(res, 200, []);
+  if (req.method === "POST" || req.method === "PATCH") mock.fakeWrites.push(req.method + " " + p);
   if (req.method === "POST") {
     const rows = Array.isArray(body) ? body : [body];
     return j(res, 201, String(req.headers.prefer || "").includes("return=minimal") ? undefined : rows);
@@ -438,8 +453,8 @@ const unworkedIn = () => Number(q(DB, "select count(*) from public.pins where te
     !mock.rawBodies.some((b) => /REDACTED-TEST|household_income|ethnicity|everything/.test(b)));
   check("8d …and is not on the replica either",
     q(DB, "select count(*) from public.pins where data::text like '%REDACTED-TEST%' or data::text like '%household_income%'") === "0");
-  check("8e absent optional fields were sent as empty strings, the shape the RPC reads",
-    doorsOnWire.every((d) => d.parcelId === "" && d.owner === "" && d.yearBuilt === "" && d.lat === Number(d.lat)));
+  check("8e absent optional fields were sent as empty strings, the shape the RPC reads (all 12 doors inspected)",
+    doorsOnWire.length === 12 && doorsOnWire.every((d) => d.parcelId === "" && d.owner === "" && d.yearBuilt === "" && d.lat === Number(d.lat)));
 
   // ---- bonus: the same client path reads the hood back through the real summary RPC
   const sum = await page.evaluate((tid) => STORE.territorySummary({ id: tid }), TID);
@@ -451,10 +466,13 @@ const unworkedIn = () => Number(q(DB, "select count(*) from public.pins where te
   check("9b no page errors", errors.length === 0, errors.slice(0, 3).join(" | "));
   check("9d no request was even attempted to the shipped Supabase project (or any *.supabase.co)",
     !blocked.some((u) => /supabase\.co/.test(u)), blocked.filter((u) => /supabase\.co/.test(u)).slice(0, 3).join(" | "));
-  check("9c every RPC the client made was answered by the replica (none fell to a fake)",
-    mock.rpcLog.length > 0 && mock.rpcLog.every((r) => r.status === 200),
-    mock.rpcLog.map((r) => r.name + ":" + r.status).join(","));
+  check("9c every RPC that reached the shim was forwarded to the replica and answered 200 (none fell to a fake)",
+    mock.rpcSeen > 0 && mock.rpcSeen === mock.rpcLog.length && mock.rpcLog.every((r) => r.status === 200),
+    `seen ${mock.rpcSeen}, forwarded ${mock.rpcLog.length}: ` + mock.rpcLog.map((r) => r.name + ":" + r.status).join(","));
+  check("9e the client never pushed a pin to the fake tables — the server-created doors were not mirrored locally",
+    !mock.fakeWrites.some((w) => /\bpins\b/.test(w)), mock.fakeWrites.slice(0, 6).join(" | ") || "(no table writes at all)");
 
+  console.log("SYNTHETIC: the 12 doors are invented addresses stamped source 'osm' so the real-provider path is exercised; they live only on the per-run replica copy " + DB);
   console.log("\n0018 LOCAL REPLICA ONLY — production does not have 0018");
   console.log("hood " + TID + " on " + DB + " (copy of " + TEMPLATE + "), leader role from replica: " + leadRole);
   ok.forEach((x) => console.log("  ✓ " + x));

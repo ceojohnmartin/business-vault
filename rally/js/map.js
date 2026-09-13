@@ -301,6 +301,10 @@
 
   function refreshHoods() {
     if (!R) return;
+    /* The freshness layer is a manager's. A leader demoted mid-session
+       with it on would otherwise keep it — and the labels naming every
+       teammate — with the toggle that turns it off hidden from them. */
+    if (heatMode && !STORE.canManageTerritories()) heatMode = false;
     R.setHoods(hoodsGeoJSON(), { heat: heatMode, labels: labelsAllowed() });
     const hl = $("#heat-legend");
     if (hl) hl.hidden = !heatMode;
@@ -328,9 +332,11 @@
   }
 
   // ---------- re-knock route ----------
+  let routeFC = null;     // the route on screen, kept so an engine switch can redraw it
+  let puckLL = null;      // the last located position, for the same reason
   function showRoute(pins) {
     if (!R) return;
-    R.setRoute({
+    routeFC = {
       type: "FeatureCollection",
       features: [
         { type: "Feature", properties: {},
@@ -340,10 +346,11 @@
           geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         })),
       ],
-    });
+    };
+    R.setRoute(routeFC);
   }
 
-  function clearRoute() { if (R) R.setRoute(emptyFC()); }
+  function clearRoute() { routeFC = null; if (R) R.setRoute(emptyFC()); }
 
   // ---------- camera helpers ----------
   function focusRep(userId) {
@@ -396,7 +403,8 @@
         btn.classList.remove("armed");
         const { latitude, longitude } = pos.coords;
         R.easeTo({ lng: longitude, lat: latitude, zoom: Math.max(R.getZoom(), 16.5) });
-        R.setPuck({ lng: longitude, lat: latitude });
+        puckLL = { lng: longitude, lat: latitude };
+        R.setPuck(puckLL);
       },
       () => { btn.classList.remove("armed"); toast("Couldn't get your location"); },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
@@ -992,12 +1000,18 @@
     /* A fallback is never silent. A rep who thinks they are on Apple's
        imagery and is not will report the wrong bug, and an office that
        pasted a bad token needs to find out from the app. */
-    if (res.fellBack) {
+    if (res.fellBack && !res.quiet) {
       toast("Apple Maps unavailable — using the offline-capable map. " + (res.reason || ""), 6000);
     }
     refreshPins();
     refreshHoods();
     setDraftRing(draftDots);
+    /* Everything the old renderer was showing is re-issued to the new one:
+       the re-knock route and the location puck live here for exactly that
+       reason — a switch used to drop both while the Route sheet still
+       listed twenty stops. */
+    if (routeFC) R.setRoute(routeFC);
+    if (puckLL) R.setPuck(puckLL);
     reloadImagery();
   }
 

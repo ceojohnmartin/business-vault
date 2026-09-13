@@ -38,6 +38,7 @@
   let chosen = "";        // what we tried first
   let fellBack = false;
   let why = "";
+  let quiet = false;      // a fallback that is a standing configuration, not news
 
   /* auto     — MapKit when this device has a token, MapLibre otherwise
      mapkit   — MapKit first. If it cannot start, the fallback still runs,
@@ -66,9 +67,13 @@
     if (inflight) {
       queued = opts;
       return inflight.catch(() => {}).then(() => {
-        if (!queued) return report();
-        const o = queued; queued = null;
-        return boot(o);
+        if (queued) { const o = queued; queued = null; return boot(o); }
+        /* Another waiter already started the follow-up boot: ride along
+           with it. Answering from report() here handed the THIRD caller a
+           null renderer — bootOnce destroys the old map before its first
+           await — and the rep read "No map could be started" while the
+           map was, in fact, starting. */
+        return inflight ? inflight.catch(() => {}).then(report) : report();
       });
     }
     inflight = bootOnce(opts).finally(() => { inflight = null; });
@@ -86,6 +91,7 @@
     chosen = want;
     fellBack = false;
     why = "";
+    quiet = false;
 
     if (want === "mapkit" && MK()) {
       const r = await MK().boot(opts);
@@ -94,8 +100,16 @@
       /* It may have got as far as a live map with no imagery. Tear that
          down before the fallback builds its own into the same element. */
       if (r.constructed) { try { MK().destroy(); } catch (_) {} }
-      STORE.settings.mapkitLastError = why;
-      try { await STORE.saveSettings(); } catch (_) {}
+      /* No token is a CONFIGURATION, not a failure: it is the same on
+         every launch until someone pastes one, so it is recorded for
+         Settings (which says exactly that) but not toasted at every open
+         — a rep who picked Apple Maps on a phone with no token would
+         otherwise be nagged for six seconds a launch with no way to act. */
+      quiet = r.reason === "no-token";
+      if (STORE.settings.mapkitLastError !== why) {
+        STORE.settings.mapkitLastError = why;
+        try { await STORE.saveSettings(); } catch (_) {}
+      }
       fellBack = true;
     }
 
@@ -111,6 +125,7 @@
     engine: active ? active.name : "",
     wanted: chosen,
     fellBack,
+    quiet,
     reason: why,
   });
 

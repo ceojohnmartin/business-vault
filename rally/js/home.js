@@ -144,7 +144,8 @@
 
       <button class="panel hm-turf" id="hm-turf" type="button">
         <h3>${turf.manager ? "The market" : "My turf"}
-          <span class="r">${turf.hoods.length ? turf.hoods.length + " hood" + (turf.hoods.length === 1 ? "" : "s") : ""}</span></h3>
+          <span class="r">${turf.hoods.length === 1 ? esc(STORE.hoodLabel(turf.hoods[0]))
+            : turf.hoods.length ? turf.hoods.length + " territories" : ""}</span></h3>
         ${turf.hoods.length ? `
           <div class="hm-turf-line">
             <b class="num">${turf.knocked}</b>${turf.homes ? ` / <span class="num">${turf.homes}</span> homes` : " knocked"}
@@ -183,7 +184,7 @@
       b.addEventListener("click", () => {
         const kind = b.dataset.k;
         if (kind === "cb" && b.dataset.pid) { MAPP.show("map"); MMAP.focusPin(b.dataset.pid); }
-        else if (kind === "leads") { MAPP.show("customers"); MCUST.setFilter("all"); }
+        else if (kind === "leads") { MCUST.showUnsigned(); }
         else if (kind === "route") { MAPP.show("map"); MROUTE.build(); }
         else MAPP.show("schedule");
       }));

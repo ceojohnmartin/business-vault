@@ -159,6 +159,7 @@
   }
 
   function open(id) {
+    if (sanitationBlocked()) return;   // the same pause the FAB and export honour
     const c = STORE.customers.find((x) => x.id === id);
     if (!c) return;
     cur = normalize(c); curId = id;
@@ -1090,6 +1091,9 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
     if (flt.sales === "active" && (c.acct === "frozen" || c.acct === "canceled")) return false;
     if (flt.sales === "frozen" && c.acct !== "frozen") return false;
     if (flt.service !== "all") {
+      // a cancelled account needs no service, whatever its appointments say —
+      // the same rule the row's CANCELED badge answers by
+      if (c.acct === "canceled") return false;
       const signed = STORE.custSignedAt(c), next = STORE.nextAppointment(c), serviced = STORE.lastServiced(c);
       if (flt.service === "needed" && (!signed || serviced)) return false;
       if (flt.service === "agreement" && signed) return false;
@@ -1101,7 +1105,8 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
   }
 
   function sortList(list) {
-    const soldTs = (c) => c.soldAt || c.createdAt || 0;
+    // the date the row PRINTS as "Sold": the agreement's, when there is one
+    const soldTs = (c) => STORE.custSignedAt(c) || c.soldAt || c.createdAt || 0;
     const schedTs = (c) => { const n = STORE.nextAppointment(c); return n ? n.ts : Infinity; };
     if (flt.sort === "added") return list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     if (flt.sort === "oldest") return list.sort((a, b) => soldTs(a) - soldTs(b));
@@ -1324,6 +1329,17 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
   function openAdvanced() {
     panelOpen = true;
     flt.scope = "mine";
+    if (window.MAPP) MAPP.show("customers");
+    renderList();
+  }
+
+  /* Home's "N leads to work" lands on exactly those customers: the ones
+     with no signed agreement yet. There is no LEAD status on purpose, so
+     this is the Service filter's "Agreement needed", opened with the panel
+     showing so the rep can see which lever is set. */
+  function showUnsigned() {
+    panelOpen = true;
+    flt.stage = "all"; flt.scope = "all"; flt.service = "agreement";
     if (window.MAPP) MAPP.show("customers");
     renderList();
   }
@@ -1618,7 +1634,9 @@ const digits = (v) => (typeof v === "string" ? [...v.replace(DIGIT, "")].length 
 
   window.MCUST = {
     bind, renderList, open, startNew, startForPin, fillAddress, exportAll,
-    setFilter, openAdvanced,
+    setFilter, openAdvanced, showUnsigned,
+    // every lever back to its default — the one honest "show me the whole book"
+    clearFilters: () => { flt = { stage: "all", scope: "all", service: "all", sales: "all", sort: "newest" }; panelOpen = false; renderList(); },
     // the payment-shape gate, exported so the boot purge and the store use
     // the SAME rule the editor does — one definition, no second path
     honestPayment,

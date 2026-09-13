@@ -575,7 +575,8 @@ async function buildings() {
           await page.evaluate(() => MMAP.resize());
           await goTo(CENTRE.lng, CENTRE.lat, n <= 100 ? 17.3 : 16.6);
           await settleMap(12);
-          await shot(`mk-${n}-pins`);
+          // a padded frame carries its honesty in its file name
+          await shot(density.synthetic ? `mk-${n}-pins-SYNTHETIC-${density.real}-real` : `mk-${n}-pins`);
         }
         // the whole book back, exactly as seeded
         await page.evaluate(() => { if (window.__allPins) { STORE.pins = window.__allPins; window.__allPins = null; MMAP.refreshPins(); } });

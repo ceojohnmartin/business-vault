@@ -79,8 +79,8 @@
     if (!v.ok) return { ok: false, msg: v.reason };
     const w = worstOverlap(v.points);
     if (w.m2 > TOL()) {
-      return { ok: false, msg: `Overlaps ${esc(w.other.name || "another hood")} by ` +
-        `${w.m2 < 10 ? w.m2.toFixed(1) : Math.round(w.m2)} m² — hoods may share a boundary, not ground.` };
+      return { ok: false, msg: `Overlaps ${esc(STORE.hoodLabel(w.other))} by ` +
+        `${w.m2 < 10 ? w.m2.toFixed(1) : Math.round(w.m2)} m² — territories may share a boundary, not ground.` };
     }
     const acres = Math.max(0, v.areaM2 / 4046.86);
     return { ok: true, msg: `${live.points.length} corners · ~${acres.toFixed(acres < 10 ? 1 : 0)} acres` +
@@ -243,7 +243,7 @@
 
   async function open(hood) {
     if (!hood || !hood.points || hood.points.length < 3) {
-      toast("This hood has no outline to edit");
+      toast("This territory has no outline to edit");
       return false;
     }
     if (window.MTURF && !(await MTURF.gate("changing an outline", false))) return false;

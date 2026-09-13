@@ -124,7 +124,10 @@
      no signing service, and it must never have the .p8 private key on a
      phone, so the token is a DEVICE SETTING pasted by the office — stored
      beside googleKey and stripped from every backup by the same list. */
-  const token = () => (STORE.settings.mapkitToken || "").trim();
+  /* The token arrives from the published mapkit-config.js (a deployment
+     secret stamped on the authorized origin) or, for development only,
+     from the console-set dev slot. No screen shows or edits it. */
+  const token = () => ((window.RALLY_MAPKIT && window.RALLY_MAPKIT.token) || STORE.settings.mapkitToken || "").trim();
 
   /* MapKit initialises ONCE per page: a second mapkit.init() dispatches
      "Refreshed", never "Initialized", and there is no mapkit.destroy(). So

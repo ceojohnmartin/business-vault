@@ -295,20 +295,20 @@
       // A draft has no number: the server assigns it on insert, and
       // predicting one that a concurrent manager might take is worse than
       // not showing one.
-      $("#pc-id").textContent = "New polygon";
+      $("#pc-id").textContent = "New territory";
       $("#pc-houses").textContent = houses == null ? "—" : houses;
       $("#pc-sales").textContent = "0";
       $("#pc-note").hidden = true;
       return;
     }
-    $("#pc-id").textContent = hood.seq ? "Polygon " + hood.seq : "Polygon";
+    $("#pc-id").textContent = STORE.hoodLabel(hood);
     $("#pc-houses").textContent = "…";
     $("#pc-sales").textContent = "…";
     try {
       const sum = await STORE.territorySummary(hood);
       if (gen !== cardGen) return;                 // another polygon since
       $("#pc-id").textContent = sum.seq
-        ? "Polygon " + sum.seq + (sum.of ? " of " + sum.of : "") : "Polygon";
+        ? "Territory " + sum.seq + (sum.of ? " of " + sum.of : "") : STORE.hoodLabel(hood);
       /* ONE DEFINITION OF "N HOUSES", AND IT IS THE TEAM'S.
 
          This line used to read `houses == null ? sum.houses : houses`,
@@ -656,7 +656,7 @@
     tick();
     const t = STORE.territories.find((x) => x.id === editingId);
     if (!t) return;
-    if (!confirm(`Split “${STORE.hoodLabel(t)}” into ${n} balanced hoods? The original is replaced (pins keep their history).`)) return;
+    if (!confirm(`Split “${STORE.hoodLabel(t)}” into ${n} balanced territories? The original is replaced (pins keep their history).`)) return;
     let kids;
     try {
       kids = await STORE.splitTerritory(t, n);
@@ -675,8 +675,8 @@
        hand the new turf out. */
     const cloud = window.MCLOUD && MCLOUD.enabled();
     toast(cloud
-      ? `Cut into ${kids.length} hoods — sending to the team, hand them out once it lands`
-      : `Cut into ${kids.length} hoods — hand them out from the hoods list`);
+      ? `Cut into ${kids.length} territories — sending to the team, hand them out once it lands`
+      : `Cut into ${kids.length} territories — hand them out from the territories list`);
   }
 
   /* Assignment chips. MULTI-SELECT: a hood may be worked by John AND Jake,
@@ -697,8 +697,7 @@
     const hood = editingId ? STORE.territories.find((x) => x.id === editingId) : null;
     MASSIGN.open({
       preselect: assignSet.slice(),
-      subtitle: hood && hood.seq ? "Polygon " + hood.seq
-              : hood ? STORE.hoodLabel(hood) : "New polygon — not saved yet",
+      subtitle: hood ? STORE.hoodLabel(hood) : "New territory — not saved yet",
       onSave: async (ids) => {
         assignSet = ids.slice();
         renderRepChips();
@@ -724,7 +723,7 @@
     const note = $("#hood-reps-note");
     if (note) {
       note.textContent = assignSet.length > 1
-        ? assignSet.length + " reps work this hood — it shows up in every one of their lists"
+        ? assignSet.length + " reps work this territory — it shows up in every one of their lists"
         : "";
       note.hidden = assignSet.length < 2;
     }
@@ -837,7 +836,7 @@
       const cur = creating ? [] : STORE.currentAssignees(
         STORE.territories.find((x) => x.id === editingId) || {});
       const moving = creating || assignSet.slice().sort().join() !== cur.slice().sort().join();
-      if (!(await MTURF.gate(creating ? "creating a hood" : "changing who works it", moving))) return;
+      if (!(await MTURF.gate(creating ? "creating a territory" : "changing who works it", moving))) return;
     }
     /* NO AUTO-NAME. This used to mint "Hood 7" when the field was blank,
        which is exactly the device-local auto-name the numbering is meant to
@@ -884,7 +883,7 @@
     } catch (err) {
       // the reason, when there is one — a rep with no account can never be
       // given turf, and "try again" is a loop with no exit
-      toast((err && err.message) || "Couldn't save the hood — try again");
+      toast((err && err.message) || "Couldn't save the territory — try again");
       return;
     }
     // the confirmed door import runs against the freshly saved territory,
@@ -941,7 +940,7 @@
         knocked += st.knocked; homes += st.homes || 0; sold += st.sold;
       });
       const meta = hoods.length
-        ? `${hoods.length} hood${hoods.length === 1 ? "" : "s"} · ${knocked}${homes ? "/" + homes : ""} knocked · ${sold} sold`
+        ? `${hoods.length} territor${hoods.length === 1 ? "y" : "ies"} · ${knocked}${homes ? "/" + homes : ""} knocked · ${sold} sold`
         : "No turf yet";
       return `<div class="hood-row rep-row" data-id="${u.id}">
         <span class="dot" style="background:${u.color}"></span>
@@ -980,7 +979,7 @@
     const archived = manager ? STORE.territories.filter((t) => t.archived) : [];
     if (!list.length && !archived.length) {
       wrap.innerHTML = `<div class="hood-empty">${manager
-        ? "No hoods yet — cut your first area"
+        ? "No territories yet — draw your first area"
         : "No turf assigned to you yet — ask your manager"}</div>`;
       return;
     }
@@ -997,7 +996,7 @@
       return `<div class="hood-row${t.pendingSplit ? " pending" : ""}" data-id="${t.id}">
          <span class="dot" style="background:${STORE.hoodColor(t)}"></span>
          <span class="hn">${MUI.esc(STORE.hoodLabel(t))}<span class="hr">${sub}</span></span>
-         ${manager ? `<button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>` : ""}
+         ${manager ? `<button class="hood-edit" data-id="${t.id}" aria-label="Edit territory">✎</button>` : ""}
        </div>`;
     }).join("") +
     (archived.length
@@ -1005,7 +1004,7 @@
           `<div class="hood-row archived" data-id="${t.id}">
              <span class="dot" style="background:#B9BEC7"></span>
              <span class="hn">${MUI.esc(STORE.hoodLabel(t))}<span class="hr">archived</span></span>
-             <button class="hood-edit" data-id="${t.id}" aria-label="Edit hood">✎</button>
+             <button class="hood-edit" data-id="${t.id}" aria-label="Edit territory">✎</button>
            </div>`).join("")
       : "");
     $$("#hood-list .hood-row").forEach((row) =>

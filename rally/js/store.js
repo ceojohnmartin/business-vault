@@ -23,7 +23,10 @@
          keeps cached imagery offline. mapkitToken is Apple's signed
          developer JWT and is a CREDENTIAL — it lives here beside
          googleKey and is stripped from every backup by the same list. */
-      mapEngine: "auto", mapkitToken: "", mapkitLastError: "",
+      // mapkitToken is the DEVELOPMENT-ONLY injection slot (MENGINE.devToken);
+      // the published token lives in mapkit-config.js. There is no engine
+      // setting: the user never chooses a map.
+      mapkitToken: "", mapkitLastError: "",
       propertySource: "auto", regridKey: "", // door-import provider (More → Property data)
       lastCenter: null, lastZoom: null,
       currentUserId: null, // whose device this is
@@ -517,7 +520,7 @@
      server had imported it. It is read now, and reported separately from
      unusable (bad coordinates), because they are different facts. */
   S.importDoorsServer = async function (props, { territoryId, operationId, onProgress } = {}) {
-    if (!territoryId) throw new Error("import: which hood?");
+    if (!territoryId) throw new Error("import: which territory?");
     /* Same three-way decision. There is no server-side import without a
        server: in solo mode the caller wants STORE.importDoors, and saying so
        is better than failing inside MCLOUD with a transport error. */
@@ -1010,7 +1013,7 @@
       if (gone) S.territories.push(gone);
       released.forEach((p) => { p.territoryId = id; });
       if (window.MSYNC) MSYNC.unregister(entries);
-      showStorageFailure("hood");
+      showStorageFailure("territory");
       return false;
     }
     if (window.MSYNC && entries.length) MSYNC.kick();
@@ -1967,12 +1970,13 @@
 
      'sold' and 'dnk' are answered above the boundary — green from the
      customer record, black from the do-not-knock ledger — so keeping them
-     does not preserve anything, it RESURRECTS: a do-not-knock a manager
-     explicitly cleared would go black again at the next reset, and a door
-     whose customer cancelled would stay green forever and never be handed
-     back to a rep. The server refuses to write either into the list; this
-     filters them anyway, because a row can arrive from a server that has
-     not been upgraded yet and the cost of being wrong here is silent. */
+     in a keep-list preserves nothing: a do-not-knock a manager explicitly
+     cleared would go black again at the next reset. The server refuses to
+     write either into the list; this filters them anyway, because a row
+     can arrive from a server that has not been upgraded yet and the cost
+     of being wrong here is silent. (Sold is protected on its own terms in
+     effectiveDisposition — a green door stays green across a reset with
+     or without a linked customer record; that is the owner's rule.) */
   const KEEPABLE = { unworked: 1, nothome: 1, goback: 1, notint: 1 };
 
   S.cycleKeep = function (t) {
@@ -2002,6 +2006,12 @@
       if (!last || h.ts >= last.ts) last = h;
     });
     if (best) return best.disposition;
+    /* GREEN IS PROTECTED. A door whose last outcome was Sold stays Sold
+       across every boundary, whether or not a customer record is linked
+       to it today — a missing record is a data-integrity condition, not
+       permission to erase a sale. Changing a Sold outcome is a separate,
+       intentional, audited manager act, never a side effect of a reset. */
+    if (last && last.disposition === "sold") return "sold";
     /* The keep-list applies to what the door WAS at the boundary — its
        latest outcome — never to anything older in its history. The first
        version searched the whole pre-boundary history for any kept

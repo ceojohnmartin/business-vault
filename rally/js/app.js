@@ -165,20 +165,6 @@
   }
 
   // ---------- more ----------
-  /* WHICH MAP AM I ON, AND WHY. A rep who believes they are on Apple's
-     imagery when they are not will report the wrong bug, and an office
-     that pasted a bad token needs to find that out from the app rather
-     than from a blank screen. */
-  function engineState() {
-    const s = STORE.settings;
-    const r = window.MMAP && MMAP.engineReport ? MMAP.engineReport() : null;
-    if (r && r.engine === "mapkit") return "Apple Maps — satellite";
-    if (r && r.fellBack) return "Offline-capable map — " + (r.reason || "Apple Maps unavailable");
-    if (r && !r.engine) return r.reason || "No map is running";
-    if (!(s.mapkitToken || "").trim()) return "Offline-capable map — no Apple token on this device";
-    return "Offline-capable map";
-  }
-
   function renderMore() {
     const ofc = $("#mb-office-sub");
     if (ofc) ofc.textContent = STORE.settings.officeName
@@ -201,14 +187,6 @@
     $("#more-fr-sub").textContent = s.frSubdomain
       ? s.frSubdomain + ".pestroutes.com"
       : "Not connected — customers queue locally";
-    $("#more-mapengine-sub").textContent = engineState();
-    const own = !!s.googleKey;
-    const anyKey = own || !!MDATA.DEFAULT_GOOGLE_KEY;
-    $("#more-gmaps-sub").textContent = s.googleSessions
-      ? "Google imagery active" + (own ? " (your key)" : " (office key)")
-      : (s.googleLastError ||
-         (anyKey ? "Checking with Google…"
-                 : "No key — imagery is off on this device"));
     $("#more-prop-sub").textContent = (() => {
       const n = MPROP.activeName();
       const src = MPROP.providerName(n);
@@ -263,7 +241,7 @@
     const find = (arr, id) => (arr || []).find((x) => x.id === id) || null;
     if (d.table === "territories") {
       const t = find(STORE.territories, d.id);
-      return { ic: "🗺️", title: t ? "Hood “" + t.name + "”" : "A hood", sub: t ? "" : gone };
+      return { ic: "🗺️", title: t ? STORE.hoodLabel(t) : "A territory", sub: t ? "" : gone };
     }
     if (d.table === "pins") {
       const p = find(STORE.pins, d.id);
@@ -293,7 +271,7 @@
         : { ic: "👤", title: "A customer", sub: gone };
     }
     if (d.table === "splits") {
-      return { ic: "✂️", title: "A Smart Split", sub: "the hood is back exactly as it was" };
+      return { ic: "✂️", title: "A Smart Split", sub: "the territory is back exactly as it was" };
     }
     return { ic: "📄", title: String(d.table || "A record").replace(/s$/, ""), sub: "" };
   }
@@ -316,15 +294,15 @@
     }
     if (d.table === "splits") {
       return s === 404
-        ? "Smart Split is not switched on for this team on the server. The hood was left exactly as it was — nothing was lost."
-        : "The server refused the split. The hood came back exactly as it was — nothing was lost.";
+        ? "Smart Split is not switched on for this team on the server. The territory was left exactly as it was — nothing was lost."
+        : "The server refused the split. The territory came back exactly as it was — nothing was lost.";
     }
     if (s === 401) {
       return "This device was not signed in to the server when it tried. Sign out and back in, then make the change again.";
     }
     if (s === 403) {
       return d.table === "territories"
-        ? "This device's role may not save hoods. Drawing, renaming, re-cutting or handing out turf takes a leader, manager or owner."
+        ? "This device's role may not save territories. Drawing, renaming, re-cutting or handing out turf takes a leader, manager or owner."
         : "The server would not let this device save it — this device's role may not change this record.";
     }
     if (s === 404) return "The server has no such record to update.";
@@ -512,7 +490,7 @@
         if (STORE.canManageTerritories(u.role) && leads.length === 1) {
           toast("Every team needs at least one manager"); return;
         }
-        if (!confirm(`Remove ${u.name}? Their hoods go back to the pool (history is kept).`)) return;
+        if (!confirm(`Remove ${u.name}? Their territories go back to the pool (history is kept).`)) return;
         await STORE.deleteUser(u.id);
         afterChange();
       }));
@@ -598,66 +576,11 @@
       renderMore(); closeSheet(); toast("Connection details saved");
     });
 
-    $("#more-mapengine").addEventListener("click", () => {
-      $("#set-mapengine").value = STORE.settings.mapEngine || "auto";
-      // a rep can choose the map; only a leader's device carries the token —
-      // and the credential is never put into the DOM of a screen that hides it
-      const leader = STORE.canManageTerritories();
-      $("#set-mapkit-token").value = leader ? (STORE.settings.mapkitToken || "") : "";
-      $("#mapengine-token-row").hidden = !leader;
-      $("#mapengine-state").textContent = engineState();
-      openSheet("mapengine-sheet");
-    });
-    $("#mapengine-save").addEventListener("click", async () => {
-      STORE.settings.mapEngine = $("#set-mapengine").value;
-      if (STORE.canManageTerritories()) STORE.settings.mapkitToken = $("#set-mapkit-token").value.trim();
-      STORE.settings.mapkitLastError = "";
-      await STORE.saveSettings();
-      closeSheet();
-      /* Rebuild the map on the spot. Nothing is lost by it: the doors,
-         the turf, the selected door and anything queued live in the store,
-         and the new renderer is handed the same GeoJSON the old one had. */
-      if (window.MMAP) await MMAP.init();
-      renderMore();
-      const r = window.MMAP ? MMAP.engineReport() : null;
-      if (!r || !r.engine) toast((r && r.reason) || "No map could be started", 7000);
-      else if (r.fellBack) toast("Apple Maps unavailable — using the offline-capable map. " + (r.reason || ""), 7000);
-      else toast(r.engine === "mapkit" ? "Apple Maps is on" : "Using the offline-capable map");
-    });
-
-    $("#more-gmaps").addEventListener("click", () => {
-      $("#set-gkey").value = STORE.settings.googleKey;
-      openSheet("gmaps-sheet");
-    });
-    $("#gmaps-save").addEventListener("click", async () => {
-      STORE.settings.googleKey = $("#set-gkey").value.trim();
-      STORE.settings.googleSessions = null; // new key → new sessions
-      STORE.settings.googleLastError = "";
-      await STORE.saveSettings();
-      closeSheet();
-      renderMore();
-      /* On the Apple engine there is no Google imagery to check. The key
-         is kept for the offline-capable map; say that, and say nothing
-         about Google having accepted anything. */
-      if (window.MMAP && MMAP.engine() === "mapkit") {
-        toast("Apple Maps is the active map — the Google key is saved for the offline-capable map");
-        return;
-      }
-      if (STORE.settings.googleKey || MDATA.DEFAULT_GOOGLE_KEY) toast("Checking with Google…", 9000);
-      const upgraded = window.MMAP ? await MMAP.reloadImagery() : false;
-      if (upgraded) {
-        toast("Google imagery is on");
-      } else if (STORE.settings.googleKey) {
-        // show Google's own words, and keep them on screen long enough to read
-        const why = (window.MMAP && MMAP.googleError()) || "Google didn't accept the key";
-        STORE.settings.googleLastError = why;
-        await STORE.saveSettings();
-        renderMore();
-        toast(why, 7000);
-      } else {
-        toast(MDATA.DEFAULT_GOOGLE_KEY ? "Back on the office key" : "Key removed — imagery is off");
-      }
-    });
+    /* MAPPING IS ZERO-CONFIG. There is no Map row, no engine selector, no
+       token field and no imagery-key field for any role: Apple Maps is
+       drawn when the origin carries a token, the offline-capable map
+       otherwise, and the app decides which. Development injection lives
+       outside the product UI (MENGINE.devToken, console only). */
 
     $("#more-prop").addEventListener("click", () => {
       const sel = STORE.settings.propertySource || "auto";
@@ -772,7 +695,7 @@
     });
 
     $("#more-reset").addEventListener("click", async () => {
-      if (!confirm("Erase every pin, knock, customer, hood and file on this device? This cannot be undone.")) return;
+      if (!confirm("Erase every pin, knock, customer, territory and file on this device? This cannot be undone.")) return;
       await Promise.all([
         MDB.clear("pins"), MDB.clear("events"), MDB.clear("customers"),
         MDB.clear("territories"), MDB.clear("files"),

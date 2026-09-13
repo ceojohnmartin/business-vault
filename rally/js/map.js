@@ -223,24 +223,24 @@
   function hoodsGeoJSON() {
     const me = STORE.currentUser();
     const manager = STORE.seesWholeTeam();
+    /* A REP SEES ONLY THEIR OWN TURF. Other reps' territories are not
+       faded, not outlined, not on the map at all — a rep's map is their
+       assigned area and nothing else (a shared territory counts as theirs
+       when they are one of its reps). Leaders, managers and owners see the
+       whole team's turf. `currentAssignees` is the whole set, not the
+       first name: reading `assignedTo` here once hid a rep's own shared
+       territory from them. */
+    const mine = (t) => !!me && STORE.currentAssignees(t).indexOf(me.id) >= 0;
     return {
       type: "FeatureCollection",
       features: STORE.activeTerritories()
         .filter((t) => t.points && t.points.length >= 3)
+        .filter((t) => manager || mine(t))
         .map((t) => {
-          /* WHO IS ON IT — the whole set, not the first name. A hood can
-             have several reps (a shared turf), and `assignedTo` is only
-             the FIRST of them: reading it here faded a rep's OWN hood on
-             their own map whenever a teammate had been put on it before
-             them, and a manager focusing that rep saw the hood fade too. */
           const crew = STORE.currentAssignees(t);
           const names = crew.map((id) => (STORE.userById(id) || {}).name).filter(Boolean);
-          // reps see their own turf full-strength; the rest of the market
-          // stays visible but faded — "THIS is my area" at a glance.
-          // A manager focusing one rep gets the same fade on everyone else.
-          const dim = manager
-            ? (emphasizeRep && crew.indexOf(emphasizeRep) < 0 ? 1 : 0)
-            : (!me || crew.indexOf(me.id) < 0 ? 1 : 0);
+          // a manager focusing one rep fades everyone else's turf
+          const dim = manager && emphasizeRep && crew.indexOf(emphasizeRep) < 0 ? 1 : 0;
           return {
             type: "Feature",
             geometry: { type: "Polygon", coordinates: [[...t.points, t.points[0]]] },
@@ -355,7 +355,7 @@
   // ---------- camera helpers ----------
   function focusRep(userId) {
     const hoods = STORE.hoodsOf(userId).filter((t) => t.points && t.points.length);
-    if (!R || !hoods.length) { toast("No hoods assigned yet — give them one"); return; }
+    if (!R || !hoods.length) { toast("No territories assigned yet — give them one"); return; }
     let minX = 180, minY = 90, maxX = -180, maxY = -90;
     hoods.forEach((t) => t.points.forEach(([lng, lat]) => {
       minX = Math.min(minX, lng); maxX = Math.max(maxX, lng);

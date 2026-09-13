@@ -155,7 +155,7 @@
           ${turf.pct != null ? `<div class="hm-bar"><div class="hm-fill" style="width:${turf.pct}%"></div></div>` : ""}
           ${turf.homes ? `<div class="hm-remaining">${Math.max(0, turf.homes - turf.knocked)} doors left — go get them</div>` : ""}`
         : `<div class="hm-turf-line dim">${turf.manager
-            ? "No hoods cut yet — draw the first one on the map"
+            ? "No territories yet — draw the first one on the map"
             : "No turf assigned yet — ask your manager"}</div>`}
       </button>
 

@@ -1779,6 +1779,8 @@ body.has-sync-chip .legend.heat{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)
 .rs-row{display:grid;grid-template-columns:44px 1fr 18px auto;align-items:center;gap:8px;
   padding:12px 14px;border-bottom:1px solid var(--hair);font-size:14.5px}
 .rs-row:last-child{border-bottom:none}
+/* an integrity flag under the rows: these doors stay green, the manager is told why they are odd */
+.rs-integrity{padding:10px 14px;border-top:1px solid var(--hair);background:#FFF6E5;color:#7A4B00;font-size:13px;line-height:1.35}
 .rs-n{font-size:20px;font-weight:750;letter-spacing:-.02em;color:var(--t1)}
 .rs-what{color:var(--t1);font-weight:600}
 .rs-arrow{color:var(--t3);text-align:center}

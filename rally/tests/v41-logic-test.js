@@ -549,6 +549,22 @@ if (on()) {
   kt.cycleStartedAt = C;
   check("CK9 clearing the list restores the plain boundary",
     S.effectiveDisposition(kGo, kt) === "unworked");
+
+  /* GREEN IS PROTECTED, with or without a customer record. A door whose
+     last outcome was Sold stays Sold across every boundary: a plain cycle,
+     a selective reset, an empty keep-list. A missing record is an
+     integrity condition, never permission to erase a sale. */
+  const kSold = door(3040, 10, [[T0 + DAY, "sold"]]);
+  const kSoldOld = door(3050, 10, [[T0 + DAY, "sold"], [T0 + 2 * DAY, "notint"]]);
+  kt.cycleKeep = []; kt.cycleStartedAt = C;
+  check("CK10 a pre-boundary Sold with NO customer record stays Sold through a plain boundary (empty keep-list)",
+    S.effectiveDisposition(kSold, kt) === "sold", S.effectiveDisposition(kSold, kt));
+  kt.cycleKeep = ["goback"]; kt.cycleKeepAt = C;
+  check("CK11 …and through a selective reset whose keep-list never names it",
+    S.effectiveDisposition(kSold, kt) === "sold", S.effectiveDisposition(kSold, kt));
+  check("CK12 a Sold that a later Not Interested superseded is NOT green — the door's last outcome decides",
+    S.effectiveDisposition(kSoldOld, kt) === "unworked", S.effectiveDisposition(kSoldOld, kt));
+  kt.cycleKeep = []; kt.cycleStartedAt = C;
 }
 
 // ================================================================== D dnk

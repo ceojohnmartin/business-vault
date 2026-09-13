@@ -192,7 +192,7 @@
     const pts = norm.points;
     if (pts.length < 3) {
       return { ok: false, code: "too_few_points", points: pts,
-        reason: "A hood needs at least 3 distinct corners — this outline has " + pts.length + "." };
+        reason: "A territory needs at least 3 distinct corners — this outline has " + pts.length + "." };
     }
     /* Self-intersection is tested BEFORE area. A symmetric figure-eight has
        a signed area of exactly zero, so an area-first order would tell the

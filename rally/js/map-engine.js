@@ -40,18 +40,15 @@
   let why = "";
   let quiet = false;      // a fallback that is a standing configuration, not news
 
-  /* auto     — MapKit when this device has a token, MapLibre otherwise
-     mapkit   — MapKit first. If it cannot start, the fallback still runs,
-                because a rep in a dead zone with no map cannot knock —
-                but it is never quiet: fellBack and reason are set, the
-                app toasts them and Settings shows them. The honesty is in
-                the report, not in leaving the rep with nothing.
-     maplibre — MapLibre, full stop */
-  function wanted() {
-    const s = (STORE.settings.mapEngine || "auto").toLowerCase();
-    if (s === "mapkit" || s === "maplibre") return s;
-    return (STORE.settings.mapkitToken || "").trim() ? "mapkit" : "maplibre";
-  }
+  /* THE USER SELECTS NOTHING. MapKit is the primary online renderer
+     whenever a token is present on the origin (mapkit-config.js) or in
+     the development slot; MapLibre otherwise, and MapLibre whenever
+     MapKit cannot start — a rep in a dead zone with no map cannot knock.
+     A fallback is never quiet: fellBack and reason are set and the app
+     toasts them. There is no engine setting; the old mapEngine key, if a
+     device still carries one, is ignored. */
+  const token = () => ((window.RALLY_MAPKIT && window.RALLY_MAPKIT.token) || STORE.settings.mapkitToken || "").trim();
+  function wanted() { return token() ? "mapkit" : "maplibre"; }
 
   let inflight = null;    // the boot running now
   let queued = null;      // the opts of a boot asked for while one was running
@@ -140,5 +137,18 @@
        actually start is a runtime question about Apple, a token and the
        network, which is exactly what boot() answers. */
     available: () => ({ maplibre: !!GL(), mapkit: !!MK() }),
+    hasToken: () => !!token(),
+    /* DEVELOPMENT ONLY — the one injection point, and it is not a screen.
+       From the console: MENGINE.devToken("<token>") to try Apple on this
+       device, MENGINE.devToken("") to clear. The value is written to the
+       settings slot vault.js strips from every backup, is never logged,
+       and no product UI reads it back. */
+    devToken: async (t) => {
+      STORE.settings.mapkitToken = String(t || "").trim();
+      STORE.settings.mapkitLastError = "";
+      await STORE.saveSettings();
+      if (window.MMAP) await MMAP.init();
+      return { engine: active ? active.name : "", fellBack, reason: why };
+    },
   };
 })();

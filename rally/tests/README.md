@@ -121,7 +121,10 @@ must not assume:
                                   # from Apple's CDN: the renderer contract,
                                   # geometry, clustering, the 401 refusal
                                   # without a developer token, the fallback,
-                                  # the token never in a backup
+                                  # the token never in a backup. MapKit is
+                                  # zero-config: no screen carries a token or
+                                  # an engine choice; the suite injects through
+                                  # the console-only development slot
     node tests/import-caller-test.js
                                   # 0018 LOCAL REPLICA ONLY. The real
                                   # STORE.importDoorsServer against the real

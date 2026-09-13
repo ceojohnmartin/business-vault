@@ -379,7 +379,7 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("'Will be imported' is the count that will actually become doors, and none are already in RALLY", rv["Will be imported"] > 0 && rv["Already in RALLY (matched, not duplicated)"] === 0, JSON.stringify(rv));
     const willImport = rv["Will be imported"];
     check("the import toggle is ON by default when creating and says how many", card.on && !card.rowHidden && new RegExp("Import " + willImport + " doors when I save").test(card.btn), JSON.stringify(card));
-    check("the polygon card shows the scan's house count and says the number is not issued yet", !card.hidden && Number(card.houses) === rv["Will be imported"] + rv["Already in RALLY (matched, not duplicated)"] && /not saved|new polygon|—/i.test(card.id), JSON.stringify(card));
+    check("the polygon card shows the scan's house count and says the number is not issued yet", !card.hidden && Number(card.houses) === rv["Will be imported"] + rv["Already in RALLY (matched, not duplicated)"] && /^New territory$/.test(card.id), JSON.stringify(card));
 
     // ============================================ F(part 1). MULTI-REP CHOICE
     section("F1. Choosing two reps from the assign panel hands the set back to the sheet (writes nothing)");
@@ -391,7 +391,7 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       await sleep(200);
     }
     const sub = await page.evaluate(() => document.querySelector("#assign-sub").textContent.trim());
-    check("the panel names the draft honestly (no number yet)", /New polygon — not saved yet/.test(sub), sub);
+    check("the panel names the draft honestly (no number yet)", /New territory — not saved yet/.test(sub), sub);
     await page.evaluate(() => document.querySelector("#assign-save").click());
     await sleep(400);
     const chips = await page.evaluate(() => ({ sel: Array.from(document.querySelectorAll("#hood-reps .rep-chip.sel")).map((c) => c.textContent.trim()), terr: STORE.territories.length, note: document.querySelector("#hood-reps-note").textContent }));
@@ -562,12 +562,12 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     await page.evaluate((id) => MHOODS.openExisting(id), saved.id);
     await sleep(400);
     const sheetLbl = await page.evaluate(() => ({ title: document.querySelector("#hood-sheet-title").textContent.trim(), card: document.querySelector("#pc-id").textContent.trim(), ph: document.querySelector("#hood-name").placeholder }));
-    check('the saved hood\'s own sheet is titled "Territory 12" and its polygon card reads "Polygon 12"', sheetLbl.title === "Territory 12" && sheetLbl.card === "Polygon 12", JSON.stringify(sheetLbl));
+    check('the saved territory\'s own sheet is titled "Territory 12" and its draw card reads "Territory 12"', sheetLbl.title === "Territory 12" && sheetLbl.card === "Territory 12", JSON.stringify(sheetLbl));
     check("the nickname field is optional and says the number is the name", /Optional/i.test(sheetLbl.ph) && /number is the name/i.test(sheetLbl.ph), sheetLbl.ph);
     await page.evaluate(() => document.querySelector("#hood-assign-open").click());
     await sleep(300);
     const panelSub = await page.evaluate(() => document.querySelector("#assign-sub").textContent.trim());
-    check('the assign panel subtitle reads "Polygon 12"', panelSub === "Polygon 12", panelSub);
+    check('the assign panel subtitle reads "Territory 12"', panelSub === "Territory 12", panelSub);
     await page.evaluate(() => { MASSIGN.close(); MUI.closeSheet(); });
     await sleep(200);
     // Street Mode: the house number once
@@ -605,7 +605,7 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("a worked day is on the hood: not home, not interested, go back, sold and a do-not-knock (SYNTHETIC knocks)", knocked.eff.nothome > 0 && knocked.eff.notint > 0 && knocked.eff.goback > 0 && knocked.eff.sold > 0 && knocked.eff.dnk > 0, JSON.stringify(knocked));
     const prev = await page.evaluate((id) => MRESET.preview(STORE.territories.find((x) => x.id === id)), saved.id);
     check("MRESET.preview: the list Confirm would send is exactly ['nothome','notint'], never 'dnk', never 'sold', never 'goback'", prev.reset.join() === "nothome,notint" && prev.includeDnk === false, JSON.stringify(prev));
-    check("the preview counts agree with the map's effective outcomes (every Sold here is customer-record-backed)", JSON.stringify(prev.counts) === JSON.stringify({ unworked: knocked.eff.unworked || 0, nothome: knocked.eff.nothome, notint: knocked.eff.notint, goback: knocked.eff.goback, sold: knocked.eff.sold, soldKnock: 0, dnk: knocked.eff.dnk }), JSON.stringify([prev.counts, knocked.eff]));
+    check("the preview counts agree with the map's effective outcomes (every Sold here is customer-record-backed)", JSON.stringify(prev.counts) === JSON.stringify({ unworked: knocked.eff.unworked || 0, nothome: knocked.eff.nothome, notint: knocked.eff.notint, goback: knocked.eff.goback, sold: knocked.eff.sold, soldNoRecord: 0, dnk: knocked.eff.dnk }), JSON.stringify([prev.counts, knocked.eff]));
     check("with Go Back doors present the reset is PARKED", prev.parked === true);
     await page.evaluate((id) => { window.__resetCalls = 0; const real = STORE.resetForReknock; STORE.resetForReknock = async function () { window.__resetCalls++; return real.apply(this, arguments); }; MAPP.show("route"); MTURF.render(); }, saved.id);
     await sleep(300);
@@ -621,6 +621,8 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check(`the preview reads "${rs.reset && rs.reset.n} Not Home / Not Interested → Unworked"`, rs.reset && rs.reset.n === prev.counts.nothome + prev.counts.notint && rs.reset.to === "Unworked", JSON.stringify(rs.reset));
     check(`"${rs.pending && rs.pending.n} Go Back → DECISION PENDING"`, rs.pending && rs.pending.n === prev.counts.goback && rs.pending.to === "DECISION PENDING", JSON.stringify(rs.pending));
     check(`"${rs.sold && rs.sold.n} Sold → protected" and "${rs.dnk && rs.dnk.n} Do Not Knock → protected"`, rs.sold && rs.sold.n === prev.counts.sold && /protected/.test(rs.sold.to) && rs.dnk && rs.dnk.n === prev.counts.dnk && /protected/.test(rs.dnk.to), JSON.stringify([rs.sold, rs.dnk]));
+    const noIntegrity = await page.evaluate(() => !document.querySelector("#rs-rows .rs-integrity"));
+    check("with every Sold door linked to a customer there is no integrity line", noIntegrity);
     check("the sheet says a fresh pass moves one date and deletes nothing", /moves one date and deletes nothing/.test(rs.sub), rs.sub);
     check("Confirm is disabled and says it is waiting on the Go Back decision", rs.disabled && /waiting on the Go Back decision/.test(rs.btn) && /product decision/.test(rs.note), JSON.stringify({ btn: rs.btn, note: rs.note }));
     const forced = await page.evaluate(async () => { const b = document.querySelector("#rs-confirm"); b.disabled = false; b.dispatchEvent(new MouseEvent("click", { bubbles: true })); await new Promise((r) => setTimeout(r, 300)); return { calls: window.__resetCalls, cycle: STORE.territories.find((t) => t.seq === 12).cycleStartedAt || null }; });
@@ -635,36 +637,45 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       const t = await STORE.createTerritory({ name: "", homes: 0, points: ring }, [window.__crew.jake]);
       t.seq = 13; await MDB.put("territories", t);   // SIMULATED number
       const now = Date.now();
-      // "soldknock": a door green only by its last knock — no customer record
-      const OUT = ["nothome", "nothome", "notint", "sold", "dnk", "unworked", "nothome", "soldknock"];
+      // "soldknock": a door green only by its last knock — NO customer record; "soldcanceled": a customer who cancelled
+      const OUT = ["nothome", "nothome", "notint", "sold", "dnk", "unworked", "nothome", "soldknock", "soldcanceled"];
       const ids = [];
       for (let i = 0; i < OUT.length; i++) {
         const lat = cy - dy * 0.6 + (i * dy * 1.2) / OUT.length, lng = cx - dx * 0.5 + (i % 3) * dx * 0.4;
-        const p = await STORE.addKnock({ lat, lng, disposition: OUT[i] === "unworked" ? "nothome" : OUT[i] === "soldknock" ? "sold" : OUT[i], reason: null, dm: false, note: "", callbackAt: null });
+        const p = await STORE.addKnock({ lat, lng, disposition: OUT[i] === "unworked" ? "nothome" : /^sold/.test(OUT[i]) ? "sold" : OUT[i], reason: null, dm: false, note: "", callbackAt: null });
         if (OUT[i] === "unworked") { p.disposition = "unworked"; p.history = []; await MDB.put("pins", p); }
         if (OUT[i] === "sold") { const c = await STORE.addCustomer({ first: "Green", last: "Door", phones: [], appointments: [], pinId: p.id }); c.soldAt = now; c.agreement = { signedAt: now, plan: "Quarterly" }; c.acct = "active"; await MDB.put("customers", c); }
+        if (OUT[i] === "soldcanceled") { const c = await STORE.addCustomer({ first: "Gone", last: "Customer", phones: [], appointments: [], pinId: p.id }); c.soldAt = now; c.agreement = { signedAt: now, plan: "Quarterly" }; c.acct = "canceled"; await MDB.put("customers", c); }
         ids.push(p.id);
       }
       const snap = (id) => { const p = STORE.pins.find((x) => x.id === id); return { disp: p.disposition, hist: (p.history || []).length }; };
       const facts = STORE.doorFacts();
-      const knockOnly = ids[OUT.indexOf("soldknock")], recordSold = ids[OUT.indexOf("sold")];
-      return { id: t.id, ids, before: ids.map(snap), events: STORE.events.length, preview: MRESET.preview(t), knockOnly, recordSold,
-        effKnockOnly: STORE.effectiveDisposition(STORE.pins.find((x) => x.id === knockOnly), t, facts) };
+      const knockOnly = ids[OUT.indexOf("soldknock")], recordSold = ids[OUT.indexOf("sold")], canceledSold = ids[OUT.indexOf("soldcanceled")];
+      return { id: t.id, ids, before: ids.map(snap), events: STORE.events.length, preview: MRESET.preview(t), knockOnly, recordSold, canceledSold,
+        effKnockOnly: STORE.effectiveDisposition(STORE.pins.find((x) => x.id === knockOnly), t, facts),
+        effCanceled: STORE.effectiveDisposition(STORE.pins.find((x) => x.id === canceledSold), t, facts) };
     }, { CENTRE });
     check("Territory 13 (SYNTHETIC) has no Go Back doors, so its preview is NOT parked", t2.preview.parked === false && t2.preview.counts.goback === 0, JSON.stringify(t2.preview));
-    // a door green only by its last knock — no customer record — is NOT protected, and the sheet says so
-    const knockOnly = await page.evaluate((id) => {
+    /* GREEN IS PROTECTED WHETHER OR NOT A CUSTOMER RECORD EXISTS. A sold
+       door with no linked record, and one whose customer cancelled, are
+       both counted under the padlocked Sold row; the sheet flags the
+       missing records as an integrity issue and never offers to reset them. */
+    const soldRule = await page.evaluate((id) => {
       const t = STORE.territories.find((x) => x.id === id);
       const before = MRESET.preview(t);
       MRESET.open(t);
-      const row = Array.from(document.querySelectorAll("#rs-rows .rs-row")).find((r) => /no customer record/.test(r.textContent));
-      const out = { soldKnock: before.counts.soldKnock, sold: before.counts.sold, willReset: before.willReset,
-        row: row ? row.textContent.replace(/\s+/g, " ").trim() : null, btn: document.querySelector("#rs-confirm").textContent };
+      const rows = Array.from(document.querySelectorAll("#rs-rows .rs-row")).map((r) => r.textContent.replace(/\s+/g, " ").trim());
+      const integrity = document.querySelector("#rs-rows .rs-integrity");
+      const soldRow = rows.find((r) => /\bSold\b/.test(r));
+      const out = { sold: before.counts.sold, soldNoRecord: before.soldNoRecord, willReset: before.willReset, reset: before.reset, rows, soldRow,
+        integrity: integrity ? integrity.textContent.trim() : null, btn: document.querySelector("#rs-confirm").textContent };
       document.querySelector("#rs-cancel").click();
       return out;
     }, t2.id);
-    check("a knock-only Sold (no customer record) paints green but is NOT protected: its own row says → Unworked and it is in the reset count",
-      t2.effKnockOnly === "sold" && knockOnly.soldKnock === 1 && knockOnly.sold === 1 && /Sold at the door, no customer record/.test(knockOnly.row) && /Unworked/.test(knockOnly.row) && new RegExp("reset " + knockOnly.willReset + " doors").test(knockOnly.btn), JSON.stringify({ knockOnly, eff: t2.effKnockOnly }));
+    check("a Sold door with NO customer record and one whose customer CANCELLED both paint green and are both PROTECTED (3 Sold, 2 flagged), never in the reset count",
+      t2.effKnockOnly === "sold" && t2.effCanceled === "sold" && soldRule.sold === 3 && soldRule.soldNoRecord === 2 && soldRule.willReset === t2.preview.counts.nothome + t2.preview.counts.notint &&
+      /^3 Sold protected$/.test(soldRule.soldRow) && !soldRule.rows.some((r) => /no customer record.*Unworked/.test(r)) && soldRule.reset.join() === "nothome,notint", JSON.stringify({ soldRule, eff: [t2.effKnockOnly, t2.effCanceled] }));
+    check("the sheet raises the missing records as an INTEGRITY issue to the manager — kept green, check them in Customers", /2 sold doors have no customer record — kept green/.test(soldRule.integrity || "") && /Customers/.test(soldRule.integrity || ""), soldRule.integrity);
     // a team server WITHOUT 0018 answers "function not found": the sheet refuses, never falls back to the every-outcome reset
     const no18 = await page.evaluate(async (id) => {
       const t = STORE.territories.find((x) => x.id === id);
@@ -686,7 +697,7 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     await page.evaluate((id) => MRESET.open(STORE.territories.find((x) => x.id === id)), t2.id);
     await sleep(300);
     const rs2 = await page.evaluate(() => ({ btn: document.querySelector("#rs-confirm").textContent, disabled: document.querySelector("#rs-confirm").disabled, note: document.querySelector("#rs-note").textContent }));
-    check(`Confirm is live and says "Start a fresh pass — reset ${t2.preview.willReset} doors" (Not Home + Not Interested + the knock-only Sold)`, !rs2.disabled && t2.preview.willReset === t2.preview.counts.nothome + t2.preview.counts.notint + 1 && new RegExp("reset " + t2.preview.willReset + " doors").test(rs2.btn) && /Sold stays green and Do Not Knock stays black/.test(rs2.note), JSON.stringify(rs2));
+    check(`Confirm is live and says "Start a fresh pass — reset ${t2.preview.willReset} doors" (Not Home + Not Interested only)`, !rs2.disabled && t2.preview.willReset === t2.preview.counts.nothome + t2.preview.counts.notint && new RegExp("reset " + t2.preview.willReset + " doors").test(rs2.btn) && /Sold stays green and Do Not Knock stays black/.test(rs2.note), JSON.stringify(rs2));
     await page.evaluate(() => document.querySelector("#rs-confirm").click());
     await sleep(700);
     const done = await page.evaluate(({ id, ids, before, events }) => {
@@ -699,8 +710,16 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("Confirm called STORE.resetForReknock exactly once with the solo device recording the boundary", done.calls === 1 && done.cycle > 0, JSON.stringify({ calls: done.calls, cycle: done.cycle }));
     check("the kept list never contains 'dnk' and never the two outcomes being reset", Array.isArray(done.keep) && !done.keep.includes("dnk") && !done.keep.includes("nothome") && !done.keep.includes("notint"), JSON.stringify(done.keep));
     check("after the pass: Not Home and Not Interested doors are effectively Unworked", done.after.filter((a) => a.disp === "nothome" || a.disp === "notint").every((a) => a.eff === "unworked"), JSON.stringify(done.after));
-    check("after the pass: the customer-record Sold door is still Sold, the knock-only Sold door is Unworked, and the Do Not Knock door is still black",
-      done.after[t2.ids.indexOf(t2.recordSold)].eff === "sold" && done.after[t2.ids.indexOf(t2.knockOnly)].eff === "unworked" && done.after.some((a) => a.eff === "dnk"), JSON.stringify(done.after));
+    check("after the pass: the customer-record Sold door, the NO-record Sold door and the CANCELLED-customer Sold door are ALL still Sold, and the Do Not Knock door is still black",
+      done.after[t2.ids.indexOf(t2.recordSold)].eff === "sold" && done.after[t2.ids.indexOf(t2.knockOnly)].eff === "sold" && done.after[t2.ids.indexOf(t2.canceledSold)].eff === "sold" && done.after.some((a) => a.eff === "dnk"), JSON.stringify(done.after));
+    const plainCycle = await page.evaluate(async (id) => {
+      // even the plain every-outcome boundary (start_territory_cycle, 0014, live in production) cannot erase a sale
+      const t = STORE.territories.find((x) => x.id === id);
+      await STORE.startCycle(t, Date.now() + 5000);
+      return { keep: STORE.cycleKeep(t) };
+    }, t2.id);
+    const plainEff = await page.evaluate((ids) => { const t = STORE.territories.find((x) => x.id === ids.id); const f = STORE.doorFacts(); return [ids.recordSold, ids.knockOnly, ids.canceledSold].map((pid) => STORE.effectiveDisposition(STORE.pins.find((x) => x.id === pid), t, f)); }, { id: t2.id, recordSold: t2.recordSold, knockOnly: t2.knockOnly, canceledSold: t2.canceledSold });
+    check("even a plain every-outcome boundary (0014's start_territory_cycle, empty keep-list) leaves all three Sold doors green", plainCycle.keep.length === 0 && plainEff.every((e) => e === "sold"), JSON.stringify({ keep: plainCycle.keep, plainEff }));
     check("HISTORY STAYS: every pin's raw disposition and history length are unchanged, and no event was deleted", done.sameRaw && done.events, JSON.stringify(done.after));
     check("the sheet closes and the toast says how many doors went back to unworked", !done.sheet && done.toasts.some((x) => /Territory 13 — fresh pass started/.test(x)), JSON.stringify(done.toasts));
 
@@ -796,36 +815,55 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("the map position is kept (camera within ~30 m of where it was)", dist < 0.0004, JSON.stringify({ before: j0.center, after: j1.center, dist }));
     check("queued work is unchanged by a renderer swap", jb.queued === j0.queued, JSON.stringify([j0.queued, jb.queued]));
 
-    const fb = await page.evaluate(async () => {
-      STORE.settings.mapEngine = "mapkit"; STORE.settings.mapkitToken = ""; STORE.settings.mapkitLastError = "";
-      await STORE.saveSettings();
-      const t0 = performance.now();
-      await MMAP.init();
-      await new Promise((r) => setTimeout(r, 400));
-      const r = MMAP.engineReport();
-      MAPP.roleChanged();  // re-renders More → the engine line
-      return { ms: Math.round(performance.now() - t0), engine: MMAP.engine(), wanted: r.wanted, fellBack: r.fellBack, reason: r.reason, lastError: STORE.settings.mapkitLastError,
-        more: document.querySelector("#more-mapengine-sub").textContent, toasts: window.__toasts.slice(-2), canvases: document.querySelectorAll("#map canvas").length, sel: window.__sel, lead: document.querySelector("#lead-sheet").classList.contains("open") };
-    });
-    check("MapKit requested with NO TOKEN: MapLibre runs instead and the report says exactly that (fellBack, wanted mapkit, reason = no token; Apple is never contacted)", fb.engine === "maplibre" && fb.wanted === "mapkit" && fb.fellBack === true && /No Apple MapKit token/.test(fb.reason), JSON.stringify(fb));
-    check("no token is a standing configuration, not news: the Settings line says why, and there is NO six-second toast on every launch", !fb.toasts.some((t) => /Apple Maps unavailable/.test(t)) && /Offline-capable map —/.test(fb.more) && /token/i.test(fb.more), JSON.stringify({ toasts: fb.toasts, more: fb.more }));
-    const badTok = await page.evaluate(async () => {
+    /* ZERO-CONFIG. No user picks an engine or pastes a token: with no
+       token anywhere the app draws MapLibre and says nothing; a token on
+       the origin (mapkit-config.js) or in the console-only dev slot makes
+       it try Apple first and fall back loudly if Apple cannot start. */
+    const zero = await page.evaluate(async () => {
       window.__toasts = [];
-      STORE.settings.mapEngine = "mapkit"; STORE.settings.mapkitToken = "not-a-token-apple-will-accept"; await STORE.saveSettings();
+      STORE.settings.mapEngine = "mapkit";   // a stale key from an old build must change NOTHING
+      STORE.settings.mapkitToken = ""; STORE.settings.mapkitLastError = ""; await STORE.saveSettings();
+      window.RALLY_MAPKIT = { token: "" };
       await MMAP.init(); await new Promise((r) => setTimeout(r, 400));
-      const r = MMAP.engineReport(); STORE.settings.mapkitToken = ""; await STORE.saveSettings();
-      return { engine: r.engine, fellBack: r.fellBack, quiet: r.quiet, toasts: window.__toasts.slice(-2) };
+      const r = MMAP.engineReport();
+      return { engine: MMAP.engine(), wanted: r.wanted, fellBack: r.fellBack, hasToken: MENGINE.hasToken(), toasts: window.__toasts.slice(-2), canvases: document.querySelectorAll("#map canvas").length, sel: window.__sel, lead: document.querySelector("#lead-sheet").classList.contains("open") };
     });
-    check("a token present but Apple's library UNREACHABLE (this container blocks the CDN) IS toasted — the real 401 refusal is proven against Apple's library in mapkit-test.js", badTok.engine === "maplibre" && badTok.fellBack && !badTok.quiet && badTok.toasts.some((t) => /Apple Maps unavailable/.test(t)), JSON.stringify(badTok));
-    check("the reason is recorded for Settings and never faked as imagery (one live canvas, the selection kept)", fb.lastError === fb.reason && fb.canvases === 1 && fb.sel === j0.a, JSON.stringify({ lastError: fb.lastError, canvases: fb.canvases }));
-    console.log("    NOTE: in this container Apple's CDN is unreachable, so the reason is a load failure; the real 401 'Unauthorized' path is proven in tests/mapkit-test.js");
-    const auto = await page.evaluate(async () => { STORE.settings.mapEngine = "auto"; await STORE.saveSettings(); return MENGINE.wanted(); });
-    check("engine 'auto' with no token on the device wants MapLibre (never a blank Apple map)", auto === "maplibre", auto);
+    check("no token anywhere → the offline-capable map, automatically, with no fallback and no toast — a stale mapEngine setting is ignored", zero.engine === "maplibre" && zero.wanted === "maplibre" && zero.fellBack === false && !zero.hasToken && !zero.toasts.some((t) => /Apple Maps/.test(t)) && zero.canvases === 1 && zero.sel === j0.a, JSON.stringify(zero));
+    const cfgTok = await page.evaluate(async () => {
+      window.__toasts = [];
+      window.RALLY_MAPKIT = { token: "origin-token-from-the-published-config" };   // what the publish step stamps on the authorized origin
+      const wanted = MENGINE.wanted();
+      await MMAP.init(); await new Promise((r) => setTimeout(r, 400));
+      const r = MMAP.engineReport(); window.RALLY_MAPKIT = { token: "" };
+      return { wanted, engine: r.engine, fellBack: r.fellBack, quiet: r.quiet, reason: r.reason, toasts: window.__toasts.slice(-2) };
+    });
+    check("a token on the origin (mapkit-config.js) → Apple is tried FIRST with no user action; unreachable here, so MapLibre takes over and says so", cfgTok.wanted === "mapkit" && cfgTok.engine === "maplibre" && cfgTok.fellBack && !cfgTok.quiet && cfgTok.toasts.some((t) => /Apple Maps unavailable/.test(t)), JSON.stringify(cfgTok));
+    const devTok = await page.evaluate(async () => {
+      window.__toasts = [];
+      const r = await MENGINE.devToken("dev-only-token-from-the-console");   // the one injection point, and it is not a screen
+      const out = { engine: r.engine, fellBack: r.fellBack, wanted: MENGINE.wanted(), slot: STORE.settings.mapkitToken, toasts: window.__toasts.slice(-2) };
+      await MENGINE.devToken("");
+      out.cleared = MENGINE.wanted(); out.slotAfter = STORE.settings.mapkitToken;
+      return out;
+    });
+    check("the DEVELOPMENT injection (console only) drives the same automatic choice, and clearing it returns to the offline-capable map", devTok.wanted === "mapkit" && devTok.engine === "maplibre" && devTok.fellBack && devTok.cleared === "maplibre" && devTok.slotAfter === "", JSON.stringify(devTok));
+    console.log("    NOTE: in this container Apple's CDN is unreachable, so the fallback reason is a load failure; the real 401 'Unauthorized' path is proven in tests/mapkit-test.js");
+    const noUI = await page.evaluate(() => {
+      const gone = ["#more-mapengine", "#mapengine-sheet", "#set-mapengine", "#set-mapkit-token", "#mapengine-token-row", "#more-gmaps", "#gmaps-sheet", "#set-gkey"].filter((id) => document.querySelector(id));
+      MAPP.show("more"); MAPP.roleChanged();
+      const more = document.querySelector("#scr-more") || document.querySelector("#more") || document.body;
+      const txt = Array.from(document.querySelectorAll(".more-item")).map((b) => b.textContent.replace(/\s+/g, " ").trim());
+      return { gone, rows: txt, mentions: txt.filter((t) => /mapkit|token|api key|engine|imagery|apple maps|maplibre/i.test(t)) };
+    });
+    check("NO user-facing map setting exists for any role: no Map row, no engine selector, no token field, no imagery-key field", noUI.gone.length === 0 && noUI.mentions.length === 0, JSON.stringify(noUI));
+    const cfgFile = fs.readFileSync(path.join(ROOT, "js", "mapkit-config.js"), "utf8");
+    check("the committed mapkit-config.js carries an EMPTY token (a real one is stamped at publish time, never committed)", /token:\s*""/.test(cfgFile) && !/eyJ[A-Za-z0-9_-]{10,}/.test(cfgFile), cfgFile.match(/token:[^\n]*/) && cfgFile.match(/token:[^\n]*/)[0]);
+    check("mapkit-config.js is loaded by the page and precached by the service worker like cloud-config.js", /js\/mapkit-config\.js\?v=/.test(fs.readFileSync(path.join(ROOT, "index.html"), "utf8")) && /mapkit-config\.js\?v=/.test(fs.readFileSync(path.join(ROOT, "sw.js"), "utf8")));
     await page.evaluate(async () => { await MMAP.init(); MMAP.clearSelection(); MUI.closeSheet(); });
     await sleep(400);
 
     // ==================================================== K. THE REP VIEW
-    section("K. A rep: no manager tools, no token field, other turf faded, no labels");
+    section("K. A rep: no manager tools, ONLY their own turf, no labels");
     // give this device's user Territory 12 alongside Mia, so the rep view has exactly one hood of their own
     await page.evaluate(async () => { const t = STORE.territories.find((x) => x.seq === 12); await STORE.setAssignees(t, [window.__crew.mia, STORE.myId()]); });
     await beRole("rep");
@@ -843,10 +881,9 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       out.labels = window.__hoodsOpts ? window.__hoodsOpts.labels : null;
       out.dims = fc.features.map((f) => ({ seq: (STORE.territories.find((t) => t.id === f.properties.id) || {}).seq, dim: f.properties.dim, color: f.properties.color }));
       out.mine = STORE.hoodsOf(STORE.myId()).length;
-      document.querySelector("#more-mapengine").click();
-      out.tokenRow = document.querySelector("#mapengine-token-row").hidden;
-      out.tokenValue = document.querySelector("#set-mapkit-token").value;
-      MUI.closeSheet();
+      out.mineIds = STORE.hoodsOf(STORE.myId()).map((t) => t.id);
+      out.allActive = STORE.activeTerritories().length;
+      out.fcIds = fc.features.map((f) => f.properties.id);
       MAPP.show("route"); MTURF.render();
       out.turfRows = document.querySelectorAll(".turf-name").length;
       MAPP.show("home");
@@ -857,32 +894,38 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check('the rep\'s Home names their one hood "Territory 12" (never "1 hood")', rep.home === "Territory 12", rep.home);
     check("a rep cannot manage territories and the tools sheet reads 'Your turf'", !rep.can && /Your turf/.test(rep.sub), rep.sub);
     check("the two leadership tool groups (draw / edit) are hidden wholesale, Freshness and Manage reps too", rep.groups[0] === true && rep.groups[1] === true && rep.heat && rep.assign && rep.corners, JSON.stringify(rep.groups));
-    check("the Apple token field is DEV/leader-only: hidden for a rep, and the hidden input holds NO token", rep.tokenRow === true && rep.tokenValue === "", JSON.stringify({ row: rep.tokenRow, value: rep.tokenValue }));
     const demoted = await page.evaluate(async () => {
       await STORE.applyServerRole("owner", Date.now()); MAPP.roleChanged();
-      await STORE.saveSettings();
-      STORE.settings.mapkitToken = "left-over-token"; MMAP.setHeatMode(true);
+      MMAP.setHeatMode(true);
       const on = { heat: MMAP.heatMode(), opts: (window.__hoodsOpts || {}).heat };
       await STORE.applyServerRole("rep", Date.now()); MAPP.roleChanged(); MMAP.refreshHoods();
       const off = { heat: MMAP.heatMode(), opts: (window.__hoodsOpts || {}).heat, labels: (window.__hoodsOpts || {}).labels };
-      document.querySelector("#more-mapengine").click(); const tok = document.querySelector("#set-mapkit-token").value; MUI.closeSheet();
-      STORE.settings.mapkitToken = "";
-      return { on, off, tok };
+      return { on, off };
     });
-    check("a manager demoted with the freshness view on loses it (no heat, no labels) — and the leftover token never reaches their DOM", demoted.on.heat === true && demoted.off.heat === false && demoted.off.opts === false && demoted.off.labels === false && demoted.tok === "", JSON.stringify(demoted));
-    check("territory labels are off for a rep; their own hood is full-strength blue and every other hood is faded",
-      rep.labels === false && rep.mine === 1 && rep.dims.length === 2 &&
-      rep.dims.every((d) => (d.seq === 12 ? d.dim === 0 : d.dim === 1) && d.color === "#0A84FF"), JSON.stringify({ labels: rep.labels, dims: rep.dims, mine: rep.mine }));
-    console.log("    NOTE: a rep's map keeps other turf visible but FADED (the documented design); hiding it outright is a product call, flagged in the report");
+    check("a manager demoted with the freshness view on loses it (no heat, no labels)", demoted.on.heat === true && demoted.off.heat === false && demoted.off.opts === false && demoted.off.labels === false, JSON.stringify(demoted));
+    check("A REP SEES ONLY THEIR ASSIGNED TURF: the map is handed exactly their territories (the shared Territory 12 included), nothing else — not even faded",
+      rep.labels === false && rep.mine === 1 && rep.allActive === 2 && rep.fcIds.length === 1 && rep.fcIds[0] === rep.mineIds[0] &&
+      rep.dims.every((d) => d.seq === 12 && d.dim === 0 && d.color === "#0A84FF"), JSON.stringify({ labels: rep.labels, dims: rep.dims, mine: rep.mine, fcIds: rep.fcIds, mineIds: rep.mineIds, allActive: rep.allActive }));
     check("Route lists only the rep's own turf", rep.turfRows === rep.mine, JSON.stringify({ rows: rep.turfRows, mine: rep.mine }));
+    const unassigned = await page.evaluate(async () => {
+      // take the rep off Territory 12 → their map is empty; put them back → it is theirs again
+      const t = STORE.territories.find((x) => x.seq === 12); const me = STORE.myId();
+      const crew = STORE.currentAssignees(t);
+      await STORE.setAssignees(t, crew.filter((id) => id !== me)); MMAP.refreshHoods();
+      const none = (window.__hoodsFC.features || []).length;
+      await STORE.setAssignees(t, crew); MMAP.refreshHoods();
+      const back = (window.__hoodsFC.features || []).map((f) => f.properties.id);
+      return { none, back, tid: t.id };
+    });
+    check("taken off the shared territory the rep's map shows NO turf at all; put back, it is theirs again", unassigned.none === 0 && unassigned.back.length === 1 && unassigned.back[0] === unassigned.tid, JSON.stringify(unassigned));
     await beRole("owner");
     const own = await page.evaluate(() => {
-      document.querySelector("#more-mapengine").click(); const h = document.querySelector("#mapengine-token-row").hidden; const st = document.querySelector("#mapengine-state").textContent; MUI.closeSheet();
       MMAP.refreshHoods();
-      const f = (window.__hoodsFC.features || []).find((x) => (STORE.territories.find((t) => t.id === x.properties.id) || {}).seq === 12);
-      return { h, st, labels: window.__hoodsOpts.labels, rep: f ? f.properties.rep : null, dim: f ? f.properties.dim : null };
+      const fc = window.__hoodsFC.features || [];
+      const f = fc.find((x) => (STORE.territories.find((t) => t.id === x.properties.id) || {}).seq === 12);
+      return { all: fc.length, active: STORE.activeTerritories().length, labels: window.__hoodsOpts.labels, rep: f ? f.properties.rep : null, dim: f ? f.properties.dim : null };
     });
-    check("…and shown for a leader, with the engine state line beside it", own.h === false && own.st.length > 0, JSON.stringify(own));
+    check("a manager's map carries EVERY active territory", own.all === own.active && own.all === 2, JSON.stringify(own));
     check("a manager's map labels the shared hood with BOTH reps and fades nothing", own.labels === true && /Mia Cole/.test(own.rep) && /Phase Five/.test(own.rep) && own.dim === 0, JSON.stringify(own));
 
     // ======================================================= L. CLEANUP
@@ -904,6 +947,25 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("the three map buttons and the top card do not overlap", cl.overlaps.length === 0, JSON.stringify(cl.overlaps));
     check("every tab screen uses the one product header", cl.heads.filter((h) => /customers|route|schedule|stats|more|home/.test(h.id)).every((h) => h.head), JSON.stringify(cl.heads));
     check('the black pin is "Do Not Knock / Danger"', cl.dnk === "Do Not Knock / Danger" && /^#0/.test(cl.dnkColor), cl.dnk);
+    /* TERRITORY, EVERYWHERE. Every element's text, placeholder, aria-label
+       and title in the whole document — hidden screens and sheets included,
+       plus every toast this run produced — is swept for the retired words. */
+    const words = await page.evaluate(async () => {
+      MHOODS.openExisting(STORE.territories.find((t) => t.seq === 12).id); await new Promise((r) => setTimeout(r, 300));
+      const bad = /\b(hoods?|polygons?)\b/i;
+      const hits = [];
+      document.querySelectorAll("body *").forEach((el) => {
+        for (const k of ["placeholder", "aria-label", "title"]) { const v = el.getAttribute(k); if (v && bad.test(v)) hits.push(k + "=" + v); }
+        // own text nodes only, so one offending word is reported once, on its element
+        el.childNodes.forEach((n) => { if (n.nodeType === 3 && bad.test(n.nodeValue)) hits.push(n.nodeValue.trim().slice(0, 80)); });
+      });
+      (window.__toasts || []).forEach((t) => { if (bad.test(t)) hits.push("toast: " + t.slice(0, 80)); });
+      MUI.closeSheet();
+      return { hits: [...new Set(hits)], toasts: (window.__toasts || []).length };
+    });
+    check("no screen, sheet, label, placeholder or toast says 'hood' or 'polygon' — it is Territory everywhere", words.hits.length === 0, JSON.stringify(words.hits.slice(0, 8)));
+    const drawCard = await page.evaluate(() => ({ pc: document.querySelector("#pc-id").textContent.trim(), fab: document.querySelector("#fab-hoods").getAttribute("aria-label") }));
+    check('the draw card names a saved territory "Territory 12" and a draft "New territory"', drawCard.pc === "Territory 12" || drawCard.pc === "New territory", JSON.stringify(drawCard));
 
     const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
     const core = (sw.match(/CORE\s*=\s*\[([\s\S]*?)\]/) || ["", ""])[1].match(/"([^"]+)"/g).map((s) => s.replace(/"/g, ""));

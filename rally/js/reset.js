@@ -15,8 +15,11 @@
      - A DO-NOT-KNOCK IS NEVER BULK-CLEARED. The server refuses 'dnk' in a
        reset list outright (0018 §G); clearing one is a per-door act with a
        typed reason and an indelible event, done from the door itself.
-     - A SOLD DOOR STAYS GREEN. Green comes from the customer record, not
-       from the last knock; a reset cannot touch it and does not try.
+     - A SOLD DOOR STAYS GREEN, whether or not a customer record is linked
+       to it today. A missing record is a data-integrity condition the
+       sheet points out to the manager; it is never permission to erase a
+       sale. Changing a Sold outcome is a separate, intentional, audited
+       act, and this screen has no such button.
      - HISTORY STAYS. A reset moves one timestamp — the cycle boundary.
        Every knock, note and callback is kept; no pin is written.
 
@@ -39,30 +42,24 @@
   let hood = null;
   let counts = null;
 
-  /* Sold and do-not-knock are answered from the customer record and the
-     ledger, exactly as the map answers them, so a door the manager cleared
-     last week does not show up here as "protected" — and one they sold
-     yesterday does. */
+  /* Counts are the map's own effective outcomes. Sold and do-not-knock are
+     both PROTECTED; `soldNoRecord` is the subset of green doors with no
+     linked customer record — still protected, flagged for the manager. */
   function tally(t) {
     const facts = STORE.doorFacts();
-    const by = { unworked: 0, nothome: 0, notint: 0, goback: 0, sold: 0, soldKnock: 0, dnk: 0 };
+    const by = { unworked: 0, nothome: 0, notint: 0, goback: 0, sold: 0, soldNoRecord: 0, dnk: 0 };
     STORE.pins.forEach((p) => {
       const h = STORE.hoodOf(p);
       if (!h || h.id !== t.id) return;
       const eff = STORE.effectiveDisposition(p, h, facts);
-      /* "Sold" is protected by the CUSTOMER RECORD. A door that is green
-         only because its last knock said sold — no customer, or a customer
-         who has since cancelled — has nothing protecting it: the reset
-         returns it to unworked like any other knock, and the sheet must
-         say so rather than show a padlock it cannot honour. */
-      if (eff === "sold") { if (STORE.activeCustomerOf(p, facts)) by.sold++; else by.soldKnock++; return; }
+      if (eff === "sold" && !STORE.activeCustomerOf(p, facts)) by.soldNoRecord++;
       if (by[eff] != null) by[eff]++;
     });
     return by;
   }
 
   const RESET_LIST = ["nothome", "notint"];   // the outcomes a fresh pass returns to blue
-  const resetCount = (c) => c.nothome + c.notint + c.soldKnock;
+  const resetCount = (c) => c.nothome + c.notint;
 
   function row(n, what, arrow, verdict, cls) {
     return `<div class="rs-row ${cls}">
@@ -81,12 +78,13 @@
     $("#rs-sub").textContent =
       `${c.unworked + resetN + c.goback + c.sold + c.dnk} doors · a fresh pass moves one date and deletes nothing`;
     $("#rs-rows").innerHTML =
-      row(c.nothome + c.notint, "Not Home / Not Interested", "→", "Unworked", "reset") +
-      (c.soldKnock ? row(c.soldKnock, "Sold at the door, no customer record", "→", "Unworked", "reset") : "") +
+      row(resetN, "Not Home / Not Interested", "→", "Unworked", "reset") +
       row(c.goback, "Go Back", "→", "DECISION PENDING", "pending") +
-      row(c.sold, "Sold (customer record)", "", `<i class="lock"></i>protected`, "protected sold") +
+      row(c.sold, "Sold", "", `<i class="lock"></i>protected`, "protected sold") +
       row(c.dnk, "Do Not Knock", "", `<i class="lock"></i>protected`, "protected dnk") +
-      row(c.unworked, "Unworked", "", "unchanged", "same");
+      row(c.unworked, "Unworked", "", "unchanged", "same") +
+      /* an integrity flag, not a permission: these stay green */
+      (c.soldNoRecord ? `<div class="rs-integrity">${c.soldNoRecord} sold door${c.soldNoRecord === 1 ? " has" : "s have"} no customer record — kept green. Check ${c.soldNoRecord === 1 ? "it" : "them"} in Customers.</div>` : "");
 
     const btn = $("#rs-confirm");
     const note = $("#rs-note");
@@ -185,7 +183,7 @@
     // read by tests: the exact list Confirm would send, and why it might not
     preview: (t) => {
       const c = tally(t);
-      return { counts: c, reset: RESET_LIST.slice(), parked: c.goback > 0, includeDnk: false, willReset: resetCount(c) };
+      return { counts: c, reset: RESET_LIST.slice(), parked: c.goback > 0, includeDnk: false, willReset: resetCount(c), soldNoRecord: c.soldNoRecord };
     },
   };
 })();

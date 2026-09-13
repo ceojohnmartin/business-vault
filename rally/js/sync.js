@@ -845,7 +845,7 @@
         try {
           if (window.MUI && MUI.toast) {
             MUI.toast("Smart Split is not switched on for the team yet — "
-              + "the hood is unchanged. Nothing was lost.");
+              + "the territory is unchanged. Nothing was lost.");
           }
         } catch (_) {}
         repaint();
@@ -863,7 +863,7 @@
       try {
         if (window.MUI && MUI.toast) {
           MUI.toast((undone ? "“" + undone.name + "” was NOT split" : "The split was refused")
-            + " — the server refused it and the hood is back as it was");
+            + " — the server refused it and the territory is back as it was");
         }
       } catch (_) {}
       await deadLetter({ k: e.k, table: "splits", id: e.id,

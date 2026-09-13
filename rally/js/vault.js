@@ -238,7 +238,7 @@
     if (!p || p.rally !== 1 || !p.data) { toast("That's not a RALLY backup file"); return; }
     const d = p.data;
     const when = p.exportedAt ? new Date(p.exportedAt).toLocaleString() : "unknown date";
-    const what = `${(d.customers || []).length} customers · ${(d.pins || []).length} pins · ${(d.territories || []).length} hoods`;
+    const what = `${(d.customers || []).length} customers · ${(d.pins || []).length} pins · ${(d.territories || []).length} territories`;
     if (!confirm(`Restore the backup from ${when}?\n${what}\n\nRecords merge in by id — matching ones are replaced by the backup's version, nothing else is touched.`)) return;
     try {
       for (const s of STORES) {

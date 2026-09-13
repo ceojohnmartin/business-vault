@@ -28,7 +28,7 @@ const CORE = [
   "./css/app.css?v=46",
   "./vendor/maplibre-gl.js?v=46", "./vendor/maplibre-gl.css?v=46",
   "./js/db.js?v=46", "./js/geom.js?v=46", "./js/geo.js?v=46", "./js/data.js?v=46", "./js/ui.js?v=46", "./js/store.js?v=46",
-  "./js/cloud-config.js?v=46", "./js/cloud.js?v=46", "./js/sync.js?v=46", "./js/realtime.js?v=46",
+  "./js/cloud-config.js?v=46", "./js/mapkit-config.js?v=46", "./js/cloud.js?v=46", "./js/sync.js?v=46", "./js/realtime.js?v=46",
   "./js/auth.js?v=46", "./js/gate.js?v=46",
   "./js/property.js?v=46", "./js/crm.js?v=46",
   "./js/contract.js?v=46",

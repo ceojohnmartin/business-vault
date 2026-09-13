@@ -173,8 +173,8 @@
            <span class="dot" style="background:${u.color}"></span>${esc(u.name)}</button>`),
     ].join("");
     $("#turf-assign-note").textContent = sheetSet.length > 1
-      ? sheetSet.length + " reps on this hood — it appears in all of their lists"
-      : (sheetSet.length ? "" : "Nobody is working this hood right now");
+      ? sheetSet.length + " reps on this territory — it appears in all of their lists"
+      : (sheetSet.length ? "" : "Nobody is working this territory right now");
     $$("#turf-assign-chips .rep-chip").forEach((b) =>
       b.addEventListener("click", () => {
         tick();
@@ -198,7 +198,7 @@
 
   async function saveAssign() {
     if (!sheetHood) return;
-    if (!(await gate("who works a hood"))) return;
+    if (!(await gate("who works a territory"))) return;
     try {
       await STORE.setAssignees(sheetHood, sheetSet);
     } catch (err) {
@@ -228,7 +228,7 @@
     if (window.MRESET) return MRESET.open(t);
     const m = STORE.routeMetrics(t);
     const msg = `Start a fresh pass on ${STORE.hoodLabel(t)}?\n\n` +
-      `${m.worked} worked door${m.worked === 1 ? "" : "s"} go back to unworked so the hood can be ` +
+      `${m.worked} worked door${m.worked === 1 ? "" : "s"} go back to unworked so the territory can be ` +
       `run again.\n\nNothing is deleted: every knock, note, callback and customer stays, ` +
       `do-not-knock doors stay black, and your ${m.priorCustomers} customer` +
       `${m.priorCustomers === 1 ? "" : "s"} here stay green.`;

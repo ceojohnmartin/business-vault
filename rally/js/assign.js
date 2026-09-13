@@ -71,7 +71,7 @@
     $("#assign-list").innerHTML = rows ||
       `<div class="aempty">${$("#assign-search").value.trim()
         ? "No rep by that name."
-        : "No reps yet — add one from the hood sheet."}</div>`;
+        : "No reps yet — add one from the territory sheet."}</div>`;
 
     const btn = $("#assign-save");
     btn.disabled = busy;

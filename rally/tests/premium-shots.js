@@ -498,11 +498,9 @@ async function buildings() {
        is the one MapKit state that can be photographed without an Apple
        Developer token, and it is photographed as itself. */
     await page.evaluate(async () => {
-      STORE.settings.mapEngine = "mapkit";
-      STORE.settings.mapkitToken = "not-a-token-apple-will-accept";
-      await STORE.saveSettings();
+      // the DEVELOPMENT injection point (console only) — no screen carries a token
       MAPP.show("map");
-      await MMAP.init();
+      await MENGINE.devToken("not-a-token-apple-will-accept");
     });
     await page.waitForTimeout(1500);
     await page.evaluate(() => MMAP.resize());
@@ -517,20 +515,13 @@ async function buildings() {
     console.log("  mapkit report:", JSON.stringify(await page.evaluate(() => {
       const r = MMAP.engineReport(); return { engine: r.engine, fellBack: r.fellBack, reason: r.reason };
     })));
-    /* 14: the Map setting that carries the token, photographed AFTER the
-       refusal so its state line says exactly what is blocking Apple's
-       imagery — the token — and nothing else. The field is leader-only. */
-    await page.evaluate(() => MAPP.show("more"));
-    await page.waitForTimeout(500);
-    await page.evaluate(() => document.querySelector("#more-mapengine").click());
+    /* 14: More, as the OWNER — the most privileged role — with no Map row,
+       no engine selector, no token field and no imagery key. Mapping is
+       zero-config for everyone; the token is stamped on the origin at
+       publish time and the app decides which renderer draws. */
+    await page.evaluate(async () => { await MENGINE.devToken(""); MAPP.show("more"); });
     await page.waitForTimeout(700);
-    await shot("14-mapkit-settings");
-    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
-    await page.waitForTimeout(300);
-    await page.evaluate(async () => {
-      STORE.settings.mapEngine = "auto"; STORE.settings.mapkitToken = "";
-      await STORE.saveSettings();
-    });
+    await shot("14-more-no-map-settings");
 
     // ------------------------------------------- MAPKIT DENSITY (REAL TOKEN)
     /* With MAPKIT_TOKEN in the environment these frames are REAL MapKit:
@@ -540,10 +531,8 @@ async function buildings() {
        the token exists. */
     if (process.env.MAPKIT_TOKEN) {
       await page.evaluate(async (tok) => {
-        STORE.settings.mapEngine = "mapkit"; STORE.settings.mapkitToken = tok;
-        await STORE.saveSettings();
         MAPP.show("map");
-        await MMAP.init();
+        await MENGINE.devToken(tok);   // console-only injection; never a screen, never committed
       }, process.env.MAPKIT_TOKEN);
       await page.waitForTimeout(4000);
       const eng = await page.evaluate(() => MMAP.engineReport());

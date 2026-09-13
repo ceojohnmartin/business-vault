@@ -152,7 +152,7 @@
         <button class="fab" id="fab-locate" aria-label="Center on my location">
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
         </button>
-        <button class="fab" id="fab-hoods" aria-label="Hoods — draw rep areas">
+        <button class="fab" id="fab-hoods" aria-label="Territories — draw rep areas">
           <svg viewBox="0 0 24 24"><path d="M4 6.5 9 4l6 2.5L20 4v13.5L15 20l-6-2.5L4 20V6.5Z"/><path d="M14 13.5l5.5-5.5M12.2 15.3l1.1-3.2 3.2-1.1"/></svg>
         </button>
         <button class="fab" id="fab-street" aria-label="Street mode — work one street door by door">
@@ -163,7 +163,7 @@
     </div>
     <!-- the two numbers, and nothing else -->
     <div class="polycard" id="polycard" hidden>
-      <div class="pc-id" id="pc-id">New polygon</div>
+      <div class="pc-id" id="pc-id">New territory</div>
       <div class="pc-nums">
         <span><b id="pc-houses">0</b> Houses</span>
         <span class="pc-sales"><b id="pc-sales">0</b> Sales</span>
@@ -368,8 +368,6 @@
       <button class="more-item" id="more-profile"><span class="ic">👤</span><span><span class="tt">Profile</span><br><span class="dd" id="more-profile-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-goals"><span class="ic">🎯</span><span><span class="tt">Goals &amp; commission</span><br><span class="dd" id="more-goals-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-fr"><span class="ic">🔗</span><span><span class="tt">FieldRoutes connection</span><br><span class="dd" id="more-fr-sub"></span></span><span class="chev">›</span></button>
-      <button class="more-item" id="more-mapengine"><span class="ic">🗺️</span><span><span class="tt">Map</span><br><span class="dd" id="more-mapengine-sub"></span></span><span class="chev">›</span></button>
-      <button class="more-item" id="more-gmaps"><span class="ic">🛰️</span><span><span class="tt">Google map imagery</span><br><span class="dd" id="more-gmaps-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-prop"><span class="ic">🏘️</span><span><span class="tt">Property data</span><br><span class="dd" id="more-prop-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-export"><span class="ic">📤</span><span><span class="tt">Export customers (JSON)</span><br><span class="dd" id="more-export-sub"></span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-csv"><span class="ic">📊</span><span><span class="tt">Export spreadsheet (CSV)</span><br><span class="dd">Opens in Excel, Sheets, or any CRM import</span></span><span class="chev">›</span></button>
@@ -377,7 +375,7 @@
       <button class="more-item" id="more-backup"><span class="ic">🛟</span><span><span class="tt">Backup &amp; restore</span><br><span class="dd" id="more-backup-sub">Everything on this device, in one file</span></span><span class="chev">›</span></button>
       <button class="more-item" id="more-lock"><span class="ic">🔐</span><span><span class="tt">Sign out</span><br><span class="dd" id="more-lock-sub"></span></span><span class="chev">›</span></button>
       <div class="demo-note" id="more-build" style="margin:2px 0 8px"></div>
-      <button class="more-item" id="more-reset"><span class="ic">🗑️</span><span><span class="tt">Erase all data</span><br><span class="dd">Pins, knocks, customers, hoods and files on this device</span></span><span class="chev">›</span></button>
+      <button class="more-item" id="more-reset"><span class="ic">🗑️</span><span><span class="tt">Erase all data</span><br><span class="dd">Pins, knocks, customers, territories and files on this device</span></span><span class="chev">›</span></button>
     </div>
     <p style="font-size:12px;color:var(--t3);text-align:center;margin-top:22px">RALLY · Everything stays on your device and works offline.</p>
   </div>
@@ -608,10 +606,10 @@
       <div id="assign-list" role="group" aria-labelledby="assign-title"></div>
       <div class="afoot">
         <button class="btn btn-gold" id="assign-save" type="button">Use this rep</button>
-        <p class="ahint" id="assign-hint">Applied when you save the hood.</p>
+        <p class="ahint" id="assign-hint">Applied when you save the territory.</p>
         <p class="anote">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>
-          The territory reaches the rep once the hood is saved. Removing a rep later
+          The territory reaches the rep once it is saved. Removing a rep later
           never deletes the turf, its doors, or their history.
         </p>
       </div>
@@ -634,7 +632,7 @@
 
   <div class="sheet" id="turf-assign-sheet">
     <div class="grab"></div>
-    <h3>Who works <span id="turf-assign-title">this hood</span>?</h3>
+    <h3>Who works <span id="turf-assign-title">this territory</span>?</h3>
     <div class="reasons" id="turf-assign-chips"></div>
     <div class="dim" id="turf-assign-note" style="font-size:12.5px;margin-top:6px"></div>
     <div id="turf-assign-history"></div>
@@ -817,7 +815,7 @@
   <div class="sheet" id="team-sheet">
     <div class="grab"></div>
     <h2>Team &amp; roles</h2>
-    <div class="sub">Reps get a territory color; leaders, managers and owners see and cut every hood. “This device” controls whose map this phone shows.</div>
+    <div class="sub">Reps get a territory color; leaders, managers and owners see and cut every territory. “This device” controls whose map this phone shows.</div>
     <div class="sub role-note" id="team-role-note" hidden></div>
     <div id="team-list"></div>
     <div id="team-add-wrap">
@@ -897,7 +895,7 @@
     <div class="sub">Everything inside your circle</div>
     <div class="lasso-break" id="lasso-break"></div>
     <button class="btn btn-gold" id="lasso-route">🧭 Route these doors</button>
-    <button class="btn btn-ghost" id="lasso-hood" style="margin-top:10px">✂️ Make this a hood</button>
+    <button class="btn btn-ghost" id="lasso-hood" style="margin-top:10px">✂️ Make this a territory</button>
     <button class="btn btn-danger" id="lasso-delete" style="margin-top:10px">Delete these pins</button>
   </div>
 
@@ -942,7 +940,7 @@
   <div class="sheet" id="prop-data-sheet">
     <div class="grab"></div>
     <h2>Property data</h2>
-    <div class="sub">Where "Create territory" finds the doors inside your polygon. OpenStreetMap building data works with zero setup; a Regrid token adds owner and parcel records.</div>
+    <div class="sub">Where "Create territory" finds the doors inside your outline. OpenStreetMap building data works with zero setup; a Regrid token adds owner and parcel records.</div>
     <div class="field"><label>Source</label>
       <div class="reasons" id="pd-source">
         <button type="button" class="reason pd-chip" data-s="auto">Auto</button>
@@ -964,7 +962,7 @@
   <div class="sheet" id="backup-sheet">
     <div class="grab"></div>
     <h2>Backup &amp; restore</h2>
-    <div class="sub">One file with every pin, knock, customer, hood, teammate, setting and signed agreement on this device. Restore it on a new phone and pick up where you left off.</div>
+    <div class="sub">One file with every pin, knock, customer, territory, teammate, setting and signed agreement on this device. Restore it on a new phone and pick up where you left off.</div>
     <div class="bk-status" id="bk-status">Checking storage…</div>
     <button class="btn btn-gold" id="bk-backup" style="margin-bottom:10px">⬇️ Back up everything</button>
     <button class="btn btn-ghost" id="bk-restore">⬆️ Restore from a backup file</button>
@@ -1023,39 +1021,6 @@
     <button class="btn btn-gold" id="fr-save">Save</button>
   </div>
 
-  <div class="sheet" id="mapengine-sheet">
-    <div class="grab"></div>
-    <h2>Map</h2>
-    <div class="sub">Apple Maps is the intended RALLY map: Apple satellite imagery under RALLY's own
-      territories and pins. It needs a <b>MapKit JS token</b> from your Apple Developer account —
-      a signed key the office pastes on a leader's device. Without one, RALLY uses the offline-capable map instead,
-      which keeps working with no signal.</div>
-    <div class="field"><label for="set-mapengine">Which map</label>
-      <select id="set-mapengine">
-        <option value="auto">Automatic — Apple when a token is set</option>
-        <option value="mapkit">Apple Maps (MapKit)</option>
-        <option value="maplibre">Offline-capable map</option>
-      </select></div>
-    <!-- the token is entered by the office, not by a rep: hidden unless this
-         device is a leader's -->
-    <div class="field" id="mapengine-token-row"><label for="set-mapkit-token">Apple MapKit JS token <span class="dim">— leader devices only</span></label>
-      <input id="set-mapkit-token" type="password" autocapitalize="off" autocomplete="off" spellcheck="false"
-             placeholder="eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9…"></div>
-    <p class="dim" id="mapengine-state" style="font-size:12.5px;margin:-4px 0 10px"></p>
-    <button class="btn btn-gold" id="mapengine-save">Save &amp; switch map</button>
-    <p style="font-size:12px;color:var(--t3);margin-top:10px">The token is a credential. It is stored
-      only on this device and is never written to a backup, a log or the team server.</p>
-  </div>
-
-  <div class="sheet" id="gmaps-sheet">
-    <div class="grab"></div>
-    <h2>Google map imagery</h2>
-    <div class="sub">The map is always Google — vivid satellite imagery with Google's street labels, powered by the office's built-in key. Paste a different key below only to override it on this device (your Google project needs the <b>Map Tiles API</b> enabled).</div>
-    <div class="field"><label for="set-gkey">Override API key (optional)</label><input id="set-gkey" autocapitalize="off" autocomplete="off" placeholder="Using the built-in office key"></div>
-    <button class="btn btn-gold" id="gmaps-save">Save &amp; switch imagery</button>
-    <p style="font-size:12px;color:var(--t3);margin-top:10px">Stored only on this device. Clear the field to go back to the office key.</p>
-  </div>
-
   <div id="toast" role="status"></div>
 
   <div id="celebrate">
@@ -1079,6 +1044,7 @@
 <script src="js/ui.js?v=46"></script>
 <script src="js/store.js?v=46"></script>
 <script src="js/cloud-config.js?v=46"></script>
+<script src="js/mapkit-config.js?v=46"></script>
 <script src="js/cloud.js?v=46"></script>
 <script src="js/sync.js?v=46"></script>
 <script src="js/realtime.js?v=46"></script>

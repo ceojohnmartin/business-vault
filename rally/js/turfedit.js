@@ -331,7 +331,7 @@
     if (window.MTURF) MTURF.render();
     if (window.MSCHED) MSCHED.render();
     MMAP.refreshPins();
-    toast((t.name || "Hood") + " — outline saved");
+    toast(STORE.hoodLabel(t) + " — outline saved");
   }
 
   window.MTEDIT = { open, close, isOpen: () => !!live };

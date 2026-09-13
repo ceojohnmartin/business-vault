@@ -228,19 +228,25 @@
       features: STORE.activeTerritories()
         .filter((t) => t.points && t.points.length >= 3)
         .map((t) => {
-          const u = t.assignedTo && STORE.userById(t.assignedTo);
+          /* WHO IS ON IT — the whole set, not the first name. A hood can
+             have several reps (a shared turf), and `assignedTo` is only
+             the FIRST of them: reading it here faded a rep's OWN hood on
+             their own map whenever a teammate had been put on it before
+             them, and a manager focusing that rep saw the hood fade too. */
+          const crew = STORE.currentAssignees(t);
+          const names = crew.map((id) => (STORE.userById(id) || {}).name).filter(Boolean);
           // reps see their own turf full-strength; the rest of the market
           // stays visible but faded — "THIS is my area" at a glance.
           // A manager focusing one rep gets the same fade on everyone else.
           const dim = manager
-            ? (emphasizeRep && t.assignedTo !== emphasizeRep ? 1 : 0)
-            : (!me || t.assignedTo !== me.id ? 1 : 0);
+            ? (emphasizeRep && crew.indexOf(emphasizeRep) < 0 ? 1 : 0)
+            : (!me || crew.indexOf(me.id) < 0 ? 1 : 0);
           return {
             type: "Feature",
             geometry: { type: "Polygon", coordinates: [[...t.points, t.points[0]]] },
             properties: {
               id: t.id, name: STORE.hoodLabel(t),
-              rep: u ? u.name : "",
+              rep: names.join(", "),
               /* TURF IS BLUE ON THE REP MAP, and only on the rep map.
 
                  A rep sees exactly one thing here — their own area — so a

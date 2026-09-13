@@ -84,7 +84,66 @@ Run from anywhere (paths are relative to this directory):
                                   # it confirms rather than hiding them behind
                                   # a green tick.
 
+    node tests/assign-ui-test.js  # v42: the assign-rep panel and the polygon
+                                  # card — a way of choosing, never a second
+                                  # way of saving
+    node tests/pin-placement-test.js
+                                  # a pin lands on the roof of an L-shaped
+                                  # house, never in its notch; a parcel point
+                                  # moves onto the building inside its lot
+    node tests/phase5-test.js     # PHASE 5 (no Apple token needed): the
+                                  # Customers screen at 100 / 1,000 / 10,000
+                                  # with the four operational statuses; the
+                                  # Create Customer PAYMENT tab with no raw
+                                  # credential surface; tap-corner drawing
+                                  # with undo/redo; the property review
+                                  # BEFORE a save; Save → the import caller
+                                  # (solo path here, server path below); a
+                                  # rescan that duplicates nothing; a hood
+                                  # saved to two reps and one removed; the
+                                  # territory NUMBER on every screen; the
+                                  # reset / re-knock preview with Go Back
+                                  # parked and Sold / DNK protected; a knock
+                                  # made offline surviving a reload; the
+                                  # engine switch keeping the selected door,
+                                  # callback, note, turf and camera; MapKit →
+                                  # MapLibre falling back loudly; the rep
+                                  # view; the service-worker precache. Every
+                                  # house is the DEMO provider's grid and the
+                                  # suite labels it SYNTHETIC in its output.
+
     sh tests/run-all.sh           # every suite above, with check counts
+
+Two suites stay OUT of run-all.sh because each needs something the battery
+must not assume:
+
+    node tests/mapkit-test.js     # Apple MapKit JS, the REAL library fetched
+                                  # from Apple's CDN: the renderer contract,
+                                  # geometry, clustering, the 401 refusal
+                                  # without a developer token, the fallback,
+                                  # the token never in a backup
+    node tests/import-caller-test.js
+                                  # 0018 LOCAL REPLICA ONLY. The real
+                                  # STORE.importDoorsServer against the real
+                                  # import_territory_doors on a per-run copy
+                                  # of the local PostgreSQL replica: inserts,
+                                  # the idempotent retry, matched-not-
+                                  # duplicated, outside-the-outline, demo and
+                                  # non-residential refusals surfaced as
+                                  # ineligible, a rep refused, the exact
+                                  # allowlisted wire shape. Production does
+                                  # not carry 0018 and this suite never
+                                  # reaches it (asserted: no request to
+                                  # *.supabase.co).
+
+    node tests/premium-shots.js   # not pass/fail: iPhone-size screenshots of
+                                  # the 14 review states over REAL Google
+                                  # imagery and REAL building footprints, with
+                                  # a SIMULATED book of work. With
+                                  # MAPKIT_TOKEN set it also captures REAL
+                                  # Apple MapKit frames at 50/100/250/500
+                                  # pins; without it, it says so and fakes
+                                  # nothing.
 
 Engine coverage: every suite here runs on **Chromium** (the only engine
 installed at /opt/pw-browsers). The service-worker results in

@@ -61,7 +61,14 @@
       `<button type="button" class="reason sf-chip${filter === id ? " sel" : ""}" data-f="${id}">${label}</button>`).join("");
 
     const doors = g.doors.slice().sort((a, b) => a.num - b.num).filter(matches);
-    $("#street-sub").textContent =
+    /* The territory's number leads when the street lies inside one hood —
+       the number is how a rep and a manager talk about turf, and the
+       street sheet was the one door-level screen that did not say it. A
+       street crossing two hoods says neither rather than guess. */
+    const hoods = new Set();
+    g.doors.forEach((d) => { const h = STORE.hoodOf(d.pin); if (h) hoods.add(h); });
+    const one = hoods.size === 1 ? [...hoods][0] : null;
+    $("#street-sub").textContent = (one ? STORE.hoodLabel(one) + " · " : "") +
       `${g.doors.length} known door${g.doors.length === 1 ? "" : "s"} on ${g.name} — unpinned houses between them are fresh`;
     $("#street-list").innerHTML = doors.map((d) => {
       const p = d.pin;

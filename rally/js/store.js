@@ -506,9 +506,16 @@
      landed. Each page carries its own operation id derived from the run's,
      so a retry of page 3 is answered rather than re-imported.
 
-     Returns { added, matched, outside, unusable, pages } and NEVER writes a
-     pin locally: the doors arrive on the next pull, already carrying the
-     ids the whole team will use. */
+     Returns { added, matched, outside, ineligible, unusable, pages } and
+     NEVER writes a pin locally: the doors arrive on the next pull, already
+     carrying the ids the whole team will use.
+
+     ineligible is the server's own refusal count — a demo-grid door or one
+     the provider marked non-residential is skipped, not raised, and comes
+     back under counts.ineligible. The first version of this caller never
+     read it, so a demo door vanished from the confirmation toast as if the
+     server had imported it. It is read now, and reported separately from
+     unusable (bad coordinates), because they are different facts. */
   S.importDoorsServer = async function (props, { territoryId, operationId, onProgress } = {}) {
     if (!territoryId) throw new Error("import: which hood?");
     /* Same three-way decision. There is no server-side import without a
@@ -521,7 +528,7 @@
     }
     const run = operationId || MDB.uid();
     const PAGE = 400;
-    let added = 0, matched = 0, outside = 0, unusable = 0, pages = 0;
+    let added = 0, matched = 0, outside = 0, ineligible = 0, unusable = 0, pages = 0;
     for (let i = 0; i < props.length; i += PAGE) {
       const slice = props.slice(i, i + PAGE).map((p) => ({
         // the wire shape the RPC allowlists — nothing else is sent
@@ -547,11 +554,12 @@
       added += Number(c.inserted || 0);
       matched += Number(c.matched || 0);
       outside += Number(c.outside || 0);
+      ineligible += Number(c.ineligible || 0);
       unusable += Number(c.unusable || 0);
       pages++;
       if (onProgress) onProgress(Math.min(i + PAGE, props.length), props.length);
     }
-    return { added, matched, outside, unusable, pages };
+    return { added, matched, outside, ineligible, unusable, pages };
   };
 
   /* THE DEMO GRID NEVER REACHES A TEAM.

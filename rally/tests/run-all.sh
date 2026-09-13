@@ -3,6 +3,14 @@
 #   NODE_PATH=/opt/node22/lib/node_modules sh rally/tests/run-all.sh
 # The database battery is separate and needs PostgreSQL:
 #   PGHOST=... PGPORT=... sh rally/db/test/run-rls-tests.sh
+# Two more suites are deliberately NOT in the loop below, because each needs
+# something this battery must not assume:
+#   node rally/tests/mapkit-test.js         — Apple's real MapKit JS, fetched live
+#   node rally/tests/import-caller-test.js  — the 0018 LOCAL REPLICA (PostgreSQL)
+# `phase5` is the Phase 5 gate (customers at 10k, the property review and
+# import caller, the numbered territory, the reset preview, the engine switch);
+# `assign-ui` and `pin-placement` are the v42 turf-assignment and rooftop
+# placement gates. All three run on a device with no cloud.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 total=0; failed=0
 # The two transition suites run TWICE: against v38 (the last candidate) and
@@ -34,7 +42,8 @@ sleep 1
 
 for f in release-assets v41-logic smoke auth facade flow2 doors-fix sync realtime cloud-auth font-boot \
          backup-secrets role attribution payment-honesty v40 v41 v41-ui refusals mixed-version \
-         upgrade-transition mixed-version@v37 upgrade-transition@v37 smart-split torture; do
+         upgrade-transition mixed-version@v37 upgrade-transition@v37 smart-split torture \
+         assign-ui pin-placement phase5; do
   base="${f%@v37}"
   t="$DIR/$base.js"; [ -f "$t" ] || t="$DIR/$base-test.js"
   [ -f "$t" ] || { echo "MISSING: $f"; failed=$((failed+1)); continue; }

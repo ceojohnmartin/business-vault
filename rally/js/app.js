@@ -601,12 +601,14 @@
     $("#more-mapengine").addEventListener("click", () => {
       $("#set-mapengine").value = STORE.settings.mapEngine || "auto";
       $("#set-mapkit-token").value = STORE.settings.mapkitToken || "";
+      // a rep can choose the map; only a leader's device carries the token
+      $("#mapengine-token-row").hidden = !STORE.canManageTerritories();
       $("#mapengine-state").textContent = engineState();
       openSheet("mapengine-sheet");
     });
     $("#mapengine-save").addEventListener("click", async () => {
       STORE.settings.mapEngine = $("#set-mapengine").value;
-      STORE.settings.mapkitToken = $("#set-mapkit-token").value.trim();
+      if (STORE.canManageTerritories()) STORE.settings.mapkitToken = $("#set-mapkit-token").value.trim();
       STORE.settings.mapkitLastError = "";
       await STORE.saveSettings();
       closeSheet();
@@ -871,6 +873,7 @@
     MCUST.bind();
     MSCHED.bind();
     MTURF.bind();
+    if (window.MRESET) MRESET.bind();
     MHOODS.bind();
     MROUTE.bind();
     MSTREET.bind();

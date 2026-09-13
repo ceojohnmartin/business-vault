@@ -123,7 +123,8 @@
     const facts = STORE.doorFacts();
     const rows = hoods.map((t) => ({ t, m: STORE.routeMetrics(t, facts) }));
     // the hood with the most left to do leads: that is where a rep goes next
-    rows.sort((a, b) => (b.m.remaining - a.m.remaining) || (a.t.name || "").localeCompare(b.t.name || ""));
+    rows.sort((a, b) => (b.m.remaining - a.m.remaining) ||
+      STORE.hoodLabel(a.t).localeCompare(STORE.hoodLabel(b.t), undefined, { numeric: true }));
     const totalLeft = rows.reduce((n, r) => n + r.m.remaining, 0);
     wrap.hidden = false;
     wrap.innerHTML = `<div class="turf-block">
@@ -212,16 +213,21 @@
     closeSheet();
     if (window.MMAP && MMAP.isReady && MMAP.isReady()) MMAP.refreshHoods();
     render();
-    toast(names.length ? (sheetHood.name || "Hood") + " → " + names.join(", ")
-                       : (sheetHood.name || "Hood") + " is unassigned");
+    toast(names.length ? STORE.hoodLabel(sheetHood) + " → " + names.join(", ")
+                       : STORE.hoodLabel(sheetHood) + " is unassigned");
     sheetHood = null;
   }
 
   // ---------- clear outcomes ----------
 
   async function confirmCycle(t) {
+    /* The premium sheet shows what the pass will do, category by
+       category, before anything is sent — and keeps the Go Back rule
+       parked. The confirm() below is the pre-sheet path, kept for a build
+       without reset.js. */
+    if (window.MRESET) return MRESET.open(t);
     const m = STORE.routeMetrics(t);
-    const msg = `Start a fresh pass on ${t.name || "this hood"}?\n\n` +
+    const msg = `Start a fresh pass on ${STORE.hoodLabel(t)}?\n\n` +
       `${m.worked} worked door${m.worked === 1 ? "" : "s"} go back to unworked so the hood can be ` +
       `run again.\n\nNothing is deleted: every knock, note, callback and customer stays, ` +
       `do-not-knock doors stay black, and your ${m.priorCustomers} customer` +
@@ -236,7 +242,7 @@
     }
     if (window.MMAP && MMAP.isReady && MMAP.isReady()) MMAP.refreshPins();
     render();
-    toast((t.name || "Hood") + " — fresh pass started");
+    toast(STORE.hoodLabel(t) + " — fresh pass started");
   }
 
   // ---------- clearing a do-not-knock ----------

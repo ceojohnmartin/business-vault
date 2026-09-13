@@ -114,7 +114,7 @@
         bestCard = `<div class="ce-sec" style="margin:16px 0 8px">Best area today</div>
           <button class="panel hm-best" id="hm-best" data-tid="${best.t.id}" type="button">
             <h3><span class="dot" style="background:${STORE.hoodColor(best.t)};display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:7px"></span>
-              ${esc(best.t.name)}<span class="r num">${best.score}</span></h3>
+              ${esc(STORE.hoodLabel(best.t))}<span class="r num">${best.score}</span></h3>
             <div class="hm-turf-line">${best.why.map(esc).join(" · ")}${best.rep ? ` · <b>${esc(best.rep)}</b>'s turf` : " · unassigned"}</div>
           </button>`;
       }

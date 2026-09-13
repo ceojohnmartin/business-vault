@@ -245,16 +245,26 @@
       const n = scan.eligible.length;
       const roof = scan.eligible.filter((d) =>
         d.placement === "building_centroid" || d.placement === "building_surface").length;
+      const demo = scan.eligible.filter((d) => d.placement === "synthetic_grid").length;
       const bits = [`${n.toLocaleString()} eligible ${n === 1 ? "house" : "houses"}`];
-      if (roof === n && n) bits.push("every one on a building outline");
+      /* A demo grid is not "parcel-level placement" — it is not placement
+         at all. The strip used to file it under that wording, which made
+         invented houses read as a weak-but-real provider result. */
+      if (demo === n && n) bits.push(`demo grid via ${scan.providerName || "Demo data"} — not real houses`);
+      else if (roof === n && n) bits.push("every one on a building outline");
       else if (roof) bits.push(`${roof} on a building outline, ${n - roof} at a parcel or block point`);
       else if (n) bits.push("none on a building outline — parcel-level placement only");
       if (scan.warnings && scan.warnings.length) bits.push(scan.warnings[0]);
       src.textContent = bits.join(" · ");
       src.hidden = false;
-      src.classList.toggle("warn", roof < n || !!(scan.warnings && scan.warnings.length));
-    } else if (!hood) {
+      src.classList.toggle("warn", roof < n || demo > 0 || !!(scan.warnings && scan.warnings.length));
+    } else {
+      /* No scan for THIS sheet: the strip is blank until one runs. It used
+         to keep the previous polygon's sentence when the hood was a saved
+         one, so "8 eligible houses · demo grid" followed the manager from
+         a draft into Territory 12's sheet. */
       src.hidden = true;
+      src.classList.remove("warn");
     }
 
     if (!hood) { sales.textContent = "0"; if (!scan) houses.textContent = "—"; return; }
@@ -333,7 +343,10 @@
     assignSet = hood ? STORE.currentAssignees(hood).slice()
                      : (preAssign ? [preAssign] : []);
     preAssign = null;
-    $("#hood-sheet-title").textContent = hood ? "Edit territory" : "New territory";
+    /* A saved hood is named by its NUMBER, here as everywhere. "Edit
+       territory" was the one screen that still said what the sheet was
+       for instead of which turf it was about. */
+    $("#hood-sheet-title").textContent = hood ? STORE.hoodLabel(hood) : "New territory";
     $("#hood-sheet-sub").textContent = hood
       ? "Change who works it, or reshape it on the map"
       : "Review what is in it, then hand it out";
@@ -393,21 +406,15 @@
     const idx = STORE.buildDoorIndex();
     const fresh = res.eligible.filter((p) => !idx.match(p));
     const dupes = res.eligible.length - fresh.length;
-    lastScan = { fresh, res, forId: hood ? hood.id : null };
+    /* ONE operation id per scan, minted here and kept across Save retries:
+       the server's import ledger answers a repeated id instead of importing
+       twice, so a dropped response can never double a territory's doors. */
+    lastScan = { fresh, res, forId: hood ? hood.id : null, opId: MDB.uid() };
     showCard(hood, res);                 // the card's house count is the scan's
     fillReview(hood, res);               // …and so is the review strip's
     const acres = Math.max(1, Math.round(res.areaKm2 * 247.105));
-    if (!res.eligible.length) {
-      st.innerHTML = `No residential doors found in this area` +
-        `<br><span class="dim">${res.parcels.length} structure${res.parcels.length === 1 ? "" : "s"} checked · ~${acres} acres · ${MUI.esc(res.providerName)}</span>`;
-      return;
-    }
-    st.innerHTML =
-      `<b>${res.eligible.length} eligible door${res.eligible.length === 1 ? "" : "s"} found</b>` +
-      `<br>${dupes ? `${dupes} already in RALLY · ` : ""}<b>${fresh.length} new</b>` +
-      `${res.excluded ? ` · ${res.excluded} non-residential skipped` : ""} · ~${acres} acres` +
-      `<br><span class="dim">via ${MUI.esc(res.providerName)}</span>` +
-      (res.warnings || []).map((w) => `<br><span class="dim">⚠️ ${MUI.esc(w)}</span>`).join("");
+    renderReview(res, fresh, dupes, acres);
+    if (!res.eligible.length) return;
     if (fresh.length) {
       importOn = !hood; // creating: import is the point, default ON
       const btn = $("#hd-import-btn");
@@ -419,28 +426,148 @@
     }
   }
 
-  async function runImport(territoryId) {
-    if (!lastScan || !lastScan.fresh.length) return { added: 0, skipped: 0, failed: 0 };
-    // an edit-mode scan is bound to its territory; never import it into another
-    if (lastScan.forId && lastScan.forId !== territoryId) return { added: 0, skipped: 0, failed: 0 };
-    const fresh = lastScan.fresh;
+  /* THE REVIEW. What the scan found, where it came from, how sure it is
+     about each house, what it left out, and the number that will actually
+     become doors — every figure the manager needs BEFORE handing the turf
+     out. "N eligible doors found" on its own hid all of that.
+
+     PLACEMENT is the provider's own word for where the point came from:
+       building_centroid / building_surface  the house's outline — exact
+       parcel_centroid                       the lot, not the house
+       parcel_point                          a representative point the
+                                             provider chose — treated as
+                                             uncertain
+       synthetic_grid                        NOT a house (demo), and refused
+                                             by every team server */
+  const EXACT = { building_centroid: 1, building_surface: 1 };
+  const PARCEL = { parcel_centroid: 1 };
+
+  function renderReview(res, fresh, dupes, acres) {
     const st = $("#hd-status");
-    const r = await STORE.importDoors(fresh, {
-      territoryId,
-      onProgress: (i, n) => { if (st) st.textContent = `Importing ${i} of ${n} doors…`; },
+    const rv = $("#hd-review");
+    const all = res.eligible || [];
+    const finite = (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng);
+    let exact = 0, parcel = 0, uncertain = 0, demo = 0;
+    all.forEach((p) => {
+      if (!finite(p)) { uncertain++; return; }
+      if (p.placement === "synthetic_grid") { demo++; return; }
+      if (EXACT[p.placement]) exact++;
+      else if (PARCEL[p.placement]) parcel++;
+      else uncertain++;
     });
+    // the top reasons houses were left out, so "excluded 14" is a sentence
+    const why = {};
+    (res.parcels || []).forEach((p) => {
+      if (p.eligible) return;
+      const k = (p.whyExcluded || "not residential").replace(/^building: /, "");
+      why[k] = (why[k] || 0) + 1;
+    });
+    const reasons = Object.keys(why).sort((a, b) => why[b] - why[a]).slice(0, 3)
+      .map((k) => `${why[k]} ${MUI.esc(k)}`).join(" · ");
+    const team = !!(window.MCLOUD && MCLOUD.enabled());
+    const willImport = team ? fresh.filter((p) => p.placement !== "synthetic_grid").length : fresh.length;
+
+    if (!all.length) {
+      st.innerHTML = `No residential doors found in this area` +
+        `<br><span class="dim">${(res.parcels || []).length} structure${(res.parcels || []).length === 1 ? "" : "s"} checked · ~${acres} acres · ${MUI.esc(res.providerName)}</span>`;
+      if (rv) rv.hidden = true;
+      return;
+    }
+    st.innerHTML = `<b>${all.length} eligible house${all.length === 1 ? "" : "s"} found</b>` +
+      ` <span class="dim">· ~${acres} acres</span>`;
+    if (!rv) return;
+    const line = (k, v, cls) => `<div class="hr-line${cls ? " " + cls : ""}"><span>${k}</span><b>${v}</b></div>`;
+    rv.innerHTML =
+      line("Source", MUI.esc(res.providerName || res.provider || "—")) +
+      line("On the building outline", exact, exact === all.length ? "good" : "") +
+      line("Parcel-level (lot, not house)", parcel, parcel ? "warn" : "") +
+      line("Uncertain coordinates", uncertain, uncertain ? "warn" : "") +
+      (demo ? line("Demo grid — not real houses", demo, "bad") : "") +
+      line("Excluded (not residential)", res.excluded + (reasons ? ` <i>${reasons}</i>` : "")) +
+      line("Already in RALLY (matched, not duplicated)", dupes) +
+      line("Will be imported", willImport, "total") +
+      (res.warnings || []).map((w) => `<div class="hr-warn">${MUI.esc(w)}</div>`).join("") +
+      (demo && team ? `<div class="hr-warn">Demo houses are refused by the team server — pick a real provider in More → Property data.</div>` : "");
+    rv.hidden = false;
+  }
+
+  /* THE IMPORT, AND WHO RECORDS IT.
+
+     A door is a permanent, shared property record, so on a team the SERVER
+     creates it: STORE.importDoorsServer submits the scan as an intent, the
+     0018 RPC matches every house against what the team already holds,
+     refuses anything outside the outline or not residential, and the doors
+     arrive on the next pull carrying the ids every phone will use. With no
+     team server at all this device is the record and STORE.importDoors
+     pins them here.
+
+     WHAT IT NEVER DOES: quietly pin doors on this phone when the server
+     was supposed to. A server that REFUSES (a rep, a bad outline, a demo
+     grid) is an answer, shown as one, and the scan is kept for a retry. A
+     server that does not HAVE the import yet — migration 0018 unapplied —
+     is the one case that falls back to a device import, and it says so in
+     the toast and the status line rather than pretending it was confirmed. */
+  async function runImport(territoryId) {
+    const none = { added: 0, matched: 0, failed: 0, where: "none" };
+    if (!lastScan || !lastScan.fresh.length) return none;
+    // an edit-mode scan is bound to its territory; never import it into another
+    if (lastScan.forId && lastScan.forId !== territoryId) return none;
+    const fresh = lastScan.fresh;
+    const opId = lastScan.opId || (lastScan.opId = MDB.uid());
+    const st = $("#hd-status");
+    const progress = (i, n) => { if (st) st.textContent = `Importing ${i} of ${n} doors…`; };
+
+    const gate = STORE.turfGate({ needsServer: true });
+    if (!gate.ok) {
+      toast(gate.reason, 6000);
+      return Object.assign({}, none, { refused: gate.reason });
+    }
+    let r;
+    if (gate.code === "solo") {
+      const l = await STORE.importDoors(fresh, { territoryId, onProgress: progress });
+      r = { added: l.added, matched: l.skipped, failed: l.failed, synthetic: l.synthetic, where: "device" };
+    } else {
+      try {
+        const s = await STORE.importDoorsServer(fresh, { territoryId, operationId: opId, onProgress: progress });
+        r = { added: s.added, matched: s.matched, outside: s.outside, ineligible: s.ineligible,
+              unusable: s.unusable, pages: s.pages, where: "server" };
+        // the doors exist on the server now; ask for them rather than waiting for the next wake
+        if (window.MSYNC && MSYNC.syncNow) { try { MSYNC.syncNow(); } catch (_) {} }
+      } catch (err) {
+        const msg = String((err && err.message) || err);
+        if (/could not find the function|PGRST202|does not exist/i.test(msg)) {
+          const l = await STORE.importDoors(fresh, { territoryId, onProgress: progress });
+          r = { added: l.added, matched: l.skipped, failed: l.failed, synthetic: l.synthetic, where: "device-fallback" };
+        } else {
+          if (st) st.innerHTML = `<b>Import refused</b> — ${MUI.esc(msg)}`;
+          toast("Import refused — " + msg, 7000);
+          return Object.assign({}, none, { refused: msg });   // lastScan is kept: Save again retries
+        }
+      }
+    }
     lastScan = null;
     MMAP.refreshPins();
+    const n = (k) => `${k} door${k === 1 ? "" : "s"}`;
     if (r.synthetic) {
       /* The demo grid previews the flow on a solo device and is refused on a
          team, because those doors would be permanent shared property records
-         for houses that do not exist. STORE.importDoors makes that call; the
-         manager has to be told why nothing appeared. */
+         for houses that do not exist. */
       toast(`Demo data is a preview, not real houses — it cannot be imported into a team. ` +
         `Pick a real provider in More → Property data.`);
-    } else if (r.failed) toast(`Imported ${r.added} doors — ${r.failed} failed (storage may be full)`);
-    else toast(`Import complete — ${r.added} door${r.added === 1 ? "" : "s"} pinned` +
-      (r.skipped ? ` · ${r.skipped} already existed` : ""));
+    } else if (r.where === "server") {
+      const bits = [`${n(r.added)} imported`];
+      if (r.matched) bits.push(`${r.matched} matched, not duplicated`);
+      if (r.outside) bits.push(`${r.outside} outside the outline`);
+      // the server's own refusals: demo-grid doors and non-residential ones
+      if (r.ineligible) bits.push(`${r.ineligible} refused as not residential or demo`);
+      if (r.unusable) bits.push(`${r.unusable} unusable`);
+      if (st) st.innerHTML = `<b>Server confirmed</b> — ${bits.join(" · ")}`;
+      toast(`Server confirmed — ${bits.join(" · ")}`);
+    } else if (r.where === "device-fallback") {
+      if (st) st.innerHTML = `<b>Imported on this device</b> — queued to sync. The server-confirmed import needs migration 0018.`;
+      toast(`Imported ${n(r.added)} on this device and queued to sync — the server-confirmed import needs migration 0018`, 7000);
+    } else if (r.failed) toast(`Imported ${n(r.added)} — ${r.failed} failed (storage may be full)`);
+    else toast(`Import complete — ${n(r.added)} pinned` + (r.matched ? ` · ${r.matched} already existed` : ""));
     return r;
   }
 
@@ -450,6 +577,13 @@
     scanGen++; // sheet context changed: any scan still in flight is void
     lastScan = null; importOn = false;
     $("#hd-import-row").hidden = true;
+    /* The review describes ONE scan of ONE polygon. Opening a saved hood's
+       sheet after drawing a new one left the new polygon's review — its
+       source line and its "Will be imported" — sitting under the saved
+       hood's title until a rescan replaced it. Nothing survives a change
+       of sheet. */
+    const rv = $("#hd-review");
+    if (rv) { rv.hidden = true; rv.innerHTML = ""; }
     if (!manager || !points || points.length < 3) { wrap.hidden = true; return; }
     wrap.hidden = false;
     $("#hd-redraw").hidden = !!hood;
@@ -737,9 +871,10 @@
     MMAP.refreshHoods();
     closeHoodSheet();
     renderHoodList();
+    const label = STORE.hoodLabel(t) + (name ? ` (${name})` : "");
     toast(imported && imported.added
-      ? `${name} — ${imported.added} doors pinned${who ? ", assigned to " + who : ""}`
-      : (who ? `${name} — assigned to ${who}` : `${name} saved`));
+      ? `${label} — ${imported.added} doors ${imported.where === "server" ? "confirmed by the server" : "pinned"}${who ? ", assigned to " + who : ""}`
+      : (who ? `${label} — assigned to ${who}` : `${label} saved`));
   }
 
   // ---------- manager rep panel ----------
@@ -1033,6 +1168,12 @@
     bind,
     isDrawing: () => mode !== null,
     createFromPoints: (pts) => openHoodSheet(pts, null), // lasso → hood
+    // the saved territory's own sheet, for the screenshot harness and tests
+    openExisting: (id) => {
+      const t = STORE.territories.find((x) => x.id === id);
+      if (t && t.points) openHoodSheet(t.points, t);
+      return !!t;
+    },
     closeTools: () => closeToolsIfOpen(),
     // the real renderer, exported so a test can drive it rather than type
     // the card's own text into the DOM and assert it back

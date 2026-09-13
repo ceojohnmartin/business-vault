@@ -618,6 +618,20 @@
     </section>
   </div>
 
+  <!-- RESET FOR RE-KNOCK: the answer, shown before the question -->
+  <div class="sheet reset" id="reset-sheet">
+    <div class="grab"></div>
+    <div class="rs-head">
+      <div class="ph-mark">FRESH PASS</div>
+      <h2 id="rs-title">Territory</h2>
+      <div class="rs-sub" id="rs-sub"></div>
+    </div>
+    <div class="rs-rows" id="rs-rows"></div>
+    <p class="rs-note" id="rs-note"></p>
+    <button class="btn btn-gold" id="rs-confirm" type="button">Start a fresh pass</button>
+    <button class="btn btn-ghost" id="rs-cancel" type="button" style="margin-top:10px">Cancel</button>
+  </div>
+
   <div class="sheet" id="turf-assign-sheet">
     <div class="grab"></div>
     <h3>Who works <span id="turf-assign-title">this hood</span>?</h3>
@@ -768,6 +782,9 @@
     <div id="hood-doors" hidden>
       <div class="ce-sec" style="margin-top:14px">Doors</div>
       <div class="bk-status" id="hd-status"></div>
+      <!-- the review: source, placement quality, exclusions, duplicates,
+           and the number that will actually become doors -->
+      <div class="hd-review" id="hd-review" hidden></div>
       <div id="hd-import-row" hidden style="margin-bottom:12px">
         <button type="button" class="reason imp-chip" id="hd-import-btn"></button>
       </div>
@@ -780,7 +797,7 @@
     <details class="topt" id="hood-more">
       <summary>Optional details</summary>
       <div class="field"><label for="hood-name">Nickname</label>
-        <input id="hood-name" placeholder="Willow Creek east" autocomplete="off"></div>
+        <input id="hood-name" placeholder="Optional — the number is the name" autocomplete="off"></div>
       <div class="field"><label for="hood-homes">Homes, if you already know the count</label>
         <input id="hood-homes" type="number" inputmode="numeric" min="0" placeholder="e.g. 184"></div>
     </details>
@@ -1019,8 +1036,10 @@
         <option value="mapkit">Apple Maps (MapKit)</option>
         <option value="maplibre">Offline-capable map</option>
       </select></div>
-    <div class="field"><label for="set-mapkit-token">Apple MapKit JS token</label>
-      <input id="set-mapkit-token" autocapitalize="off" autocomplete="off" spellcheck="false"
+    <!-- the token is entered by the office, not by a rep: hidden unless this
+         device is a leader's -->
+    <div class="field" id="mapengine-token-row"><label for="set-mapkit-token">Apple MapKit JS token <span class="dim">— leader devices only</span></label>
+      <input id="set-mapkit-token" type="password" autocapitalize="off" autocomplete="off" spellcheck="false"
              placeholder="eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9…"></div>
     <p class="dim" id="mapengine-state" style="font-size:12.5px;margin:-4px 0 10px"></p>
     <button class="btn btn-gold" id="mapengine-save">Save &amp; switch map</button>
@@ -1085,6 +1104,7 @@
 <script src="js/select.js?v=46"></script>
 <script src="js/home.js?v=46"></script>
 <script src="js/turf.js?v=46"></script>
+<script src="js/reset.js?v=46"></script>
 <script src="js/turfedit.js?v=46"></script>
 <script src="js/schedule.js?v=46"></script>
 <script src="js/stats.js?v=46"></script>

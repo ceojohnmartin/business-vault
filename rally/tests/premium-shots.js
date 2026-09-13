@@ -231,7 +231,12 @@ async function buildings() {
 
       const ring = [[BOX.w, BOX.s], [BOX.e, BOX.s], [BOX.e, BOX.n], [BOX.w, BOX.n]];
       const hood = await STORE.createTerritory(
-        { name: "Territory 12", homes: 0, points: ring }, [me.id]);
+        { name: "", homes: 0, points: ring }, [me.id]);
+      /* SIMULATED: the number is server-assigned (0018 §H) and this device
+         has no server. Stamped here so every screen can show the numbered
+         presentation; nothing else about the record is invented. */
+      hood.seq = 12;
+      await MDB.put("territories", hood);
       window.__hood = hood.id;
 
       const place = window.MPROP && MPROP._placeAt;
@@ -275,6 +280,7 @@ async function buildings() {
         out.knocks++;
       }
       window.__gobacks = mine.filter((p) => p.disposition === "goback").map((p) => p.id);
+      window.__soldPins = mine.filter((p) => p.disposition === "sold").map((p) => p.id);
 
       const FIRST = ["Marcus","Elena","Priya","Tom","Grace","Andre","Nina","Caleb","Rosa","Dmitri",
         "Hannah","Owen","Leila","Victor","Amara","Seth","Jun","Talia","Miles","Freya",
@@ -297,6 +303,11 @@ async function buildings() {
         c.createdAt = c.soldAt;
         c.soldByUserId = reps[i % reps.length];
         c.agreement = { signedAt: c.soldAt, plan: "Quarterly Pest" };
+        /* A sold door IS a customer record: green on the map comes from
+           the customer, and the card's Sales count is customers whose
+           pinId is a door in the hood — so the first sold doors get the
+           first customers, and the two screens agree. */
+        if (i < window.__soldPins.length) c.pinId = window.__soldPins[i];
         const bucket = i % 10;
         if (bucket === 0) c.acct = "canceled";
         else if (bucket <= 4) c.appointments = [{ id: MDB.uid(), ts: c.soldAt + 3 * DAY,
@@ -350,18 +361,18 @@ async function buildings() {
     await goTo(CENTRE.lng, CENTRE.lat, 15.1); // the WHOLE assigned area in frame
     await page.evaluate(() => { MMAP.refreshPins(); MMAP.refreshHoods(); MMAP.updateBrandToday(); });
     await settleMap(20);
-    await shot("05-map-rep-turf");
+    await shot("x1-rep-turf");
 
     await goTo(CENTRE.lng, CENTRE.lat, 17.3); // a whole dense block, pins uncluttered
     await settleMap(16);
-    await shot("06-map-dense-pins");
+    await shot("x2-dense-pins");
 
     await page.evaluate(() => {
       const id = (window.__gobacks || [])[0] || (STORE.pins[0] || {}).id;
       if (id) MMAP.focusPin(id);
     });
     await page.waitForTimeout(2000);
-    await shot("07-door-selected");
+    await shot("x3-door-selected");
     await page.evaluate(() => { MMAP.clearSelection(); MUI.closeSheet && MUI.closeSheet(); });
     await page.waitForTimeout(600);
 
@@ -369,7 +380,7 @@ async function buildings() {
     await beRole("owner");
     await page.evaluate(() => document.querySelector("#fab-hoods").click());
     await page.waitForTimeout(900);
-    await shot("08-manager-tools");
+    await shot("x4-manager-tools");
 
     await page.evaluate(() => document.querySelector("#mt-corners").click());
     await page.waitForTimeout(800);
@@ -378,7 +389,7 @@ async function buildings() {
       await page.waitForTimeout(320);
     }
     await page.waitForTimeout(900);
-    await shot("09-drawing-territory");
+    await shot("05-manager-drawing");
 
     // -------------------------------------------- TERRITORY REVIEW + ASSIGN
     await page.evaluate(() => { MHOODS.closeTools && MHOODS.closeTools(); });
@@ -392,7 +403,10 @@ async function buildings() {
       return el && !el.hidden && (el.textContent || "").trim().length > 0;
     }, null, { timeout: 30000 }).catch(() => {});
     await page.waitForTimeout(900);
-    await shot("10-territory-review");
+    // the numbers the manager reads before saving: the DOORS block in frame
+    await page.evaluate(() => { const d = document.querySelector("#hood-doors"); if (d) d.scrollIntoView({ block: "start" }); });
+    await page.waitForTimeout(400);
+    await shot("06-property-review");
 
     await page.evaluate(() => document.querySelector("#hood-assign-open").click());
     await page.waitForTimeout(900);
@@ -408,7 +422,35 @@ async function buildings() {
       await page.waitForTimeout(250);
     }
     await page.waitForTimeout(600);
-    await shot("11-multi-rep-assign");
+    await shot("07-multi-rep-assign");
+    await page.evaluate(() => window.MASSIGN && MASSIGN.close());
+    await page.waitForTimeout(400);
+    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
+    await page.waitForTimeout(500);
+
+    // ------------------------------------------- THE SAVED, NUMBERED TERRITORY
+    // the manager's sheet for Territory 12 as it exists: number, houses, sales,
+    // who works it — nickname empty, because the number is the name
+    await page.evaluate(() => { const c = document.querySelector("#polycard"); if (c) c.hidden = true; });
+    await page.evaluate(() => MHOODS.openExisting(window.__hood));
+    await page.waitForTimeout(1500);
+    await shot("08-saved-territory");
+    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
+    await page.waitForTimeout(400);
+
+    // ------------------------------------------- RESET / RE-KNOCK PREVIEW
+    // the manager's Route tab → "Clear outcomes" on Territory 12 opens the
+    // preview: what a fresh pass will and will not do, before anything is sent
+    await page.evaluate(() => MAPP.show("schedule"));
+    await page.waitForTimeout(900);
+    await page.evaluate(() => {
+      const b = document.querySelector('#sched-turf .mini[data-act="cycle"]');
+      if (b) b.click();
+    });
+    await page.waitForTimeout(900);
+    await shot("10-reset-preview");
+    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
+    await page.waitForTimeout(400);
     await page.evaluate(() => window.MASSIGN && MASSIGN.close());
     await page.waitForTimeout(500);
     await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
@@ -418,17 +460,24 @@ async function buildings() {
     // back to the rep: Street Mode and Route are their day, not a manager's
     await beRole("rep");
     // the draft polygon card belongs to the drawing that just ended
-    await page.evaluate(() => { const c = document.querySelector("#polycard"); if (c) c.hidden = true; });
+    await page.evaluate(() => { const c = document.querySelector("#polycard"); if (c) c.hidden = true; MAPP.show("map"); });
+    await page.waitForTimeout(600);
     await page.evaluate(() => document.querySelector("#fab-street").click());
     await page.waitForTimeout(1500);
-    await shot("12-street-mode");
+    await shot("11-street-mode");
     await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
     await page.waitForTimeout(500);
 
     // -------------------------------------------------------------- ROUTE
+    // ...and this is the REP receiving Territory 12: their Route tab, their
+    // turf card, the number and nothing else as the name
     await page.evaluate(() => MAPP.show("schedule"));
     await page.waitForTimeout(1400);
-    await shot("13-route");
+    await shot("12-route");
+    // ...and the rep's Home: the numbered turf as the day's best area
+    await page.evaluate(() => MAPP.show("home"));
+    await page.waitForTimeout(1200);
+    await shot("09-rep-territory");
 
     // ---------------------------------------------------------- FRESHNESS
     // freshness is a manager tool and says so — the rep never sees it
@@ -439,20 +488,11 @@ async function buildings() {
     await goTo(CENTRE.lng, CENTRE.lat, 15.4);
     await page.evaluate(() => MMAP.setHeatMode(true));
     await settleMap(20);
-    await shot("14-freshness");
+    await shot("x5-freshness");
     await page.evaluate(() => MMAP.setHeatMode(false));
 
     // ------------------------------------------------ APPLE MAPKIT, HONESTLY
-    // 15: the Map setting that carries the token, showing which map is live
-    await page.evaluate(() => MAPP.show("more"));
-    await page.waitForTimeout(500);
-    await page.evaluate(() => document.querySelector("#more-mapengine").click());
-    await page.waitForTimeout(700);
-    await shot("15-map-settings");
-    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
-    await page.waitForTimeout(300);
-
-    /* 16: what a device with a token Apple REFUSES actually sees. The
+    /* 13: what a device with a token Apple REFUSES actually sees. The
        real library is loaded from Apple's real CDN, mapkit.init() runs,
        Apple answers 401, and RALLY says so and falls back — loudly. This
        is the one MapKit state that can be photographed without an Apple
@@ -473,14 +513,84 @@ async function buildings() {
       if (await page.evaluate(() => !document.querySelector("#gattr").hidden)) break;
     }
     await settleMap(4);
-    await shot("16-mapkit-refused");
+    await shot("13-maplibre-fallback");
     console.log("  mapkit report:", JSON.stringify(await page.evaluate(() => {
       const r = MMAP.engineReport(); return { engine: r.engine, fellBack: r.fellBack, reason: r.reason };
     })));
+    /* 14: the Map setting that carries the token, photographed AFTER the
+       refusal so its state line says exactly what is blocking Apple's
+       imagery — the token — and nothing else. The field is leader-only. */
+    await page.evaluate(() => MAPP.show("more"));
+    await page.waitForTimeout(500);
+    await page.evaluate(() => document.querySelector("#more-mapengine").click());
+    await page.waitForTimeout(700);
+    await shot("14-mapkit-settings");
+    await page.evaluate(() => { MUI.closeSheet ? MUI.closeSheet() : null; });
+    await page.waitForTimeout(300);
     await page.evaluate(async () => {
       STORE.settings.mapEngine = "auto"; STORE.settings.mapkitToken = "";
       await STORE.saveSettings();
     });
+
+    // ------------------------------------------- MAPKIT DENSITY (REAL TOKEN)
+    /* With MAPKIT_TOKEN in the environment these frames are REAL MapKit:
+       Apple satellite under RALLY's pins at 50 / 100 / 250 / 500 doors.
+       Without it they are not captured and are not faked — the whole
+       point of this block is to need no further architecture pass the day
+       the token exists. */
+    if (process.env.MAPKIT_TOKEN) {
+      await page.evaluate(async (tok) => {
+        STORE.settings.mapEngine = "mapkit"; STORE.settings.mapkitToken = tok;
+        await STORE.saveSettings();
+        MAPP.show("map");
+        await MMAP.init();
+      }, process.env.MAPKIT_TOKEN);
+      await page.waitForTimeout(4000);
+      const eng = await page.evaluate(() => MMAP.engineReport());
+      console.log("  mapkit engine:", JSON.stringify({ engine: eng.engine, fellBack: eng.fellBack, reason: eng.reason }));
+      if (eng.engine === "mapkit") {
+        for (const n of [50, 100, 250, 500]) {
+          const density = await page.evaluate(async (n) => {
+            /* The first n doors of the REAL footprint set, handed to the
+               renderer in memory only — nothing is written, and the full
+               book comes back after the frame. When the neighbourhood has
+               fewer real rooftops than n, the balance is SYNTHETIC: copies
+               of real doors offset ~25 m, flagged as such, so the frame
+               still shows n pins and the caption says how many are real. */
+            window.__allPins = window.__allPins || STORE.pins;
+            const real = window.__allPins.slice(0, n);
+            let synthetic = 0;
+            while (real.length < n) {
+              const src = window.__allPins[real.length % window.__allPins.length];
+              const k = Math.floor(real.length / window.__allPins.length) + 1;
+              real.push(Object.assign({}, src, { id: src.id + "-syn" + k, lat: src.lat + 0.00022 * k, lng: src.lng + 0.0003 * k, _synthetic: true }));
+              synthetic++;
+            }
+            STORE.pins = real;
+            MMAP.refreshPins();
+            return { shown: real.length, real: real.length - synthetic, synthetic };
+          }, n);
+          console.log(`  mk-${n}: ${density.shown} pins — ${density.real} on real footprints` +
+            (density.synthetic ? `, ${density.synthetic} SYNTHETIC offsets` : ""));
+          await page.evaluate(() => MMAP.resize());
+          await goTo(CENTRE.lng, CENTRE.lat, n <= 100 ? 17.3 : 16.6);
+          await settleMap(12);
+          await shot(`mk-${n}-pins`);
+        }
+        // the whole book back, exactly as seeded
+        await page.evaluate(() => { if (window.__allPins) { STORE.pins = window.__allPins; window.__allPins = null; MMAP.refreshPins(); } });
+        await page.evaluate(() => {
+          const id = (window.__gobacks || [])[0] || (STORE.pins[0] || {}).id;
+          if (id) MMAP.focusPin(id);
+        });
+        await page.waitForTimeout(2500);
+        await shot("mk-door-selected");
+      } else {
+        console.log("  MAPKIT: token present but engine did not start —", eng.reason);
+      }
+    } else {
+      console.log("  MAPKIT DENSITY FRAMES: BLOCKED BY APPLE MAPKIT TOKEN — set MAPKIT_TOKEN to capture mk-50/100/250/500");
+    }
 
     console.log(`== done == tiles ok: ${tiles} | tiles failed: ${tileFail}`);
   } catch (e) {

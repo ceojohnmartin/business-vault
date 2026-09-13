@@ -40,7 +40,7 @@ const CORE = [
   "./js/map-pin.js?v=46", "./js/map-render-gl.js?v=46",
   "./js/map-render-mk.js?v=46", "./js/map-engine.js?v=46", "./js/map.js?v=46", "./js/assign.js?v=46", "./js/hoods.js?v=46", "./js/customers.js?v=46",
   "./js/route.js?v=46", "./js/street.js?v=46", "./js/select.js?v=46",
-  "./js/home.js?v=46", "./js/turf.js?v=46", "./js/turfedit.js?v=46", "./js/schedule.js?v=46", "./js/stats.js?v=46",
+  "./js/home.js?v=46", "./js/turf.js?v=46", "./js/reset.js?v=46", "./js/turfedit.js?v=46", "./js/schedule.js?v=46", "./js/stats.js?v=46",
   "./js/vault.js?v=46", "./js/app.js?v=46",
   "./fonts/Noto Sans Bold/0-255.pbf", "./fonts/Noto Sans Bold/256-511.pbf",
   "./img/wordmark.svg", "./img/topo.svg",

@@ -378,8 +378,9 @@ input::placeholder,textarea::placeholder{color:var(--t3)}
 #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);
   bottom:calc(var(--tab-h) + var(--safe-b) + 18px);z-index:120;background:#17181A;color:#fff;
   border:1px solid #17181A;border-radius:999px;padding:11px 22px;font-size:14px;font-weight:600;
-  opacity:0;pointer-events:none;transition:all .25s ease;white-space:nowrap;max-width:92vw;
-  overflow:hidden;text-overflow:ellipsis;box-shadow:0 8px 24px rgba(16,24,40,.25)}
+  opacity:0;pointer-events:none;transition:all .25s ease;white-space:normal;max-width:92vw;
+  text-align:center;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  border-radius:18px;box-shadow:0 8px 24px rgba(16,24,40,.25)}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
 /* sale celebration */
@@ -1754,3 +1755,45 @@ body.has-sync-chip .legend.heat{bottom:calc(var(--tab-h) + var(--safe-b) + 58px)
   box-shadow:0 0 0 6px rgba(10,108,240,.22),0 1px 4px rgba(16,24,40,.3)}
 .mktemp{width:18px;height:18px;border-radius:50%;background:rgba(94,160,255,.25);
   border:2px solid #5EA0FF}
+
+
+/* ================= PROPERTY REVIEW ================= */
+.hd-review{margin:8px 0 12px;border:1px solid var(--hair);border-radius:var(--r-md);
+  background:var(--s1);overflow:hidden}
+.hr-line{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+  padding:9px 12px;border-bottom:1px solid var(--hair);font-size:13.5px;color:var(--t2)}
+.hr-line:last-child{border-bottom:none}
+.hr-line b{font-variant-numeric:tabular-nums;color:var(--t1);font-weight:700;text-align:right}
+.hr-line b i{font-style:normal;font-weight:500;color:var(--t3);font-size:12px;margin-left:6px}
+.hr-line.good b{color:var(--sold-ink)}
+.hr-line.warn b{color:#B45309}
+.hr-line.bad b{color:var(--notint-ink)}
+.hr-line.total{background:var(--s2);font-weight:650;color:var(--t1)}
+.hr-line.total b{font-size:16px}
+.hr-warn{padding:8px 12px;font-size:12.5px;color:#7A4B00;background:#FFF7E6;border-top:1px solid var(--hair)}
+
+/* ================= RESET FOR RE-KNOCK ================= */
+.sheet.reset{max-height:86vh;overflow-y:auto}
+.rs-head h2{margin:2px 0 4px}
+.rs-sub{font-size:13px;color:var(--t3);margin-bottom:14px}
+.rs-rows{border:1px solid var(--hair);border-radius:var(--r-lg);background:var(--s1);overflow:hidden;margin-bottom:12px}
+.rs-row{display:grid;grid-template-columns:44px 1fr 18px auto;align-items:center;gap:8px;
+  padding:12px 14px;border-bottom:1px solid var(--hair);font-size:14.5px}
+.rs-row:last-child{border-bottom:none}
+.rs-n{font-size:20px;font-weight:750;letter-spacing:-.02em;color:var(--t1)}
+.rs-what{color:var(--t1);font-weight:600}
+.rs-arrow{color:var(--t3);text-align:center}
+.rs-to{font-weight:700;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;
+  display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border-radius:999px}
+.rs-row.reset .rs-to{background:var(--blue-dim);color:var(--blue-ink)}
+.rs-row.pending .rs-to{background:#FFF1D6;color:#8A5300}
+.rs-row.protected .rs-to{background:var(--s2);color:var(--t2)}
+.rs-row.protected.sold .rs-to{background:rgba(34,181,88,.13);color:var(--sold-ink)}
+.rs-row.protected.dnk .rs-to{background:#111;color:#fff}
+.rs-row.same .rs-to{background:transparent;color:var(--t3);text-transform:none;letter-spacing:0;font-weight:600}
+/* a padlock, drawn — protected must read as protected at a glance */
+.rs-to .lock{display:inline-block;width:9px;height:7px;border-radius:2px;background:currentColor;position:relative;margin-top:3px}
+.rs-to .lock::before{content:"";position:absolute;left:1.5px;top:-5px;width:6px;height:6px;
+  border:1.5px solid currentColor;border-bottom:none;border-radius:4px 4px 0 0;box-sizing:border-box}
+.rs-note{font-size:13px;color:var(--t2);margin:0 0 14px;line-height:1.45}
+#rs-confirm:disabled{opacity:.5}

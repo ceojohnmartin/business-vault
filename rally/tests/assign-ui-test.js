@@ -150,7 +150,7 @@ const server = http.createServer((req, res) => {
       !/save/i.test(await page.textContent("#assign-save")),
       await page.textContent("#assign-save"));
     check("the hint says where the save actually happens",
-      /save the hood/i.test(await page.textContent("#assign-hint")));
+      /save the territory/i.test(await page.textContent("#assign-hint")));
     await page.evaluate(() => window.MASSIGN.close());
 
     section("a failing save keeps the panel open with the reason");
@@ -200,7 +200,7 @@ const server = http.createServer((req, res) => {
         .filter((el) => !el.hidden)
         .map((el) => el.textContent).join(" ").replace(/\s+/g, " ").trim());
     const cardText = await visibleCardText();
-    check("it reads exactly the two numbers", cardText === "Polygon 10 of 100 563 Houses 68 Sales", cardText);
+    check("it reads exactly the two numbers", cardText === "Territory 10 of 100 563 Houses 68 Sales", cardText);
     check("no drive time, coverage or acreage on it",
       !/drive|acre|%|residential|vacant/i.test(cardText));
     check("the card is actually visible", await page.evaluate(() =>
@@ -231,7 +231,7 @@ const server = http.createServer((req, res) => {
     check("the card is labelled as this device's own",
       await page.evaluate(() => !document.querySelector("#pc-note").hidden));
     check("and it does not invent an 'of M' the server never issued",
-      (await page.textContent("#pc-id")).trim() === "Polygon 10",
+      (await page.textContent("#pc-id")).trim() === "Territory 10",
       await page.textContent("#pc-id"));
     await page.evaluate(async () => {
       STORE.territorySummary = async () => ({

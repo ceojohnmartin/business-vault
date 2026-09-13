@@ -247,7 +247,7 @@ async function reopen(page) {
   const rowText = await page.$eval("#refused-list", (e) => e.textContent);
   check("B6 the hood is named, not shown as an id", /Cypress Bend/.test(rowText), rowText.slice(0, 200));
   check("B7 the reason is the one a rep can act on",
-    /role may not save hoods/i.test(rowText), rowText.slice(0, 300));
+    /role may not save territories/i.test(rowText), rowText.slice(0, 300));
   check("B8 the op is shown as a save", /Save/.test(rowText));
   check("B9 the raw detail is there for whoever is diagnosing",
     rowText.includes(hoodId) && /territories/.test(rowText) && /403/.test(rowText));
@@ -326,7 +326,7 @@ async function reopen(page) {
   });
   await reopen(page);
   const oldText = await page.$eval("#refused-list", (e) => e.textContent);
-  check("E1 it still lists", /A hood/.test(oldText), oldText.slice(0, 200));
+  check("E1 it still lists", /A territory/.test(oldText), oldText.slice(0, 200));
   check("E2 and says 'Sent' rather than inventing an op",
     /Sent/.test(oldText) && !/Save|Delete/.test(oldText), oldText.slice(0, 200));
   check("E3 a record the device no longer holds is said plainly",
@@ -389,7 +389,7 @@ async function reopen(page) {
     /outline crosses itself/.test(jText) && /Move a corner/.test(jText), jText.slice(0, 300));
   check("J2 and its `turf:` prefix is not shown to the rep", !/turf:/.test(jText));
   check("J3 PostgREST's own jargon does NOT become the headline",
-    /role may not save hoods/.test(jText), jText.slice(0, 400));
+    /role may not save territories/.test(jText), jText.slice(0, 400));
   check("J4 but it is still there on the diagnostic line",
     /row-level security policy/.test(jText));
   await page.click("#refused-copy");

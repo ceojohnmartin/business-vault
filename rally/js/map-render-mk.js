@@ -63,6 +63,7 @@
   let hoodOverlays = [];
   let hoodLabels = [];
   let pinAnnos = [];
+  let clusterEls = new Set();   // every bubble element MapKit asked us to build
   let pinById = new Map();
   let routeOverlay = null, routeStops = [];
   let draftOverlay = null, draftDots = [];
@@ -233,6 +234,7 @@
         const d = document.createElement("div");
         d.className = "mkpin-cluster";
         d.textContent = n > 999 ? Math.round(n / 1000) + "k" : String(n);
+        clusterEls.add(d);
         return d;
       }, { data: { cluster: true, n }, collisionMode: mapkit.Annotation.CollisionMode.Circle });
     };
@@ -332,9 +334,15 @@
   /* One CSS variable carries the zoom curve to every pin at once. Setting
      a transform on 900 elements per frame is what makes a DOM-annotation
      map feel slow; setting one custom property does not. */
-  function applyPinScale() {
+  /* zOverride: a programmatic move knows its TARGET zoom, and MapKit's
+     map.region still reports the OLD region for a tick after
+     setRegionAnimated — so a decision read back from the map at that
+     instant is one move stale. The real-token proof caught exactly that:
+     jumping from street level to zoom 14.6 left clustering OFF, and the
+     next jump back to street level switched it ON. */
+  function applyPinScale(zOverride) {
     if (!el) return;
-    const z = getZoom();
+    const z = zOverride != null ? zOverride : getZoom();
     el.style.setProperty("--mkpin-s", MPIN.scaleAt(z).toFixed(3));
     el.style.setProperty("--mkpin-ssel", MPIN.scaleAtSelected(z).toFixed(3));
     el.classList.toggle("mk-dots", z < 16.5);
@@ -412,9 +420,9 @@
      actually changes. */
   const CLUSTER_BELOW = 15;
   let clusterMode = null;   // true = clustering, false = every pin shown
-  function applyClusterMode() {
+  function applyClusterMode(zOverride) {
     if (!map) return;
-    const want = getZoom() < CLUSTER_BELOW;
+    const want = (zOverride != null ? zOverride : getZoom()) < CLUSTER_BELOW;
     if (want === clusterMode) return;
     clusterMode = want;
     const CM = mapkit.Annotation.CollisionMode;
@@ -425,6 +433,27 @@
         a.clusteringIdentifier = want && !sel ? "door" : null;
       } catch (_) {}
     });
+    if (!want) dropClusters();
+  }
+
+  /* GHOST BUBBLES. Taking the clustering identifier off the members does
+     not make MapKit take its cluster annotations down: the real-token proof
+     zoomed from a clustered view to street level and found 280 bubble
+     elements still in the DOM, 30 of them visible over the houses. So the
+     bubbles are removed by hand the moment clustering switches off — every
+     cluster annotation still on the map, and every element the factory
+     built — and MapKit builds fresh ones the next time it clusters. */
+  function dropClusters() {
+    if (!map) return;
+    try {
+      const stale = (map.annotations || []).filter((a) => a.data && a.data.cluster);
+      if (stale.length) map.removeAnnotations(stale);
+    } catch (_) {}
+    /* The elements stay MapKit's to detach — pulling them out by hand made
+       its own teardown throw (removeChild on a node it no longer owned).
+       Anything it leaves standing is hidden, never removed. */
+    clusterEls.forEach((d) => { try { if (d.isConnected) d.style.display = "none"; } catch (_) {} });
+    clusterEls = new Set();
   }
 
   /* SELECTION CHANGES TWO PINS, NOT TWO THOUSAND. The first version
@@ -599,13 +628,27 @@
     try { const c = map.convertPointOnPageToCoordinate(new DOMPoint(x, y)); return { lng: c.longitude, lat: c.latitude }; }
     catch (_) { return null; }
   }
+  /* ONE deferred re-check per programmatic move, from the region as it
+     actually is once MapKit has applied it. The first version armed a
+     timeout that re-applied the move's OWN target zoom, so a focusPin
+     (animating to 17.5) followed within 60 ms by a jump to 14.6 had the
+     stale timer switch clustering back off after the jump had switched
+     it on. The immediate decision uses the target; the settle reads the
+     map; a newer move cancels an older settle. */
+  let camT = 0;
+  function settleLater() {
+    clearTimeout(camT);
+    camT = setTimeout(() => { camT = 0; applyPinScale(); applyClusterMode(); }, 80);
+  }
   function jumpTo(lng, lat, zoom) {
     if (!map) return;
     const z = zoom != null ? zoom : getZoom();
     map.setRegionAnimated(new mapkit.CoordinateRegion(C(lng, lat), spanFromZoom(z, lat)), false);
-    // a programmatic move does not always end in region-change-end; decide now
-    applyPinScale();
-    applyClusterMode();
+    // a programmatic move does not always end in region-change-end; decide
+    // now, from the zoom being moved TO, and settle from the map after
+    applyPinScale(z);
+    applyClusterMode(z);
+    settleLater();
   }
   function easeTo(o) {
     if (!map) return;
@@ -625,7 +668,9 @@
       lat = lat - (o.offsetY / H()) * span.latitudeDelta;
     }
     map.setRegionAnimated(new mapkit.CoordinateRegion(C(lng, lat), spanFromZoom(z, lat)), o.animate !== false);
-    setTimeout(() => { applyPinScale(); applyClusterMode(); }, 60);
+    applyPinScale(z);
+    applyClusterMode(z);
+    settleLater();
   }
   function fitBounds(bbox, padding, maxZoom) {
     if (!map) return;
@@ -635,8 +680,10 @@
     const span = new mapkit.CoordinateSpan(
       clamp(Math.abs(n - s) * pad, 0.00005, 170), clamp(Math.abs(e - w) * pad, 0.00005, 350));
     map.setRegionAnimated(new mapkit.CoordinateRegion(C(lng, lat), span), true);
-    if (maxZoom != null) setTimeout(() => {
-      if (getZoom() > maxZoom) jumpTo(lng, lat, maxZoom);
+    clearTimeout(camT);
+    camT = setTimeout(() => {
+      camT = 0;
+      if (maxZoom != null && getZoom() > maxZoom) { jumpTo(lng, lat, maxZoom); return; }
       applyPinScale();
       applyClusterMode();
     }, 320);
@@ -657,7 +704,7 @@
       try { el.innerHTML = ""; } catch (_) {}
     }
     map = null; booted = false;
-    hoodOverlays = []; hoodLabels = []; pinAnnos = []; pinById = new Map();
+    hoodOverlays = []; hoodLabels = []; pinAnnos = []; pinById = new Map(); clusterEls = new Set();
     routeOverlay = null; routeStops = []; draftOverlay = null; draftDots = [];
     puckAnno = null; tempAnno = null; selectedId = ""; lastPinFC = null; clusterMode = null;
   }
@@ -697,5 +744,8 @@
     } : null),
     _zoomMath: { zoomFromSpan, spanFromZoom },
     _hitTest: hitTest,
+    // diagnostics for the proof harness and tests only — never read by the app
+    _debug: () => ({ map, clusterMode, zoom: getZoom(), w: W(), h: H(),
+      span: map ? { lat: map.region.span.latitudeDelta, lng: map.region.span.longitudeDelta } : null }),
   };
 })();

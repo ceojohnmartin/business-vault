@@ -34,7 +34,42 @@
 
    MAPKIT_TOKEN=… NODE_PATH=/opt/node22/lib/node_modules node rally/tests/mapkit-proof.js */
 const { chromium } = require("playwright");
-const fs = require("fs"), path = require("path");
+const fs = require("fs"), path = require("path"), zlib = require("zlib");
+
+/* IS THERE IMAGERY UNDER THE PINS? MapKit paints tiles into canvases, so
+   counting <img> elements says nothing. This reads the PNG the browser
+   just wrote and measures the map area's luminance spread: Apple's
+   satellite ground is a high-entropy field, an unauthorized/blank map is
+   one flat colour. */
+function pngStats(buf, x0, y0, x1, y1) {
+  let pos = 8, w = 0, h = 0, colorType = 6; const idat = [];
+  while (pos + 8 <= buf.length) {
+    const len = buf.readUInt32BE(pos), type = buf.toString("ascii", pos + 4, pos + 8), data = buf.subarray(pos + 8, pos + 8 + len);
+    if (type === "IHDR") { w = data.readUInt32BE(0); h = data.readUInt32BE(4); colorType = data[9]; }
+    else if (type === "IDAT") idat.push(data); else if (type === "IEND") break;
+    pos += 12 + len;
+  }
+  const bpp = colorType === 6 ? 4 : colorType === 2 ? 3 : colorType === 4 ? 2 : 1;
+  const raw = zlib.inflateSync(Buffer.concat(idat)); const stride = w * bpp; const out = Buffer.alloc(h * stride); let prev = Buffer.alloc(stride);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)], line = raw.subarray(y * (stride + 1) + 1, (y + 1) * (stride + 1)), cur = out.subarray(y * stride, (y + 1) * stride);
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? cur[i - bpp] : 0, b = prev[i], c = i >= bpp ? prev[i - bpp] : 0; let v = line[i];
+      if (f === 1) v += a; else if (f === 2) v += b; else if (f === 3) v += (a + b) >> 1;
+      else if (f === 4) { const pp = a + b - c, pa = Math.abs(pp - a), pb = Math.abs(pp - b), pc = Math.abs(pp - c); v += (pa <= pb && pa <= pc) ? a : (pb <= pc ? b : c); }
+      cur[i] = v & 255;
+    }
+    prev = cur;
+  }
+  const vals = [];
+  for (let y = y0; y < Math.min(y1, h); y += 5) for (let x = x0; x < Math.min(x1, w); x += 5) { const o = y * stride + x * bpp; vals.push(0.299 * out[o] + 0.587 * out[o + 1] + 0.114 * out[o + 2]); }
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const sd = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length);
+  const flat = vals.filter((v) => Math.abs(v - mean) < 4).length / vals.length;
+  return { mean: +mean.toFixed(1), sd: +sd.toFixed(1), flat: +flat.toFixed(2), samples: vals.length };
+}
+// the map area of a 390x844 frame at 2x: below the top card, above the tabs
+const imagery = (file) => pngStats(fs.readFileSync(file), 0, 420, 780, 1480);
 const ROOT = path.join(__dirname, "..");
 const SHOTS = process.env.SHOTS || "/tmp/mapkit-proof";
 const CACHE = "/tmp/rally-shot-cache";
@@ -265,14 +300,15 @@ async function buildings() {
         c: r.renderer && r.renderer.counts ? r.renderer.counts() : null };
     }, CENTRE);
     await settle(16);
-    const tiles1 = await tilesLoaded();
     report.appleAuthorized = !!(boot.c && boot.c.authorized);
     report.mapkitVersion = boot.version + (boot.build ? " (build " + boot.build + ")" : "");
     check("RALLY's MapKit renderer is the live engine (no fallback)", boot.engine === "mapkit" && !boot.fellBack, JSON.stringify({ engine: boot.engine, fellBack: boot.fellBack, reason: boot.reason }));
     check("Apple AUTHORIZED the domain-restricted token", boot.c && boot.c.authorized === true, JSON.stringify({ authorized: boot.c && boot.c.authorized, appleStatuses: apple.statuses }));
     check("Apple's real library: version " + report.mapkitVersion, !!boot.version, boot.version);
-    check("satellite imagery actually rendered (Apple image tiles proxied and painted)", apple.images > 0 && tiles1 > 0 && boot.c && /Satellite/i.test(String(boot.c.mapType)),
-      JSON.stringify({ appleImages: apple.images, tilesPainted: tiles1, mapType: boot.c && boot.c.mapType }));
+    await page.screenshot({ path: `${SHOTS}/00-probe.png` });
+    const probe = imagery(`${SHOTS}/00-probe.png`); fs.unlinkSync(`${SHOTS}/00-probe.png`);
+    check("satellite imagery actually rendered (Apple image tiles proxied AND the map area is a real picture, not a flat colour)", apple.images > 0 && boot.c && /satellite/i.test(String(boot.c.mapType)) && probe.sd > 20 && probe.flat < 0.5,
+      JSON.stringify({ appleImages: apple.images, mapType: boot.c && boot.c.mapType, pixels: probe }));
     console.log(`  map initialization: ${boot.ms} ms (MMAP.init → live map) · Apple responses ok=${apple.ok} refused=${apple.refused} failed=${apple.failed}`);
     if (!(boot.c && boot.c.authorized)) {
       console.log("\nApple did NOT authorize this token from this origin — stopping here rather than photographing a blank map. Statuses: " + JSON.stringify(apple.statuses));
@@ -291,7 +327,11 @@ async function buildings() {
 
     // ------------------------------------------------ 2. DENSITIES
     section("2. Density: 50 / 100 / 250 / 500 doors on REAL APPLE SATELLITE");
-    await page.evaluate(() => { window.__allPins = STORE.pins; });
+    await page.evaluate((C) => {
+      // the n NEAREST doors to the centre: a density frame is a neighbourhood, not a scatter
+      const d2 = (p) => (p.lng - C.lng) ** 2 + ((p.lat - C.lat) * 1.28) ** 2;
+      window.__allPins = STORE.pins.slice().sort((a, b) => d2(a) - d2(b));
+    }, CENTRE);
     for (const n of [50, 100, 250, 500]) {
       const d = await page.evaluate(async ({ n, CENTRE }) => {
         const all = window.__allPins;
@@ -307,15 +347,19 @@ async function buildings() {
         const t = performance.now();
         await MMAP.init();                                   // a fresh engine per density: teardown + recreate measured too
         const init = Math.round(performance.now() - t);
-        MMAP.jumpTo(CENTRE.lng, CENTRE.lat, n <= 100 ? 17.3 : 16.6);
+        // frame the n doors: their centroid, at a zoom that holds them
+        const cx = real.reduce((a, p) => a + p.lng, 0) / real.length, cy = real.reduce((a, p) => a + p.lat, 0) / real.length;
+        const zoomFor = { 50: 17.6, 100: 17.1, 250: 16.5, 500: 16.0 }[n];
+        MMAP.jumpTo(cx, cy, zoomFor);
+        window.__frame = { cx, cy, zoomFor };
         await new Promise((r) => setTimeout(r, 300));
         // frame pacing while the camera animates: rAF intervals over ~1.2 s of easeTo
         const frames = []; let last = performance.now(); let stop = false;
         const loop = (ts) => { frames.push(ts - last); last = ts; if (!stop) requestAnimationFrame(loop); }; requestAnimationFrame(loop);
         const R = MMAP.engineReport().renderer;
-        R.easeTo({ lng: CENTRE.lng + 0.004, lat: CENTRE.lat + 0.002, zoom: R.getZoom(), animate: true });
+        R.easeTo({ lng: cx + 0.003, lat: cy + 0.0015, zoom: zoomFor, animate: true });
         await new Promise((r) => setTimeout(r, 600));
-        R.easeTo({ lng: CENTRE.lng, lat: CENTRE.lat, zoom: R.getZoom() + 0.6, animate: true });
+        R.easeTo({ lng: cx, lat: cy, zoom: zoomFor + 0.6, animate: true });
         await new Promise((r) => setTimeout(r, 600)); stop = true;
         const fps = frames.length > 2 ? Math.round(1000 / (frames.slice(1).reduce((a, b) => a + b, 0) / (frames.length - 1))) : null;
         const worst = frames.length ? Math.round(Math.max(...frames.slice(1))) : null;
@@ -324,12 +368,16 @@ async function buildings() {
         const ts0 = performance.now(); MMAP.focusPin(pin.id);
         let selMs = null; for (let i = 0; i < 100; i++) { if (R.counts().selected === pin.id) { selMs = Math.round(performance.now() - ts0); break; } await new Promise((r) => setTimeout(r, 10)); }
         MMAP.clearSelection(); MUI.closeSheet();
-        // clustering below the threshold; none at street level
-        MMAP.jumpTo(CENTRE.lng, CENTRE.lat, 14.6); await new Promise((r) => setTimeout(r, 700));
-        const low = { clustering: R.counts().clustering, pins: document.querySelectorAll("#map .mkpin").length, clusters: document.querySelectorAll("#map .mkpin-cluster").length };
-        MMAP.jumpTo(CENTRE.lng, CENTRE.lat, 17.6); await new Promise((r) => setTimeout(r, 700));
-        const high = { clustering: R.counts().clustering, pins: document.querySelectorAll("#map .mkpin").length, clusters: document.querySelectorAll("#map .mkpin-cluster").length };
-        MMAP.jumpTo(CENTRE.lng, CENTRE.lat, n <= 100 ? 17.3 : 16.6);
+        await new Promise((r) => setTimeout(r, 500));   // let the focus animation land, as a thumb would
+        // clustering below the threshold; none at street level (Apple's DOM settles a beat after the region)
+        // bubbles that are actually SHOWING (MapKit keeps hidden elements around); pins by element count
+        const visible = (sel) => Array.from(document.querySelectorAll(sel)).filter((e) => { const cs = getComputedStyle(e); return cs.visibility !== "hidden" && cs.display !== "none" && cs.opacity !== "0" && e.getBoundingClientRect().width > 0; }).length;
+        const dom = () => ({ pins: document.querySelectorAll("#map .mkpin").length, clusters: visible("#map .mkpin-cluster"), clusterEls: document.querySelectorAll("#map .mkpin-cluster").length });
+        MMAP.jumpTo(cx, cy, 14.6); await new Promise((r) => setTimeout(r, 1200));
+        const low = Object.assign({ clustering: R.counts().clustering }, dom());
+        MMAP.jumpTo(cx, cy, 17.6); await new Promise((r) => setTimeout(r, 1200));
+        const high = Object.assign({ clustering: R.counts().clustering }, dom());
+        MMAP.jumpTo(cx, cy, zoomFor);
         const mem1 = performance.memory ? performance.memory.usedJSHeapSize : null;
         mk.setPins = rp; mk.setHoods = rh;
         const c = R.counts();
@@ -337,17 +385,28 @@ async function buildings() {
           annotations: c.pins, overlays: c.hoods, canvases: c.canvases, authorized: c.authorized, memMB: mem1 != null ? +(mem1 / 1048576).toFixed(1) : null, memDeltaMB: mem0 != null && mem1 != null ? +((mem1 - mem0) / 1048576).toFixed(1) : null };
       }, { n, CENTRE });
       await settle(10);
-      d.tilesPainted = await tilesLoaded();
+      const frame = `0${[50, 100, 250, 500].indexOf(n) + 2}-REAL-MAPKIT-${n}-doors` + (d.synthetic ? `-SYNTHETIC-${d.real}-real` : "");
+      await shot(frame);
+      d.imagery = imagery(`${SHOTS}/${frame}.png`);
       report.densities.push(d);
-      check(`${n} doors: ${d.annotations} annotations on the map, Apple still authorized, imagery painted`, d.annotations === n && d.authorized && d.tilesPainted > 0, JSON.stringify({ annotations: d.annotations, authorized: d.authorized, tiles: d.tilesPainted }));
-      check(`${n} doors: clusters below zoom 15 (${d.low.clusters} bubbles), every pin its own at street level (${d.high.pins} pins, 0 bubbles)`, d.low.clustering === true && d.high.clustering === false && d.high.clusters === 0 && d.high.pins === n, JSON.stringify({ low: d.low, high: d.high }));
+      check(`${n} doors: ${d.annotations} annotations on the map, Apple still authorized, satellite imagery painted under them (luminance sd ${d.imagery.sd}, flat ${d.imagery.flat})`, d.annotations === n && d.authorized && d.imagery.sd > 20 && d.imagery.flat < 0.5, JSON.stringify({ annotations: d.annotations, authorized: d.authorized, imagery: d.imagery }));
+      check(`${n} doors: clustered below zoom 15 (${d.low.clusters} bubbles showing), every pin its own at street level (${d.high.pins} pins, ${d.high.clusters} bubbles showing, ${d.high.clusterEls} bubble elements left)`, d.low.clustering === true && d.low.clusters > 0 && d.high.clustering === false && d.high.clusters === 0 && d.high.pins === n, JSON.stringify({ low: d.low, high: d.high }));
       check(`${n} doors: selecting a door answers in ${d.selMs} ms`, d.selMs != null && d.selMs < 1500, JSON.stringify({ selMs: d.selMs }));
       console.log(`  ${n} doors → init ${d.init} ms · annotations ${d.pinsMs} ms · overlay ${d.hoodsMs} ms · ~${d.fps} fps (worst frame ${d.worstFrame} ms) · select ${d.selMs} ms · heap ${d.memMB} MB (Δ ${d.memDeltaMB})` + (d.synthetic ? ` · ${d.synthetic} SYNTHETIC offsets` : " · all real rooftops"));
-      await shot(`0${[50, 100, 250, 500].indexOf(n) + 2}-REAL-MAPKIT-${n}-doors` + (d.synthetic ? `-SYNTHETIC-${d.real}-real` : ""));
     }
     await page.evaluate(() => { STORE.pins = window.__allPins; MMAP.refreshPins(); });
-    const tear = await page.evaluate(async () => { await MMAP.init(); await MMAP.init(); const c = MMAP.engineReport().renderer.counts(); return { canvases: c.canvases, maps: document.querySelectorAll("#map > *").length, pins: document.querySelectorAll("#map .mkpin").length, annotations: c.pins }; });
-    check("teardown / recreate: after repeated boots there is ONE map, one set of annotations, no leftovers", tear.pins === tear.annotations && tear.maps <= 3, JSON.stringify(tear));
+    const tear = await page.evaluate(async () => {
+      const base = MMAP.engineReport().renderer.counts().canvases;
+      await MMAP.init(); await MMAP.init();
+      const f = window.__frame; MMAP.jumpTo(f.cx, f.cy, 16.6);   // look at the doors: MapKit builds annotation DOM a beat later
+      for (let i = 0; i < 40 && !document.querySelector("#map .mkpin"); i++) await new Promise((r) => setTimeout(r, 200));
+      // MapKit adds a transient canvas while tiles fade in; watch the count settle rather than read it once
+      const canvasTrend = []; for (let i = 0; i < 6; i++) { canvasTrend.push(document.querySelectorAll("#map canvas").length); await new Promise((r) => setTimeout(r, 500)); }
+      const c = MMAP.engineReport().renderer.counts();
+      return { base, canvasTrend, roots: document.querySelectorAll("#map > *").length, pins: document.querySelectorAll("#map .mkpin").length, annotations: c.pins, stalePins: document.querySelectorAll("#map .mkpin").length - c.pins };
+    });
+    check("teardown / recreate: after repeated boots there is ONE map root (the old map was torn down), its annotations rendered once, no leftover pins", tear.roots === 1 && tear.pins > 0 && tear.stalePins === 0 && tear.annotations === tear.pins, JSON.stringify(tear));
+    console.log(`  canvases after a double boot: ${tear.canvasTrend.join(" → ")} (a single boot had ${tear.base}; MapKit keeps a transient tile-fade canvas while imagery loads)`);
 
     // ------------------------------------------------ 3. SELECTED DOOR
     section("3. Selected door, outcome pins, callback indicator (REAL APPLE MAPKIT)");

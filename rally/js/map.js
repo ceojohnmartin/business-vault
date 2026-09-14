@@ -376,7 +376,11 @@
         lng: p.lng, lat: p.lat, zoom: Math.max(R.getZoom(), 17.5),
         // the property card covers ~2/3 of the screen — put the pin in the
         // strip above it
-        offsetY: Math.round(innerHeight * 0.22),
+        /* The card covers the lower ~74% of the screen; the pin goes to the
+           MIDDLE of the strip above it (map centre at 50%, strip middle
+           near 13%: a nudge of ~0.35). 0.22 left the pin tip touching the
+           sheet edge in the real-MapKit proof frame. */
+        offsetY: Math.round(innerHeight * 0.35),
       });
     }
     openLead(p);

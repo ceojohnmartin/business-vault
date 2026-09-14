@@ -94,7 +94,7 @@ async function buildings() {
   const q = `[out:json][timeout:90];way["building"](${BOX.s},${BOX.w},${BOX.n},${BOX.e});out tags geom;`;
   for (const host of ["overpass.kumi.systems", "overpass-api.de", "overpass.osm.ch"]) {
     try {
-      const r = await fetch(`https://${host}/api/interpreter`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      const r = await fetch(`https://${host}/api/interpreter`, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json", "User-Agent": "RALLY-proof-harness/1.0" },
         body: "data=" + encodeURIComponent(q), signal: AbortSignal.timeout(150000) });
       if (!r.ok) continue;
       const els = ((await r.json()).elements || []).filter((e) => (e.geometry || []).length >= 4);

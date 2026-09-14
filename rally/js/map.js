@@ -973,8 +973,21 @@
         STORE.saveSettings();
         updateHint();
       });
-      // signal returning is the moment to fetch a session and light imagery up
-      addEventListener("online", () => reloadImagery());
+      /* SIGNAL LOST → the offline-capable map, automatically, with every
+         door, the turf, the selection and the queue intact (they live in
+         the store, not in a renderer). SIGNAL BACK → Apple again when the
+         origin carries a token, and a fresh Google session for MapLibre
+         either way. Apple satellite is never claimed to work offline. */
+      addEventListener("offline", () => {
+        if (MENGINE.name() !== "mapkit") return;
+        MENGINE.appleLost(true);
+        toast("No signal — using the offline-capable map", 5000);
+        init();
+      });
+      addEventListener("online", () => {
+        if (MENGINE.appleLost()) { MENGINE.appleLost(false); init(); return; }
+        reloadImagery();
+      });
       $("#brand-hood").addEventListener("click", () => {
         const t = STORE.territories.find((x) => x.id === stripHoodId);
         if (t) focusHood(t);

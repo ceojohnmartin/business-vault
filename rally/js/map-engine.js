@@ -48,7 +48,14 @@
      toasts them. There is no engine setting; the old mapEngine key, if a
      device still carries one, is ignored. */
   const token = () => ((window.RALLY_MAPKIT && window.RALLY_MAPKIT.token) || STORE.settings.mapkitToken || "").trim();
-  function wanted() { return token() ? "mapkit" : "maplibre"; }
+  /* APPLE IS A LIVE SERVICE. When the signal goes, or Apple stops
+     answering mid-shift, the map does not sit blank: map.js flags Apple
+     as lost and re-boots, and this answers MapLibre until the signal is
+     back. Apple's imagery is never claimed to work offline — the
+     offline-capable map is the one drawing cached ground. */
+  let appleLost = false;
+  const online = () => (typeof navigator === "undefined" || navigator.onLine !== false);
+  function wanted() { return token() && !appleLost && online() ? "mapkit" : "maplibre"; }
 
   let inflight = null;    // the boot running now
   let queued = null;      // the opts of a boot asked for while one was running
@@ -138,6 +145,7 @@
        network, which is exactly what boot() answers. */
     available: () => ({ maplibre: !!GL(), mapkit: !!MK() }),
     hasToken: () => !!token(),
+    appleLost: (v) => { if (typeof v === "boolean") appleLost = v; return appleLost; },
     /* DEVELOPMENT ONLY — the one injection point, and it is not a screen.
        From the console: MENGINE.devToken("<token>") to try Apple on this
        device, MENGINE.devToken("") to clear. The value is written to the

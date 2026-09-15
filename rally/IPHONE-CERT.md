@@ -1,5 +1,11 @@
 # RALLY v39 — real-iPhone certification
 
+> **Step B (2026-09-15): the isolated iPhone preview.** The Phase 5 build is
+> certified on a phone at `https://ceojohnmartin.github.io/business-vault/rally-preview/`,
+> a copy that shares nothing with production — see `PREVIEW.md` for the
+> isolation controls, the publish steps and the acceptance list. Nothing in
+> the v39/v40 record below changes.
+
 > **This v39 certification PASSED on 2026-09-02** (v37 → v39 on the real
 > phone; the reliable update path was force-closing RALLY from the app
 > switcher and reopening). The v39 database cutover then completed through

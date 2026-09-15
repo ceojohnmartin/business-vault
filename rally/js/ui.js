@@ -15,10 +15,17 @@
   }
   function closeSheet() {
     if (!openSheetId) return;
-    const el = $("#" + openSheetId);
+    const was = openSheetId;
+    const el = $("#" + was);
     if (el) el.classList.remove("open");
     $("#veil").classList.remove("open");
     openSheetId = null;
+    /* Whoever owns the sheet gets to tidy up after it, whichever path
+       closed it — the veil, the grab, another sheet opening over it, or its
+       own button. The territory sheet's card and its map selection used to
+       outlive a grab-close because only its own close path knew to clear
+       them. */
+    try { document.dispatchEvent(new CustomEvent("rally:sheet-closed", { detail: { id: was } })); } catch (_) {}
   }
 
   // ---------- toast ----------

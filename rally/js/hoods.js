@@ -126,7 +126,7 @@
     $("#draw-undo").hidden = true;
     $("#draw-redo").hidden = true;
     $("#draw-done").hidden = true;
-    const f = $("#draw-find"); if (f) f.hidden = false;
+    const f = $("#draw-find"); if (f) { f.hidden = false; f.textContent = "Find houses"; }
     $("#draw-msg").textContent = "Area complete — tap inside it to find the houses";
     setToolState();
     return true;
@@ -345,7 +345,12 @@
       id.textContent = sum.seq ? sum.seq + (sum.of ? " of " + sum.of : "") : "—";
       if (!scan) houses.textContent = sum.houses;
       sales.textContent = sum.sales;
-      const local = sum.source === "device";
+      /* "Counted on this device" is a statement that the TEAM's answer
+         could not be reached. On a device with no team server there is no
+         team answer to reach — the device IS the record — so saying it
+         there would tell a solo manager (and the isolated preview) that
+         something is missing when nothing is. */
+      const local = sum.source === "device" && !!(window.MCLOUD && MCLOUD.enabled());
       $("#hood-review").classList.toggle("local", local);
       if (local && src.hidden) {
         src.textContent = "Counted on this device — the team's numbers need a connection";
@@ -396,7 +401,7 @@
          numbers are this phone's own partial copy. It is labelled rather
          than shown as if it were the team's, because a leader deciding
          whether a hood is worked cannot tell the difference otherwise. */
-      const local = sum.source === "device";
+      const local = sum.source === "device" && !!(window.MCLOUD && MCLOUD.enabled());   // see fillReview
       $("#pc-houses").textContent = sum.outlineMissing ? "—" : sum.houses;
       $("#pc-sales").textContent = sum.sales;
       $("#polycard").classList.toggle("local", local);
@@ -502,6 +507,14 @@
   function presentScan(hood, scan) {
     const { fresh, res, dupes } = scan;
     lastScan = scan;
+    // the bar over the map now describes what the tap found, not what to do
+    if (!hood && area && $("#draw-bar")) {
+      const n = importableOf(fresh).length;
+      $("#draw-msg").textContent = n
+        ? `${n} house${n === 1 ? "" : "s"} found — tap the area to review, Save keeps them`
+        : "No houses found in this area — Clear it and draw again";
+      const f = $("#draw-find"); if (f) f.textContent = n ? "Review" : "Find houses";
+    }
     // the houses go on the map NOW, as the blue pins Save will keep — the
     // ones already in RALLY are already pinned, so only the new ones
     MMAP.setPreviewDoors(importableOf(fresh));
@@ -1195,6 +1208,13 @@
   }
 
   function bind() {
+    // the sheet closed by ANY path (veil, grab, another sheet): the card
+    // and the map selection go with it; a completed area stays tappable
+    document.addEventListener("rally:sheet-closed", (e) => {
+      if (!e.detail || e.detail.id !== "hood-sheet") return;
+      hideCard();
+      MMAP.selectHood(null);
+    });
     $("#fab-hoods").addEventListener("click", () => {
       tick();
       if (toolsOpen()) closeTools(); else openTools();

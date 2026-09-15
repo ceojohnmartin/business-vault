@@ -51,14 +51,44 @@
   const inRing = (ring, lng, lat) => MGEO.inRing(ring, lng, lat);
 
   // ---------- eligibility (rules live in data.js, not here, not the UI) ----------
-  function osmEligibility(tags) {
+  function osmEligibility(tags, ctx) {
     const b = (tags.building || "").toLowerCase();
     if (R.osm.eligible[b]) return { eligible: true, propertyType: R.osm.eligible[b] };
     if (R.osm.excluded.includes(b)) return { eligible: false, whyExcluded: "building: " + b, propertyType: b };
-    // building=yes with a residential address tag → treat as a home;
-    // building=yes with nothing else is unknowable → excluded, counted
+    // building=yes with a residential address tag → treat as a home
     if (tags["addr:housenumber"]) return { eligible: true, propertyType: "Home" };
+    /* building=yes with nothing else: inferred from the footprint when the
+       outline is house-sized and nothing on it says otherwise (the rule and
+       its numbers live in data.js). Said plainly as inferred. */
+    const inf = R.osmInferred;
+    if (inf && ctx && (b === "yes" || b === "")) {
+      const named = !!tags.name;
+      const useTag = inf.nonHomeTags.find((k) => tags[k] != null);
+      if (useTag) return { eligible: false, whyExcluded: "not a home: " + useTag, propertyType: b || "building" };
+      if (named) return { eligible: false, whyExcluded: "named building", propertyType: b || "building" };
+      if (ctx.landuse && inf.nonHomeLanduse.includes(ctx.landuse)) {
+        return { eligible: false, whyExcluded: ctx.landuse + " area", propertyType: b || "building" };
+      }
+      const m2 = ctx.areaM2 || 0;
+      if (m2 && m2 < inf.minM2) return { eligible: false, whyExcluded: "outbuilding (under " + inf.minM2 + " m²)", propertyType: "outbuilding" };
+      if (m2 > inf.maxM2) return { eligible: false, whyExcluded: "large building (over " + inf.maxM2 + " m²)", propertyType: "large building" };
+      if (m2) return { eligible: true, propertyType: inf.label, inferred: true };
+    }
     return { eligible: false, whyExcluded: "unclassified building", propertyType: b || "building" };
+  }
+
+  // square metres of an outline given as [{lat,lon}] — a local-plane
+  // approximation, plenty for a size band
+  function ringM2(pts) {
+    if (!pts || pts.length < 3) return 0;
+    const lat0 = pts.reduce((a, p) => a + p.lat, 0) / pts.length;
+    const kx = 111320 * Math.cos(lat0 * Math.PI / 180), ky = 110570;
+    let a = 0;
+    for (let i = 0, n = pts.length; i < n; i++) {
+      const p = pts[i], q = pts[(i + 1) % n];
+      a += (p.lon * kx) * (q.lat * ky) - (q.lon * kx) * (p.lat * ky);
+    }
+    return Math.abs(a / 2);
   }
 
   function regridEligibility(fields) {
@@ -271,6 +301,13 @@
   const buildingQuery = (poly) => `[out:json][timeout:25];
 (way["building"](poly:"${poly}");relation["building"](poly:"${poly}"););
 out tags geom;`;
+  /* The same request, plus whatever landuse polygons touch the ring — the
+     context the inferred-home rule reads. A landuse area that surrounds the
+     ring without crossing it is not returned by a poly filter, so landuse
+     is EVIDENCE when present and never a requirement. */
+  const searchQuery = (poly) => `[out:json][timeout:25];
+(way["building"](poly:"${poly}");relation["building"](poly:"${poly}");way["landuse"](poly:"${poly}"););
+out tags geom;`;
 
   const polyOf = (ring) =>
     ring.map(([lng, lat]) => lat.toFixed(6) + " " + lng.toFixed(6)).join(" ");
@@ -315,14 +352,24 @@ out tags geom;`;
 
        So: ask for geometry. A relation carries its rings on its MEMBERS
        rather than at the top level, and placeAt reads those. */
-    const j = await overpass(buildingQuery(poly), onStatus, "Searching properties…");
-    const els = (j && j.elements) || [];
+    const j = await overpass(searchQuery(poly), onStatus, "Searching properties…");
+    const all = (j && j.elements) || [];
+    // landuse polygons are context for the buildings, never doors themselves
+    const landuses = all.filter((el) => el.tags && el.tags.landuse && !el.tags.building)
+      .map((el) => ({ kind: String(el.tags.landuse).toLowerCase(), ring: ringOf(el.geometry) || relationRing(el) }))
+      .filter((l) => l.ring && l.ring.length >= 3);
+    const landuseAt = (lon, lat) => {
+      const hit = landuses.find((l) => inGeom(l.ring, lon, lat));
+      return hit ? hit.kind : null;
+    };
+    const els = all.filter((el) => el.tags && el.tags.building != null);
     const out = els.map((el) => {
       const place = placeAt(el);
       const c = place.point;
       if (!c || !inRing(ring, c.lon, c.lat)) return null;
       const tags = el.tags || {};
-      const elig = osmEligibility(tags);
+      const outline = ringOf(el.geometry) || relationRing(el);
+      const elig = osmEligibility(tags, { areaM2: outline ? ringM2(outline) : 0, landuse: landuseAt(c.lon, c.lat) });
       const addr = [tags["addr:housenumber"], tags["addr:street"]].filter(Boolean).join(" ");
       return {
         externalId: "osm-" + el.type + "-" + el.id,
@@ -335,6 +382,7 @@ out tags geom;`;
         zip: tags["addr:postcode"] || "",
         propertyType: elig.propertyType || null,
         eligible: elig.eligible, whyExcluded: elig.whyExcluded || null,
+        inferred: !!elig.inferred,   // the review says so; the door records its type
         owner: null, // OSM carries no ownership data
         yearBuilt: null, sqft: null, lotSqft: null,
         lastSaleDate: null, lastSalePrice: null,
@@ -550,7 +598,9 @@ out tags geom;`;
   };
 
   function activeName() {
-    const pick = STORE.settings.propertySource || "auto";
+    let pick = STORE.settings.propertySource || "auto";
+    // the isolated preview finds real houses or none — never a grid
+    if (pick === "demo" && window.RALLY_PREVIEW) pick = "auto";
     if (pick !== "auto" && PROVIDERS[pick]) return pick;
     return regridToken() ? "regrid" : "osm";
   }
@@ -610,6 +660,8 @@ out tags geom;`;
     // lands on an L-shaped roof rather than in its notch — and that a parcel
     // point moves onto the building inside its own lot
     _placeAt: placeAt,
+    _osmEligibility: osmEligibility,
+    _ringM2: ringM2,
     _snapToBuildings: snapToBuildings,
     _ringArea: ringArea,
     _inGeoJson: inGeoJson };

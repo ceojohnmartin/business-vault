@@ -86,6 +86,39 @@
         /right[-\s]?of[-\s]?way/i, /common\s*area/i,
       ],
     },
+    /* INFERRED HOMES. In most of the United States the OpenStreetMap
+       footprint of a house is tagged building=yes and nothing else — county
+       and Microsoft imports drew the roof but never said what it was. In a
+       measured Overland Park subdivision 1,743 of 1,748 outlines carry that
+       bare tag, so a rule that needs building=house finds four houses in a
+       neighbourhood of seventeen hundred. That is not "no residential doors".
+
+       The footprint IS property-location truth: the outline is real, the
+       pin lands on the roof. What is inferred is only WHAT it is, and the
+       inference is said out loud on the review ("inferred from footprint
+       size") rather than dressed up as a classified house. The rule:
+
+         building=yes (or unset on a building way), no address, and
+           no tag that names a non-home use (amenity, shop, office,
+           leisure, tourism, craft, industrial, healthcare, public_transport,
+           man_made, aeroway, military, power) and no `name`
+           (a named bare building is a church, a clubhouse, a business)
+         AND the outline's area is house-sized: 40–600 m². Below 40 m² is a
+           shed or a garage; above 600 m² is an apartment block, a school or
+           a store (that same subdivision: p10 152 m², median 184 m², p90
+           244 m², the school 4,772 m²).
+         AND, when the map carries landuse around it, that landuse is not
+           commercial / retail / industrial.
+
+       A parcel centroid is never called a rooftop by this rule or any
+       other: it only ever runs on a building outline. */
+    osmInferred: {
+      minM2: 40, maxM2: 600,
+      nonHomeTags: ["amenity", "shop", "office", "leisure", "tourism", "craft", "industrial",
+        "healthcare", "public_transport", "man_made", "aeroway", "military", "power", "emergency"],
+      nonHomeLanduse: ["commercial", "retail", "industrial", "railway", "military", "quarry"],
+      label: "Home (inferred from footprint)",
+    },
     // draw guard: refuse to scan absurdly large areas (protects the free
     // provider and keeps imports neighborhood-sized)
     maxAreaKm2: 9,

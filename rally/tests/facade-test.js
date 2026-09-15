@@ -74,7 +74,17 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
   const pinsNow = await page.evaluate(() => STORE.pins.length);
   check("draw taps created no knock pins", pinsNow === 0, "pins="+pinsNow);
   await page.click("#draw-done"); await page.waitForTimeout(400);
-  check("Done opens the territory sheet", await page.$eval("#hood-sheet", e => e.classList.contains("open") || !e.hidden));
+  /* DONE COMPLETES THE AREA; IT DOES NOT OPEN THE SHEET. The finished shape
+     stays on the map, solid, and the TAP inside it is what opens the
+     territory sheet — through the same onTap the knock uses. */
+  const done = await page.evaluate(() => ({
+    sheet: document.querySelector("#hood-sheet").classList.contains("open"),
+    area: (MHOODS.pendingArea() || []).length, drawing: MHOODS.isDrawing(),
+    facade: (MMAP.pendingArea() || []).length, msg: document.querySelector("#draw-msg").textContent }));
+  check("Done completes the area (4 corners on the facade, draw mode over) and opens NO sheet", !done.sheet && done.area === 4 && done.facade === 4 && !done.drawing && /tap inside/i.test(done.msg), JSON.stringify(done));
+  await page.mouse.click(195, 420); await page.waitForTimeout(500);   // inside the rectangle
+  check("a tap INSIDE the completed area opens the territory sheet", await page.$eval("#hood-sheet", e => e.classList.contains("open")));
+  check("…and it is not a knock", !(await page.evaluate(() => document.querySelector("#knock-sheet").classList.contains("open"))));
   // cancel out, then let the sheet finish sliding away — a tap during the
   // close animation lands on the sheet, not the map (same settle every
   // other suite gives closeSheet)
@@ -82,6 +92,12 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
   await page.waitForTimeout(400);
   const modeAfter = await page.evaluate(() => MHOODS.isDrawing());
   check("draw mode ended after Done", modeAfter === false);
+  await page.mouse.click(200, 430); await page.waitForTimeout(500);
+  check("while the area is still waiting, a tap inside it opens the territory again — not a knock",
+    await page.$eval("#hood-sheet", e => e.classList.contains("open")) && !(await page.evaluate(() => document.querySelector("#knock-sheet").classList.contains("open"))));
+  await page.evaluate(() => MUI.closeSheet()); await page.waitForTimeout(400);
+  await page.click("#draw-cancel"); await page.waitForTimeout(300);   // Clear takes the area away
+  check("Clear removes the completed area from the facade", (await page.evaluate(() => MMAP.pendingArea())) === null);
   await page.mouse.click(200, 430); await page.waitForTimeout(600);
   const sheetOpen = await page.evaluate(() => document.querySelector("#knock-sheet").classList.contains("open"));
   check("normal map tap opens knock sheet again", sheetOpen === true);

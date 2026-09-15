@@ -6,6 +6,15 @@
    neighborhoods keep working offline. */
 const CACHE = "rally-v46";
 const TILE_CACHE = "rally-tiles-v1";
+/* THE CACHE FAMILY. Cache Storage is per-ORIGIN, not per-scope: a second
+   copy of RALLY served beside this one (the isolated preview build lives at
+   /rally-preview/ on the same origin) sees the same cache names. The
+   activate step below used to delete every cache that was not this
+   worker's own two — which, on a shared origin, is the other app's offline
+   shell. It now only ever removes caches from its OWN family, and the
+   preview build rewrites all three of these strings to a family of its
+   own ("rallyp5-…"), so neither worker can touch the other's caches. */
+const FAMILY = "rally-";
 const TILE_LIMIT = 1400; // street + retina satellite + label overlays share this cache
 const NET_TIMEOUT_MS = 3500;
 
@@ -27,7 +36,7 @@ const CORE = [
   "./", "./index.html", "./manifest.webmanifest",
   "./css/app.css?v=46",
   "./vendor/maplibre-gl.js?v=46", "./vendor/maplibre-gl.css?v=46",
-  "./js/db.js?v=46", "./js/geom.js?v=46", "./js/geo.js?v=46", "./js/data.js?v=46", "./js/ui.js?v=46", "./js/store.js?v=46",
+  "./js/preview-config.js?v=46", "./js/db.js?v=46", "./js/geom.js?v=46", "./js/geo.js?v=46", "./js/data.js?v=46", "./js/ui.js?v=46", "./js/store.js?v=46",
   "./js/cloud-config.js?v=46", "./js/mapkit-config.js?v=46", "./js/cloud.js?v=46", "./js/sync.js?v=46", "./js/realtime.js?v=46",
   "./js/auth.js?v=46", "./js/gate.js?v=46",
   "./js/property.js?v=46", "./js/crm.js?v=46",
@@ -55,7 +64,7 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((k) => k !== CACHE && k !== TILE_CACHE).map((k) => caches.delete(k))))
+        keys.filter((k) => k.startsWith(FAMILY) && k !== CACHE && k !== TILE_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

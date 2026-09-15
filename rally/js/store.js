@@ -49,6 +49,25 @@
       });
     }),
   ]).then(async () => {
+    /* THE ISOLATED PREVIEW SEEDS A NAMED DEMO TEAM. A tester needs a manager
+       to draw with and reps to hand turf to, and every one of them must be
+       unmistakably synthetic. This runs only when js/preview-config.js was
+       stamped by the preview build (RALLY_PREVIEW.demo) and only into an
+       EMPTY database — the preview's own, never production's. */
+    const PV = window.RALLY_PREVIEW;
+    if (!S.users.length && PV && PV.demo) {
+      const now = Date.now();
+      const team = [
+        { name: "Preview Manager", role: "manager" },
+        { name: "Demo Rep A", role: "rep" }, { name: "Demo Rep B", role: "rep" }, { name: "Demo Rep C", role: "rep" },
+      ].map((u, i) => Object.assign({ id: MDB.uid(), color: MDATA.HOOD_COLORS[i % MDATA.HOOD_COLORS.length], createdAt: now + i }, u));
+      S.users = team;
+      S.settings.currentUserId = team[0].id;
+      S.settings.repName = team[0].name;
+      S.settings.teamName = "Preview Team";
+      await Promise.all(team.map((u) => MDB.put("users", u).catch(() => {})));
+      await S.saveSettings().catch(() => {});
+    }
     // one-time seed: the device owner becomes the first user — a manager,
     // so everything stays visible until they build out the team
     if (!S.users.length) {
@@ -902,10 +921,28 @@
   }
 
   // ---------- territories (hoods) ----------
+  /* THE TERRITORY NUMBER IN THE ISOLATED PREVIEW — and nowhere else.
+
+     `seq` is server-assigned (0018 §B) and the owner's rule stands: no
+     device-local auto-name on a real device. The preview has no server by
+     construction (cloud is forced off), and its tester still has to read
+     "Territory 3" on the card, the sheet and the list — so the preview
+     mints the next number on the device, marked as such, exactly as the
+     server would (per team, starting at 1, never reused). Reported to the
+     owner as SIMULATED. A device that is not the preview never enters
+     this branch. */
+  function previewSeq(t) {
+    if (t.seq) return;
+    if (!(window.RALLY_PREVIEW && window.RALLY_PREVIEW.isolated)) return;
+    if (window.MCLOUD && MCLOUD.enabled()) return;
+    t.seq = S.territories.reduce((m, x) => Math.max(m, Number(x.seq) || 0), 0) + 1;
+    t.seqSource = "device-preview";
+  }
   S.addTerritory = async function (t) {
-    t.id = MDB.uid();
+    t.id = t.id || MDB.uid();
     t.createdAt = Date.now();
     t.updatedAt = Date.now(); // territories need a clock for sync LWW
+    previewSeq(t);
     /* Assignment truth is a SET from the moment the hood exists. `entries`
        is the ledger; `assignments` and `assignedTo` below are the derived
        v40 mirrors, written by the same code that the server trigger

@@ -191,6 +191,20 @@
 
      The door facts index is built ONCE per repaint and shared across every
      pin; building it per pin would be quadratic on a real book. */
+  /* THE HOUSES A SCAN JUST FOUND, before anything is saved. hoods.js hands
+     them here the moment a tap on a completed area finds them, and they
+     are drawn as the same compact blue unworked pins the saved doors wear
+     — on the roofs, so the manager sees exactly what Save will keep. They
+     are a VIEW of the scan, not records: nothing is written until Save,
+     and Clear takes them all away. Their ids are namespaced so a tap on
+     one can never be mistaken for a door. */
+  let previewDoors = [];
+  const PREVIEW_ID = "preview:";
+  function setPreviewDoors(list) {
+    previewDoors = Array.isArray(list) ? list.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng)) : [];
+    refreshPins();
+  }
+
   function pinsGeoJSON() {
     const facts = STORE.doorFacts ? STORE.doorFacts() : null;
     // one membership pass for the whole repaint, not one per door
@@ -212,13 +226,36 @@
           id: p.id, disposition: key(p),
           cbdue: p.callbackAt && p.callbackAt <= Date.now() ? 1 : 0,
         },
-      })),
+      })).concat(previewDoors.map((p, i) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [p.lng, p.lat] },
+        properties: { id: PREVIEW_ID + i, disposition: "unworked", cbdue: 0, preview: 1 },
+      }))),
     };
   }
 
   // ---------- hoods (territories) ----------
   let heatMode = false;      // manager layer: color by freshness, not ownership
   let emphasizeRep = null;   // manager tapped a rep — everyone else fades
+  /* THE SELECTED TERRITORY. A manager tapped inside one and its sheet is
+     open: the boundary is drawn heavier and brighter so the map says which
+     turf the sheet is about. Cleared when the sheet closes. */
+  let selectedHoodId = null;
+  function selectHood(id) {
+    const next = id || null;
+    if (next === selectedHoodId) return;
+    selectedHoodId = next;
+    refreshHoods();
+  }
+  /* THE COMPLETED, UNSAVED AREA. Drawn solid blue the moment the shape is
+     finished, and it stays on the map — selectable — until the manager taps
+     it (which finds its houses), clears it, or saves it as a territory.
+     Kept here so an engine switch redraws it with everything else. */
+  let pendingArea = null;
+  function setPendingArea(ring) {
+    pendingArea = Array.isArray(ring) && ring.length >= 3 ? ring.map((p) => [p[0], p[1]]) : null;
+    if (R && R.setPendingArea) R.setPendingArea(pendingArea);
+  }
 
   function hoodsGeoJSON() {
     const me = STORE.currentUser();
@@ -236,6 +273,8 @@
       features: STORE.activeTerritories()
         .filter((t) => t.points && t.points.length >= 3)
         .filter((t) => manager || mine(t))
+        // the selected territory is drawn LAST so its heavier edge sits on top
+        .sort((a, b) => (a.id === selectedHoodId) - (b.id === selectedHoodId))
         .map((t) => {
           const crew = STORE.currentAssignees(t);
           const names = crew.map((id) => (STORE.userById(id) || {}).name).filter(Boolean);
@@ -259,6 +298,7 @@
               color: manager ? STORE.hoodColor(t) : "#0A84FF",
               fresh: heatMode ? STORE.freshness(t).color : "#000",
               dim,
+              selected: t.id === selectedHoodId ? 1 : 0,
             },
           };
         }),
@@ -1023,6 +1063,7 @@
     refreshPins();
     refreshHoods();
     setDraftRing(draftDots);
+    if (R.setPendingArea) R.setPendingArea(pendingArea);
     /* Everything the old renderer was showing is re-issued to the new one:
        the re-knock route and the location puck live here for exactly that
        reason — a switch used to drop both while the Route sheet still
@@ -1052,9 +1093,21 @@
       return;
     }
     if (hit && hit.kind === "pin") {
+      if (String(hit.id).indexOf(PREVIEW_ID) === 0) {
+        // a house the scan found: it becomes a door when the territory is saved
+        toast("Found house — save the territory to keep it as a door");
+        return;
+      }
       const pin = STORE.pins.find((p) => p.id === hit.id);
       if (pin) { openLead(pin); return; }
     }
+    /* A MANAGER'S TAP ON TURF OPENS THE TURF. Ground inside a completed
+       area or a saved territory, with no door under the thumb, is the
+       territory's own tap: hoods.js selects it and opens its sheet (and
+       finds the houses of a new area). A rep's tap inside their turf is a
+       knock, exactly as before — reps work doors, managers cut turf. A
+       manager's tap OUTSIDE every territory still logs a door. */
+    if (window.MHOODS && MHOODS.openAreaAt && STORE.canManageTerritories() && MHOODS.openAreaAt(ll)) return;
     startKnock(ll.lat, ll.lng);
   }
 
@@ -1069,6 +1122,7 @@
     refreshPins();
     refreshHoods();
     setDraftRing(draftDots);
+    if (R && R.setPendingArea) R.setPendingArea(pendingArea);
     reloadImagery();
   }
   function onMove() {
@@ -1094,7 +1148,15 @@
     heatMode: () => heatMode,
     googleError: () => lastGoogleError,
     usingOwnKey: () => !!STORE.settings.googleKey,
-    clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); },
+    clearSelection: () => { setSelected(""); currentLead = null; clearTemp(); selectHood(null); },
+    /* the territory workflow: a highlighted boundary, the completed area
+       waiting to be tapped, and the houses a scan found before Save */
+    selectHood,
+    selectedHood: () => selectedHoodId,
+    setPendingArea,
+    pendingArea: () => (pendingArea ? pendingArea.map((p) => [p[0], p[1]]) : null),
+    setPreviewDoors,
+    previewDoors: () => previewDoors.slice(),
     resize: () => { if (R) R.resize(); },
     /* Engine-neutral surface — everything an adapter must provide, and
        nothing that leaks the engine. getMap is gone on purpose, and now

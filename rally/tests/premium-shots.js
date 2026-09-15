@@ -394,6 +394,10 @@ async function buildings() {
     // -------------------------------------------- TERRITORY REVIEW + ASSIGN
     await page.evaluate(() => { MHOODS.closeTools && MHOODS.closeTools(); });
     await page.evaluate(() => document.querySelector("#draw-done").click());
+    await page.waitForTimeout(700);
+    await shot("05b-area-complete");   // solid, selectable, waiting for the tap
+    // the seeded book has doors under every thumb here, so the button form
+    await page.evaluate(() => document.querySelector("#draw-find").click());
     await page.waitForTimeout(1400);
     /* The review sheet is the point of this shot BECAUSE of what the scan
        says — house count and how trustworthy the property source is. Shot it

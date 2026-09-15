@@ -24,6 +24,8 @@
 <link rel="stylesheet" href="css/app.css?v=46">
 </head>
 <body>
+<!-- worn by the isolated preview build only; the normal RALLY path keeps this hidden -->
+<div class="preview-ribbon" id="preview-ribbon" hidden></div>
 
 <!-- reusable brand mark: traced from the RALLY wordmark artwork -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
@@ -179,6 +181,9 @@
         <button id="draw-redo" hidden aria-label="Redo the corner you removed">Redo</button>
         <button id="draw-cancel">Clear</button>
         <button id="draw-done" class="primary" hidden disabled>Done</button>
+        <!-- the completed area is tapped to find its houses; this is the same
+             action for a thumb that would rather press a button -->
+        <button id="draw-find" class="primary" hidden>Find houses</button>
       </div>
     </div>
 
@@ -360,6 +365,11 @@
       <button class="mb" id="mb-home"><span class="mb-ic">🏠</span><span class="mb-t">Home</span><span class="mb-d">Today's numbers &amp; start knocking</span></button>
       <button class="mb" id="mb-customers"><span class="mb-ic">👥</span><span class="mb-t">Customers</span><span class="mb-d">Full book — every filter</span></button>
       <button class="mb" id="mb-office"><span class="mb-ic">🏢</span><span class="mb-t">Office</span><span class="mb-d" id="mb-office-sub">Where you're knocking</span></button>
+    </div>
+    <div class="preview-as" id="preview-as" hidden>
+      <div class="p-cap">Preview as</div>
+      <div class="reasons" id="preview-as-chips"></div>
+      <div class="dim" style="font-size:12px">Isolated preview: this switches whose map the phone shows. Nothing here reaches the team server.</div>
     </div>
     <div class="more-list">
       <button class="more-item" id="more-guide"><span class="ic">📖</span><span><span class="tt">Field guide</span><br><span class="dd">Every pest: signs, facts, the pitch</span></span><span class="chev">›</span></button>
@@ -787,7 +797,7 @@
         <button type="button" class="reason imp-chip" id="hd-import-btn"></button>
       </div>
       <button class="btn btn-ghost" id="hd-scan" style="margin-bottom:10px" hidden>Scan for houses</button>
-      <button class="btn btn-ghost" id="hd-redraw" style="margin-bottom:10px" hidden>Edit the area</button>
+      <button class="btn btn-ghost" id="hd-redraw" style="margin-bottom:10px" hidden>Edit the area on the map</button>
     </div>
     <!-- A NAME IS OPTIONAL AND LAST. The territory is identified by its
          number; a nickname is a convenience for the office, never a
@@ -802,7 +812,7 @@
     <div id="hood-history"></div>
     <!-- the outline is edited ON THE MAP: corners you can drag, a shape you
          can move, and a live warning if it lands on a neighbour -->
-    <button class="btn btn-ghost" id="hood-edit-shape" style="margin-bottom:10px" hidden>Reshape this territory on the map</button>
+    <button class="btn btn-ghost" id="hood-edit-shape" style="margin-bottom:10px" hidden>Edit the area on the map</button>
     <div id="hood-split-wrap" hidden>
       <button class="btn btn-ghost" id="hood-split" style="margin-bottom:10px">Smart Split — cut into balanced areas</button>
       <div class="reasons" id="hood-split-n" hidden></div>
@@ -1037,6 +1047,7 @@
 
 <script src="vendor/maplibre-gl.js?v=46"></script>
 <script>window.RALLY_BUILD = "v46";</script>
+<script src="js/preview-config.js?v=46"></script>
 <script src="js/db.js?v=46"></script>
 <script src="js/geom.js?v=46"></script>
 <script src="js/geo.js?v=46"></script>

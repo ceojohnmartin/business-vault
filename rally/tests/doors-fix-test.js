@@ -147,6 +147,8 @@ const ok=[],bad=[]; const check=(n,c,x="")=>(c?ok:bad).push(n+(x?" — "+x:""));
       await page.mouse.click(x,y); await page.waitForTimeout(120);
     }
     await page.click("#draw-done");
+    await page.waitForTimeout(300);
+    await page.mouse.click(190, 400);   // the completed area is TAPPED to open it
     await page.waitForSelector("#hood-name", {timeout: 8000, state: "attached"});
     // the nickname is optional and behind a disclosure now
     await page.evaluate(() => { const d = document.querySelector("#hood-more"); if (d) d.open = true; });

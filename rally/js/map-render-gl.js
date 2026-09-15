@@ -311,10 +311,45 @@
       id: "hoods-line", type: "line", source: "hoods",
       paint: {
         "line-color": ["get", "color"],
-        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 2.0, 17, 3.6],
+        "line-width": hoodLineWidth(),
         "line-opacity": dimmed(0.92, 0.28),
       },
     });
+  }
+
+  /* THE SELECTED TERRITORY reads heavier and brighter — the boundary the
+     open sheet is about. Zoom stays the outermost expression (MapLibre's
+     rule); the selection decides each stop's value. */
+  const isSel = ["==", ["get", "selected"], 1];
+  const hoodLineWidth = () => ["interpolate", ["linear"], ["zoom"],
+    12, ["case", isSel, 3.8, 2.0], 17, ["case", isSel, 5.6, 3.6]];
+
+  /* THE COMPLETED AREA — solid, not dashed: the shape is finished and is
+     waiting to be tapped. Its own source so the dashed draft and the saved
+     turf never have to know about it. */
+  let pendingRing = null;
+  function pendingFC() {
+    return { type: "FeatureCollection", features: pendingRing ? [{
+      type: "Feature", properties: {},
+      geometry: { type: "Polygon", coordinates: [[...pendingRing, pendingRing[0]]] },
+    }] : [] };
+  }
+  function ensurePendingLayers() {
+    if (map.getSource("pending-area")) return;
+    map.addSource("pending-area", { type: "geojson", data: pendingFC() });
+    map.addLayer({ id: "pending-area-fill", type: "fill", source: "pending-area",
+      paint: { "fill-color": "#0A84FF", "fill-opacity": 0.16 } });
+    map.addLayer({ id: "pending-area-line", type: "line", source: "pending-area",
+      paint: { "line-color": "#0A84FF", "line-width": 3.4, "line-opacity": 0.95 } });
+  }
+  function setPendingArea(ring) {
+    pendingRing = Array.isArray(ring) && ring.length >= 3 ? ring : null;
+    if (!map) return;
+    if (!pendingRing && !map.getSource("pending-area")) return;
+    try {
+      ensurePendingLayers();
+      map.getSource("pending-area").setData(pendingFC());
+    } catch (_) { /* style mid-reload — the next set repaints it */ }
   }
 
   function addHoodLabelLayer() {
@@ -371,8 +406,9 @@
     /* Translucent fill, STRONG outline — the locked look. Over satellite
        photography a weak edge disappears into rooftops, and the edge is the
        part that answers "am I still on my turf?". */
-    map.setPaintProperty("hoods-fill", "fill-opacity", heat ? 0.25 : dimmed(0.15, 0.04));
-    map.setPaintProperty("hoods-line", "line-opacity", heat ? 0.75 : dimmed(0.92, 0.28));
+    map.setPaintProperty("hoods-fill", "fill-opacity", heat ? 0.25 : ["case", isSel, 0.26, dimmed(0.15, 0.04)]);
+    map.setPaintProperty("hoods-line", "line-opacity", heat ? 0.75 : ["case", isSel, 1, dimmed(0.92, 0.28)]);
+    map.setPaintProperty("hoods-line", "line-width", hoodLineWidth());
     if (map.getLayer("hoods-label")) {
       map.setLayoutProperty("hoods-label", "visibility",
         (opts && opts.labels) ? "visible" : "none");
@@ -512,7 +548,7 @@
     setImagery,
     imagery: () => ({ live: imageryLive, provider: "google", error: lastImageryError }),
     lastError: () => lastImageryError,
-    setPins, setSelected, setHoods, setDraft, setRoute, setPuck, setTemp,
+    setPins, setSelected, setHoods, setDraft, setPendingArea, setRoute, setPuck, setTemp,
     getCenter, getZoom, project, unproject, jumpTo, easeTo, fitBounds, resize, setDragPan,
   };
 })();

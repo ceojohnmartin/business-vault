@@ -11,6 +11,10 @@
 # import caller, the numbered territory, the reset preview, the engine switch);
 # `assign-ui` and `pin-placement` are the v42 turf-assignment and rooftop
 # placement gates. All three run on a device with no cloud.
+# `area-workflow` is the locked territory workflow on REAL rooftops (draw →
+# complete → tap the area → houses → assign → save → reopen with the same
+# identities and history; outline edits; Smart Split); `preview` builds the
+# isolated preview and proves it shares nothing with production on one origin.
 DIR="$(cd "$(dirname "$0")" && pwd)"
 total=0; failed=0
 # The two transition suites run TWICE: against v38 (the last candidate) and
@@ -43,7 +47,7 @@ sleep 1
 for f in release-assets v41-logic smoke auth facade flow2 doors-fix sync realtime cloud-auth font-boot \
          backup-secrets role attribution payment-honesty v40 v41 v41-ui refusals mixed-version \
          upgrade-transition mixed-version@v37 upgrade-transition@v37 smart-split torture \
-         assign-ui pin-placement phase5; do
+         assign-ui pin-placement phase5 area-workflow preview; do
   base="${f%@v37}"
   t="$DIR/$base.js"; [ -f "$t" ] || t="$DIR/$base-test.js"
   [ -f "$t" ] || { echo "MISSING: $f"; failed=$((failed+1)); continue; }
@@ -68,5 +72,5 @@ for f in release-assets v41-logic smoke auth facade flow2 doors-fix sync realtim
   fi
 done
 echo "----------------------------------------"
-printf 'TOTAL %d checks across 25 suite runs, %d suite(s) failing\n' "$total" "$failed"
+printf 'TOTAL %d checks across 27 suite runs, %d suite(s) failing\n' "$total" "$failed"
 [ "$failed" = "0" ] || exit 1

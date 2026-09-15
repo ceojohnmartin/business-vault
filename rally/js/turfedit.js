@@ -304,6 +304,27 @@
     if (!quiet) MMAP.refreshHoods();
   }
 
+  /* WHAT A NEW OUTLINE DOES TO THE HOUSES — said before it is saved.
+     Nothing here deletes a door or a knock: a house the line moves away
+     from keeps its identity, its outcomes, its notes and its history, and
+     simply stops counting for this territory (STORE.hoodOf answers that at
+     read time). But a manager watching four pins fall outside the line
+     deserves to be told that is what they are doing, and to be told the
+     houses are kept, before Save. */
+  function reconciliation(t, nextPoints) {
+    const was = (p) => { const h = STORE.hoodOf(p); return !!(h && h.id === t.id); };
+    let stay = 0, outside = 0, entering = 0;
+    STORE.pins.forEach((p) => {
+      if (p.deletedAt) return;
+      const before = was(p);
+      const after = MGEOM.pointInRing(nextPoints, p.lng, p.lat);
+      if (before && after) stay++;
+      else if (before && !after) outside++;
+      else if (!before && after) entering++;
+    });
+    return { stay, outside, entering };
+  }
+
   async function save() {
     const v = verdict();
     if (!v.ok) { toast("Fix the outline first — " + String(v.msg).replace(/<[^>]+>/g, "")); return; }
@@ -313,6 +334,18 @@
     const t = live.hood;
     const before = live.original;
     const next = MGEOM.validate(live.points).points;
+    const rc = reconciliation(t, next);
+    if (rc.outside || rc.entering) {
+      const lines = [`Save this outline for ${STORE.hoodLabel(t)}?`, ``,
+        `${rc.stay} house${rc.stay === 1 ? "" : "s"} stay inside.`];
+      /* A house the line moved away from keeps its stamp until another
+         territory's outline takes it in (STORE.hoodOf): it is not orphaned,
+         not deleted, and not re-imported later as a stranger. */
+      if (rc.outside) lines.push(`${rc.outside} house${rc.outside === 1 ? " is" : "s are"} now outside the line — kept, with every outcome, note, callback and knock, and still listed with this territory until another territory's outline takes ${rc.outside === 1 ? "it" : "them"} in. Nothing is deleted.`);
+      if (rc.entering) lines.push(`${rc.entering} existing house${rc.entering === 1 ? "" : "s"} come inside and keep their history.`);
+      lines.push(`New houses in the added ground are found by "Scan for new houses" afterwards, never imported on their own.`);
+      if (!confirm(lines.join("\n"))) return;
+    }
     t.points = next;
     try {
       await STORE.updateTerritory(t);
@@ -332,6 +365,9 @@
     if (window.MSCHED) MSCHED.render();
     MMAP.refreshPins();
     toast(STORE.hoodLabel(t) + " — outline saved");
+    // back to the territory's sheet, which says what the edit moved and
+    // offers the scan for houses in the added ground
+    if (window.MHOODS && MHOODS.openExisting) MHOODS.openExisting(t.id, { reconcile: rc });
   }
 
   window.MTEDIT = { open, close, isOpen: () => !!live };

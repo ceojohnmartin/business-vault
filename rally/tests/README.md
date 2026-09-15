@@ -58,6 +58,29 @@ Run from anywhere (paths are relative to this directory):
                                   # whether the old cache is dropped, and
                                   # whether the rep's saved work survives.
 
+    node tests/area-workflow-test.js
+                                  # THE TERRITORY WORKFLOW on real rooftops:
+                                  # draw → Done completes the area → the TAP
+                                  # inside it finds the houses (341 real OSM
+                                  # outlines in tests/fixtures, 340 of them
+                                  # bare building=yes → the inferred-home
+                                  # rule) → blue pins on the roofs before
+                                  # Save → assign two reps → Save → the saved
+                                  # territory's tap opens it with no re-scan
+                                  # → outcomes, a note, a callback survive a
+                                  # reload under the same property ids → a
+                                  # rep's tap knocks, a manager's opens turf
+                                  # → an outline edit says what moves before
+                                  # saving and deletes nothing → Smart Split
+                                  # keeps every id. Mocked Overpass, no cloud.
+    node tests/preview-test.js    # THE ISOLATED PREVIEW: builds it with
+                                  # tools/build-preview.sh, serves production
+                                  # and the preview from ONE origin, proves
+                                  # separate databases, separate cache
+                                  # families, cloud forced off, a demo team,
+                                  # the PREVIEW ribbon, device-minted
+                                  # territory numbers, Preview-as, and that
+                                  # the stamped token is persisted nowhere.
     node tests/smart-split-test.js
                                   # ATOMIC SMART SPLIT, client side: the split
                                   # is a proposal until the server answers.

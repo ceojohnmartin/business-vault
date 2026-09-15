@@ -196,6 +196,8 @@ const server = http.createServer((req, res) => {
   await sleep(300);
   await shot("16-hood-draft");
   await page.click("#draw-done");
+  await sleep(300);
+  await page.click("#draw-find");     // the button form of the tap on the completed area
   await sleep(400);
   // a nickname is OPTIONAL now and lives behind a disclosure — the
   // territory is identified by its number, not by something typed here
@@ -650,6 +652,8 @@ const server = http.createServer((req, res) => {
   await page.mouse.click(70, 600);
   await sleep(200);
   await page.click("#draw-done");
+  await sleep(300);
+  await page.click("#draw-find");     // the button form of the tap on the completed area
   await sleep(1200); // demo scan is instant, give the UI a beat
   const scan1 = await page.evaluate(() => ({
     status: document.querySelector("#hd-status").textContent,

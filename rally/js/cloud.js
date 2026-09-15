@@ -16,7 +16,11 @@
   const TIMEOUT_MS = 6000;             // a dead zone must fail FAST into offline mode
 
   const cfg = () => window.RALLY_CLOUD || {};
-  const enabled = () => !!(cfg().url && cfg().anonKey);
+  /* The isolated preview build forces this OFF in code, not only by
+     shipping an empty cloud-config.js: two independent switches have to
+     agree before a single request can leave for the team server. */
+  const isolated = () => !!(window.RALLY_PREVIEW && window.RALLY_PREVIEW.isolated);
+  const enabled = () => !isolated() && !!(cfg().url && cfg().anonKey);
   const base = () => String(cfg().url || "").replace(/\/+$/, "");
 
   // net vs auth is the load-bearing distinction: network trouble falls back
@@ -28,6 +32,8 @@
   }
 
   async function call(path, opts) {
+    // the isolated preview never speaks to a server, whatever a caller asks
+    if (isolated()) throw fail("net", "Isolated preview — the team server is never contacted");
     const { method = "GET", body, access, timeout = TIMEOUT_MS } = opts || {};
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeout);

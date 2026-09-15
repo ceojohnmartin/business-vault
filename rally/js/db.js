@@ -4,7 +4,11 @@
    origin-scoped, so keeping the name is what carries every existing pin,
    knock and customer across the rebrand. */
 (function () {
-  const DB_NAME = "meridian-db";
+  /* The isolated preview build (js/preview-config.js) names its own
+     database: IndexedDB is per-origin, and the preview is served on
+     production's origin. With RALLY_PREVIEW null this is exactly the name
+     it has always been. */
+  const DB_NAME = (window.RALLY_PREVIEW && window.RALLY_PREVIEW.db) || "meridian-db";
   const DB_VER = 4;
   let dbp = null;
 

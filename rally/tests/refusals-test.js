@@ -488,15 +488,18 @@ async function reopen(page) {
     await page.click("#refused-sheet .grab");
     await page.waitForTimeout(200);
   }
+  /* The check now runs when the shape is COMPLETED (Done / a lifted
+     finger / a lasso handed over), which is earlier than Save and the same
+     MGEOM.validate either way. The bowtie is the lasso → hood path first
+     (createFromPoints), then the real corners path, whose refusal must keep
+     the corners for fixing rather than throw them away. */
   const BOWTIE = [[-91.20, 30.40], [-91.10, 30.50], [-91.10, 30.40], [-91.20, 30.50]];
   const CLEAN  = [[-91.90, 30.90], [-91.88, 30.90], [-91.88, 30.92], [-91.90, 30.92]];
   const hoodsBefore = await page.evaluate(() => STORE.territories.length);
   await page.evaluate((pts) => MHOODS.createFromPoints(pts), BOWTIE);
-  await page.waitForTimeout(300);
-  await page.click("#hood-save");
-  await page.waitForTimeout(700);
-  check("L1 the bowtie was NOT saved",
-    (await page.evaluate(() => STORE.territories.length)) === hoodsBefore,
+  await page.waitForTimeout(400);
+  check("L1 the bowtie was NOT saved and NOT completed",
+    (await page.evaluate(() => STORE.territories.length)) === hoodsBefore && (await page.evaluate(() => MHOODS.pendingArea())) === null,
     "before=" + hoodsBefore + " after=" + (await page.evaluate(() => STORE.territories.length)));
   const toastText = await page.$eval("#toast", (e) => e.textContent);
   check("L2 and the rep was told what is wrong, in words they can act on",
@@ -508,13 +511,21 @@ async function reopen(page) {
   check("L4 a clean outline still passes the same checker", cleanOk === true);
   check("L5 nothing was queued for a hood that was never made",
     (await page.evaluate(() => MSYNC.status().pending)) === pendingBeforeDismiss);
-  /* Refusing the save must NOT close the sheet. The outline is still drawn,
-     still on screen and still draggable — telling someone their boundary
-     crosses itself and then throwing the boundary away would be worse than
-     saving it broken. */
-  check("L6 the sheet stays open so the outline can be fixed, not lost",
-    await page.$eval("#hood-sheet", (e) => e.classList.contains("open")));
-  await page.click("#hood-sheet .grab");
+  /* Refusing the shape must NOT throw it away. On the corners path the
+     corners stay on the map, in draw mode, so the manager fixes the one
+     that crossed rather than tapping all of them again. */
+  await page.evaluate(() => { MAPP.show("map"); document.querySelector("#fab-hoods").click(); });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.querySelector("#mt-corners").click());
+  await page.waitForTimeout(300);
+  for (const [x, y] of [[90, 320], [300, 520], [300, 320], [90, 520]]) { await page.mouse.click(x, y); await page.waitForTimeout(140); }
+  await page.click("#draw-done");
+  await page.waitForTimeout(400);
+  const keep = await page.evaluate(() => ({ drawing: MHOODS.isDrawing(), sheet: document.querySelector("#hood-sheet").classList.contains("open"),
+    area: MHOODS.pendingArea(), toast: document.querySelector("#toast").textContent, hoods: STORE.territories.length }));
+  check("L6 a crossed outline drawn by hand is refused at Done, the corners stay on the map to be fixed, no sheet opens and nothing is saved",
+    keep.drawing && !keep.sheet && keep.area === null && /crosses itself/i.test(keep.toast) && keep.hoods === hoodsBefore, JSON.stringify(keep));
+  await page.click("#draw-cancel");
   await page.waitForTimeout(250);
 
   /* ===== L* — THE DEMO GRID NEVER REACHES A TEAM =====

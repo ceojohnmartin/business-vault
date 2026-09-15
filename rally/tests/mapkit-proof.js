@@ -444,6 +444,12 @@ async function buildings() {
     check("drawing: five tapped corners become a draft ring on Apple's map", draft.c && draft.c.draftDots === 5, JSON.stringify(draft.c && { draftDots: draft.c.draftDots }));
     await shot("09-REAL-MAPKIT-drawing-territory");
     await page.evaluate(() => document.querySelector("#draw-done").click());
+    await settle(2);
+    const waiting = await page.evaluate(() => ({ sheet: document.querySelector("#hood-sheet").classList.contains("open"), area: (MMAP.pendingArea() || []).length }));
+    check("Done leaves the completed area on Apple's map, waiting to be tapped (no sheet yet)", !waiting.sheet && waiting.area === 5, JSON.stringify(waiting));
+    // the tap inside the area finds its houses — the button form here, because
+    // 1,600 seeded doors leave no bare ground under a thumb at this zoom
+    await page.evaluate(() => document.querySelector("#draw-find").click());
     await page.waitForFunction(() => { const r = document.querySelector("#hd-review"); return r && !r.hidden; }, null, { timeout: 30000 }).catch(() => {});
     await page.evaluate(() => { const d = document.querySelector("#hood-doors"); if (d) d.scrollIntoView({ block: "start" }); });
     await page.waitForTimeout(600);

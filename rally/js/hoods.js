@@ -16,6 +16,12 @@
      cannot resurrect a corner from a shape the manager has moved on from. */
   let redoStack = [];
   let pending = null;       // points awaiting the save sheet
+  /* THE COMPLETED AREA. Finishing the shape — a lifted finger on the trace,
+     Done on the corners — does not open a sheet any more. The area is drawn
+     solid on the map and becomes something the manager TAPS: the tap
+     selects it, opens the territory sheet and finds the houses inside it.
+     It stays on the map, tappable again, until it is cleared or saved. */
+  let area = null;          // { points } — completed, unsaved, waiting to be tapped
   let editingId = null;     // hood being edited in the sheet
   /* The reps this hood WILL have when the sheet is saved. A SET: one hood
      may be worked by several people at once, and picking a second rep adds
@@ -92,8 +98,72 @@
   function stopMode() {
     mode = null;
     $("#draw-bar").hidden = true;
+    const f = $("#draw-find"); if (f) f.hidden = true;
     clearDraft();
     stopPencil();
+  }
+
+  /* ---------- the completed area ----------
+     Validated at completion, so a bowtie is refused while the manager is
+     still looking at the shape rather than at Save. The ring that is kept
+     is the normalised one (CCW, duplicate corners dropped) — the same one
+     the save path would keep. */
+  function completeArea(coords) {
+    let pts = coords;
+    if (window.MGEOM) {
+      const ring = MGEOM.validate(coords);
+      if (!ring.ok) {
+        toast(ring.reason || "That outline isn't a shape RALLY can save — draw it again", 6000);
+        return false;
+      }
+      pts = ring.points;
+    }
+    area = { points: pts };
+    MMAP.setPendingArea(pts);
+    MMAP.setPreviewDoors(null);
+    const bar = $("#draw-bar");
+    bar.hidden = false;
+    $("#draw-undo").hidden = true;
+    $("#draw-redo").hidden = true;
+    $("#draw-done").hidden = true;
+    const f = $("#draw-find"); if (f) f.hidden = false;
+    $("#draw-msg").textContent = "Area complete — tap inside it to find the houses";
+    setToolState();
+    return true;
+  }
+
+  function clearArea() {
+    area = null;
+    MMAP.setPendingArea(null);
+    MMAP.setPreviewDoors(null);
+    MMAP.selectHood(null);
+    const f = $("#draw-find"); if (f) f.hidden = true;
+    $("#draw-bar").hidden = true;
+    hideCard();
+  }
+
+  /* THE TAP THAT OPENS TURF. map.js asks here, for a manager, when a tap
+     lands on ground with no door under it. Inside the completed area: the
+     area is selected, its sheet opens and its houses are found. Outside it
+     while one is waiting: say so, and consume the tap — a manager with an
+     unsaved area on screen is not logging doors. Otherwise the saved
+     territory under the thumb opens, WITHOUT a fresh scan: its houses,
+     outcomes and history are already there. */
+  function openAreaAt(ll) {
+    if (mode !== null) return false;                  // drawing: taps are corners
+    if (area) {
+      if (MGEOM.pointInRing(area.points, ll.lng, ll.lat)) { openHoodSheet(area.points, null); return true; }
+      toast("Tap inside the area to find its houses — or Clear it");
+      return true;
+    }
+    const inside = STORE.activeTerritories().filter((t) =>
+      t.points && t.points.length >= 3 && STORE.inHood(t, ll.lng, ll.lat));
+    if (!inside.length) return false;
+    // nested turf: the smallest containing territory is the one meant
+    const t = inside.length === 1 ? inside[0] : inside.slice().sort((a, b) =>
+      MPROP.areaKm2(a.points) - MPROP.areaKm2(b.points))[0];
+    openHoodSheet(t.points, t);
+    return true;
   }
 
   // ---------- pencil (freehand) ----------
@@ -167,7 +237,7 @@
     const finished = mode; // stopMode clears it
     stopMode();
     if (finished === "lasso") MSELECT.open(coords);
-    else openHoodSheet(coords, null);
+    else completeArea(coords);
   }
 
   // Ramer–Douglas–Peucker in screen pixels — keeps the drawn shape's
@@ -220,7 +290,7 @@
   /* Every close in this module goes through here. The card describes the
      sheet's polygon, so leaving it up after the sheet has gone would put a
      stale house count over a map showing something else. */
-  function closeHoodSheet() { hideCard(); closeSheet(); }
+  function closeHoodSheet() { hideCard(); closeSheet(); MMAP.selectHood(null); }
 
   /* THE REVIEW STRIP AND THE SOURCE LINE.
 
@@ -246,6 +316,7 @@
       const roof = scan.eligible.filter((d) =>
         d.placement === "building_centroid" || d.placement === "building_surface").length;
       const demo = scan.eligible.filter((d) => d.placement === "synthetic_grid").length;
+      const inferred = scan.eligible.filter((d) => d.inferred).length;
       const bits = [`${n.toLocaleString()} eligible ${n === 1 ? "house" : "houses"}`];
       /* A demo grid is not "parcel-level placement" — it is not placement
          at all. The strip used to file it under that wording, which made
@@ -254,6 +325,7 @@
       else if (roof === n && n) bits.push("every one on a building outline");
       else if (roof) bits.push(`${roof} on a building outline, ${n - roof} at a parcel or block point`);
       else if (n) bits.push("none on a building outline — parcel-level placement only");
+      if (inferred) bits.push(`${inferred} inferred from footprint size`);
       if (scan.warnings && scan.warnings.length) bits.push(scan.warnings[0]);
       src.textContent = bits.join(" · ");
       src.hidden = false;
@@ -337,9 +409,11 @@
     }
   }
 
-  function openHoodSheet(points, hood) {
+  function openHoodSheet(points, hood, opts) {
     pending = points;
     editingId = hood ? hood.id : null;
+    // the boundary the sheet is about reads heavier on the map
+    MMAP.selectHood(hood ? hood.id : null);
     assignSet = hood ? STORE.currentAssignees(hood).slice()
                      : (preAssign ? [preAssign] : []);
     preAssign = null;
@@ -372,8 +446,11 @@
     splitN = 0;
     renderRepChips();
     renderHoodHistory(hood);
-    setupDoorsBlock(points, hood);
+    /* The card is put up BEFORE the doors block: a completed area that
+       already holds its scan presents it synchronously, and the card must
+       show that scan's count rather than be blanked by a later paint. */
     showCard(hood, null);
+    setupDoorsBlock(points, hood, opts);
     openSheet("hood-sheet");
   }
 
@@ -398,6 +475,7 @@
       res = await MPROP.searchByPolygon(points, (m) => { if (gen === scanGen) st.textContent = m; });
     } catch (err) {
       if (gen !== scanGen) return;
+      MMAP.setPreviewDoors(null);
       st.innerHTML = `⚠️ ${MUI.esc(err.message)}<br><span class="dim">Knocking works without this — doors can be pinned by hand.</span>`;
       return;
     }
@@ -412,7 +490,21 @@
     /* ONE operation id per scan, minted here and kept across Save retries:
        the server's import ledger answers a repeated id instead of importing
        twice, so a dropped response can never double a territory's doors. */
-    lastScan = { fresh, res, forId: hood ? hood.id : null, opId: MDB.uid() };
+    /* A completed area remembers its scan: closing the sheet and tapping
+       the area again presents the same houses without another round trip
+       to the map server — and the same operation id, so a retry is a
+       retry. Redrawing the area is a new area, and a new scan. */
+    const scan = { fresh, res, dupes, forId: hood ? hood.id : null, opId: MDB.uid() };
+    if (!hood && area && area.points === points) area.scan = scan;
+    presentScan(hood, scan);
+  }
+
+  function presentScan(hood, scan) {
+    const { fresh, res, dupes } = scan;
+    lastScan = scan;
+    // the houses go on the map NOW, as the blue pins Save will keep — the
+    // ones already in RALLY are already pinned, so only the new ones
+    MMAP.setPreviewDoors(importableOf(fresh));
     showCard(hood, res);                 // the card's house count is the scan's
     fillReview(hood, res);               // …and so is the review strip's
     const acres = Math.max(1, Math.round(res.areaKm2 * 247.105));
@@ -461,10 +553,11 @@
     const rv = $("#hd-review");
     const all = res.eligible || [];
     const finite = (p) => Number.isFinite(p.lat) && Number.isFinite(p.lng);
-    let exact = 0, parcel = 0, uncertain = 0, demo = 0;
+    let exact = 0, parcel = 0, uncertain = 0, demo = 0, inferred = 0;
     all.forEach((p) => {
       if (!finite(p)) { uncertain++; return; }
       if (p.placement === "synthetic_grid") { demo++; return; }
+      if (p.inferred) inferred++;
       if (EXACT[p.placement]) exact++;
       else if (PARCEL[p.placement]) parcel++;
       else uncertain++;
@@ -494,6 +587,9 @@
     rv.innerHTML =
       line("Source", MUI.esc(res.providerName || res.provider || "—")) +
       line("On the building outline", exact, exact === all.length ? "good" : "") +
+      /* a real roof whose USE was inferred from its size: said here, not
+         hidden inside "on the building outline" */
+      (inferred ? line("Inferred homes (house-sized outline, no address)", inferred) : "") +
       line("Parcel-level (lot, not house)", parcel, parcel ? "warn" : "") +
       line("Uncertain coordinates", uncertain, uncertain ? "warn" : "") +
       (demo ? line("Demo grid — not real houses", demo, "bad") : "") +
@@ -580,6 +676,7 @@
       }
     }
     lastScan = null;
+    MMAP.setPreviewDoors(null);          // they are doors now — drawn from the store
     MMAP.refreshPins();
     if (r.synthetic) {
       /* The demo grid previews the flow on a solo device and is refused on a
@@ -606,11 +703,13 @@
     return r;
   }
 
-  function setupDoorsBlock(points, hood) {
+  function setupDoorsBlock(points, hood, opts) {
     const wrap = $("#hood-doors");
     const manager = STORE.canManageTerritories();
     scanGen++; // sheet context changed: any scan still in flight is void
     lastScan = null; importOn = false;
+    // a scan's preview pins belong to the sheet that ran it, never the next one
+    if (!(opts && opts.keepPreview)) MMAP.setPreviewDoors(null);
     $("#hd-import-row").hidden = true;
     /* The review describes ONE scan of ONE polygon. Opening a saved hood's
        sheet after drawing a new one left the new polygon's review — its
@@ -623,16 +722,29 @@
     wrap.hidden = false;
     $("#hd-redraw").hidden = !!hood;
     if (hood) {
+      /* A SAVED TERRITORY IS NOT SCANNED AGAIN ON OPEN. Its houses are the
+         pins already on the map, with their outcomes, notes, callbacks and
+         history; a fresh import on every tap is exactly what would make a
+         second copy of them. The scan is a button, for NEW houses only, and
+         everything it finds is matched against what is already held. */
       const st = STORE.hoodStats(hood);
-      $("#hd-status").innerHTML = st.doors
+      const rc = opts && opts.reconcile;
+      const moved = rc ? `<div class="hd-reconcile"><b>Outline changed.</b> ${rc.stay} house${rc.stay === 1 ? "" : "s"} still inside` +
+        (rc.outside ? ` · <b>${rc.outside}</b> now outside the line — kept with every outcome, note and knock, and still ${rc.outside === 1 ? "this territory's" : "this territory's"} until another outline takes ${rc.outside === 1 ? "it" : "them"}` : "") +
+        (rc.entering ? ` · <b>${rc.entering}</b> existing house${rc.entering === 1 ? "" : "s"} now inside` : "") +
+        ` · scan below to find houses in the added ground</div>` : "";
+      $("#hd-status").innerHTML = (st.doors
         ? `${st.doors} door${st.doors === 1 ? "" : "s"} on the map · ${st.by.unworked} untouched · ${st.sold} sold` +
           (st.pct != null ? ` · <b>${st.pct}%</b> worked` : "")
-        : "No doors pinned in this territory yet";
+        : "No doors pinned in this territory yet") + moved;
       $("#hd-scan").hidden = false;
-      $("#hd-scan").textContent = st.doors ? "🔍 Scan for new doors" : "🔍 Find the doors in this territory";
+      $("#hd-scan").textContent = st.doors ? "🔍 Scan for new houses" : "🔍 Find the houses in this territory";
     } else {
       $("#hd-scan").hidden = true;
-      scanDoors(points, null); // creating: the door count IS the headline
+      // creating: the door count IS the headline — from the area's own scan
+      // when it already has one, from the provider otherwise
+      if (area && area.points === points && area.scan) presentScan(null, area.scan);
+      else scanDoors(points, null);
     }
   }
 
@@ -902,6 +1014,7 @@
       : names.length === 1 ? names[0]
       : names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
     pending = null; editingId = null;
+    if (creating) clearArea();           // the completed area is a territory now
     MMAP.refreshHoods();
     closeHoodSheet();
     renderHoodList();
@@ -1125,7 +1238,7 @@
       if (window.MTEDIT) await MTEDIT.open(t);
     });
 
-    $("#draw-cancel").addEventListener("click", () => { tick(); stopMode(); });
+    $("#draw-cancel").addEventListener("click", () => { tick(); if (mode === null && area) clearArea(); else stopMode(); });
     $("#draw-undo").addEventListener("click", () => { tick(); undoDot(); });
     $("#draw-redo").addEventListener("click", () => { tick(); redoDot(); });
     const ap = $("#hood-assign-open");
@@ -1135,8 +1248,11 @@
       if (dots.length < 3) return;
       const pts = dots.slice();
       stopMode();
-      openHoodSheet(pts, null);
+      if (!completeArea(pts)) { startMode("dots"); dots = pts; refreshDraft(); }   // refused: keep the corners to fix
     });
+    // the button form of the tap on the completed area
+    const find = $("#draw-find");
+    if (find) find.addEventListener("click", () => { tick(); if (area) openHoodSheet(area.points, null); });
     bindSplit();
     MMAP.onMapClick(handleMapClick); // dot-drawing consumes taps before knocks
     $("#hood-save").addEventListener("click", saveHood);
@@ -1208,6 +1324,7 @@
       tick();
       const pts = (pending || []).slice();
       closeHoodSheet();
+      clearArea();
       startMode("dots");
       dots = pts; // the drawn ring becomes editable corners — undo works
       refreshDraft();
@@ -1225,11 +1342,20 @@
   window.MHOODS = {
     bind,
     isDrawing: () => mode !== null,
-    createFromPoints: (pts) => openHoodSheet(pts, null), // lasso → hood
-    // the saved territory's own sheet, for the screenshot harness and tests
-    openExisting: (id) => {
+    // lasso → hood: the ring is already the manager's choice, so it is
+    // completed AND opened in one step
+    createFromPoints: (pts) => { if (completeArea(pts)) openHoodSheet(area.points, null); },
+    /* the territory workflow's entry points: the tap on turf (from map.js)
+       and the completed area, for the harness and tests */
+    openAreaAt,
+    completeArea,
+    clearArea,
+    pendingArea: () => (area ? area.points.map((p) => [p[0], p[1]]) : null),
+    // the saved territory's own sheet, for the screenshot harness and tests;
+    // opts.reconcile carries what an outline edit moved
+    openExisting: (id, opts) => {
       const t = STORE.territories.find((x) => x.id === id);
-      if (t && t.points) openHoodSheet(t.points, t);
+      if (t && t.points) openHoodSheet(t.points, t, opts);
       return !!t;
     },
     closeTools: () => closeToolsIfOpen(),

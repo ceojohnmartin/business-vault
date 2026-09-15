@@ -497,14 +497,32 @@
        photography a weak edge disappears into rooftops, and the edge is
        the part that answers "am I still on my turf?". These are the same
        numbers the MapLibre paint properties use. */
+    const sel = p.selected === 1 || p.selected === true;
+    // the selected territory reads heavier and brighter — the same numbers
+    // the MapLibre renderer uses for its selected stops
     return new mapkit.Style({
       strokeColor: color,
-      strokeOpacity: heat ? 0.75 : (dim ? 0.28 : 0.92),
-      lineWidth: lineWidthAt(getZoom()),
+      strokeOpacity: heat ? 0.75 : (sel ? 1 : (dim ? 0.28 : 0.92)),
+      lineWidth: lineWidthAt(getZoom()) + (sel ? 1.9 : 0),
       lineJoin: "round",
       fillColor: color,
-      fillOpacity: heat ? 0.25 : (dim ? 0.04 : 0.15),
+      fillOpacity: heat ? 0.25 : (sel ? 0.26 : (dim ? 0.04 : 0.15)),
     });
+  }
+
+  /* THE COMPLETED AREA — solid blue, waiting to be tapped. One overlay,
+     replaced whole on every set, removed on null. */
+  let pendingOverlay = null;
+  function setPendingArea(ring) {
+    if (!map) return;
+    if (pendingOverlay) { try { map.removeOverlay(pendingOverlay); } catch (_) {} pendingOverlay = null; }
+    if (!Array.isArray(ring) || ring.length < 3) return;
+    pendingOverlay = new mapkit.PolygonOverlay(ring.map(([lng, lat]) => C(lng, lat)), {
+      style: new mapkit.Style({ strokeColor: "#0A84FF", strokeOpacity: 0.95, lineWidth: 3.4, lineJoin: "round",
+        fillColor: "#0A84FF", fillOpacity: 0.16 }),
+      data: { pending: true },
+    });
+    map.addOverlay(pendingOverlay);
   }
   // MapLibre interpolates 12 -> 2.0 and 17 -> 3.6; same curve, sampled
   const lineWidthAt = (z) => +(2.0 + ((clamp(z, 12, 17) - 12) / 5) * 1.6).toFixed(2);
@@ -704,7 +722,7 @@
       try { el.innerHTML = ""; } catch (_) {}
     }
     map = null; booted = false;
-    hoodOverlays = []; hoodLabels = []; pinAnnos = []; pinById = new Map(); clusterEls = new Set();
+    hoodOverlays = []; hoodLabels = []; pinAnnos = []; pinById = new Map(); clusterEls = new Set(); pendingOverlay = null;
     routeOverlay = null; routeStops = []; draftOverlay = null; draftDots = [];
     puckAnno = null; tempAnno = null; selectedId = ""; lastPinFC = null; clusterMode = null;
   }
@@ -718,7 +736,7 @@
        satellite is live. */
     imagery: () => ({ live: authorized, provider: "apple", error: lastError }),
     lastError: () => lastError,
-    setPins, setSelected, setHoods, setDraft, setRoute, setPuck, setTemp,
+    setPins, setSelected, setHoods, setDraft, setPendingArea, setRoute, setPuck, setTemp,
     getCenter, getZoom, project, unproject, jumpTo, easeTo, fitBounds, resize, setDragPan,
     /* WHAT APPLE ACTUALLY HOLDS. Counting DOM elements is not the same
        question: MapKit materialises an annotation's element lazily, and

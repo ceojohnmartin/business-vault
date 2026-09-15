@@ -165,6 +165,52 @@
   }
 
   // ---------- more ----------
+  /* ---------- THE ISOLATED PREVIEW'S OWN SURFACES ----------
+     Two things, both invisible on the normal RALLY path (RALLY_PREVIEW is
+     null there): a ribbon every screen wears, and a one-tap "Preview as"
+     row so a tester can look at the same phone as the manager and then as
+     a rep. The switch is the SAME device-user switch Team & roles has
+     always had on a device with no server; it is only surfaced here. It is
+     never offered when a cloud is configured, because there the server
+     owns identity and role. */
+  function renderRibbon() {
+    const r = $("#preview-ribbon");
+    if (!r) return;
+    const PV = window.RALLY_PREVIEW;
+    r.hidden = !PV;
+    if (!PV) return;
+    const me = STORE.currentUser();
+    r.textContent = (PV.label || "PREVIEW") + " · isolated demo data · never RALLY production" +
+      (me ? " · " + me.name : "");
+    document.body.classList.add("is-preview");
+  }
+  function renderPreviewAs() {
+    const wrap = $("#preview-as");
+    if (!wrap) return;
+    const PV = window.RALLY_PREVIEW;
+    const cloudOn = !!(window.MCLOUD && MCLOUD.enabled());
+    wrap.hidden = !PV || cloudOn || !STORE.users.length;
+    if (wrap.hidden) return;
+    const cur = STORE.settings.currentUserId;
+    $("#preview-as-chips").innerHTML = STORE.users.map((u) =>
+      `<button type="button" class="reason pv-chip${u.id === cur ? " sel" : ""}" data-u="${u.id}">
+         <span class="dot" style="display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:${u.color}"></span>${esc(u.name)} · ${STORE.ROLE_LABELS[u.role] || "Rep"}</button>`).join("");
+    $$("#preview-as-chips .pv-chip").forEach((b) => b.addEventListener("click", async () => {
+      MUI.tick();
+      const u = STORE.userById(b.dataset.u);
+      if (!u || u.id === STORE.settings.currentUserId) return;
+      STORE.settings.currentUserId = u.id;
+      STORE.settings.repName = u.name;
+      await STORE.saveSettings();
+      await STORE.loadRoleState();
+      renderMore(); renderRankScreen(); renderRibbon();
+      if (window.MMAP) { MMAP.clearSelection(); MMAP.refreshHoods(); MMAP.refreshPins(); MMAP.updateBrandToday(); }
+      if (window.MHOME) MHOME.render();
+      if (window.MHOODS && MHOODS.closeTools) MHOODS.closeTools();
+      toast(`Previewing as ${u.name} (${STORE.ROLE_LABELS[u.role] || "Rep"})`);
+    }));
+  }
+
   function renderMore() {
     const ofc = $("#mb-office-sub");
     if (ofc) ofc.textContent = STORE.settings.officeName
@@ -194,7 +240,9 @@
       return src + (doors ? ` · ${doors} unworked doors on the map` : " · doors import when you draw a territory");
     })();
     const bv = $("#more-build");
-    if (bv) bv.textContent = "Build " + (window.RALLY_BUILD || "?");
+    if (bv) bv.textContent = "Build " + (window.RALLY_BUILD || "?") +
+      (window.RALLY_PREVIEW ? " · ISOLATED PREVIEW · " + (window.RALLY_PREVIEW.db || "") : "");
+    renderPreviewAs();
     $("#more-lock-sub").textContent = MAUTH.hasAccount()
       ? "Signed in as " + MAUTH.accountEmail()
       : "No device lock set up yet";
@@ -795,6 +843,12 @@
       renderMore();
       toast(STORE.settings.officeName ? "Office: " + STORE.settings.officeName : "Office cleared");
     });
+    renderRibbon();
+    /* NO INVENTED HOUSES IN THE PREVIEW. The demo grid exists so a solo
+       device can preview the import flow with no provider at all; the
+       isolated preview has a real provider (OpenStreetMap footprints) and
+       the owner's rule for it is "do not create random/grid houses". */
+    if (window.RALLY_PREVIEW) $$('#pd-source .pd-chip[data-s="demo"]').forEach((b) => { b.hidden = true; });
     MCUST.bind();
     MSCHED.bind();
     MTURF.bind();
@@ -812,7 +866,7 @@
     // has to reach the privileged surfaces immediately — not on next launch
     window.MAPP = {
       show,
-      roleChanged: () => { renderMore(); renderRankScreen(); },
+      roleChanged: () => { renderMore(); renderRankScreen(); renderRibbon(); },
       /* The Map chip repaints on every sync cycle; the More row did not, so
          a refusal landing while More was open left the two surfaces quoting
          different numbers for the same thing. An open refusal sheet

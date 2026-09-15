@@ -366,6 +366,10 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
     check("drawing taps never opened a knock sheet — the draw consumes the tap first", !noKnock);
 
     await page.evaluate(() => document.querySelector("#draw-done").click());
+    await sleep(300);
+    const waiting = await page.evaluate(() => ({ sheet: document.querySelector("#hood-sheet").classList.contains("open"), area: (MMAP.pendingArea() || []).length, msg: document.querySelector("#draw-msg").textContent }));
+    check("Done completes the area on the map and waits for the tap — no sheet yet", !waiting.sheet && waiting.area === 5 && /tap inside/i.test(waiting.msg), JSON.stringify(waiting));
+    await page.mouse.click(200, 450);   // inside the five corners
     await page.waitForFunction(() => { const r = document.querySelector("#hd-review"); return r && !r.hidden; }, null, { timeout: 30000 });
     await sleep(300);
     const rv = await reviewLines();

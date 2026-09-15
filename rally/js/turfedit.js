@@ -313,16 +313,22 @@
      houses are kept, before Save. */
   function reconciliation(t, nextPoints) {
     const was = (p) => { const h = STORE.hoodOf(p); return !!(h && h.id === t.id); };
-    let stay = 0, outside = 0, entering = 0;
+    /* Two kinds of "now outside". An IMPORTED door carries the territory's
+       stamp, and STORE.hoodOf keeps a stamped door with its territory until
+       another live outline contains it — so it stays listed here. A door a
+       rep pinned BY HAND carries no stamp; outside every outline it belongs
+       to none, and the territory's own count drops it. Both keep every
+       outcome, note, callback and knock; only the second stops counting. */
+    let stay = 0, outside = 0, leaving = 0, entering = 0;
     STORE.pins.forEach((p) => {
       if (p.deletedAt) return;
       const before = was(p);
       const after = MGEOM.pointInRing(nextPoints, p.lng, p.lat);
       if (before && after) stay++;
-      else if (before && !after) outside++;
+      else if (before && !after) { if (p.territoryId === t.id) outside++; else leaving++; }
       else if (!before && after) entering++;
     });
-    return { stay, outside, entering };
+    return { stay, outside, leaving, entering };
   }
 
   async function save() {
@@ -335,9 +341,10 @@
     const before = live.original;
     const next = MGEOM.validate(live.points).points;
     const rc = reconciliation(t, next);
-    if (rc.outside || rc.entering) {
+    if (rc.outside || rc.leaving || rc.entering) {
       const lines = [`Save this outline for ${STORE.hoodLabel(t)}?`, ``,
         `${rc.stay} house${rc.stay === 1 ? "" : "s"} stay inside.`];
+      if (rc.leaving) lines.push(`${rc.leaving} hand-pinned door${rc.leaving === 1 ? " is" : "s are"} now outside the line — kept with ${rc.leaving === 1 ? "its" : "their"} history, but no longer counted for any territory.`);
       /* A house the line moved away from keeps its stamp until another
          territory's outline takes it in (STORE.hoodOf): it is not orphaned,
          not deleted, and not re-imported later as a stranger. */

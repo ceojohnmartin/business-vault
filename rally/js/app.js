@@ -204,6 +204,7 @@
       await STORE.saveSettings();
       await STORE.loadRoleState();
       renderMore(); renderRankScreen(); renderRibbon();
+      if (window.MHOODS && MHOODS.roleChanged) MHOODS.roleChanged();   // a rep never sees a manager's unsaved area
       if (window.MMAP) { MMAP.clearSelection(); MMAP.refreshHoods(); MMAP.refreshPins(); MMAP.updateBrandToday(); }
       if (window.MHOME) MHOME.render();
       if (window.MHOODS && MHOODS.closeTools) MHOODS.closeTools();
@@ -866,7 +867,7 @@
     // has to reach the privileged surfaces immediately — not on next launch
     window.MAPP = {
       show,
-      roleChanged: () => { renderMore(); renderRankScreen(); renderRibbon(); },
+      roleChanged: () => { renderMore(); renderRankScreen(); renderRibbon(); if (window.MHOODS && MHOODS.roleChanged) MHOODS.roleChanged(); },
       /* The Map chip repaints on every sync cycle; the More row did not, so
          a refusal landing while More was open left the two surfaces quoting
          different numbers for the same thing. An open refusal sheet

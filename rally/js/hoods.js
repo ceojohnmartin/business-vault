@@ -76,6 +76,9 @@
   function startMode(m) {
     if (!MMAP.isReady()) { toast("Map is still loading"); return; }
     stopMode();
+    // a new shape replaces the area that was waiting — it never lingers
+    // behind a draw, un-clearable, swallowing taps
+    if (area) clearArea();
     mode = m;
     closeToolsIfOpen();
     $("#draw-bar").hidden = false;
@@ -119,6 +122,7 @@
       pts = ring.points;
     }
     area = { points: pts };
+    draftId = null;          // one draft id per completed area
     MMAP.setPendingArea(pts);
     MMAP.setPreviewDoors(null);
     const bar = $("#draw-bar");
@@ -134,6 +138,9 @@
 
   function clearArea() {
     area = null;
+    draftId = null;          // the next area is a new draft, never a retry of this one
+    scanGen++;               // a scan still in flight for this area lands nowhere
+    lastScan = null;
     MMAP.setPendingArea(null);
     MMAP.setPreviewDoors(null);
     MMAP.selectHood(null);
@@ -162,8 +169,18 @@
     // nested turf: the smallest containing territory is the one meant
     const t = inside.length === 1 ? inside[0] : inside.slice().sort((a, b) =>
       MPROP.areaKm2(a.points) - MPROP.areaKm2(b.points))[0];
-    openHoodSheet(t.points, t);
+    openHoodSheet(t.points, t, { tapped: { lng: ll.lng, lat: ll.lat } });
     return true;
+  }
+
+  /* A ROLE CHANGE. A rep must never be shown a manager's unsaved area, its
+     found houses or the Find-houses bar — a demotion mid-flow, or the
+     preview's own Preview-as switch, takes them away at once. */
+  function roleChanged() {
+    if (STORE.canManageTerritories()) return;
+    if (mode !== null) stopMode();
+    if (area) clearArea();
+    MMAP.setPreviewDoors(null);
   }
 
   // ---------- pencil (freehand) ----------
@@ -237,7 +254,16 @@
     const finished = mode; // stopMode clears it
     stopMode();
     if (finished === "lasso") MSELECT.open(coords);
-    else completeArea(coords);
+    else if (!completeArea(coords)) fixCorners(coords);
+  }
+
+  /* A shape the validator refused (a trace that overshot its own start, a
+     lasso that crossed itself) is handed to the corners editor so the one
+     bad corner can be moved — never thrown away for the manager to redraw. */
+  function fixCorners(coords) {
+    startMode("dots");
+    dots = coords.slice();
+    refreshDraft();
   }
 
   // Ramer–Douglas–Peucker in screen pixels — keeps the drawn shape's
@@ -291,6 +317,16 @@
      sheet's polygon, so leaving it up after the sheet has gone would put a
      stale house count over a map showing something else. */
   function closeHoodSheet() { hideCard(); closeSheet(); MMAP.selectHood(null); }
+  /* Called for EVERY close of the territory sheet, whichever path closed it
+     (the ui.js event). A saved territory's "scan for new houses" pins are a
+     view of that sheet and leave with it — a completed, unsaved area keeps
+     its found houses on the map, because the area itself is still there to
+     be tapped again. */
+  function sheetClosed() {
+    hideCard();
+    MMAP.selectHood(null);
+    if (editingId) { MMAP.setPreviewDoors(null); scanGen++; lastScan = null; }
+  }
 
   /* THE REVIEW STRIP AND THE SOURCE LINE.
 
@@ -509,6 +545,7 @@
   }
 
   function presentScan(hood, scan) {
+    if (!hood && !area) return;            // the area was cleared while the provider answered
     const { fresh, res, dupes } = scan;
     lastScan = scan;
     // the bar over the map now describes what the tap found, not what to do
@@ -533,7 +570,9 @@
        review's "Will be imported" line shows. */
     const importable = importableOf(fresh).length;
     if (importable) {
-      importOn = !hood; // creating: import is the point, default ON
+      // creating: import is the point, default ON — unless this same scan
+      // was presented before and the manager switched it off
+      importOn = scan.importOn != null ? scan.importOn : !hood;
       const btn = $("#hd-import-btn");
       btn.textContent = hood
         ? `⬇️ Import ${importable} new door${importable === 1 ? "" : "s"}`
@@ -610,7 +649,7 @@
       line("Parcel-level (lot, not house)", parcel, parcel ? "warn" : "") +
       line("Uncertain coordinates", uncertain, uncertain ? "warn" : "") +
       (demo ? line("Demo grid — not real houses", demo, "bad") : "") +
-      line("Excluded (not residential)", res.excluded + (reasons ? ` <i>${reasons}</i>` : "")) +
+      line("Excluded (not imported)", res.excluded + (reasons ? ` <i>${reasons}</i>` : "")) +
       line("Already in RALLY (matched, not duplicated)", dupes) +
       line("Will be imported", willImport, "total") +
       /* "Already in RALLY" is what THIS phone knows. The server matches
@@ -738,6 +777,15 @@
     if (!manager || !points || points.length < 3) { wrap.hidden = true; return; }
     wrap.hidden = false;
     $("#hd-redraw").hidden = !!hood;
+    /* A manager's tap inside a saved territory opens the territory — so the
+       door that is not in the provider's data, the one the copy says "can be
+       pinned by hand", is pinned from here: the tap's own spot is kept. */
+    const kh = $("#hd-knock-here");
+    if (kh) {
+      const at = hood && opts && opts.tapped;
+      kh.hidden = !at;
+      kh.onclick = at ? () => { tick(); closeHoodSheet(); MMAP.startKnock(at.lat, at.lng); } : null;
+    }
     if (hood) {
       /* A SAVED TERRITORY IS NOT SCANNED AGAIN ON OPEN. Its houses are the
          pins already on the map, with their outcomes, notes, callbacks and
@@ -747,7 +795,8 @@
       const st = STORE.hoodStats(hood);
       const rc = opts && opts.reconcile;
       const moved = rc ? `<div class="hd-reconcile"><b>Outline changed.</b> ${rc.stay} house${rc.stay === 1 ? "" : "s"} still inside` +
-        (rc.outside ? ` · <b>${rc.outside}</b> now outside the line — kept with every outcome, note and knock, and still ${rc.outside === 1 ? "this territory's" : "this territory's"} until another outline takes ${rc.outside === 1 ? "it" : "them"}` : "") +
+        (rc.outside ? ` · <b>${rc.outside}</b> now outside the line — kept with every outcome, note and knock, and still this territory's until another outline takes ${rc.outside === 1 ? "it" : "them"}` : "") +
+        (rc.leaving ? ` · <b>${rc.leaving}</b> hand-pinned door${rc.leaving === 1 ? "" : "s"} now outside — kept with ${rc.leaving === 1 ? "its" : "their"} history, no longer counted for any territory` : "") +
         (rc.entering ? ` · <b>${rc.entering}</b> existing house${rc.entering === 1 ? "" : "s"} now inside` : "") +
         ` · scan below to find houses in the added ground</div>` : "";
       $("#hd-status").innerHTML = (st.doors
@@ -1172,7 +1221,7 @@
     $$("#mtools .mt-group").forEach((g, i) => { if (i < 2) g.hidden = !manager; });
     $("#mt-heat").hidden = !manager;
     $("#mt-assign").hidden = !manager;
-    $("#mt-clear").hidden = mode === null;
+    $("#mt-clear").hidden = mode === null && !area;
     $("#mt-heat").querySelector(".mtr-t").innerHTML = MMAP.heatMode()
       ? `Ownership view<i>Back to who works which area</i>`
       : `Freshness view<i>How long since each area was worked</i>`;
@@ -1216,8 +1265,7 @@
     // and the map selection go with it; a completed area stays tappable
     document.addEventListener("rally:sheet-closed", (e) => {
       if (!e.detail || e.detail.id !== "hood-sheet") return;
-      hideCard();
-      MMAP.selectHood(null);
+      sheetClosed();
     });
     $("#fab-hoods").addEventListener("click", () => {
       tick();
@@ -1239,7 +1287,7 @@
     $("#mt-lasso").addEventListener("click", () => { tick(); closeTools(); startMode("lasso"); });
     $("#mt-undo").addEventListener("click", () => { tick(); undoDot(); setToolState(); });
     $("#mt-redo").addEventListener("click", () => { tick(); redoDot(); setToolState(); });
-    $("#mt-clear").addEventListener("click", () => { tick(); stopMode(); closeTools(); });
+    $("#mt-clear").addEventListener("click", () => { tick(); if (mode !== null) stopMode(); if (area) clearArea(); closeTools(); });
     $("#mt-assign").addEventListener("click", () => {
       tick();
       // the reps panel is already rendered in the sheet; scroll it into view
@@ -1272,7 +1320,7 @@
       if (dots.length < 3) return;
       const pts = dots.slice();
       stopMode();
-      if (!completeArea(pts)) { startMode("dots"); dots = pts; refreshDraft(); }   // refused: keep the corners to fix
+      if (!completeArea(pts)) fixCorners(pts);   // refused: keep the corners to fix
     });
     // the button form of the tap on the completed area
     const find = $("#draw-find");
@@ -1339,8 +1387,10 @@
         const t = STORE.territories.find((x) => x.id === editingId);
         setupDoorsBlock(pending, t || null);
       } else {
-        // creating: toggle whether Save also imports
+        // creating: toggle whether Save also imports — and the choice rides
+        // on the scan, so re-opening the area does not silently reset it
         importOn = !importOn;
+        lastScan.importOn = importOn;
         $("#hd-import-btn").classList.toggle("sel", importOn);
       }
     });
@@ -1368,12 +1418,13 @@
     isDrawing: () => mode !== null,
     // lasso → hood: the ring is already the manager's choice, so it is
     // completed AND opened in one step
-    createFromPoints: (pts) => { if (completeArea(pts)) openHoodSheet(area.points, null); },
+    createFromPoints: (pts) => { if (completeArea(pts)) openHoodSheet(area.points, null); else fixCorners(pts); },
     /* the territory workflow's entry points: the tap on turf (from map.js)
        and the completed area, for the harness and tests */
     openAreaAt,
     completeArea,
     clearArea,
+    roleChanged,
     pendingArea: () => (area ? area.points.map((p) => [p[0], p[1]]) : null),
     // the saved territory's own sheet, for the screenshot harness and tests;
     // opts.reconcile carries what an outline edit moved

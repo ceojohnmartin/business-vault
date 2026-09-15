@@ -226,7 +226,7 @@
           id: p.id, disposition: key(p),
           cbdue: p.callbackAt && p.callbackAt <= Date.now() ? 1 : 0,
         },
-      })).concat(previewDoors.map((p, i) => ({
+      })).concat((STORE.canManageTerritories() ? previewDoors : []).map((p, i) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [p.lng, p.lat] },
         properties: { id: PREVIEW_ID + i, disposition: "unworked", cbdue: 0, preview: 1 },
@@ -1094,8 +1094,11 @@
     }
     if (hit && hit.kind === "pin") {
       if (String(hit.id).indexOf(PREVIEW_ID) === 0) {
-        // a house the scan found: it becomes a door when the territory is saved
-        toast("Found house — save the territory to keep it as a door");
+        // a house the scan found: a door once the territory is saved (a new
+        // area) or imported (a saved territory's scan)
+        toast(window.MHOODS && MHOODS.pendingArea && MHOODS.pendingArea()
+          ? "Found house — save the territory to keep it as a door"
+          : "Found house — import it from the territory sheet to keep it as a door");
         return;
       }
       const pin = STORE.pins.find((p) => p.id === hit.id);
@@ -1156,7 +1159,7 @@
     setPendingArea,
     pendingArea: () => (pendingArea ? pendingArea.map((p) => [p[0], p[1]]) : null),
     setPreviewDoors,
-    previewDoors: () => previewDoors.slice(),
+    previewDoors: () => previewDoors.map((p) => Object.assign({}, p)),   // copies: the scan's own objects are what Save imports
     resize: () => { if (R) R.resize(); },
     /* Engine-neutral surface — everything an adapter must provide, and
        nothing that leaks the engine. getMap is gone on purpose, and now

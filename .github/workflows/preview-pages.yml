@@ -84,14 +84,22 @@ jobs:
           sh src/rally/tools/build-preview.sh src/rally site/rally-preview p5
           echo "production = main @ $(git -C site rev-parse --short HEAD)"
           echo "preview    = $PREVIEW_REF @ $(git -C src rev-parse --short HEAD)"
+          # THE PRODUCTION TREE IS MAIN'S OWN, UNTOUCHED. Asked of git, not of
+          # a string search: the build must have written nothing under
+          # site/ except site/rally-preview/ (a grep for the preview's names
+          # would start failing the day this branch merges, since the build
+          # script and its tests carry those names by design).
+          changed="$(git -C site status --porcelain --untracked-files=all -- . ':(exclude)rally-preview' || true)"
+          if [ -n "$changed" ]; then
+            echo "the preview build altered production's tree:" >&2; echo "$changed" >&2; exit 1
+          fi
+          # …and if main carries the preview switch at all, it is the NULL one
+          if [ -f site/rally/js/preview-config.js ]; then
+            grep -q 'window.RALLY_PREVIEW = window.RALLY_PREVIEW || null;' site/rally/js/preview-config.js
+          fi
           rm -rf site/.git site/.github
           test -f site/rally/index.html
           test -f site/rally-preview/index.html
-          # the production copy is main's own tree: the preview build wrote
-          # nothing into it, and no preview name appears anywhere under it
-          if grep -rq 'rally-preview-p5\|rallyp5-' site/rally; then
-            echo "the preview leaked into production rally/" >&2; exit 1
-          fi
           grep -q 'db: "rally-preview-p5"' site/rally-preview/js/preview-config.js
           grep -q 'isolated: true' site/rally-preview/js/preview-config.js
           echo "site ready"

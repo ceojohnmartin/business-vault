@@ -22,7 +22,10 @@ SRC="${1:?source rally dir}"
 OUT="${2:?output dir}"
 ID="${3:-p5}"
 DB="rally-preview-$ID"
-FAMILY="rallyp5-"
+# everything the id names is derived from it: two previews on one origin
+# must not share a cache family any more than a database
+FAMILY="rally${ID}-"
+SHORT="RALLY $(printf '%s' "$ID" | tr '[:lower:]' '[:upper:]')"
 
 [ -f "$SRC/index.html" ] && [ -f "$SRC/sw.js" ] || { echo "not a rally dir: $SRC" >&2; exit 2; }
 rm -rf "$OUT"; mkdir -p "$OUT"
@@ -65,7 +68,7 @@ rm -f "$OUT/sw.js.bak"
 # 4. the home-screen name and the tab title
 sed -i.bak \
   -e 's/"name": "RALLY — Door-to-Door Sales"/"name": "RALLY PREVIEW — isolated test build"/' \
-  -e 's/"short_name": "RALLY"/"short_name": "RALLY P5"/' "$OUT/manifest.webmanifest"
+  -e "s/\"short_name\": \"RALLY\"/\"short_name\": \"$SHORT\"/" "$OUT/manifest.webmanifest"
 rm -f "$OUT/manifest.webmanifest.bak"
 sed -i.bak -e 's#<title>[^<]*</title>#<title>RALLY PREVIEW (isolated)</title>#' "$OUT/index.html"
 rm -f "$OUT/index.html.bak"

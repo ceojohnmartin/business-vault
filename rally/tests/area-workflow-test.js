@@ -224,6 +224,36 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
     await sleep(500);
     const again = await page.evaluate(() => ({ preview: MMAP.previewDoors().length, review: !document.querySelector("#hd-review").hidden, houses: document.querySelector("#pc-houses").textContent.trim() }));
     check("the second tap presents the same scan (same houses, same card) without asking the provider again", again.preview === N && again.review && Number(again.houses) === N && overpassCalls === calls2, JSON.stringify({ again, calls: overpassCalls - calls2 }));
+    // the manager's import choice rides on the scan
+    await page.evaluate(() => document.querySelector("#hd-import-btn").click());
+    const off = await page.evaluate(() => document.querySelector("#hd-import-btn").classList.contains("sel"));
+    await page.evaluate(() => MUI.closeSheet()); await sleep(400);
+    await tapInside(ring);
+    await page.waitForFunction(() => document.querySelector("#hood-sheet").classList.contains("open"), null, { timeout: 10000 }); await sleep(300);
+    const stillOff = await page.evaluate(() => document.querySelector("#hd-import-btn").classList.contains("sel"));
+    check("switching 'Import when I save' OFF survives closing and re-tapping the area (the choice rides on the scan)", off === false && stillOff === false, JSON.stringify({ off, stillOff }));
+    await page.evaluate(() => document.querySelector("#hd-import-btn").click());   // back ON for the save below
+    check("…and it switches back on", await page.evaluate(() => document.querySelector("#hd-import-btn").classList.contains("sel")));
+    await page.evaluate(() => MUI.closeSheet()); await sleep(400);
+    // on the MapLibre engine the area is painted UNDER the pins, like every territory
+    const order = await page.evaluate(() => { const ids = MMAP.engineReport().renderer._layerOrder ? MMAP.engineReport().renderer._layerOrder() : null; return ids; });
+    if (order) check("the completed area's layers sit below the pin layers on the fallback engine", order.indexOf("pending-area-fill") < order.indexOf("pins-dots") && order.indexOf("pending-area-line") < order.indexOf("pins-dots"), order.join(" > "));
+    // a NEW draw replaces the waiting area instead of leaving it behind, un-clearable
+    await page.evaluate(() => { document.querySelector("#fab-hoods").click(); }); await sleep(300);
+    const toolsClear = await page.evaluate(() => !document.querySelector("#mt-clear").hidden);
+    check("with an area waiting, the tools sheet offers Clear", toolsClear);
+    await page.evaluate(() => document.querySelector("#mt-corners").click()); await sleep(300);
+    const replaced = await page.evaluate(() => ({ area: MHOODS.pendingArea(), facade: MMAP.pendingArea(), preview: MMAP.previewDoors().length, drawing: MHOODS.isDrawing() }));
+    check("starting a new draw takes the waiting area and its found houses off the map", replaced.area === null && replaced.facade === null && replaced.preview === 0 && replaced.drawing, JSON.stringify(replaced));
+    await page.evaluate(() => document.querySelector("#draw-cancel").click()); await sleep(200);
+    // …so redraw the same five corners and find the houses again for the save
+    await page.evaluate(() => { document.querySelector("#fab-hoods").click(); }); await sleep(300);
+    await page.evaluate(() => document.querySelector("#mt-corners").click()); await sleep(300);
+    for (const [x, y] of CORNERS) { await page.mouse.click(x, y); await sleep(120); }
+    await page.evaluate(() => document.querySelector("#draw-done").click()); await sleep(300);
+    await page.evaluate(() => document.querySelector("#draw-find").click());
+    await page.waitForFunction(() => { const r = document.querySelector("#hd-review"); return r && !r.hidden; }, null, { timeout: 30000 }); await sleep(300);
+    check("the redrawn area finds the same houses", (await page.evaluate(() => MMAP.previewDoors().length)) === N);
 
     // =============================================== C. ASSIGN → SAVE
     section("C. Assign two reps and Save: one territory, N doors, stable identities");
@@ -270,8 +300,19 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
     check(`its houses are simply there: "${N} doors on the map", no provider request, no preview pins, scan offered only as a button for NEW houses`, new RegExp("^" + N + " doors on the map").test(opened.status) && overpassCalls === calls3 && opened.preview === 0 && !opened.scanHidden && /new houses/i.test(opened.scanBtn) && opened.review, JSON.stringify({ status: opened.status, calls: overpassCalls - calls3, scanBtn: opened.scanBtn }));
     check("no second copy of any house was made by opening it", shape2.n === N && shape2.ext === N && JSON.stringify(shape2.ids) === JSON.stringify(shape1.ids));
     check("the summary card names the territory with its house count", /Territory · [0-9]+|Territory \d+ · [0-9]+/.test(opened.card) && new RegExp("· " + N + "$").test(opened.card), opened.card);
+    const knockHere = await page.evaluate(() => !document.querySelector("#hd-knock-here").hidden);
+    check("the sheet opened by a tap offers to log a door at that very spot (hand-pinning inside turf still exists)", knockHere);
     await page.click("#hood-sheet .grab"); await sleep(400);   // the way a thumb closes it
     check("closing the sheet clears the selection", (await page.evaluate(() => MMAP.selectedHood())) === null);
+    // a saved territory's "scan for new houses" pins are a view of that sheet and leave with it
+    await tapInside(saved.id);
+    await page.waitForFunction(() => document.querySelector("#hood-sheet").classList.contains("open"), null, { timeout: 10000 });
+    await page.evaluate(() => document.querySelector("#hd-scan").click());
+    await page.waitForFunction(() => { const r = document.querySelector("#hd-review"); return r && !r.hidden; }, null, { timeout: 30000 }); await sleep(300);
+    const scanned = await page.evaluate(() => MMAP.previewDoors().length);
+    await page.click("#hood-sheet .grab"); await sleep(400);
+    check("a saved territory's scan found nothing new (every house matched) and any preview pins leave with the sheet", scanned === 0 && (await page.evaluate(() => MMAP.previewDoors().length)) === 0, JSON.stringify({ scanned }));
+    await page.evaluate(() => document.querySelector("#hd-knock-here") && null);
 
     // =============================================== E. OUTCOMES SURVIVE A RELOAD
     section("E. Outcomes, a note and a callback, then a full reload: the SAME properties with the SAME history");
@@ -325,7 +366,18 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
     // =============================================== F. REP VS MANAGER TAP
     section("F. The same ground: a rep's tap is a knock, a manager's is the territory");
     const crew = await page.evaluate(() => ({ jake: STORE.users.find((u) => u.name === "Jake Rowe").id, me: STORE.users.find((u) => u.name === "Area Manager").id }));
+    // a manager leaves an area waiting with its found houses; the rep must never see them
+    await page.evaluate(() => { document.querySelector("#fab-hoods").click(); }); await sleep(300);
+    await page.evaluate(() => document.querySelector("#mt-corners").click()); await sleep(300);
+    for (const [x, y] of [[40, 700], [120, 690], [130, 780], [40, 790]]) { await page.mouse.click(x, y); await sleep(120); }
+    await page.evaluate(() => document.querySelector("#draw-done").click()); await sleep(300);
+    await page.evaluate(() => document.querySelector("#draw-find").click()); await sleep(1500);
+    await page.evaluate(() => MUI.closeSheet()); await sleep(300);
+    const waitingBefore = await page.evaluate(() => ({ area: !!MHOODS.pendingArea(), bar: !document.querySelector("#draw-bar").hidden }));
     await beUser(crew.jake);
+    const repSees = await page.evaluate(() => ({ area: MHOODS.pendingArea(), facade: MMAP.pendingArea(), preview: MMAP.previewDoors().length, bar: document.querySelector("#draw-bar").hidden,
+      previewInFC: (MMAP.engineReport().renderer.counts ? MMAP.engineReport().renderer.counts().pins : 0) }));
+    check("a manager's unsaved area, its found houses and the Find-houses bar are gone the moment the phone is a rep's", waitingBefore.area && waitingBefore.bar && repSees.area === null && repSees.facade === null && repSees.preview === 0 && repSees.bar, JSON.stringify({ waitingBefore, repSees }));
     const ground = await groundInside(ring);
     const repView = await page.evaluate(() => ({ role: STORE.effectiveRole(), hoods: MMAP.engineReport().renderer.counts ? MMAP.engineReport().renderer.counts().hoods : null, pins: STORE.pins.length }));
     check("as the rep: role rep, the assigned turf is the one blue area on the map with its saved pins", repView.role === "rep" && repView.pins === N && (repView.hoods === null || repView.hoods === 1), JSON.stringify(repView));
@@ -370,6 +422,15 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
        it — a door just outside through GPS drift never becomes an orphan.
        So the count stays whole, and the dialog said exactly that. */
     check("the houses outside the line are still this territory's (no other outline claims them): the count stays whole, nothing is orphaned", afterEdit.stats.doors === N && afterEdit.stats.knocked === 6 && /still listed with this territory/.test(msg), JSON.stringify({ doors: afterEdit.stats.doors, inside: afterEdit.inside }));
+    // a HAND-PINNED door (no stamp) outside the line is told apart: kept, but no longer any territory's
+    const hand = await page.evaluate(async (id) => {
+      const t = STORE.territories.find((x) => x.id === id);
+      const out = STORE.pins.find((p) => !MGEOM.pointInRing(t.points, p.lng, p.lat));   // a spot the line moved away from
+      const pin = await STORE.addKnock({ lat: out.lat + 0.00005, lng: out.lng + 0.00005, pinId: null, disposition: "nothome", reason: null, dm: false, note: "", callbackAt: null });
+      return { id: pin.id, stamped: !!pin.territoryId, home: (STORE.hoodOf(pin) || {}).id || null };
+    }, work.terr);
+    check("a door knocked by hand outside the new line carries no stamp and belongs to no territory", !hand.stamped && hand.home === null, JSON.stringify(hand));
+    await page.evaluate(async (id) => { const t = STORE.territories.find((x) => x.id === id); const pin = STORE.pins.find((p) => p.id === window.__hand); }, work.terr);
 
     // now pull the same corner OUT past where it was: the houses come back and the added ground may hold new ones
     await page.evaluate(() => MUI.closeSheet()); await sleep(300);

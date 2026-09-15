@@ -55,7 +55,7 @@
        stamped by the preview build (RALLY_PREVIEW.demo) and only into an
        EMPTY database — the preview's own, never production's. */
     const PV = window.RALLY_PREVIEW;
-    if (!S.users.length && PV && PV.demo) {
+    if (!S.users.length && PV && PV.demo && PV.isolated && PV.db && PV.db !== "meridian-db") {
       const now = Date.now();
       const team = [
         { name: "Preview Manager", role: "manager" },
@@ -645,6 +645,9 @@
              the same fact as a door on a verified footprint, and after a
              thousand imports nobody can tell them apart by looking. */
           placement: prop.placement || null,
+          // a roof whose USE was inferred from its footprint says so on the
+          // record, not only in a display label that may be reworded
+          inferred: prop.inferred ? true : undefined,
         },
         importedAt: now, createdAt: now, updatedAt: now,
       };
@@ -935,8 +938,16 @@
     if (t.seq) return;
     if (!(window.RALLY_PREVIEW && window.RALLY_PREVIEW.isolated)) return;
     if (window.MCLOUD && MCLOUD.enabled()) return;
-    t.seq = S.territories.reduce((m, x) => Math.max(m, Number(x.seq) || 0), 0) + 1;
+    /* A HIGH-WATER MARK, as the server keeps one over every row it has ever
+       held, deleted or split included: a deleted Territory 3 is on a radio
+       call and in a text message, so the next hood is 4. Deriving the next
+       number from the rows still present would hand 3 out again. */
+    const high = Math.max(Number(S.settings.previewSeqHigh) || 0,
+      S.territories.reduce((m, x) => Math.max(m, Number(x.seq) || 0), 0));
+    t.seq = high + 1;
     t.seqSource = "device-preview";
+    S.settings.previewSeqHigh = t.seq;
+    S.saveSettings().catch(() => {});
   }
   S.addTerritory = async function (t) {
     t.id = t.id || MDB.uid();
@@ -951,7 +962,9 @@
     t.assignees = t.assignees || { entries: [] };
     t.assigneesRev = t.assigneesRev || 0;
     S.assigneeMirrors(t);
-    S.territories.push(t);
+    // a retry that reuses a draft id lands on the SAME hood, never beside it
+    const at = S.territories.findIndex((x) => x.id === t.id);
+    if (at >= 0) S.territories[at] = t; else S.territories.push(t);
     await MDB.put("territories", t);
     if (window.MSYNC) MSYNC.queue("territories", t.id);
     return t;
@@ -1251,6 +1264,7 @@
       updatedAt: now,
       pendingSplit: operationId,   // proposed, not yet a server fact
     }));
+    kids.forEach((k) => previewSeq(k));   // the preview numbers them as the server's insert would
     S.territories.push(...kids);
     await MDB.bulkPut("territories", kids);
     /* The parent stays in the book. It is hidden from every place that

@@ -485,6 +485,7 @@
       // v42, same rule: the hood's number, its permanent uuid, and which
       // outcomes the current reset kept are server columns, not blob fields.
       delete data.seq;
+      delete data.seqSource;   // a device-minted number's marker never describes a server row
       delete data.uuid;
       delete data.cycleKeep;
       delete data.cycleKeepAt;

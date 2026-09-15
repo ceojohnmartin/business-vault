@@ -22,6 +22,7 @@ the production book.
 | Business data | real | whatever the tester draws, in the preview's own database, under a permanent **PREVIEW · isolated demo data** ribbon | `js/app.js` |
 | House discovery | provider setting | OpenStreetMap building outlines only — the demo grid is hidden and refused | `js/property.js`, `js/app.js` |
 | Home-screen identity | RALLY | RALLY PREVIEW / "RALLY P5", tab title "RALLY PREVIEW (isolated)" | `manifest.webmanifest`, `index.html` (built) |
+| Backups | restore any RALLY backup | a backup written in the preview is stamped `preview: rally-preview-p5`; RALLY refuses to restore it (and any file whose territories carry device-minted numbers) anywhere but that preview | `js/vault.js` |
 | Apple MapKit token | stamped at publish from the repository secret | same secret, stamped into the preview's `js/mapkit-config.js` **in the build output only** | `tools/build-preview.sh`, `.github/workflows/preview-pages.yml` |
 
 Opening the preview cannot write to production: it never opens production's
@@ -29,6 +30,16 @@ database, never registers production's worker, never holds production's
 session, and has no cloud client to reach the team server with. The normal
 RALLY path is not altered — `RALLY_PREVIEW` is `null` in git and every guard
 above is a no-op when it is.
+
+**One interim caveat, in the other direction.** The family-scoped cleanup is
+on this branch; the `rally/sw.js` that `main` serves today, and the
+repository-root `sw.js` (the Business Vault app, scope `/business-vault/`),
+still delete every cache that is not their own when they activate. So a
+production RALLY release or a Business Vault release landing on a phone that
+also holds the preview clears the preview's **offline caches only** — its
+precached shell and map tiles, which refill on the next online open. Its
+database, account, session and settings are untouched. Both workers carry
+the family-scoped cleanup on this branch and inherit it at merge.
 
 ## How it is published
 
@@ -90,7 +101,9 @@ backup (`tests/preview-test.js` §E).
           the boundary is selected, the territory sheet opens,
           RALLY finds the residential houses inside that exact boundary
           (OpenStreetMap building outlines; a house-sized outline with no
-          address is an INFERRED home and the review says so), and the
+          address, no name, no non-home tag, not several storeys or units,
+          and not on commercial, institutional, school, church or cemetery
+          ground is an INFERRED home and the review says so), and the
           compact blue pins go on the roofs immediately
           summary: New territory · N Houses · N Sales
       → REVIEW (source, on-the-outline count, inferred count, excluded, already in RALLY, will be imported)
@@ -113,14 +126,27 @@ backup (`tests/preview-test.js` §E).
 
     A REP: signs in → taps Map → the assigned turf is blue with its saved
     pins → starts knocking. A rep's tap inside their turf is a knock. A
-    manager's tap on turf opens the territory.
+    manager's tap on turf opens the territory — and the sheet it opens
+    offers "Log a door where I tapped", so a house no provider knows can
+    still be pinned by hand inside turf. A manager's unsaved area, its
+    found houses and the Find-houses bar vanish the moment the phone is a
+    rep's (a demotion, or Preview-as).
+
+    A shape the validator refuses (a trace that crossed itself) is handed
+    to the corners editor to fix, never thrown away. Starting a new draw
+    replaces an area that was waiting; Clear (on the bar, or in the tools
+    sheet) removes it.
 
 ## What is SIMULATED because migration 0018 is not applied
 
 - **The territory number.** `seq` is server-assigned by 0018. The preview
-  has no server, so it mints the next number on the device and marks the
-  record `seqSource: "device-preview"`. Only the preview does this; a real
-  device without 0018 still reads "Territory" with no number.
+  has no server, so it mints the next number on the device from a
+  high-water mark (a deleted or split territory's number is never handed
+  out again, as the server's is not), numbers Smart Split children the way
+  the server's insert would, and marks each record
+  `seqSource: "device-preview"`. Only the preview does this; a real device
+  without 0018 still reads "Territory" with no number. The marker is
+  stripped from anything that would ever be pushed.
 - **Server-confirmed import and the team-wide door match.** The device is
   the record: `STORE.importDoors` pins the houses locally, matched against
   this device's doors. The 0018 RPC path (`import_territory_doors`) is

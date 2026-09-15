@@ -66,9 +66,19 @@
       const useTag = inf.nonHomeTags.find((k) => tags[k] != null);
       if (useTag) return { eligible: false, whyExcluded: "not a home: " + useTag, propertyType: b || "building" };
       if (named) return { eligible: false, whyExcluded: "named building", propertyType: b || "building" };
-      if (ctx.landuse && inf.nonHomeLanduse.includes(ctx.landuse)) {
-        return { eligible: false, whyExcluded: ctx.landuse + " area", propertyType: b || "building" };
+      // several homes or several storeys behind one outline is not one door
+      const levels = Number(tags["building:levels"]);
+      const units = Number(tags["building:flats"] || tags["building:units"]);
+      if (levels > inf.maxLevels) return { eligible: false, whyExcluded: levels + "-storey building", propertyType: "multi-storey" };
+      if (units > 1) return { eligible: false, whyExcluded: units + "-unit building", propertyType: "multi-unit" };
+      if (tags["building:use"] && !/^(residential|house|detached)$/i.test(tags["building:use"])) {
+        return { eligible: false, whyExcluded: "use: " + tags["building:use"], propertyType: b || "building" };
       }
+      // the ground it stands on: the outline's own landuse tag, then every
+      // context area around the point — ANY non-home evidence excludes
+      const grounds = [].concat(tags.landuse ? [String(tags.landuse).toLowerCase()] : [], ctx.landuses || (ctx.landuse ? [ctx.landuse] : []));
+      const bad = grounds.find((g) => inf.nonHomeLanduse.includes(g));
+      if (bad) return { eligible: false, whyExcluded: bad + " area", propertyType: b || "building" };
       const m2 = ctx.areaM2 || 0;
       if (m2 && m2 < inf.minM2) return { eligible: false, whyExcluded: "outbuilding (under " + inf.minM2 + " m²)", propertyType: "outbuilding" };
       if (m2 > inf.maxM2) return { eligible: false, whyExcluded: "large building (over " + inf.maxM2 + " m²)", propertyType: "large building" };
@@ -306,7 +316,10 @@ out tags geom;`;
      ring without crossing it is not returned by a poly filter, so landuse
      is EVIDENCE when present and never a requirement. */
   const searchQuery = (poly) => `[out:json][timeout:25];
-(way["building"](poly:"${poly}");relation["building"](poly:"${poly}");way["landuse"](poly:"${poly}"););
+(way["building"](poly:"${poly}");relation["building"](poly:"${poly}");
+ way["landuse"](poly:"${poly}");relation["landuse"](poly:"${poly}");
+ way["amenity"~"^(${R.osmInferred.contextAmenities.join("|")})$"](poly:"${poly}");
+ relation["amenity"~"^(${R.osmInferred.contextAmenities.join("|")})$"](poly:"${poly}"););
 out tags geom;`;
 
   const polyOf = (ring) =>
@@ -354,14 +367,13 @@ out tags geom;`;
        rather than at the top level, and placeAt reads those. */
     const j = await overpass(searchQuery(poly), onStatus, "Searching properties…");
     const all = (j && j.elements) || [];
-    // landuse polygons are context for the buildings, never doors themselves
-    const landuses = all.filter((el) => el.tags && el.tags.landuse && !el.tags.building)
-      .map((el) => ({ kind: String(el.tags.landuse).toLowerCase(), ring: ringOf(el.geometry) || relationRing(el) }))
+    // landuse and campus areas are context for the buildings, never doors
+    // themselves — and EVERY containing area is read, so a retail cut-out
+    // inside a residential polygon is not masked by whichever came first
+    const landuses = all.filter((el) => el.tags && (el.tags.landuse || el.tags.amenity) && !el.tags.building)
+      .map((el) => ({ kind: String(el.tags.landuse || el.tags.amenity).toLowerCase(), ring: ringOf(el.geometry) || relationRing(el) }))
       .filter((l) => l.ring && l.ring.length >= 3);
-    const landuseAt = (lon, lat) => {
-      const hit = landuses.find((l) => inGeom(l.ring, lon, lat));
-      return hit ? hit.kind : null;
-    };
+    const landusesAt = (lon, lat) => landuses.filter((l) => inGeom(l.ring, lon, lat)).map((l) => l.kind);
     const els = all.filter((el) => el.tags && el.tags.building != null);
     const out = els.map((el) => {
       const place = placeAt(el);
@@ -369,7 +381,7 @@ out tags geom;`;
       if (!c || !inRing(ring, c.lon, c.lat)) return null;
       const tags = el.tags || {};
       const outline = ringOf(el.geometry) || relationRing(el);
-      const elig = osmEligibility(tags, { areaM2: outline ? ringM2(outline) : 0, landuse: landuseAt(c.lon, c.lat) });
+      const elig = osmEligibility(tags, { areaM2: outline ? ringM2(outline) : 0, landuses: landusesAt(c.lon, c.lat) });
       const addr = [tags["addr:housenumber"], tags["addr:street"]].filter(Boolean).join(" ");
       return {
         externalId: "osm-" + el.type + "-" + el.id,

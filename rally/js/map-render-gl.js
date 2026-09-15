@@ -337,10 +337,13 @@
   function ensurePendingLayers() {
     if (map.getSource("pending-area")) return;
     map.addSource("pending-area", { type: "geojson", data: pendingFC() });
+    // UNDER the pins, like every territory: the houses the tap just found
+    // are what the manager is looking at, not a blue wash over them
+    const under = ["pins-dots", "pins-shadow", "pins-icon"].find((id) => map.getLayer(id));
     map.addLayer({ id: "pending-area-fill", type: "fill", source: "pending-area",
-      paint: { "fill-color": "#0A84FF", "fill-opacity": 0.16 } });
+      paint: { "fill-color": "#0A84FF", "fill-opacity": 0.16 } }, under);
     map.addLayer({ id: "pending-area-line", type: "line", source: "pending-area",
-      paint: { "line-color": "#0A84FF", "line-width": 3.4, "line-opacity": 0.95 } });
+      paint: { "line-color": "#0A84FF", "line-width": 3.4, "line-opacity": 0.95 } }, under);
   }
   function setPendingArea(ring) {
     pendingRing = Array.isArray(ring) && ring.length >= 3 ? ring : null;
@@ -549,6 +552,8 @@
     imagery: () => ({ live: imageryLive, provider: "google", error: lastImageryError }),
     lastError: () => lastImageryError,
     setPins, setSelected, setHoods, setDraft, setPendingArea, setRoute, setPuck, setTemp,
+    // diagnostics for the tests only: the style's layer order
+    _layerOrder: () => (map && map.getStyle && map.getStyle() ? map.getStyle().layers.map((l) => l.id) : []),
     getCenter, getZoom, project, unproject, jumpTo, easeTo, fitBounds, resize, setDragPan,
   };
 })();

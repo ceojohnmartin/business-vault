@@ -520,7 +520,11 @@ const cserver = http.createServer((req, res) => {
     // publish v39 underneath it, and make every module slower than the race
     SERVING = V39_ROOT;
     SLOW_JS_MS = 4500;                    // > NET_TIMEOUT_MS (3500), on the wire
-    await p2.goto(`http://localhost:${PORT}/`);
+    /* Forty modules at 4.5 s each over six connections is ~30 s of wire
+       time on its own, so `load` is given the same 90 s the module wait
+       below has — the assertion is coherence, not a 30 s load on a link
+       that is deliberately slower than any real one. */
+    await p2.goto(`http://localhost:${PORT}/`, { timeout: 90000 });
     await p2.waitForFunction(() => !!(window.STORE && window.MSYNC && window.MCUST),
       null, { timeout: 90000 }).catch(() => {});
     await p2.waitForTimeout(1500);

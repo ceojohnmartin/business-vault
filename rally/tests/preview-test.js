@@ -164,7 +164,19 @@ const server = http.createServer((req, res) => {
     await page.waitForFunction(() => STORE.territories.length === 2, null, { timeout: 30000 });
     await sleep(400);
     const t2 = await page.evaluate(() => STORE.territories.map((t) => STORE.hoodLabel(t)).join("|"));
-    check("the next one is Territory 2 — numbers are never reused, exactly as the server would issue them", t2 === "Territory 1|Territory 2", t2);
+    check("the next one is Territory 2", t2 === "Territory 1|Territory 2", t2);
+    // never reused: delete Territory 2, make another → Territory 3 (a high-water mark, as the server keeps)
+    await page.evaluate(async () => { await STORE.deleteTerritory(STORE.territories[1].id); });
+    await page.evaluate(async (ring) => { MHOODS.createFromPoints(ring.map(([x, y]) => [x, y + 0.004])); }, RING);
+    await page.waitForFunction(() => { const r = document.querySelector("#hd-review"); return r && !r.hidden; }, null, { timeout: 30000 });
+    await page.evaluate(() => document.querySelector("#hood-save").click());
+    await page.waitForFunction(() => STORE.territories.length === 2, null, { timeout: 30000 });
+    await sleep(300);
+    const t3 = await page.evaluate(() => STORE.territories.map((t) => STORE.hoodLabel(t)).join("|"));
+    check("after deleting Territory 2 the next territory is 3 — a number is never handed out twice", t3 === "Territory 1|Territory 3", t3);
+    // and Smart Split children are numbered too, as the server's insert would
+    const kids = await page.evaluate(async () => { const t = STORE.territories[1]; const k = await STORE.splitTerritory(t, 2); return k.map((x) => STORE.hoodLabel(x)); });
+    check("Smart Split children in the preview read Territory 4 and Territory 5, not 'A' and 'B'", kids.join("|") === "Territory 4|Territory 5", kids.join("|"));
     // tap the saved territory: the card names it by number
     await page.evaluate(() => { MUI.closeSheet(); MHOODS.openExisting(STORE.territories[0].id); });
     await sleep(500);
@@ -204,6 +216,28 @@ const server = http.createServer((req, res) => {
     }, FAKE_TOKEN);
     check("not in settings, not in the development slot, not in any IndexedDB kv row, not in localStorage" + (tok.backupChecked ? ", not in a backup" : ""), tok.inSettings === "" && tok.devSlot === "" && !tok.inKv && !tok.inLs && !tok.backupHasIt, JSON.stringify(tok));
     check("and no request carried it anywhere but Apple's own CDN attempt (blocked here)", cloudHits === 0, JSON.stringify({ cloudHits, appleHits }));
+
+    // ---------- E2. a preview backup is refused anywhere but the preview ----------
+    section("E2. A backup written in the preview cannot be restored into RALLY");
+    const payload = await page.evaluate(async () => {
+      // the same payload backup() writes, built the same way, without the download
+      const data = { territories: STORE.territories.slice(0, 1), pins: [], events: [], customers: [], users: [] };
+      return { file: JSON.stringify({ rally: 1, exportedAt: new Date().toISOString(), preview: window.RALLY_PREVIEW.db, data }),
+        unmarked: JSON.stringify({ rally: 1, exportedAt: new Date().toISOString(), data }) };
+    });
+    check("the preview stamps its backups with its own identity", /"preview":"rally-preview-p5"/.test(payload.file));
+    await boot(`http://localhost:${PORT}/rally/`);
+    const refused = await page.evaluate(async (pl) => {
+      const before = { terr: STORE.territories.length, pins: STORE.pins.length };
+      const toasts = [];
+      const mk = (txt) => ({ text: async () => txt });
+      const read = () => toasts.push(document.querySelector("#toast").textContent);
+      await MVAULT.restoreFile(mk(pl.file)); read();      // marked
+      await MVAULT.restoreFile(mk(pl.unmarked)); read();  // unmarked, but its territory carries a device-minted number
+      const after = (await MDB.getAll("territories")).length;
+      return { before, after, toasts };
+    }, payload);
+    check("production refuses the marked backup AND an unmarked one whose territory carries a device-minted number — nothing is written", refused.toasts.length === 2 && refused.toasts.every((t) => /isolated PREVIEW/.test(t)) && refused.after === refused.before.terr, JSON.stringify(refused));
 
     // ---------- F. production again ----------
     section("F. Back in production: only production's own door");

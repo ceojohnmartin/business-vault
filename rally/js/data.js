@@ -116,7 +116,17 @@
       minM2: 40, maxM2: 600,
       nonHomeTags: ["amenity", "shop", "office", "leisure", "tourism", "craft", "industrial",
         "healthcare", "public_transport", "man_made", "aeroway", "military", "power", "emergency"],
-      nonHomeLanduse: ["commercial", "retail", "industrial", "railway", "military", "quarry"],
+      /* the ground a bare outline stands on — a church campus, a school, a
+         cemetery, a depot — decides against it as firmly as a shop tag would */
+      nonHomeLanduse: ["commercial", "retail", "industrial", "railway", "military", "quarry",
+        "religious", "education", "cemetery", "institutional", "farmyard", "construction",
+        "garages", "depot", "brownfield", "landfill", "port", "school", "college", "university",
+        "place_of_worship", "hospital", "kindergarten", "prison", "fire_station", "police"],
+      // the campus areas fetched as context alongside landuse
+      contextAmenities: ["school", "college", "university", "place_of_worship", "hospital",
+        "kindergarten", "prison", "fire_station", "police"],
+      // a house-sized footprint that is several homes, or several storeys, is not one door
+      maxLevels: 2,
       label: "Home (inferred from footprint)",
     },
     // draw guard: refuse to scan absurdly large areas (protects the free

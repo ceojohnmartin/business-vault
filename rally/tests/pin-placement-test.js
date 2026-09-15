@@ -133,13 +133,15 @@ r.point && Number.isFinite(r.point.lat) && Number.isFinite(r.point.lon)
    measured against the live API — and every pin silently falls back to the
    bounding box. This asserts the shipped query asks for geometry and does
    not ask for a centre after it. ---- */
-// the line inside the query template, not a sentence in a comment above it
-const out = (src.match(/^out tags[^;\n]*;/m) || [""])[0];
-/geom/.test(out) ? ok("7. the query asks for building geometry: " + out)
-                 : bad("7. the query asks for building geometry", out);
-!/geom\s+center/.test(out)
-  ? ok("7b. and does not put center after geom, which would drop it")
-  : bad("7b. 'geom center' returns centres and NO geometry", out);
+// EVERY query line the file ships (the building fetch AND the search that
+// also asks for landuse context), not a sentence in a comment above them
+const outs = src.match(/^out tags[^;\n]*;/gm) || [];
+outs.length >= 2 && outs.every((o) => /geom/.test(o))
+  ? ok("7. every query asks for building geometry: " + outs.join(" | "))
+  : bad("7. every query asks for building geometry", outs.join(" | "));
+outs.length && outs.every((o) => !/geom\s+center/.test(o))
+  ? ok("7b. and none puts center after geom, which would drop it")
+  : bad("7b. 'geom center' returns centres and NO geometry", outs.join(" | "));
 
 /* ---- 8. THE FOOTPRINT DECIDES THE COORDINATE ----
    Regrid answers with the LOT's representative point. On a big lot that is

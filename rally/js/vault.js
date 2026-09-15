@@ -223,6 +223,9 @@
     }
     const payload = {
       rally: 1, exportedAt: new Date().toISOString(),
+      // a backup written inside the isolated preview says so, and restore
+      // refuses to carry it into any other RALLY
+      preview: window.RALLY_PREVIEW && window.RALLY_PREVIEW.isolated ? String(window.RALLY_PREVIEW.db || "preview") : undefined,
       device: STORE.settings.repName || "", data,
     };
     await MUI.shareOrDownload(JSON.stringify(payload),
@@ -237,6 +240,17 @@
     try { p = JSON.parse(await file.text()); } catch (_) { p = null; }
     if (!p || p.rally !== 1 || !p.data) { toast("That's not a RALLY backup file"); return; }
     const d = p.data;
+    /* PREVIEW DATA NEVER CROSSES INTO PRODUCTION. A file written by the
+       isolated preview carries its marker, and its territories carry
+       device-minted numbers; either is refused anywhere but that same
+       preview. Isolation that a file in a Downloads folder could undo
+       would not be isolation. */
+    const here = window.RALLY_PREVIEW && window.RALLY_PREVIEW.isolated ? String(window.RALLY_PREVIEW.db || "preview") : null;
+    const fromPreview = p.preview || (d.territories || []).some((t) => t && t.seqSource === "device-preview");
+    if (fromPreview && p.preview !== here) {
+      toast("That backup is from the isolated PREVIEW — it can only be restored into the preview, never into RALLY", 8000);
+      return;
+    }
     const when = p.exportedAt ? new Date(p.exportedAt).toLocaleString() : "unknown date";
     const what = `${(d.customers || []).length} customers · ${(d.pins || []).length} pins · ${(d.territories || []).length} territories`;
     if (!confirm(`Restore the backup from ${when}?\n${what}\n\nRecords merge in by id — matching ones are replaced by the backup's version, nothing else is touched.`)) return;

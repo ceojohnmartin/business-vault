@@ -1,39 +1,53 @@
 # RALLY — publish the ISOLATED PREVIEW beside production on GitHub Pages.
 #
-# Run by hand (Actions → "RALLY isolated preview" → Run workflow) from the
-# branch that carries the preview code. Nothing runs on a push.
+# WHERE THIS FILE HAS TO LIVE. GitHub resolves a workflow by its file name
+# on the DEFAULT branch: the Actions tab lists it from there, and the
+# dispatch API answers 404 until it is there (proved 2026-09-15). So this
+# one file must be on `main` — the file only, no app code — and it is
+# written to be correct FROM main:
+#
+#   production   always the `main` branch's tree, byte for byte — checked
+#                out fresh on every run, never built, edited or stamped
+#   preview      always built from PREVIEW_REF (the Phase 5 branch by name,
+#                overridable when run by hand), never from whatever branch
+#                the workflow file happens to be on
 #
 # What one run publishes, as ONE Pages deployment:
-#   /                      the `main` branch's tree, byte for byte — the
-#                          production site, including /business-vault/rally/
-#                          exactly as `main` has it. It is checked out fresh
-#                          from `main` on every run and is never built,
-#                          edited or stamped.
-#   /rally-preview/        the isolated preview, built from THIS branch by
-#                          rally/tools/build-preview.sh: its own IndexedDB
-#                          name, its own service-worker cache family, no
-#                          cloud project, a demo team, a PREVIEW ribbon —
-#                          and the Apple MapKit token from the repository
-#                          secret MAPKIT_TOKEN, stamped into the output only.
+#   /                      production, including /business-vault/rally/
+#   /rally-preview/        the isolated preview: its own IndexedDB name, its
+#                          own service-worker cache family, no cloud project,
+#                          a demo team, a PREVIEW ribbon, and the Apple MapKit
+#                          token from the repository secret MAPKIT_TOKEN,
+#                          stamped into the OUTPUT only
 #
 # The token: read from `secrets.MAPKIT_TOKEN` into the build step's
-# environment, written by the build script into the OUTPUT's
-# js/mapkit-config.js, and nowhere else. It is not in git, not in any
-# commit this workflow makes (it makes none), and GitHub masks it in logs.
-# The served file is public by nature — a MapKit JS token always is — and
-# Apple restricts it to the origin it was issued for.
+# environment, written by rally/tools/build-preview.sh into the output's
+# js/mapkit-config.js, and nowhere else. It is not in git, not in any commit
+# (this workflow makes none), and GitHub masks it in logs. The served file is
+# public by nature — a MapKit JS token always is — and Apple restricts it to
+# the origin it was issued for.
 #
 # Pages source: this deploys with actions/deploy-pages, which requires the
 # repository's Pages source to be "GitHub Actions" (Settings → Pages). With
-# the source set that way, `main` no longer publishes itself on push — a
-# run of this workflow publishes it (unchanged) together with the preview.
-# Switching the source back to "Deploy from a branch: main" at any time
-# restores the old behaviour and drops the preview; nothing here is
-# irreversible.
+# that set, a push to `main` runs THIS workflow (see `on: push`), so
+# production keeps publishing itself on every push exactly as before — with
+# the preview beside it. Switching the source back to "Deploy from a branch:
+# main" restores the old mechanism at once and drops the preview. Nothing
+# here is irreversible.
 name: RALLY isolated preview
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      preview_ref:
+        description: "Branch to build /rally-preview/ from"
+        required: false
+        default: "claude/pest-sales-app-research-ba7u4n"
+
+env:
+  PREVIEW_REF: ${{ github.event.inputs.preview_ref || 'claude/pest-sales-app-research-ba7u4n' }}
 
 permissions:
   contents: read
@@ -54,9 +68,10 @@ jobs:
           ref: main
           path: site
 
-      - name: Preview source — this branch
+      - name: Preview source — the Phase 5 branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ env.PREVIEW_REF }}
           path: src
 
       - name: Build the isolated preview into /rally-preview
@@ -67,18 +82,18 @@ jobs:
           # the build script reads MAPKIT_TOKEN from its environment and
           # writes it into the output only; nothing below prints it
           sh src/rally/tools/build-preview.sh src/rally site/rally-preview p5
-          rm -rf site/.github
+          echo "production = main @ $(git -C site rev-parse --short HEAD)"
+          echo "preview    = $PREVIEW_REF @ $(git -C src rev-parse --short HEAD)"
+          rm -rf site/.git site/.github
           test -f site/rally/index.html
           test -f site/rally-preview/index.html
           # the production copy is main's own tree: the preview build wrote
           # nothing into it, and no preview name appears anywhere under it
-          echo "production = main @ $(git -C site rev-parse --short HEAD)"
           if grep -rq 'rally-preview-p5\|rallyp5-' site/rally; then
             echo "the preview leaked into production rally/" >&2; exit 1
           fi
           grep -q 'db: "rally-preview-p5"' site/rally-preview/js/preview-config.js
           grep -q 'isolated: true' site/rally-preview/js/preview-config.js
-          rm -rf site/.git
           echo "site ready"
 
       - name: Upload the site

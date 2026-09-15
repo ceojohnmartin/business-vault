@@ -32,10 +32,10 @@ above is a no-op when it is.
 
 ## How it is published
 
-`.github/workflows/preview-pages.yml` (run by hand — nothing runs on push):
+`.github/workflows/preview-pages.yml`:
 
 1. checks out `main` into `site/` — this is production, byte for byte, never built or edited;
-2. checks out the Phase 5 branch into `src/`;
+2. checks out the Phase 5 branch (`PREVIEW_REF`, by name — not whichever branch the file is on) into `src/`;
 3. runs `sh src/rally/tools/build-preview.sh src/rally site/rally-preview p5` with
    `MAPKIT_TOKEN` from the repository secret in the environment — the script
    copies the app (never `tests/`, `db/`, `tools/`), rewrites the six files
@@ -44,7 +44,21 @@ above is a no-op when it is.
    in logs regardless;
 4. deploys `site/` as one GitHub Pages deployment.
 
-Before the first run, two things only the repository owner can do:
+**Where the workflow file has to live.** GitHub resolves a workflow by its
+file name on the DEFAULT branch: the Actions tab lists it from there, and
+the dispatch API answers 404 until it is there (checked 2026-09-15 against
+this repository). So this one file — and only this file, no app code — must
+be committed to `main`. It is written to be correct from `main`: it always
+publishes `main` as production and always builds the preview from the
+Phase 5 branch by name. It runs on every push to `main` (so production
+keeps publishing itself once the Pages source is switched) and by hand.
+
+Before the first run, three things only the repository owner can do or approve:
+
+- **Put the workflow file on `main`** — merge or copy
+  `.github/workflows/preview-pages.yml` exactly as it is on the Phase 5
+  branch. (On your word I will push that single file to `main`, nothing
+  else.)
 
 - **Add the secret** — Settings → Secrets and variables → Actions → New
   repository secret, name `MAPKIT_TOKEN`, value: the rotated MapKit JS token
@@ -58,8 +72,9 @@ Before the first run, two things only the repository owner can do:
   the preview. Nothing here is irreversible, and no production file changes
   either way.
 
-Then: Actions → **RALLY isolated preview** → Run workflow → branch
-`claude/pest-sales-app-research-ba7u4n`.
+Then: Actions → **RALLY isolated preview** → Run workflow (leave the
+`preview_ref` input at its default, the Phase 5 branch) — or ask and I will
+trigger it.
 
 The served `js/mapkit-config.js` carries the token, as every MapKit JS page
 must — Apple restricts it to the origin. It is not in git, not in any

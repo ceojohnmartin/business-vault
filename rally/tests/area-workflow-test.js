@@ -366,19 +366,23 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
     // =============================================== F. REP VS MANAGER TAP
     section("F. The same ground: a rep's tap is a knock, a manager's is the territory");
     const crew = await page.evaluate(() => ({ jake: STORE.users.find((u) => u.name === "Jake Rowe").id, me: STORE.users.find((u) => u.name === "Area Manager").id }));
-    // a manager leaves an area waiting with its found houses; the rep must never see them
-    await page.evaluate(() => { document.querySelector("#fab-hoods").click(); }); await sleep(300);
-    await page.evaluate(() => document.querySelector("#mt-corners").click()); await sleep(300);
-    for (const [x, y] of [[40, 700], [120, 690], [130, 780], [40, 790]]) { await page.mouse.click(x, y); await sleep(120); }
-    await page.evaluate(() => document.querySelector("#draw-done").click()); await sleep(300);
-    await page.evaluate(() => document.querySelector("#draw-find").click()); await sleep(1500);
-    await page.evaluate(() => MUI.closeSheet()); await sleep(300);
-    const waitingBefore = await page.evaluate(() => ({ area: !!MHOODS.pendingArea(), bar: !document.querySelector("#draw-bar").hidden }));
+    /* A manager leaves an area waiting WITH its found houses on the map; a
+       rep must never see either. The shape is handed to the same
+       completeArea the corners path calls (section A drove that path with a
+       thumb) — what is under test here is the role change, not the taps. */
+    await page.evaluate((r) => { MAPP.show("map"); MHOODS.completeArea(r.map(([x, y]) => [x + 0.0016, y - 0.0016])); }, ring);
+    await sleep(300);
+    await page.evaluate(() => document.querySelector("#draw-find").click());
+    await page.waitForFunction(() => { const r = document.querySelector("#hd-review"); return r && !r.hidden; }, null, { timeout: 30000 }).catch(() => {});
+    await sleep(500);
+    await page.evaluate(() => MUI.closeSheet()); await sleep(400);
+    const waitingBefore = await page.evaluate(() => ({ area: !!MHOODS.pendingArea(), bar: !document.querySelector("#draw-bar").hidden, preview: MMAP.previewDoors().length }));
+    check("the manager has an area waiting, its houses found and on the map, and the bar offering Review", waitingBefore.area && waitingBefore.bar && waitingBefore.preview > 0, JSON.stringify(waitingBefore));
     await beUser(crew.jake);
     const repSees = await page.evaluate(() => ({ area: MHOODS.pendingArea(), facade: MMAP.pendingArea(), preview: MMAP.previewDoors().length, bar: document.querySelector("#draw-bar").hidden,
-      previewInFC: (MMAP.engineReport().renderer.counts ? MMAP.engineReport().renderer.counts().pins : 0) }));
-    check("a manager's unsaved area, its found houses and the Find-houses bar are gone the moment the phone is a rep's", waitingBefore.area && waitingBefore.bar && repSees.area === null && repSees.facade === null && repSees.preview === 0 && repSees.bar, JSON.stringify({ waitingBefore, repSees }));
-    const ground = await groundInside(ring);
+      inFC: STORE.pins.length }));
+    check("a manager's unsaved area, its found houses and the Find-houses bar are gone the moment the phone is a rep's", repSees.area === null && repSees.facade === null && repSees.preview === 0 && repSees.bar && repSees.inFC === N, JSON.stringify({ waitingBefore, repSees }));
+        const ground = await groundInside(ring);
     const repView = await page.evaluate(() => ({ role: STORE.effectiveRole(), hoods: MMAP.engineReport().renderer.counts ? MMAP.engineReport().renderer.counts().hoods : null, pins: STORE.pins.length }));
     check("as the rep: role rep, the assigned turf is the one blue area on the map with its saved pins", repView.role === "rep" && repView.pins === N && (repView.hoods === null || repView.hoods === 1), JSON.stringify(repView));
     await page.mouse.click(ground.x, ground.y); await sleep(600);
@@ -393,6 +397,22 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
 
     // =============================================== G. EDIT THE OUTLINE
     section("G. Editing the outline says what moves before saving; nothing is deleted; a scan afterwards matches what RALLY holds");
+    /* A door pinned BY HAND, inside the territory, near the corner that is
+       about to move: the kind of door the sheet's own copy promises can be
+       pinned when the provider has never heard of the house. It carries no
+       territoryId — membership is pure containment — which is exactly what
+       makes it the interesting case for an outline edit. */
+    const hand = await page.evaluate(async (id) => {
+      window.__terr = id;
+      const t = STORE.territories.find((x) => x.id === id);
+      const c = t.points.reduce((a, p) => [a[0] + p[0] / t.points.length, a[1] + p[1] / t.points.length], [0, 0]);
+      const at = [t.points[0][0] + (c[0] - t.points[0][0]) * 0.2, t.points[0][1] + (c[1] - t.points[0][1]) * 0.2];
+      const pin = await STORE.addKnock({ lat: at[1], lng: at[0], pinId: null, disposition: "nothome", reason: null, dm: false, note: "", callbackAt: null });
+      MMAP.refreshPins();
+      return { id: pin.id, stamped: !!pin.territoryId, home: (STORE.hoodOf(pin) || {}).id || null, doors: STORE.hoodStats(t).doors };
+    }, work.terr);
+    check(`a door pinned by hand inside the territory carries no stamp and counts as the territory's by containment (${hand.doors} doors now)`, !hand.stamped && hand.home === work.terr && hand.doors === N + 1, JSON.stringify(hand));
+
     const opened2 = await page.evaluate(async (id) => { const t = STORE.territories.find((x) => x.id === id); const ok = await MTEDIT.open(t); await new Promise((r) => setTimeout(r, 600)); return { ok, handles: document.querySelectorAll(".vx-handle:not(.mid)").length }; }, work.terr);
     check("the outline editor opens with a handle per corner", opened2.ok && opened2.handles === 5, JSON.stringify(opened2));
     // pull corner 0 INWARD toward the middle of the shape: houses fall outside the line
@@ -416,23 +436,26 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
         sheet: document.querySelector("#hood-sheet").classList.contains("open"), rc: (document.querySelector(".hd-reconcile") || {}).textContent || "", stats: STORE.hoodStats(t) };
     }, work.terr);
     check("BEFORE saving, the manager was told what the new line does: how many stay, how many are now outside, and that they are kept with their history", dialogs.length === dlgBefore + 1 && /now outside/.test(msg) && /kept/.test(msg) && /Nothing is deleted/.test(msg) && new RegExp(afterEdit.inside + " houses stay").test(msg), msg);
-    check(`after the save every one of the ${N} properties still exists — ${afterEdit.outside} are outside the new line with their events intact — and the sheet says so`, afterEdit.pins === N && afterEdit.outside > 0 && afterEdit.events === 6 && afterEdit.sheet && /Outline changed/.test(afterEdit.rc) && new RegExp(afterEdit.outside + "\\D+now outside").test(afterEdit.rc), JSON.stringify({ pins: afterEdit.pins, outside: afterEdit.outside, rc: afterEdit.rc }));
-    /* The canonical membership rule (STORE.hoodOf): a door the line moved
-       away from keeps its stamp until ANOTHER territory's outline contains
-       it — a door just outside through GPS drift never becomes an orphan.
-       So the count stays whole, and the dialog said exactly that. */
-    check("the houses outside the line are still this territory's (no other outline claims them): the count stays whole, nothing is orphaned", afterEdit.stats.doors === N && afterEdit.stats.knocked === 6 && /still listed with this territory/.test(msg), JSON.stringify({ doors: afterEdit.stats.doors, inside: afterEdit.inside }));
-    // a HAND-PINNED door (no stamp) outside the line is told apart: kept, but no longer any territory's
-    const hand = await page.evaluate(async (id) => {
-      const t = STORE.territories.find((x) => x.id === id);
-      const out = STORE.pins.find((p) => !MGEOM.pointInRing(t.points, p.lng, p.lat));   // a spot the line moved away from
-      const pin = await STORE.addKnock({ lat: out.lat + 0.00005, lng: out.lng + 0.00005, pinId: null, disposition: "nothome", reason: null, dm: false, note: "", callbackAt: null });
-      return { id: pin.id, stamped: !!pin.territoryId, home: (STORE.hoodOf(pin) || {}).id || null };
-    }, work.terr);
-    check("a door knocked by hand outside the new line carries no stamp and belongs to no territory", !hand.stamped && hand.home === null, JSON.stringify(hand));
-    await page.evaluate(async (id) => { const t = STORE.territories.find((x) => x.id === id); const pin = STORE.pins.find((p) => p.id === window.__hand); }, work.terr);
+    check(`after the save every one of the ${N + 1} properties still exists — ${afterEdit.outside} are outside the new line with their events intact — and the sheet says so`, afterEdit.pins === N + 1 && afterEdit.outside > 1 && afterEdit.events === 7 && afterEdit.sheet && /Outline changed/.test(afterEdit.rc), JSON.stringify({ pins: afterEdit.pins, outside: afterEdit.outside, rc: afterEdit.rc }));
+    /* THE CANONICAL MEMBERSHIP RULE, and the two kinds of "outside".
+       An IMPORTED door carries the territory's stamp, and STORE.hoodOf keeps
+       a stamped door with its territory until another live outline contains
+       it — a door just outside through GPS drift never becomes an orphan. A
+       door a rep pinned BY HAND has no stamp: outside every outline it is
+       nobody's. Both keep every outcome and knock; only the second stops
+       counting, and the manager was told which is which BEFORE saving. */
+    check(`the ${N} imported houses outside the line are still this territory's, so its door count is unchanged at ${N}; the hand-pinned door is not, so its knock stops counting here (6, not 7); the dialog said both`,
+      afterEdit.stats.doors === N && afterEdit.stats.knocked === 6 && /still listed with this territory/.test(msg) &&
+      /1 hand-pinned door is now outside the line/.test(msg) && /no longer counted for any territory/.test(msg),
+      JSON.stringify({ doors: afterEdit.stats.doors, knocked: afterEdit.stats.knocked, inside: afterEdit.inside }));
+    const handAfter = await page.evaluate((h) => {
+      const p = STORE.pins.find((x) => x.id === h);
+      return { exists: !!p, stamped: !!(p && p.territoryId), home: (STORE.hoodOf(p) || {}).id || null, hist: (p.history || []).length, disp: p.disposition };
+    }, hand.id);
+    check("the hand-pinned door still exists with its knock — it simply belongs to no territory now", handAfter.exists && !handAfter.stamped && handAfter.home === null && handAfter.hist === 1 && handAfter.disp === "nothome", JSON.stringify(handAfter));
+    check("and the sheet's own line says the same", /1 hand-pinned door now outside/.test(afterEdit.rc) && /no longer counted for any territory/.test(afterEdit.rc), afterEdit.rc);
 
-    // now pull the same corner OUT past where it was: the houses come back and the added ground may hold new ones
+    // now pull the same corner OUT past where it was: everything comes back
     await page.evaluate(() => MUI.closeSheet()); await sleep(300);
     const opened3 = await page.evaluate(async (id) => { const t = STORE.territories.find((x) => x.id === id); return await MTEDIT.open(t); }, work.terr);
     await sleep(600);
@@ -444,8 +467,19 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
     const dlg2 = dialogs.length;
     await page.evaluate(() => document.querySelector("#vx-save").click());
     await sleep(900);
-    const back2 = await page.evaluate((id) => { const t = STORE.territories.find((x) => x.id === id); return { inside: STORE.pins.filter((p) => MGEOM.pointInRing(t.points, p.lng, p.lat)).length, rc: (document.querySelector(".hd-reconcile") || {}).textContent || "", sheet: document.querySelector("#hood-sheet").classList.contains("open") }; }, work.terr);
-    check("pulling the line back out: nothing changed hands (they never left this territory), so no confirmation was needed — the outline saved and the sheet reports every house inside again", opened3 && dialogs.length === dlg2 && back2.inside === N && back2.sheet && new RegExp(N + " houses still inside").test(back2.rc), JSON.stringify({ dialogs: dialogs.length - dlg2, back2 }));
+    const msg2 = dialogs[dlg2] || "";
+    const back2 = await page.evaluate((h) => {
+      const t = STORE.territories.find((x) => x.id === window.__terr);
+      return { inside: STORE.pins.filter((p) => MGEOM.pointInRing(t.points, p.lng, p.lat)).length,
+        handHome: (STORE.hoodOf(STORE.pins.find((x) => x.id === h)) || {}).id || null,
+        handHist: (STORE.pins.find((x) => x.id === h).history || []).length,
+        doors: STORE.hoodStats(t).doors, rc: (document.querySelector(".hd-reconcile") || {}).textContent || "",
+        sheet: document.querySelector("#hood-sheet").classList.contains("open") };
+    }, hand.id);
+    check("pulling the line back out: the manager is told the hand-pinned door comes back inside and keeps its history", opened3 && dialogs.length === dlg2 + 1 && /come inside and keep their history/.test(msg2), msg2);
+    check("after the save it is the territory's again, with its knock, and every imported house is inside too", back2.handHome === work.terr && back2.handHist === 1 && back2.inside === N + 1 && back2.doors === N + 1 && back2.sheet, JSON.stringify(back2));
+
+    const heldBefore = (await pinShape()).n;
     const calls4 = overpassCalls;
     await page.evaluate(() => document.querySelector("#hd-scan").click());
     await page.waitForFunction(() => { const r = document.querySelector("#hd-review"); return r && !r.hidden; }, null, { timeout: 30000 });
@@ -455,11 +489,11 @@ const CORNERS = [[95, 300], [300, 285], [325, 515], [190, 610], [80, 520]];
     check(`the scan of the edited territory matched every house RALLY already holds (${rv2["Already in RALLY (matched, not duplicated)"]}) and offers only the new ones (${rv2["Will be imported"]}) as blue pins`, overpassCalls === calls4 + 1 && rv2["Already in RALLY (matched, not duplicated)"] >= N - 2 && rescan.preview === rv2["Will be imported"], JSON.stringify({ rv2, rescan }));
     if (rv2["Will be imported"] > 0) {
       await page.evaluate(() => document.querySelector("#hd-import-btn").click());
-      await sleep(1200);
+      await sleep(1500);
       const shape3 = await pinShape();
-      check("importing the new houses adds exactly them — no duplicate of any existing property", shape3.n === N + rv2["Will be imported"] && shape3.ext === shape3.n && MMAP && (await page.evaluate(() => MMAP.previewDoors().length)) === 0, JSON.stringify({ n: shape3.n, ext: shape3.ext, added: rv2["Will be imported"] }));
+      check("importing the new houses adds exactly them — no duplicate of any existing property, and the preview pins become doors", shape3.n === heldBefore + rv2["Will be imported"] && (await page.evaluate(() => MMAP.previewDoors().length)) === 0, JSON.stringify({ before: heldBefore, n: shape3.n, added: rv2["Will be imported"] }));
     } else {
-      check("the added ground held no new houses, so nothing was offered and nothing was duplicated", (await pinShape()).ext === N);
+      check("the added ground held no new houses, so nothing was offered and nothing was duplicated", (await pinShape()).n === heldBefore);
     }
     await page.evaluate(() => MUI.closeSheet()); await sleep(300);
 

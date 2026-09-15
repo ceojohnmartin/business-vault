@@ -377,7 +377,11 @@ const CENTRE = { lat: 38.8620, lng: -94.7700 };
       btn: document.querySelector("#hd-import-btn").textContent.trim(), on: document.querySelector("#hd-import-btn").classList.contains("sel"),
       rowHidden: document.querySelector("#hd-import-row").hidden, status: document.querySelector("#hd-status").textContent.trim(),
       source: document.querySelector("#hood-source") ? document.querySelector("#hood-source").textContent.trim() : "" }));
-    const KEYS = ["Source", "On the building outline", "Parcel-level (lot, not house)", "Uncertain coordinates", "Excluded (not residential)", "Already in RALLY (matched, not duplicated)", "Will be imported"];
+    /* "Excluded (not imported)", not "(not residential)": a townhome row drawn
+   as one 720 m² outline IS residential and is still not imported, so the
+   heading states what is true of every row under it and the italic reason
+   says why each one was left out. */
+    const KEYS = ["Source", "On the building outline", "Parcel-level (lot, not house)", "Uncertain coordinates", "Excluded (not imported)", "Already in RALLY (matched, not duplicated)", "Will be imported"];
     check("the review shows source, exact-building, parcel-level, uncertain, excluded, already-in-RALLY and will-be-imported", KEYS.every((k) => k in rv), Object.keys(rv).join(" | "));
     check("SYNTHETIC houses are named as such on the sheet: a 'Demo grid — not real houses' line, a demo Source, and the strip says 'not real houses'", "Demo grid — not real houses" in rv && /demo/i.test(String(rv.Source)) && /demo grid .* not real houses/i.test(card.source), JSON.stringify({ rv, src: card.source }));
     check("'Will be imported' is the count that will actually become doors, and none are already in RALLY", rv["Will be imported"] > 0 && rv["Already in RALLY (matched, not duplicated)"] === 0, JSON.stringify(rv));

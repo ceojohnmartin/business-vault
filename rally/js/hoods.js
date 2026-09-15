@@ -345,15 +345,19 @@
       id.textContent = sum.seq ? sum.seq + (sum.of ? " of " + sum.of : "") : "—";
       if (!scan) houses.textContent = sum.houses;
       sales.textContent = sum.sales;
-      /* "Counted on this device" is a statement that the TEAM's answer
-         could not be reached. On a device with no team server there is no
-         team answer to reach — the device IS the record — so saying it
-         there would tell a solo manager (and the isolated preview) that
-         something is missing when nothing is. */
-      const local = sum.source === "device" && !!(window.MCLOUD && MCLOUD.enabled());
+      /* A device count is LABELLED as one, on every device — the owner's
+         rule. But "the team's numbers need a connection" is a claim that a
+         team answer exists and could not be reached; on a device with no
+         team server (a solo manager, the isolated preview) the device IS
+         the record, so that sentence says something is missing when
+         nothing is. The label stays; the reason is told truthfully. */
+      const local = sum.source === "device";
+      const cloud = !!(window.MCLOUD && MCLOUD.enabled());
       $("#hood-review").classList.toggle("local", local);
       if (local && src.hidden) {
-        src.textContent = "Counted on this device — the team's numbers need a connection";
+        src.textContent = cloud
+          ? "Counted on this device — the team's numbers need a connection"
+          : "Counted on this device — no team server is configured";
         src.hidden = false; src.classList.add("warn");
       }
     } catch (_) {
@@ -401,7 +405,7 @@
          numbers are this phone's own partial copy. It is labelled rather
          than shown as if it were the team's, because a leader deciding
          whether a hood is worked cannot tell the difference otherwise. */
-      const local = sum.source === "device" && !!(window.MCLOUD && MCLOUD.enabled());   // see fillReview
+      const local = sum.source === "device";   // a device count wears its label on every device
       $("#pc-houses").textContent = sum.outlineMissing ? "—" : sum.houses;
       $("#pc-sales").textContent = sum.sales;
       $("#polycard").classList.toggle("local", local);

@@ -172,3 +172,15 @@ backup (`tests/preview-test.js` §E).
 
 The sign-in on first open creates the preview's own local account (any
 name, e-mail and passcode); that person is the demo manager.
+
+## Recorded for later — not changed yet
+
+**Property history and current territory membership are separate concepts.**
+A property leaving an edited territory must never lose its permanent
+property/activity history. That does not by itself mean its CURRENT
+territory membership must stay attached to the old territory forever. Today
+the canonical rule (`STORE.hoodOf`) keeps a stamped door with its territory
+until another live outline contains it, and a hand-pinned door (no stamp)
+belongs to no territory once outside every outline. The exact reconciliation
+semantics are decided after the edit experience is tested on a phone. 0018
+is not redesigned around this.

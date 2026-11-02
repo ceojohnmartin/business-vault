@@ -1,6 +1,6 @@
 # RALLY 100 Product Blueprint
 
-**Version 0.4 · 2026-11-02 (America/Chicago) · Status: product planning, no code · Working name: RALLY 100**
+**Version 0.5 · 2026-11-02 (America/Chicago) · Status: product planning, no code · Working name: RALLY 100**
 
 Prepared for the owner of RALLY MKTG. Brand assets referenced here live in `rally-100/brand/`. The branded web view of this document is generated from this file; this file is the source of truth.
 
@@ -10,13 +10,13 @@ Every rule in this blueprint carries one of three labels. The labels matter more
 
 - **CONFIRMED RULE**: stated by the owner, in the master brief or in a recorded owner decision (dated). Not changed here. Both cash rewards are confirmed rules.
 - **RECOMMENDATION**: proposed by this blueprint. Open to change. Nothing labeled RECOMMENDATION is a business commitment.
-- **OPEN DECISION**: the owner must decide before build. Each one is numbered OD-1 to OD-8 in the final section with options and a recommendation; decided ones are marked there.
+- **OPEN DECISION**: the owner must decide before build. OD-1 to OD-8 are listed in the final section; all eight are now decided.
 
-XP, levels and badges are game progress. They are never money and are never shown as money. Cash is only the two confirmed rewards below plus whatever the owner adds later from the separate incentive list, which this document deliberately leaves blank.
+XP, levels and badges are game progress. They are never money and are never shown as money. Cash is only the two confirmed rewards below plus the incentives the owner adds on the Incentives page, which this document leaves blank on purpose.
 
 ## The product in one page
 
-**What it is.** RALLY 100 turns the new-rep "100 list" into a short, phone-first game, and turns every name a rep enters into a shared recruiting record the RALLY team can act on. One system, three views: the rep plays and introduces, the leader runs meetings and confirms requirements, the owner sees everything, approves rewards and records payments.
+**What it is.** RALLY 100 turns the new-rep "100 list" into a short, phone-first game, and turns every name a rep enters into a shared recruiting record the RALLY team can act on. One system, three views: the rep plays and introduces; the leader runs meetings, confirms requirements and approves rewards at a walkthrough with the rep; the owner sees everything, adds incentives and records payments.
 
 **The experience.** The rep's list is a 10×10 Wall of 100 tiles on a black screen. Names reach the Wall through Scenes: short memory prompts that drop the rep into a part of their life (the lunch table, the team bus, the slow part of a shift, their group chats), run a 60-second name Sprint, and chain one name into the next ("Who sat next to Marcus?"). A Sweep then fills in the missing details, fewest-missing-fields first. Each real, complete contact lights one tile RALLY green. Milestone lines cross the Wall at 10, 25, 50 and 75. Nothing is gated by time, nothing expires, and a motivated rep can light the whole Wall in an evening.
 
@@ -38,12 +38,16 @@ A completed list plus three qualifying friends is $400. A Referral Reward never 
 - The single $100 Referral Reward for that person goes to whoever signs them first: the first rep whose introduction is recorded in the app and confirmed by the leader.
 - If a rep adds the same person twice, the first entry keeps counting and the copy waits until the rep picks "Same person" or "Different people".
 - A contact marked Do not contact does not count toward 100, because RALLY cannot contact them. Not interested and Follow up later still count.
-- The extra incentives get a reserved spot; the incentive list itself is still to come.
+- The owner adds extra incentives on an Incentives page, each with a name, pictures and a prize amount.
+- Each leader has their own login.
+- When a rep finishes, the app says "Congratulations!" and the rep walks through their list and signed friends with their leader. The leader spot-checks the list there and approves the prize. Leaders can approve rewards; the owner records payment.
+- A rep who leaves or doesn't come out isn't paid rewards still unpaid. This is internal and never shown in the rep app.
+- RALLY 100 runs on the existing RALLY backend.
 - The look stays in RALLY brand colors, black, white and gray, with green for wins.
 
-**Still open.** The incentive list itself (OD-3), plus five smaller build choices, OD-4 to OD-8, listed with recommendations in the final section.
+**Still open.** Nothing that shapes the product. Recording a payment as Paid stays with the owner unless the owner names someone else.
 
-**What ships first.** Rep app on the phone (Wall, Scenes, Add Contact with drafts and duplicate warnings, My Network, Introductions, My Rewards, Settings), Leader Workspace and Owner Dashboard on desktop, the recruiting pipeline with four separately confirmed referral requirements, an append-only reward ledger, and in-app and push reminders to the rep. Contact import, SMS reminders, team competitions and any payment integration come later. RALLY 100 never messages a contact automatically, in any version.
+**What ships first.** Rep app on the phone (Wall, Scenes, Add Contact with drafts and duplicate warnings, My Network, Introductions, My Rewards, Settings), Leader Workspace and Owner Dashboard on desktop, the recruiting pipeline with four separately confirmed referral requirements, an append-only reward ledger, an Incentives page for the owner, and in-app and push reminders to the rep. Contact import, SMS reminders, team competitions and any payment integration come later. RALLY 100 never messages a contact automatically, in any version.
 
 ## Contents
 
@@ -114,13 +118,13 @@ The Wall is the 100 list made physical: a 10x10 grid on a black screen, one comp
 | 25 | First quarter | Wall frame turns green; Game Home headline: "25 lit. Keep the run going." |
 | 50 | Half Wall | Faint green dot-grid background; copy: "Half your Wall is lit. 50 to go. The $100 completion reward is for the full 100, no halfway cash." |
 | 75 | Home stretch | Counter stays "75/100 contacts complete"; subline becomes a countdown: "25 to go. Finish your 14 drafts and you're at 89." |
-| 100 | Wall complete | All tiles green; stamp centers, then settles into the header; Wall freezes as a trophy; reward strip: "100/100 complete. List reward: Ready for review. Next action: RALLY leadership approval. Nothing needed from you." |
+| 100 | Wall complete | All tiles green; stamp centers, then settles into the header; Wall freezes as a trophy; reward strip: "100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!" |
 
 Milestones 10 through 75 may fire on the optimistic local count and self-correct. The 100 milestone, the trophy freeze and any reward-status text fire only on the server-confirmed count; until then the strip reads "100/100 syncing."
 
 **Exact progress wording.** CONFIRMED RULE phrasing, used everywhere: "42/100 contacts complete." "14 drafts." "8 more until your next milestone (50)." "Complete your 100 list to qualify for the $100 completion reward." "99/100, 1 more to complete your list." Never a percentage of cash, never "$42 earned," never a pending dollar figure beside a partial count.
 
-**Claim integrity.** RECOMMENDATION, by analogy to RALLY's server-records-facts rule. Reaching 100 creates exactly one List Completion Reward record per rep (idempotent key = rep id) at Ready for review. The Leader reviews and may raise Needs correction with a reason; the Owner records Approved and Paid (OD-7 covers who else may). If the server count drops below 100 before approval the status stays Ready for review and the server sets a count-drop hold ("Count is 98 now, was 100 on Mar 14") that blocks Approve and clears itself at 100; Needs correction is raised only by a leader or the owner with an explanation. Approved and Paid are never reversed automatically; any correction is a new linked ledger entry, and crossing 100 again or 200 creates nothing (CONFIRMED RULE: one-time). Full rules: Rewards, review and payment tracking.
+**Claim integrity.** RECOMMENDATION, by analogy to RALLY's server-records-facts rule. Reaching 100 creates exactly one List Completion Reward record per rep (idempotent key = rep id) at Ready for review. The rep sees "Congratulations!" and walks through the list and signed friends with their leader, who records the required spot-check and approves; the Owner records Paid (owner decision, 2026-11-02). A leader or the owner may instead raise Needs correction with a reason. If the server count drops below 100 before approval the status stays Ready for review and the server sets a count-drop hold ("Count is 98 now, was 100 on Mar 14") that blocks Approve and clears itself at 100; Needs correction is raised only by a leader or the owner with an explanation. Approved and Paid are never reversed automatically; any correction is a new linked ledger entry, and crossing 100 again or 200 creates nothing (CONFIRMED RULE: one-time). Full rules: Rewards, review and payment tracking.
 
 ### Main loop
 
@@ -179,7 +183,7 @@ RECOMMENDATION; XP and cash staying separate is a CONFIRMED RULE. XP is a thin w
 
 **Levels:** Rookie 0, Scout 150, Connector 400, Operator 800, Prowler 1300, Apex 2000.
 
-**Badges (never cash):** Scene Reader (3 Scenes cleared), Sprinter (10 names in one Sprint), Chain Reaction (5 chain hits in one Scene), Clean Sweep (20 drafts completed in one Sweep queue without leaving it), Full Wall, First Intro, Matchmaker (3 introductions; "Connector" stays a level name only). A reserved row reads "More incentives coming from RALLY leadership." The owner confirmed this reserved spot (owner decision, 2026-11-01); the incentive list itself is still to come, and no amounts or requirements are invented here.
+**Badges (never cash):** Scene Reader (3 Scenes cleared), Sprinter (10 names in one Sprint), Chain Reaction (5 chain hits in one Scene), Clean Sweep (20 drafts completed in one Sweep queue without leaving it), Full Wall, First Intro, Matchmaker (3 introductions; "Connector" stays a level name only). An Incentives row shows the owner's published incentives, each with its picture, name and prize amount as the owner entered them on the Incentives page (owner decision, 2026-11-02); none are invented here.
 
 ### Celebrations and visual upgrades
 
@@ -250,7 +254,7 @@ Recall is place-based: "who was on the bus" beats "list your friends." Scenes ex
 - After a break Game Home says "Last scene: The Gym. 4 lit, 2 drafts left. Pick up where you left off"; nothing expired.
 - At 20 Complete tiles, Mutual Friends draws three names sharing a tag and asks who they were always with; the Wall becomes the prompt.
 - After an introduction the Intro Board card reads "0 of 4 confirmed. Next: Dana schedules the meeting", naming the next step and who holds it.
-- At 100 the Wall freezes as a trophy and the strip reads "100/100 complete. List reward: Ready for review"; the next button is an introduction.
+- At 100 the Wall freezes as a trophy and the screen reads "Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!"; after the walkthrough, the next button is an introduction.
 
 ## 3. Walkthrough: a new rep from first login to 100 complete contacts
 
@@ -262,7 +266,7 @@ Four cards ("1 of 4" dots, each under 40 words); Game Home is locked until card 
 
 Card 1, goal: "Build your 100 list: 100 real people you know. Nobody has to want a job. You build it in Scenes: short memory prompts from one part of your life. Each person lights one tile on your Wall."
 
-Card 2, rewards, four lines: "Finish all 100: $100. One time." / "Each friend you introduce who gets all four checks: $100. Each friend counts once." / "The four checks: Meeting completed, Commitment confirmed, Agreement signed, Start date and travel plans confirmed (where travel applies)." (CONFIRMED RULE) / "Your leader reviews, RALLY leadership approves, then it's recorded as paid." (RECOMMENDATION).
+Card 2, rewards, four lines: "Finish all 100: $100. One time." / "Each friend you introduce who gets all four checks: $100. Each friend counts once." / "The four checks: Meeting completed, Commitment confirmed, Agreement signed, Start date and travel plans confirmed (where travel applies)." (CONFIRMED RULE) / "When you finish, you and your leader walk through your list and signed friends together. Your leader approves your prize, then RALLY records it as paid." (CONFIRMED RULE, owner decision, 2026-11-02).
 
 Card 3, required fields: "A contact counts with all four: first name, last name, one social handle with the app named, phone number. Save names first, add details later. Drafts are kept but don't count."
 
@@ -326,9 +330,9 @@ Counter: "75/100 contacts complete." Subline: "25 to go. Finish your 14 drafts a
 
 ### The 100th complete contact (Day 56, that evening)
 
-Tyler completes Sofia Castillo. The strip reads "100/100 syncing." until the server confirms the count and creates the reward record; no reward status is ever shown from device state alone. Then the Wall pulses once, the panther stamp settles into the header, "WALL COMPLETE". Strip: "100/100 complete. List reward: Ready for review. Next action: RALLY leadership approval. Nothing needed from you." No amount is marked earned. My Rewards: "List reward: $100", "Ready for review", footer "'Paid' means RALLY marked this as paid on that date. This app doesn't send money. RALLY pays you directly." (CONFIRMED: no payment provider is selected).
+Tyler completes Sofia Castillo. The strip reads "100/100 syncing." until the server confirms the count and creates the reward record; no reward status is ever shown from device state alone. Then the Wall pulses once, the panther stamp settles into the header, "WALL COMPLETE". Strip: "100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!" No amount is marked earned. My Rewards: "List reward: $100", "Ready for review", footer "'Paid' means RALLY marked this as paid on that date. This app doesn't send money. RALLY pays you directly." (CONFIRMED: no payment provider is selected).
 
-Review flow: one List Completion Reward record per rep id, server-created at Ready for review; next action: RALLY leadership approval. Dana may run the optional spot-check (3 to 5 random Complete entries, one question each, asynchronous, shown on the record as "Spot-check: done by Dana, Nov 16") and may raise Needs correction with a note; the owner setting "Leader spot-check required" defaults to No (OD-5). The server also shows her 100 distinct complete entries, open Possible duplicate pairs and Kept both pairs. Full rules: Rewards, review and payment tracking.
+Review flow: one List Completion Reward record per rep id, server-created at Ready for review; next action: Tyler and Dana meet. Tyler shows Dana the Congratulations screen and they walk through his list and signed friends together. Dana runs the spot-check there (3 to 5 random Complete entries, one question each, required before Approve, owner decision, 2026-11-02), records "Spot-check: done by Dana, Nov 16" and approves, or raises Needs correction with a note. The server also shows her 100 distinct complete entries, open Possible duplicate pairs and Kept both pairs. Full rules: Rewards, review and payment tracking.
 
 Leaders flag, reps merge. Strip: "Needs correction. Dana: 'Jordan Lee and Jordan L. look like the same person.' Your count stays 100 until you resolve it; if you merge, it becomes 99." "Review Jordan" shows the pair with "Same person" / "Different people" and "Your reward stays on record. Nothing is lost." He merges: "99/100. List reward: Ready for review, on hold until you're back at 100. Nothing was lost." (a server-set hold, cleared automatically at 100). He completes a draft and taps "Ask for re-check"; Dana records the correction resolved and the same record returns to Ready for review. No second record, ever. Next action: "Introduce someone".
 
@@ -340,7 +344,7 @@ Who moves what: the Rep sets Added, Introduction planned and Introduced and may 
 
 ### If a rep is deactivated
 
-Login disabled; every List Entry, Draft, Person, pipeline event, XP event, acknowledgment event and reward record stays under Tyler's rep id ("Tyler (deactivated Dec 2)" in Owner Dashboard); referrals in flight keep attribution. Whether a Ready for review or Approved reward is still paid is OD-8; it is never deleted and can move to Paid or be reversed by the owner with a reason (a flag, not a status). Mechanics: Access and privacy model.
+Login disabled; every List Entry, Draft, Person, pipeline event, XP event, acknowledgment event and reward record stays under Tyler's rep id ("Tyler (deactivated Dec 2)" in Owner Dashboard); referrals in flight keep attribution. If a rep leaves or doesn't come out, rewards not yet paid are not paid (owner decision, 2026-11-02; internal, never shown to reps); records are never deleted. Mechanics: Access and privacy model.
 
 ## 4. Reminders for a self-paced experience
 
@@ -388,7 +392,7 @@ Introduction awaiting the rep: "Talked to Marcus yet? Tap to update." Opens the 
 
 Leader update: "Dana updated Jordan Lee. Stage: now Meeting completed. Confirmed: Meeting completed (1 of 4 requirements)." Where only the stage moved: "Jordan Lee: now Meeting scheduled. Requirements confirmed: 0 of 4." A stage line and a requirement line are always separate items from separate events; a stage change never changes the count, which is read from the four requirement records and always named in full (Meeting completed, Commitment confirmed, Agreement signed, Start date and travel plans confirmed), never as codes (CONFIRMED RULE). Amounts are never shown. Opens Introductions.
 
-Reward status change: "List reward: Approved by RALLY leadership. RALLY pays rewards outside this app; your leader will tell you how and when." / "List reward: Needs correction. Dana left a note." / "Referral reward for Jordan Lee: recorded as paid on Nov 20. Tap for details." Opens My Rewards. Never "you earned" before Approved.
+Reward status change: "List reward: Approved by your leader. RALLY pays rewards outside this app; your leader will tell you how and when." / "List reward: Needs correction. Dana left a note." / "Referral reward for Jordan Lee: recorded as paid on Nov 20. Tap for details." Opens My Rewards. Never "you earned" before Approved.
 
 ### How a leader nudges without nagging
 
@@ -437,9 +441,9 @@ CONFIRMED RULE: the Referral Reward is $100 per qualifying Person, paid once, an
 
 7. **R3 Agreement signed.** Dana confirms R3 on Mar 12. Card: "3 of 4 confirmed. Next: Dana confirms start date and travel plans."
 
-8. **R4 confirmed; Ready for review.** On Mar 15 Dana records start date May 4 and a travel note, or ticks "travel not applicable" (row reads "Start date confirmed. No travel needed."), and confirms R4. R4 confirmation and the attribution entry (see Duplicates and attribution) are one server transaction: the server applies the owner's rule, whoever signs the person first, and Dana sees the result before saving. On commit the server, not the device, checks that all four carry confirmer and date and moves Marcus's existing record to Ready for review. On a single-rep Person the recipient defaults to that rep; if that rep recorded no introduction, the record carries the flag "No introduction recorded", red in the Owner queue (see Duplicates and attribution). One string on the card, My Rewards and the digest: "Marcus Lee: 4 of 4 confirmed. Referral reward: Ready for review. Nothing needed from you." Marcus's start date is seven weeks out. CONFIRMED RULE: eligibility does not require arrival.
+8. **R4 confirmed; Ready for review.** On Mar 15 Dana records start date May 4 and a travel note, or ticks "travel not applicable" (row reads "Start date confirmed. No travel needed."), and confirms R4. R4 confirmation and the attribution entry (see Duplicates and attribution) are one server transaction: the server applies the owner's rule, whoever signs the person first, and Dana sees the result before saving. On commit the server, not the device, checks that all four carry confirmer and date and moves Marcus's existing record to Ready for review. On a single-rep Person the recipient defaults to that rep; if that rep recorded no introduction, the record carries the flag "No introduction recorded", red in the Owner queue (see Duplicates and attribution). One string on the card, My Rewards and the digest: "Marcus Lee: 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!" Marcus's start date is seven weeks out. CONFIRMED RULE: eligibility does not require arrival.
 
-9. **Owner approves (Approved).** The Owner Dashboard queue shows rep Tyler, contact Marcus Lee, the four requirements with confirmer, event date and confirmed-at time, attribution and reason, any soft-match line (see Duplicates and attribution), amount $100 and Tyler's list count. Buttons: "Approve" / "Needs correction" (explanation required, naming the requirement or record at fault). Rep row while returned: "Marcus Lee: Needs correction. Leader Dana is fixing a date on Agreement signed. Nothing needed from you." If the correction is on Tyler (wrong phone, duplicate), it ends "Next: you, ...". On approval the row gains the green panther stamp: "Approved on Mar 16."
+9. **Leader approves at the walkthrough (Approved).** Tyler shows Dana the "Congratulations!" card and they go over Marcus's record together. Dana's panel shows rep Tyler, contact Marcus Lee, the four requirements with confirmer, event date and confirmed-at time, the credited-rep rule result, any soft-match line (see Duplicates and attribution), amount $100 and Tyler's list count. Buttons: "Approve" / "Needs correction" (explanation required, naming the requirement or record at fault). Leaders approve for their assigned reps and the owner can approve any (owner decision, 2026-11-02). Rep row while returned: "Marcus Lee: Needs correction. Leader Dana is fixing a date on Agreement signed. Nothing needed from you." If the correction is on Tyler (wrong phone, duplicate), it ends "Next: you, ...". On approval the row gains the green panther stamp: "Approved on Mar 16."
 
 10. **Owner records payment (Paid).** When the money has gone out, the Owner taps "Record as paid" with date and method. Rep row: "Paid on Mar 20." (the method note sits in the row's expanded history). Rep footer: "'Paid' means RALLY marked this as paid on that date. This app doesn't send money. RALLY pays you directly." The Owner Dashboard keeps "Recorded as paid means RALLY has logged the payment; it is not the transfer itself." No payment provider is selected or integrated.
 
@@ -455,7 +459,7 @@ The contact card shows the short summary ("2 of 4 confirmed. Next: Dana confirms
 | 5 | "Marcus Lee: 1 of 4 confirmed: Meeting completed. Still needed: Commitment confirmed, Agreement signed, Start date and travel plans confirmed." |
 | 6 | "Marcus Lee: 2 of 4 confirmed: Meeting completed, Commitment confirmed. Still needed: Agreement signed, Start date and travel plans confirmed." |
 | 7 | "Marcus Lee: 3 of 4 confirmed: Meeting completed, Commitment confirmed, Agreement signed. Still needed: Start date and travel plans confirmed." |
-| 8 | "Marcus Lee: 4 of 4 confirmed. Referral reward: Ready for review. Nothing needed from you." |
+| 8 | "Marcus Lee: 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!" |
 
 The fourth row label is "Start date and travel plans confirmed"; when travel does not apply it reads "Start date confirmed. No travel needed." A per-Person reward row appears only once the record exists (from Introduced) and carries no amount before Approved; the rule line "Referral rewards: $100 per qualifying friend" is always visible on My Rewards. Totals include only Approved and Paid; a Ready for review row carries "Not counted in your total until Approved." The card never shows "$75 earned" or "75% of your bonus".
 
@@ -515,7 +519,7 @@ CONFIRMED RULE: adding, completing or introducing a contact sends nothing to the
 |---|---|---|
 | Added through Introduced | Rep | Stage within this range, Follow up later on own introductions before handoff, interest status (through the introduction sheet), phone, handle, tags, own notes |
 | Meeting scheduled through Arrived or started | Leader | Stage, outcomes, interest status, the four requirements, attribution (before the record is locked at Ready for review), leader notes |
-| Referral Reward record | Owner | Approved, Needs correction, Paid, recipient after the record locks at Ready for review (correction entry), clearing Do not contact |
+| Referral Reward record | Leader approves; Owner records Paid | Approved (the rep's leader at the walkthrough, or the owner), Needs correction (leader or owner), Paid (owner), recipient correction after the record locks (owner), clearing Do not contact (owner) |
 
 RECOMMENDATION: a rep can plan or record an introduction only from a Complete List Entry, because the leader needs the phone number to schedule a meeting. On a Draft the introduction buttons are replaced by the line "Finish this contact to introduce them."
 
@@ -523,7 +527,7 @@ After handoff the rep still sees the current stage, the responsible leader by na
 
 Leaders see only their assigned reps and those reps' contacts; a Person's responsible leader defaults to the introducing rep's assigned leader at the first Introduced, "Take this introduction" records receipt and, for a Cross-team Person (reps under two leaders), which leader runs it, with the other rep shown only as "A rep under Leader Kim" and any attribution correction routed to the Owner's queue; the full scoping rules are in Access and privacy model.
 
-Rep deactivation: nothing is deleted; every record keeps Tyler's rep id with status Deactivated ("Tyler (deactivated)"); open introductions move to the responsible leader's queue, or the Owner's "Unassigned" queue if none; reward records keep their status, flagged "Rep deactivated"; whether a deactivated rep is paid is OD-8. Leader deactivation: open Persons and tasks sit in the Owner's "Unassigned" queue until reassigned. Mechanics: Access and privacy model.
+Rep deactivation: nothing is deleted; every record keeps Tyler's rep id with status Deactivated ("Tyler (deactivated)"); open introductions move to the responsible leader's queue, or the Owner's "Unassigned" queue if none; rewards not yet paid are closed as not paid (owner decision, 2026-11-02; internal, never shown to reps). Leader deactivation: open Persons and tasks sit in the Owner's "Unassigned" queue until reassigned. Mechanics: Access and privacy model.
 
 ## 7. Duplicates and attribution
 
@@ -611,7 +615,7 @@ Labels: **CONFIRMED RULE** (master brief), **RECOMMENDATION** (anything unlabele
 - Empty: "0/100 contacts complete." "Your Wall is dark. Enter a Scene: a short memory prompt from one part of your life."
 - After a break: "Last scene: The Gym. 4 lit, 2 drafts left. Pick up where you left off." Never "expired" or "streak" (CONFIRMED RULE: a missed day never erases progress).
 - Strip, two fixed lines below 100: "List reward: In progress." "Complete your 100 list to qualify for the $100 completion reward." Later: My Rewards' List Completion line, holds included.
-- At 100: "100/100 contacts complete. Wall complete." Strip: "100/100 complete. List reward: Ready for review. Next action: RALLY leadership approval. Nothing needed from you." Until the server confirms: "100/100 syncing."
+- At 100: "100/100 contacts complete. Wall complete." Strip: "100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!" Until the server confirms: "100/100 syncing."
 - Count drop after 100: "99/100, 1 more to complete your list."
 - Overflow: "Overflow +12 · 3 drafts" "Extra contacts help you make more introductions. The list reward is one-time."
 - Sync reject: "Marcus Lee might already be on your Wall (same phone). Tap to check."
@@ -719,7 +723,7 @@ Labels: **CONFIRMED RULE** (master brief), **RECOMMENDATION** (anything unlabele
 - Introduced: "Introduced on Mar 2 by text. Next: Dana schedules the meeting. Nothing needed from you right now." "0 of 4 confirmed. Next: Dana confirms the meeting."
 - Meeting scheduled: "Meeting with Dana: Mar 6, 4:00 PM, video. Next: Dana holds the meeting." "Dana runs this from here. You can still fix Marcus's phone, handle, tags and your notes." After Tell Dana: "Sent to Dana. She'll see it in her next actions."
 - Agreement signed: "3 of 4 confirmed. Next: Dana confirms start date and travel plans." Untick: "3 of 4 confirmed. Reward on hold until Dana re-confirms Commitment confirmed. Nothing needed from you."
-- All four: "Marcus Lee: 4 of 4 confirmed. Referral reward: Ready for review. Nothing needed from you."
+- All four: "Marcus Lee: 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!"
 - Outcomes: "Marcus said not for him (Mar 9). Still counts on your Wall." "Do not contact. The RALLY team won't reach out to Marcus, so he no longer counts toward your 100."
 
 **Visual notes.** Stage chip white-outlined; confirmed rows a green check with name and date, unconfirmed an empty circle and "Not yet". Reduced motion: no card motion.
@@ -728,9 +732,9 @@ Labels: **CONFIRMED RULE** (master brief), **RECOMMENDATION** (anything unlabele
 
 **Purpose.** Where each cash reward stands, what remains, whose move it is, and what RALLY recorded as paid.
 
-**Main information.** Header "List Completion Reward: $100" with status chip, next-action line and what remains. Divider. Rule line "Referral rewards: $100 per qualifying friend", then one collapsed row per Person on which the rep is a candidate, expanding to the four rows. A row appears at Introduced, when the record is created In progress (or at an earlier first confirmation); the fourth confirmation, with a credited rep set, moves it to Ready for review. Approved and Paid rows sort first and never disappear. Totals "Approved, not yet paid: $100 · Paid: $100" count only Approved and Paid, never reversed rows. Payment history as recorded by RALLY leadership (date, reward, amount, method note); corrections are new linked lines. Reserved panel "More incentives coming from RALLY leadership" (OD-3; no amounts). Footer, always visible.
+**Main information.** Header "List Completion Reward: $100" with status chip, next-action line and what remains. Divider. Rule line "Referral rewards: $100 per qualifying friend", then one collapsed row per Person on which the rep is a candidate, expanding to the four rows. A row appears at Introduced, when the record is created In progress (or at an earlier first confirmation); the fourth confirmation, with a credited rep set, moves it to Ready for review. Approved and Paid rows sort first and never disappear. Totals "Approved, not yet paid: $100 · Paid: $100" count only Approved and Paid, never reversed rows. Payment history as recorded by RALLY leadership (date, reward, amount, method note); corrections are new linked lines. Incentives panel: each published incentive with its picture, name and prize amount, exactly as the owner entered it; an incentive the rep has been awarded shows its status like any other reward. Footer, always visible.
 
-**Statuses.** Exactly five; "On hold" and "Reversed" are display lines. Strings quote the canonical table in Rewards, review and payment tracking, which owns transitions. The spot-check is optional, never a modal on the rep's phone (OD-5).
+**Statuses.** Exactly five; "On hold" and "Reversed" are display lines. Strings quote the canonical table in Rewards, review and payment tracking, which owns transitions. The spot-check happens in person at the walkthrough with the leader, never as a modal on the rep's phone (owner decision, 2026-11-02).
 
 **Main action.** A Needs correction naming the rep shows its one button ("Fix duplicates" opens My Network filtered to Possible duplicates; then "Ask for re-check" asks the raiser to record it resolved); under 100, "Finish your list (58 to go)"; otherwise none ("Nothing needed from you").
 
@@ -741,11 +745,11 @@ Labels: **CONFIRMED RULE** (master brief), **RECOMMENDATION** (anything unlabele
 **Sample interface wording.**
 
 - List, In progress: "42/100 contacts complete. Complete your 100 list to qualify for the $100 completion reward."
-- List, Ready for review: "100/100 complete. List reward: Ready for review. Next action: RALLY leadership approval. Nothing needed from you." Spot-check open: "Next action: Leader Dana is checking a few contacts." Count drop: chip "On hold (99/100)", "99/100. List reward: Ready for review, on hold until you're back at 100. Nothing was lost."
+- List, Ready for review: "100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!" Count drop: chip "On hold (99/100)", "99/100. List reward: Ready for review, on hold until you're back at 100. Nothing was lost."
 - List, Needs correction: "List reward: Needs correction. 3 contacts have the same phone number and were kept as separate people." Button "Fix duplicates", then "Ask for re-check". Another leader note: "Count is 99 now: resolve 1 possible duplicate; if it is the same person, add 1 more."
 - List, Approved: "List reward: Approved: $100. Nothing needed from you. RALLY pays you directly and marks it Paid here." Paid: "List reward: $100. Paid on Mar 21."
 - Referral, In progress: "Jordan Lee: 0 of 4 confirmed." Later: "Jordan Lee: 2 of 4 confirmed. Still needed: Agreement signed, Start date and travel plans confirmed. Next action: Leader Dana."
-- Referral, Ready for review: "Jordan Lee: 4 of 4 confirmed. Referral reward: Ready for review. Nothing needed from you."
+- Referral, Ready for review: "Jordan Lee: 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!"
 - Referral, Approved: "Jordan Lee: Referral reward Approved: $100. Nothing needed from you." with the stamp and "Approved on Mar 16." Paid: "Jordan Lee: $100. Paid on Apr 2."
 - Referral, Needs correction: "Jordan Lee: Needs correction. Leader Dana is fixing a date on Start date and travel plans confirmed. Nothing needed from you."
 - Credited elsewhere: "Jordan Lee: Another rep who also knows Jordan introduced him first, so the referral reward goes to them. Jordan still counts toward your 100. Questions? Ask your leader."
@@ -765,7 +769,7 @@ Labels: **CONFIRMED RULE** (master brief), **RECOMMENDATION** (anything unlabele
 
 **Secondary actions.** "Read it again"; "Reward rules"; "Sign out".
 
-**What happens next.** Reminders follow Reminders for a self-paced experience (CONFIRMED RULE: self-paced, no deadline); turning them off changes no count, XP, reward or review. Deactivation keeps every record under the rep's RALLY-owned id; reactivation restores the same Wall (Access and privacy model; paying a deactivated rep is OD-8).
+**What happens next.** Reminders follow Reminders for a self-paced experience (CONFIRMED RULE: self-paced, no deadline); turning them off changes no count, XP, reward or review. Deactivation keeps every record under the rep's RALLY-owned id; reactivation restores the same Wall (Access and privacy model).
 
 **Sample interface wording.**
 
@@ -782,7 +786,7 @@ Both screens use the rep app's tokens on a light surface: white and gray panels,
 
 ### Leader Workspace (desktop-first, phone-usable)
 
-**Purpose.** The leader owns the middle of the confirmed handoff (rep adds, rep introduces, leader meets, leader updates, rep sees): take introductions, run meetings, confirm the four requirements, check reward records before the owner approves. A queue, not a database view.
+**Purpose.** The leader owns the middle of the confirmed handoff (rep adds, rep introduces, leader meets, leader updates, rep sees): take introductions, run meetings, confirm the four requirements, walk through finished lists and signed friends with reps and approve their rewards. A queue, not a database view.
 
 **Main information.** Five queues over assigned reps and the Persons this leader is responsible leader for (see Access and privacy model); every Person sits in exactly one.
 
@@ -790,7 +794,7 @@ Both screens use the rep app's tokens on a light surface: white and gray panels,
 2. **Meetings today**: Meeting scheduled for today, by time.
 3. **Follow-ups due**: this leader's next actions dated today or earlier, plus Follow up later outcomes whose revisit date has arrived.
 4. **Confirmations to finish**: Meeting completed or later with any requirement unchecked.
-5. **Reviews**: Ready for review List Completion records without a spot-check; Needs correction records owned by this leader; four-confirmed Referral Reward records where no rep recorded an introduction (sent on to the owner) or an "Introduction times are wrong" request is open; "Possible cross-rep match" items.
+5. **Reviews**: rewards at Ready for review waiting for the walkthrough (spot-check for a list, then Approve); Needs correction records owned by this leader; four-confirmed Referral Reward records where no rep recorded an introduction (sent on to the owner) or an "Introduction times are wrong" request is open; "Possible cross-rep match" items.
 
 Any outcome removes the Person from queues 1, 2, 4 and 5; Follow up later needs a revisit date and an owner and surfaces in queue 3 on that date; Do not contact leaves every queue. Desktop: count cards expanding to tables, plus a per-rep strip ("67/100 complete", "9 drafts", introductions this month, last activity). Phone: a chip row ("New 3 · Today 2 · Due 3 · Confirm 2 · Review 1"), the strip collapsed under "My reps", and a sticky bottom primary button.
 
@@ -800,12 +804,12 @@ Any outcome removes the Person from queues 1, 2, 4 and 5; Follow up later needs 
 
 - *Schedule a meeting* (date, time, channel, note): sets Meeting scheduled; only a leader ticks Meeting completed afterward. V1 sends nothing (CONFIRMED RULE: no automatic messaging): footer "This saves the meeting. It sends nothing to Marcus. Set who tells him below", the required next action. Rep card: "Meeting with Dana: Mar 6, 4:00 PM, video. Next: Dana holds the meeting." If the leader sets the rep to pass on the time, the card instead reads "Next: you, send Marcus the time."
 - *Flag "Verify this contact"* (phone / handle / name / other, one line): an event that never changes tile state or count (CONFIRMED RULE: only the four required fields and distinctness decide the count) but blocks Approve on the rep's List Completion record ("1 contact flagged for verification") until the leader clears it. Rep card: "Dana asked you to check Marcus Lee: [reason] [Fix it] [It's right]".
-- *Record spot-check*: a flag shown as "Spot-check: done by Dana, Mar 15" (who, when), not a status; optional unless the owner setting "Leader spot-check required" is Yes (OD-5). Ready for review is server-set, never a button: List Completion at the first 100; Referral when all four are confirmed and the whoever-signs-first rule has named the credited rep. Rep strip: "100/100 complete. List reward: Ready for review. Next action: RALLY leadership approval. Nothing needed from you." (while a spot-check is open: "Next action: Leader Dana is checking a few contacts.").
+- *Record spot-check*: a flag shown as "Spot-check: done by Dana, Mar 15" (who, when), not a status; required before Approve and done in person at the walkthrough (owner decision, 2026-11-02). Ready for review is server-set, never a button: List Completion at the first 100; Referral when all four are confirmed and the whoever-signs-first rule has named the credited rep. Rep strip: "100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!".
 - *Needs correction* with explanation and correction owner. Rep-owned: Game Home button "Fix 1 thing for your $100 list reward"; My Rewards "List reward: Needs correction. Dana says: 'Marcus Lee's phone is missing a digit.' [Open Marcus Lee]". The record stays at Needs correction until the leader or owner who raised it records the correction resolved (the rep's "Ask for re-check" button notifies them); it then returns to Ready for review. Leader-owned corrections show the rep "Needs correction" with the explanation and "Nothing needed from you."
 - *Count drift* (no button): status stays Ready for review; the server sets and clears a drift flag with events, the only hold that clears itself. Leader row: "Count is 98 now, was 100 on Mar 14. The owner cannot approve until it is back at 100." Rep strip: "98/100. List reward: Ready for review, on hold until you're back at 100. Nothing was lost."; chip "On hold (98/100)", a display state, not a status.
 - Reassign next actions, set outcomes, add notes; search and filter assigned contacts by name, phone, handle, rep, stage, outcome, requirement state, date.
 
-**Sample wording.** Header: "3 new introductions. 2 meetings today. 3 follow-ups due. 2 confirmations to finish. 1 review." Review row: "Tyler Nguyen, List reward: 100/100 since Mar 14. Duplicates resolved. 0 Verify flags. Spot-check 3 to 5 contacts below (optional). [Spot-check done] [Needs correction]". RECOMMENDATION: the spot-check shows three to five random Complete contacts, one question each ("How do you know Marcus?"), each ticked "Looks real" (which writes the entry's verified real connection mark) or flagged "Verify this contact"; asynchronous, never a modal on the rep's phone; stored on the record as "Spot-check: not done / done by Dana, Apr 2" and shown to the owner. This is the real-connection check the brief separates from formatting and duplicate checks.
+**Sample wording.** Header: "3 new introductions. 2 meetings today. 3 follow-ups due. 2 confirmations to finish. 1 review." Review row: "Tyler Nguyen finished his 100 list on Mar 14. Walk through his list and signed friends with him. Duplicates resolved. 0 Verify flags. Spot-check 3 to 5 contacts below. [Spot-check done] [Approve] [Needs correction]". Required (owner decision, 2026-11-02) and done together at the walkthrough: the spot-check shows three to five random Complete contacts, one question each ("How do you know Marcus?"), each ticked "Looks real" (which writes the entry's verified real connection mark) or flagged "Verify this contact"; done in person at the walkthrough, never a modal on the rep's phone; stored on the record as "Spot-check: not done / done by Dana, Apr 2" and shown to the owner. This is the real-connection check the brief separates from formatting and duplicate checks.
 
 ### Person detail panel (Leader Workspace)
 
@@ -821,7 +825,7 @@ Right-side panel on desktop. Phone order: identity line; Next; Stage; four check
 8. **Cross-rep attribution (when applicable).** Two or more List Entries and all four confirmed. The server applies the owner's rule, whoever signs the person first: the earliest introduction recorded in the app and confirmed received (CONFIRMED RULE, owner decision, 2026-11-02). The panel shows the result: "Two reps know Marcus Lee. The $100 Referral Reward goes to Tyler: first introduction Mar 2, 4:12 PM." The leader cannot pick a different rep; "Introduction times are wrong" sends a correction request with a required reason to the owner, who alone can change the credited rep.
 9. **History.** The audit events for this Person.
 
-**Can and cannot.** Everything above within scope, plus proposing a Person merge, recording a spot-check and returning Needs correction, is the leader's. A leader cannot mark Approved, use Record as paid, change an amount, edit a rep's List Entry fields, uncheck on an Approved or Paid record, see reps outside their assignment or delete anything. Owner-only Approve and Record as paid: RECOMMENDATION (the brief names the owner as the approver; OD-7).
+**Can and cannot.** Everything above within scope is the leader's, plus proposing a Person merge, recording the spot-check, returning Needs correction and approving rewards for assigned reps after the walkthrough (owner decision, 2026-11-02). A leader cannot use Record as paid, change an amount, approve their own reward or one where they are the credited rep (self-involved: owner only), edit a rep's List Entry fields, uncheck on an Approved or Paid record, see reps outside their assignment or delete anything. Record as paid stays with the owner.
 
 ### Owner Dashboard (desktop)
 
@@ -836,9 +840,9 @@ Right-side panel on desktop. Phone order: identity line; Next; Stage; four check
 5. **Payments recorded.** Rep, reward, amount, paid date, method note, reference (optional), recorded by.
 6. **Leader workload.** Assigned reps, open items per queue, "Oldest waiting" ("6 days"), confirmations this month.
 
-**Main action.** Three buttons per reward row, restricted by status. Approve: Ready for review only; idempotent. Needs correction: Ready for review only; explanation and correction owner required; after Approved the owner may only leave the record or reverse it. Record as paid: Approved only; date and method note required, reference optional; one payment event per record, a repeat refused with "Already recorded as paid on Mar 30, payroll 3/30"; re-validates the four requirements and attribution at save.
+**Main action.** Three buttons per reward row, restricted by status. Approve: Ready for review only; idempotent; leaders approve for their assigned reps and the owner can approve any. Needs correction: Ready for review only; explanation and correction owner required; after Approved the owner may only leave the record or reverse it. Record as paid: Approved only; date and method note required, reference optional; one payment event per record, a repeat refused with "Already recorded as paid on Mar 30, payroll 3/30"; re-validates the four requirements and attribution at save.
 
-Approve is blocked, reason shown, when a List Completion count is under 100 ("Blocked: count 98/100"), a Verify flag is open, any requirement is unconfirmed, no credited rep is set (no introduction recorded, or a correction request is open) or, with "Leader spot-check required" set to Yes, no spot-check is recorded (OD-5). A Referral Reward never waits for the rep's list count (CONFIRMED RULE, owner decision, 2026-11-01).
+Approve is blocked, reason shown, when a List Completion count is under 100 ("Blocked: count 98/100"), a Verify flag is open, any requirement is unconfirmed, no credited rep is set (no introduction recorded, or a correction request is open) or, for a List Completion Reward, no spot-check is recorded. A Referral Reward never waits for the rep's list count (CONFIRMED RULE, owner decision, 2026-11-01).
 
 **What happens next.** Approve writes an Approved entry and the rep's My Rewards row gains the green panther stamp; Needs correction writes the explanation and correction owner, moves the record to the leader's or the rep's next actions, and the rep sees the status with the note; Record as paid writes one Paid entry with date and method note and the rep's row reads Paid on that date. Every action is an audit event and reaches the rep's Introductions digest and My Rewards within the same sync.
 
@@ -852,17 +856,27 @@ Approve is blocked, reason shown, when a List Completion count is under 100 ("Bl
 
 ### Reward record detail (Owner Dashboard)
 
-One read-only page per reward record showing the owner-facing reward record fields listed in Rewards, review and payment tracking; append-only. Amounts are fixed per type in v1; the owner's additional incentives (OD-3) would add a reward type, not an edit.
+One read-only page per reward record showing the owner-facing reward record fields listed in Rewards, review and payment tracking; append-only. Amounts are fixed per type in v1; each incentive the owner adds on the Incentives page is its own reward type with its own prize amount.
 
 Keys: one List Completion record per rep record, one Referral record per Person, ever (CONFIRMED RULE: one reward per qualifying friend, implemented as the recommended one-per-Person key). A Referral Reward record is created In progress when the Person reaches Introduced, or on the first requirement confirmation if that comes first; the fourth confirmation with a credited rep set moves it to Ready for review and never creates it. Records key to the durable rep record, not the login, so re-linking carries records and never creates one; editing, deleting or restoring a contact cannot create a second record.
 
 Person merge: a strong signal (digits-only phone or platform+handle) plus a matching last name, or both strong signals, links automatically; any other match opens a "Possible cross-rep match" item for the leader, and the Persons stay separate until confirmed, never silently merged. If both Persons carry a Referral Reward record the merge is blocked until the owner reverses one in the same action (ledger rule in Rewards, review and payment tracking). A merge never creates a record or reopens a Paid one. The rep sees nothing.
 
+### Incentives page (Owner Dashboard)
+
+Owner decision (owner decision, 2026-11-02): the owner keeps the extra incentives in one place, each with a name, pictures and a prize amount. The details below are RECOMMENDATION; no incentive, amount or picture is invented in this blueprint.
+
+- **Add an incentive.** Name (required); one or more pictures, the first is the cover (required); prize amount in dollars, or the value of a non-cash prize (required); "How to earn it", one optional line. Buttons: "Save draft" / "Publish". Reps see published incentives only.
+- **Edit or turn off.** "Turn off" hides an incentive from reps and keeps its history. A changed prize amount applies only to awards made after the change.
+- **Award.** From the incentive or a rep's page: "Award to rep" with a required note on why it was earned. A leader awards for assigned reps and the owner for anyone; the award is recorded as Approved on the reward ledger, and the owner records Paid as with every reward. Awarding the same incentive to the same rep again asks "Award again?" first. A leader cannot award themselves.
+- **What reps see.** On My Rewards and Game Home, each published incentive is a card: cover picture, name, prize amount and "How to earn it" if set. An awarded incentive joins the rep's rewards with the green panther stamp at Approved and "Paid on Mar 21" when paid.
+- **Sample wording.** Owner: "New incentive" / "Name" / "Pictures (first one is the cover)" / "Prize amount ($)" / "How to earn it (optional)" / "Publish". Rep card: "[Incentive name] · [prize amount]" and, once awarded, "Awarded by Dana. Approved." 
+
 ## 10. Access and privacy model
 
 ### Roles and permissions
 
-Three roles, Rep, Leader, Owner: FIXED VOCABULARY. RECOMMENDATION, answering the brief's request to propose leader access: a leader is its own login; the live RALLY app's "manager" role is unused in v1.
+Three roles: Rep, Leader and Owner. Each leader has their own login (owner decision, 2026-11-02); the live RALLY app's "manager" role is unused in v1.
 
 | Data or action | Rep | Leader | Owner |
 |---|---|---|---|
@@ -874,7 +888,9 @@ Three roles, Rep, Leader, Owner: FIXED VOCABULARY. RECOMMENDATION, answering the
 | Requirements R1 to R4 | Read own, shown by name, never code | Confirm / unconfirm with reason | Same (RECOMMENDATION: when the owner ran the meeting; shows "Owner") |
 | Cross-rep attribution | Read bounded result (below) | Read the rule result; request a correction with a reason | Correct with a reason, logged |
 | Spot-check, Needs correction | Read | Set | Set |
-| Approved; Record as paid | Read | Read | Set |
+| Approved | Read | Set for assigned reps, after the walkthrough | Set |
+| Record as paid | Read | Read | Set |
+| Incentives page | See published incentives | See published; award to assigned reps | Add, edit, publish, turn off, award |
 | Reward amount | Read | Read | Read; fixed per type in v1 |
 | Merge / split Persons | No | Propose, in scope | Confirm, logged |
 | Notes | Append on own | Append, in scope | Append, all |
@@ -889,7 +905,7 @@ Owner soft-delete (spam, fake, legal request): every List Entry for that Person 
 
 ### Leaders with separate accounts
 
-RECOMMENDATION: a leader is its own login with an assignment list set by the owner; every active rep has exactly one assigned leader. The leader sees those reps, their List Entries, the Persons behind them and their reward records, nothing else. Each Person has one responsible leader, defaulted at the first Introduced to the introducing rep's assigned leader and changeable by the owner (event); "Take this introduction" records receipt and, for a cross-team Person, which leader runs it, never responsibility by race. Only the responsible leader's queues hold the Person; another leader in scope sees it read-only under "Run by Leader Dana." Deactivating a leader moves their reps and open items to the owner's "Unassigned" queue, where the owner acts as leader until reassignment (an event). On the shared RALLY backend this is row-level security on the assignment list inside the existing team scope, no tenancy redesign.
+Each leader has their own login (CONFIRMED RULE, owner decision, 2026-11-02), with an assignment list set by the owner; every active rep has exactly one assigned leader (RECOMMENDATION). The leader sees those reps, their List Entries, the Persons behind them and their reward records, nothing else. Each Person has one responsible leader, defaulted at the first Introduced to the introducing rep's assigned leader and changeable by the owner (event); "Take this introduction" records receipt and, for a cross-team Person, which leader runs it, never responsibility by race. Only the responsible leader's queues hold the Person; another leader in scope sees it read-only under "Run by Leader Dana." Deactivating a leader moves their reps and open items to the owner's "Unassigned" queue, where the owner acts as leader until reassignment (an event). On the shared RALLY backend this is row-level security on the assignment list inside the existing team scope, no tenancy redesign.
 
 ### Reps never see another rep's list
 
@@ -903,7 +919,7 @@ Later enhancement, not v1. CONFIRMED RULE: never names from lists. RECOMMENDATIO
 
 ### Submitted records survive rep deactivation
 
-CONFIRMED RULE: submitted contacts are team records separate from the rep's login. RECOMMENDATION on mechanics: the login, the durable rep record (phone/email identity), the List Entry and the Person are separate records; reward records key to the rep record. Deactivation freezes the login (no login, sync or new events), keeps every List Entry and Person labeled "source rep: Sam Ortiz (deactivated)", every event and reward row, and moves the rep's next actions to their assigned leader (event). In progress records stay In progress and leave the default queues. Ready for review and Approved records keep their status, stay in the owner's queues tagged "rep deactivated", and Record as paid shows the tag; whether a deactivated rep is paid is OD-8, never cleared automatically. Reactivation restores access with statuses exactly as left. On new-account creation, a phone or email match to a deactivated rep shows the owner: "Matches deactivated rep Sam Ortiz. Link to that record (keeps history and reward status) or create a separate rep (reason required, logged)." A separate rep for a human already paid the List Completion Reward is part of OD-8; the system warns and logs, it never pays twice silently.
+CONFIRMED RULE: submitted contacts are team records separate from the rep's login. RECOMMENDATION on mechanics: the login, the durable rep record (phone/email identity), the List Entry and the Person are separate records; reward records key to the rep record. Deactivation freezes the login (no login, sync or new events), keeps every List Entry and Person labeled "source rep: Sam Ortiz (deactivated)", every event and reward row, and moves the rep's next actions to their assigned leader (event). If a rep leaves or doesn't come out, every reward not yet paid is closed as not paid (owner decision, 2026-11-02): the owner records "Not paid: rep left" or "Not paid: didn't come out" as an internal reversal, rewards already paid stay paid, and nothing is shown to the rep. The rule lives in internal documentation and, as a RECOMMENDATION, in the written rep agreement, never in the rep app. Reactivation restores access; rewards closed as not paid stay closed unless the owner reinstates them with a reason. On new-account creation, a phone or email match to a deactivated rep shows the owner: "Matches deactivated rep Sam Ortiz. Link to that record (keeps history and reward status) or create a separate rep (reason required, logged)." A separate rep for a human already paid the List Completion Reward never gets it twice; the system warns and logs.
 
 ### Onboarding disclosure text
 
@@ -923,17 +939,17 @@ All cells are CONFIRMED RULE from the master brief; bracketed labels mark recomm
 
 | Reward | Trigger | Amount | Frequency | Who confirms | What does not trigger it |
 |---|---|---|---|---|---|
-| List Completion Reward | The rep's list reaches 100 distinct, complete List Entries (first name, last name, social handle with platform, phone number), each a distinct Person | $100 total | One-time per rep | Owner approves and records Paid [leader spot-check: RECOMMENDATION, see the List Completion review process] [Owner-only Approve and Paid: v1 default, OD-7] | 99 complete; Drafts; Possible duplicates; contacts marked Do not contact; one Person in several categories; Overflow; 200 or any multiple; edits, deletes, restores, re-adds; XP, Levels, Badges; introductions or joins (separate incentive) |
-| Referral Reward | All four requirements confirmed for one Person referred from the rep's list: R1 Meeting completed, R2 Commitment confirmed, R3 Agreement signed, R4 Start date and travel/arrival plans confirmed (as applicable) | $100 | One per qualifying friend; never a second copy for the same Person moving through more stages [one record per Person org-wide, see Reward ledger design; when two reps know the person it goes to whoever signs the person first: CONFIRMED RULE, owner decision, 2026-11-02] | Leader confirms R1 to R4 separately with date; Owner approves and records Paid [Owner-only Approve and Paid: v1 default, OD-7] | R1 alone (a meeting); one to three of the four; a stage change alone; physical arrival (not required); later stages after the reward exists |
+| List Completion Reward | The rep's list reaches 100 distinct, complete List Entries (first name, last name, social handle with platform, phone number), each a distinct Person | $100 total | One-time per rep | Leader walks through the list and signed friends with the rep, records the spot-check and approves; Owner records Paid [owner decision, 2026-11-02] | 99 complete; Drafts; Possible duplicates; contacts marked Do not contact; one Person in several categories; Overflow; 200 or any multiple; edits, deletes, restores, re-adds; XP, Levels, Badges; introductions or joins (separate incentive) |
+| Referral Reward | All four requirements confirmed for one Person referred from the rep's list: R1 Meeting completed, R2 Commitment confirmed, R3 Agreement signed, R4 Start date and travel/arrival plans confirmed (as applicable) | $100 | One per qualifying friend; never a second copy for the same Person moving through more stages [one record per Person org-wide, see Reward ledger design; when two reps know the person it goes to whoever signs the person first: CONFIRMED RULE, owner decision, 2026-11-02] | Leader confirms R1 to R4 separately with date and approves at the walkthrough; Owner records Paid [owner decision, 2026-11-02] | R1 alone (a meeting); one to three of the four; a stage change alone; physical arrival (not required); later stages after the reward exists |
 
 Also CONFIRMED RULE: no deadline, no expiry; a missed day never erases progress or an eligible reward; list complete plus three qualifying Persons equals $400. The List Completion Reward is $100; the brief replaces an earlier $150 figure.
 
 ### Review process: List Completion Reward
 
 1. **Trigger.** CONFIRMED RULE: 100 distinct, complete contacts qualifies. RECOMMENDATION: the count is a server query over the rep's List Entries (complete, not deleted, not the newer entry of an unresolved duplicate pair, not marked Do not contact), re-run after every write that can change it. The first time it is 100 or more (a jump from 99 to 101 still fires) the server creates the record with first status **Ready for review**; the rep requests nothing. "In progress" here is derived from the count, not stored.
-2. **Next action.** Every reward record carries a required next-action field (Leader / Owner / Rep / None) shown on all role screens: on creation Owner; the leader spot-check is offered in parallel and shown on the record as "Spot-check: not done" or "Spot-check: done by Dana, Apr 2" (RECOMMENDATION: the owner setting "Leader spot-check required" defaults to No; OD-5 can make it required and then the next action starts as Leader).
-3. **Leader spot-check (RECOMMENDATION).** The leader samples 3 to 5 Complete entries, one question each ("How do you know Marcus?"), asynchronously and never as a modal on the rep's phone, checking plausibility (name reads as a person, valid phone, handle exists on the platform, sensible tag). The leader records "Spot-check: done by Dana, Apr 2, no concerns" (a "Looks real" tick writes the entry's verified real connection mark; a concern raises a Verify flag to the rep) or sets Needs correction. Only a human can judge a real personal connection.
-4. **Approval (Owner).** Sets **Approved**; blocked below 100: "Count is 98 now, was 100 on Mar 14. Approve opens once the list is back at 100." A count below 100 is a server-set hold on the Ready for review record, cleared automatically at 100; it is not Needs correction. Approve is also blocked while a leader's Verify flag is open on any of the rep's entries or an unresolved Possible duplicate pair exists.
+2. **Next action.** Every reward record carries a required next-action field (Leader / Owner / Rep / None) shown on all role screens. On creation it is Rep and Leader: the rep sees "100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!" and the two meet (owner decision, 2026-11-02).
+3. **Leader spot-check (CONFIRMED RULE, owner decision, 2026-11-02: required).** At the walkthrough the leader samples 3 to 5 Complete entries, one question each ("How do you know Marcus?"), in person and never as a modal on the rep's phone, checking plausibility (name reads as a person, valid phone, handle exists on the platform, sensible tag). The leader records "Spot-check: done by Dana, Apr 2, no concerns" (a "Looks real" tick writes the entry's verified real connection mark; a concern raises a Verify flag to the rep) or sets Needs correction. Only a human can judge a real personal connection.
+4. **Approval (Leader or Owner).** The rep's leader, after the walkthrough and spot-check, or the owner sets **Approved**; blocked without a recorded spot-check, and blocked below 100: "Count is 98 now, was 100 on Mar 14. Approve opens once the list is back at 100." A count below 100 is a server-set hold on the Ready for review record, cleared automatically at 100; it is not Needs correction. Approve is also blocked while a leader's Verify flag is open on any of the rep's entries or an unresolved Possible duplicate pair exists.
 5. **Paid (Owner).** Date and method note (see Recorded as Paid is not the transfer).
 6. **Needs correction.** Leader or owner sets it before Approved with a required explanation and rep action (or "Nothing needed from you"). It returns to Ready for review only when the person who raised it records it resolved; 100 is a precondition for Approve, not for leaving Needs correction, so plausibility concerns use the same path. The rep's row ends in one button, "Fix duplicates" (My Network filtered to Possible duplicates), which becomes "Ask for re-check" and notifies the resolver. No second record is ever created.
 
@@ -942,21 +958,21 @@ Also CONFIRMED RULE: no deadline, no expiry; a missed day never erases progress 
 1. **Record creation.** One record per Person (natural key: Person id), status **In progress**, created by the first of: the Person reaching Introduced or any later stage, or any R1 to R4 confirm intent, which creates the record and appends the confirmation in one transaction.
 2. **Four separate confirmations (CONFIRMED RULE).** A leader confirms R1 to R4 individually, each with name and date; a stage change never ticks a check. R4 requires a note; without travel: "No travel needed; start date May 4 confirmed." RECOMMENDATION: an untick needs a reason and is its own entry; before Approved it returns the record to In progress; after Approved or Paid it is refused and the leader asks the owner for a reversal (see Reward ledger design).
 3. **Credited rep (CONFIRMED RULE, owner decision, 2026-11-02: whoever signs the person first).** The credited rep is the rep with the earliest recorded introduction of the Person (server time, not the date typed on the sheet) that the leader confirmed received. A rep who added the Person but never recorded an introduction is not a candidate and keeps their +1 on the list. On the fourth confirmation the server applies the rule, locks in the credited rep and sets **Ready for review**; leader and owner see the basis ("First introduction: Tyler, Mar 2, 4:12 PM"). If no rep recorded an introduction, the record stays In progress with next action Owner, and no Referral Reward is credited unless the owner records the missed introduction with a reason. Once locked, Person and credited rep are fixed; changing either is an owner-only correction entry with a reason, used only when the introduction records were wrong.
-4. **Approval (Owner).** Sees the Person, the credited rep (locked when, by whom) and the four confirmations; blocked while credited rep is empty. RECOMMENDATION: also blocked until the credited rep's List Entry is Complete ("Rep's entry for Jordan Lee is a Draft (missing phone). Approve opens when it is complete.") (normally guaranteed, since only Complete entries can be introduced; this covers an entry edited or removed after the introduction).
+4. **Approval (Leader or Owner).** The rep's leader at the walkthrough, or the owner, sees the Person, the credited rep (locked when, by whom) and the four confirmations; blocked while credited rep is empty. RECOMMENDATION: also blocked until the credited rep's List Entry is Complete ("Rep's entry for Jordan Lee is a Draft (missing phone). Approve opens when it is complete.") (normally guaranteed, since only Complete entries can be introduced; this covers an entry edited or removed after the introduction).
 5. **Paid (Owner).** Date and method note.
 6. **Needs correction.** Example: "Start date and travel plans confirmed was ticked before a start date existed. Leader Dana: enter the start date and re-confirm it. Rep: nothing needed." Resolution follows the Needs correction step of the List Completion review process.
 
 ### Reward ledger design
 
-**Natural keys**, each a server-side unique constraint: List Completion `(rep id)`, one per rep, ever; Referral `(Person id)`, one per Person, org-wide, ever, never per rep or List Entry. Rep id is RALLY-owned and separate from the login: records survive deactivation, a reactivated rep keeps the same id, and team and leader are snapshots at creation and on every status entry. Owner Dashboard filters "deactivated rep with Approved, unpaid reward" (OD-8).
+**Natural keys**, each a server-side unique constraint: List Completion `(rep id)`, one per rep, ever; Referral `(Person id)`, one per Person, org-wide, ever, never per rep or List Entry. Rep id is RALLY-owned and separate from the login: records survive deactivation, a reactivated rep keeps the same id, and team and leader are snapshots at creation and on every status entry. When a rep leaves or doesn't come out, the owner closes their unpaid rewards as not paid (owner decision, 2026-11-02; internal, see Access and privacy model).
 
 **Append-only.** Header plus linked entries; nothing updated in place or deleted; the current status is the last status entry.
 
 **Two kinds of intent.** Create intents ("count reached 100", "Person 8841 introduced") are idempotent on the natural key and write nothing if the record exists. Entry intents (confirm, untick, approve, pay, correct, resolve, reverse) append to it, idempotent on (record id, entry type, client intent id), so a retried "confirm R2" writes one entry and neither path can create a second reward for the same key.
 
-**Status transitions** (the server refuses any other): In progress to Ready for review (server: fourth tick with one candidate, or credit lock); Ready for review to In progress (an untick before Approved); Ready for review to Needs correction (leader or owner) and back (resolved entry by whoever raised it); Ready for review to Approved (owner only, OD-7; count 100 or more for List, credited rep set for Referral, and no other open block); Approved to Paid (owner only, once); Approved or Paid change only by a reversal entry (owner only).
+**Status transitions** (the server refuses any other): In progress to Ready for review (server: fourth tick with one candidate, or credit lock); Ready for review to In progress (an untick before Approved); Ready for review to Needs correction (leader or owner) and back (resolved entry by whoever raised it); Ready for review to Approved (the rep's leader after the walkthrough, or the owner; count 100 or more and a recorded spot-check for List, credited rep set for Referral, and no other open block); Approved to Paid (owner only, once); Approved or Paid change only by a reversal entry (owner only).
 
-**Reversal** is a flag, not a sixth status, recorded by the owner with an internal note and a separate required rep-facing reason; the record keeps its last status plus "Reversed by Owner on Apr 2." A Paid entry is never erased; the note records any recovery outside the system. An owner "reinstate" entry with reason returns a reversed record to In progress with checks cleared, never a second record, so a Person who joins after an earlier reversal is still paid once.
+**Reversal** is a flag, not a sixth status, recorded by the owner with an internal note and a separate rep-facing reason (none for a rep who left or didn't come out, owner decision, 2026-11-02); the record keeps its last status plus "Reversed by Owner on Apr 2." A Paid entry is never erased; the note records any recovery outside the system. An owner "reinstate" entry with reason returns a reversed record to In progress with checks cleared, never a second record, so a Person who joins after an earlier reversal is still paid once.
 
 **Contact deleted or merged after a reward exists.** A deleted List Entry is soft-deleted; history and reward stay. If both Persons in a merge carry a Referral record, the merge is blocked until the owner reverses one in the same action; the reversed record stays under the merged-away id with a "merged into" link and Owner Dashboard raises "duplicate referral after merge." Cross-Person duplicates are caught here, not by the key.
 
@@ -971,7 +987,7 @@ These are the canonical rep-facing status strings; every other section quotes th
 | State | List Completion Reward | Referral Reward |
 |---|---|---|
 | In progress | "42/100 contacts complete. Complete your 100 list to qualify for the $100 completion reward." | "Jordan Lee: 2 of 4 confirmed. Still needed: Agreement signed, Start date and travel plans confirmed. Next action: Leader Dana." |
-| Ready for review | "100/100 complete. List reward: Ready for review. Next action: RALLY leadership approval. Nothing needed from you." (while a spot-check is open: "Next action: Leader Dana is checking a few contacts.") | "Jordan Lee: 4 of 4 confirmed. Referral reward: Ready for review. Nothing needed from you." |
+| Ready for review | "100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!" | "Jordan Lee: 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!" |
 | Ready for review, on hold (a display state, not a status) | Count dropped below 100: "99/100. List reward: Ready for review, on hold until you're back at 100. Nothing was lost." | n/a: a Referral Reward never waits for the list (CONFIRMED RULE, owner decision, 2026-11-01) |
 | Approved | "List reward: Approved: $100. Nothing needed from you. RALLY pays you directly and marks it Paid here." with the green panther stamp | "Jordan Lee: Referral reward Approved: $100. Nothing needed from you." with the stamp |
 | Paid | "List reward: $100. Paid on Mar 21." | "Jordan Lee: $100. Paid on Apr 2." |
@@ -990,9 +1006,9 @@ Reward id (RALLY-owned); type; natural key; credited rep, locked when and by who
 
 CONFIRMED RULE: no payment provider or automatic payment integration has been selected; RALLY 100 moves no money. Paid is a bookkeeping fact the owner enters after paying outside the app: only on an Approved record, once per record, with date, method note (free text: "Venmo Mar 21", "Added to Mar 31 payroll") and optional reference; who recorded it is captured automatically. A mistaken Paid is corrected by a reversal plus, if paid again, a new linked Paid entry. A future provider webhook could write the entry instead; nothing in v1 assumes it.
 
-### Placeholder for the owner's additional incentives
+### Incentives
 
-OD-3: the owner confirmed the reserved spot (owner decision, 2026-11-01) and will supply the incentive list later; no amounts, milestones or requirements are invented here. The Badges row reads "More incentives coming from RALLY leadership" and My Rewards reserves a panel with no numbers. Each incentive needs: name and rep-facing description; kind (cash, non-cash prize, or game-only XP or Badge, never on My Rewards); an exact server-checkable trigger; natural key (per rep, Person, team or period); amount in cents or prize description; frequency; who confirms, approves and records Paid; what does not trigger it; who it applies to, with start and end dates; the same five statuses and next-action field. Not live until every field is filled and the owner activates it.
+Owner decision (owner decision, 2026-11-02): the owner adds incentives on the Incentives page (Leader Workspace and Owner Dashboard), each with a name, pictures and a prize amount; nothing is invented here. Each award is its own reward record of type Incentive: amount is the incentive's prize amount at award time in whole cents, created at Approved by the awarding leader or owner with a required note (self-involved: owner only), then Paid by the owner. Reversal, corrections and the leaving-rep rule work as for every reward. XP never touches incentives, and no incentive appears as earned before it is awarded.
 
 ### Check examples
 
@@ -1040,9 +1056,9 @@ Tyler opens the Team Bus Scene and calls "Marcus": a Draft List Entry, saved on 
 
 **Attribution (owner decision: whoever signs the person first).** Marcus's Referral Reward record was created at In progress when he reached Introduced. The fourth tick moves it to Ready for review with Tyler credited, because his introduction was the first one recorded. Had Sam introduced Marcus later, Sam would keep his +1 and see the "another rep introduced him first" line.
 
-**Owner view.** The same row in full, plus "Referral Reward · $100 · Tyler · Ready for review · List: 43/100 (not complete)." The owner can approve it now, because a Referral Reward does not wait for the list (CONFIRMED RULE, owner decision, 2026-11-01). Tyler's My Rewards reads "Marcus Lee: 4 of 4 confirmed. Referral reward: Ready for review. Nothing needed from you." After approval and payment, Tyler's row reads "Paid on Apr 10."
+**Owner view.** The same row in full, plus "Referral Reward · $100 · Tyler · Ready for review · List: 43/100 (not complete)." Dana can approve it at the walkthrough now, because a Referral Reward does not wait for the list (CONFIRMED RULE, owner decision, 2026-11-01). Tyler's My Rewards reads "Marcus Lee: 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!" After approval and payment, Tyler's row reads "Paid on Apr 10."
 
-One record, three windows. Tyler cannot edit Dana's confirmations; Dana cannot edit Tyler's notes; the owner approves and records Paid (v1 default, OD-7).
+One record, three windows. Tyler cannot edit Dana's confirmations; Dana cannot edit Tyler's notes; Dana approves at the walkthrough and the owner records Paid (owner decision, 2026-11-02).
 
 ### Why saved contacts reach the owner CRM immediately
 
@@ -1052,7 +1068,7 @@ Disclosure makes this acceptable: the "Who sees your contacts" card on Welcome &
 
 ### Why deactivating a rep keeps the records
 
-CONFIRMED RULE: submitted CRM records are separate from a rep's login. RECOMMENDATION: every record keys to the durable Rep record, not the login, so deactivating Tyler freezes his login and erases nothing: every Person, List Entry ("Source rep: Tyler (deactivated)"), pipeline event, confirmation and reward record stays, including Approved and Paid. Open reward records keep their status, tagged "rep deactivated"; whether they are paid is OPEN DECISION OD-8. Mechanics: Access and privacy model.
+CONFIRMED RULE: submitted CRM records are separate from a rep's login. RECOMMENDATION: every record keys to the durable Rep record, not the login, so deactivating Tyler freezes his login and erases nothing: every Person, List Entry ("Source rep: Tyler (deactivated)"), pipeline event, confirmation and reward record stays, including Approved and Paid. Rewards not yet paid are closed as not paid if the rep left or didn't come out (owner decision, 2026-11-02; internal, never shown to reps). Mechanics: Access and privacy model.
 
 RECOMMENDATION: never hard-delete an account; mark deactivated, keep the ID.
 
@@ -1064,7 +1080,7 @@ Plain names, no SQL. Every entity carries a RALLY-owned ID, created-at, created-
 
 | Entity | Key fields and rules |
 |---|---|
-| Account | login credentials, role (Rep / Leader / Owner), status (active / deactivated), linked rep record. One type; OD-4 (b) would split it. |
+| Account | login credentials, role (Rep / Leader / Owner), status (active / deactivated), linked rep record. One type; each leader has their own login (owner decision, 2026-11-02). |
 | Rep record | RALLY-owned rep id, display name, phone or email identity, status (active / deactivated), assigned leader. Separate from the login Account; List Entries, XP events, acknowledgments and reward records key to this id, so deactivation freezes the login and erases nothing. |
 | Leader assignment | leader, rep, from, to. |
 | Person | canonical first and last name, interest status, Do not contact, responsible leader, external CRM reference, merged-into. Canonical values default to the first Complete entry; only Leader or Owner edit them. |
@@ -1079,7 +1095,7 @@ Plain names, no SQL. Every entity carries a RALLY-owned ID, created-at, created-
 | Scene progress | rep, scene, names called, names completed, cleared, last opened, last name called, last chain cue. Return line on Game Home: "Last scene: The Gym. 4 lit, 2 drafts left. Pick up where you left off." (game section). |
 | Reminder preference | rep, push enabled, per-type toggles, show names, quiet hours, paused until, last sent. |
 | Acknowledgment | rep, wording version, accepted at, re-accepted at. Game Home stays locked until one exists for the current wording. |
-| Spot-check | rep, reward record (optional), leader, at, entries checked, result per entry (looks real / unclear / not real), note. Asynchronous leader task, never a modal on the rep's phone. |
+| Spot-check | rep, reward record (optional), leader, at, entries checked, result per entry (looks real / unclear / not real), note. Done in person at the walkthrough; required before a List Completion Reward is approved. |
 | Audit log | actor, entity, entity ID, field, old, new, timestamp. Covers Person, identifiers, List Entry, Duplicate flag, confirmations, reward records, Leader assignment, Account status, every CSV export (actor, filter, row count). |
 
 ### Identity: RALLY-owned IDs are canonical
@@ -1112,7 +1128,7 @@ These establish that two records look like the same human, not that the human is
 
 The checks above cannot tell whether Tyler knows Marcus; only a conversation can, and no "realness" score should pretend otherwise.
 
-RECOMMENDATION: a light leader spot-check when a List Completion Reward record opens (optionally earlier): three to five random Complete entries, one question each ("How do you know Marcus?"). A "Looks real" result, given only after an actual conversation with the rep (or with the Person where introduced and not Do not contact), writes the List Entry's verified real connection mark; an "unclear" result becomes the leader's Verify flag to the rep (Leader Workspace). The mark belongs to that rep's entry only. In v1 the spot-check does not block Approve (owner setting "Leader spot-check required" defaults to No); making it required is OD-5.
+RECOMMENDATION: a light leader spot-check when a List Completion Reward record opens (optionally earlier): three to five random Complete entries, one question each ("How do you know Marcus?"). A "Looks real" result, given only after an actual conversation with the rep (or with the Person where introduced and not Do not contact), writes the List Entry's verified real connection mark; an "unclear" result becomes the leader's Verify flag to the rep (Leader Workspace). The mark belongs to that rep's entry only. The spot-check is required before a List Completion Reward is approved and happens in person at the walkthrough (owner decision, 2026-11-02).
 
 ### Contact import (later, platform-dependent)
 
@@ -1135,13 +1151,13 @@ No CRM provider is specified (CONFIRMED). An adapter would be server-side, never
 
 ### Who may move a reward record
 
-The server sets Ready for review (list: count reaches 100; referral: fourth confirmation with the credited rep set) and sets or clears the count-drop hold; a leader or the owner raises Needs correction and records its resolution; only the owner (v1 default, OD-7) sets Approved, records Paid and writes reversal or correction entries. Transition rules, unticking (returns to In progress before Approved), holds and reversals: Rewards, review and payment tracking.
+The server sets Ready for review (list: count reaches 100; referral: fourth confirmation with the credited rep set) and sets or clears the count-drop hold; a leader or the owner raises Needs correction and records its resolution; the rep's leader or the owner sets Approved (owner decision, 2026-11-02); only the owner records Paid and writes reversal or correction entries. Transition rules, unticking (returns to In progress before Approved), holds and reversals: Rewards, review and payment tracking.
 
 ## 14. First-version scope and later enhancements
 
 ### Platform note
 
-Confirmed: the owner's RALLY app is an installable PWA on Supabase. RECOMMENDATION: build RALLY 100 as a phone-first installable PWA with a server-side backend for the shared CRM, ledger and XP; Leader Workspace and Owner Dashboard are desktop-width views of the same app. The team knows this stack, and the server-side count, dedupe and ledger need a backend anyway. On iPhone, push works only from the Home Screen; the install card appears at the 10 milestone (see Reminders for a self-paced experience), and until then reminders are in-app only. Backend placement is OD-6; sharing is not assumed.
+Confirmed: the owner's RALLY app is an installable PWA on Supabase. RECOMMENDATION: build RALLY 100 as a phone-first installable PWA with a server-side backend for the shared CRM, ledger and XP; Leader Workspace and Owner Dashboard are desktop-width views of the same app. The team knows this stack, and the server-side count, dedupe and ledger need a backend anyway. On iPhone, push works only from the Home Screen; the install card appears at the 10 milestone (see Reminders for a self-paced experience), and until then reminders are in-app only. Owner decision (owner decision, 2026-11-02): RALLY 100 runs on the existing RALLY backend as another RALLY app, which matches RALLY's architecture rules that all RALLY apps share one RALLY-owned backend. It keeps RALLY-owned IDs, team scoping and access rules, and handles reward money in whole cents on an append-only ledger through server-side functions with idempotent writes. Its new tables still need approval before they are built.
 
 ### v1 scope (ships first)
 
@@ -1159,8 +1175,8 @@ Each item is in v1 because a check example fails or the handoff breaks without i
 10. **Reward records and ledger**: keys, attribution, five statuses, self-involved flag, "Possible same person" check, holds per Rewards, review and payment tracking, "recorded as paid" separate from money.
 11. **My Rewards**: two sections, the reserved incentives panel, paid footer.
 12. **XP, levels and badges** with keys; celebrations within budget; reduced motion.
-13. **Leader Workspace** scoped to assigned reps: queues, pipeline, confirmations, cross-rep flags and merges, attribution, spot-check marking, next-action reassignment.
-14. **Owner Dashboard**: all Persons, per-rep progress, reward records, approvals, Paid recording, filters, audited CSV export, churn indicator, deactivation.
+13. **Leader Workspace** scoped to assigned reps: queues, pipeline, confirmations, cross-rep flags and merges, attribution, walkthrough spot-checks and approvals, incentive awards, next-action reassignment.
+14. **Owner Dashboard**: all Persons, per-rep progress, reward records, approvals, Paid recording, the Incentives page (name, pictures, prize amount), filters, audited CSV export, churn indicator, deactivation.
 15. **Settings and reminders** (strings in Reminders for a self-paced experience) plus the return line.
 16. **Audit log** and **offline draft entry** with Syncing tiles and the reject path.
 
@@ -1169,7 +1185,7 @@ Each item is in v1 because a check example fails or the handoff breaks without i
 - CSV import and Contact Picker where available, through Import review.
 - Outside CRM adapter per Connecting an outside CRM later.
 - Team play: Team Wall, Sprint Night, Relay; an opt-in aggregate leaderboard with no tap path to another rep's contacts.
-- SMS or email reminders; the owner's additional incentives (OD-3) as new reward types on the same ledger.
+- SMS or email reminders; automatic incentive triggers (v1 awards incentives by hand).
 - Verification rate per rep; reporting by Scene yield, time-to-100, introductions per month.
 - Bulk reassignment of next actions when a leader changes; shareable Wall image at 100 (no contact data).
 
@@ -1191,17 +1207,17 @@ Each item is in v1 because a check example fails or the handoff breaks without i
 
 **OD-2. Who receives the Referral Reward when two reps know the same person.** DECIDED. List credit (owner decision, 2026-11-01): each rep puts the person on their own list and each gets +1. Recipient (owner decision, 2026-11-02): whoever signs the person first, meaning the first introduction recorded in the app and confirmed received by the leader; never a split. A rep must have recorded an introduction to receive it. The uncredited rep's "another rep introduced him first" line reveals that someone else knows the person, never who; that is accepted.
 
-**OD-3. The owner's additional incentives.** Partly decided (owner decision, 2026-11-01): keep a reserved spot. The incentive list itself is still to come. When it arrives, each incentive becomes its own reward type with its own key and requirement rows. Invent nothing.
+**OD-3. The owner's additional incentives.** DECIDED (owner decision, 2026-11-02): an Incentives page where the owner adds each incentive with a name, pictures and a prize amount; leaders or the owner award them by hand.
 
-**OD-4. Separate leader accounts?** Options: (a) a Leader role on one account type with Leader assignment; (b) a distinct account type. RECOMMENDATION: (a), mirroring RALLY. Either way a leader sees only assigned reps' records (Access and privacy model).
+**OD-4. Separate leader accounts.** DECIDED (owner decision, 2026-11-02): each leader has their own login, as a Leader role on the same account type, with an assignment list.
 
-**OD-5. Spot-check required before the List Completion Reward?** Options: (a) required, three entries minimum; (b) recommended, visible, optional; (c) not in the flow. RECOMMENDATION: (b) in v1, owner setting "Leader spot-check required" defaulting to No, with "Spot-check: not done / done by Dana, Apr 2" on the reward record; move to (a) if padded lists appear.
+**OD-5. Spot-check before the List Completion Reward.** DECIDED (owner decision, 2026-11-02): required. When a rep finishes, the app says "Congratulations!", and the rep walks through the list and signed friends with their leader, who spot-checks 3 to 5 contacts there and then approves.
 
-**OD-6. Backend placement.** Shared Supabase project or separate. RECOMMENDATION: decide after OD-4.
+**OD-6. Backend placement.** DECIDED (owner decision, 2026-11-02): the existing RALLY backend, following RALLY's architecture rules. The new tables need approval before build.
 
-**OD-7. Who may Approve and record Paid.** RECOMMENDATION: Owner only for both in v1; a delegate may be named later.
+**OD-7. Who may Approve and record Paid.** DECIDED (owner decision, 2026-11-02): leaders approve rewards for their assigned reps, and the owner can approve any. Recording Paid stays with the owner, an assumption until the owner names someone else.
 
-**OD-8. Rewards of deactivated reps.** Options: (a) reviewed and paid normally; (b) Approved only; (c) not paid. RECOMMENDATION: (a) where all requirements were met before deactivation, since a missed day never expires an eligible reward; the owner decides case by case for requirements met after. Includes: a new account that matches a deactivated rep who was already paid the List Completion Reward (the system links or warns and logs; it never pays twice silently).
+**OD-8. Rewards of reps who leave.** DECIDED (owner decision, 2026-11-02): a rep who leaves or doesn't come out is not paid rewards still unpaid; rewards already paid stay paid. Internal: never shown in the rep app. RECOMMENDATION: state the rule in the written rep agreement, because a promised bonus can count as earned pay unless its conditions were disclosed; confirm with whoever writes RALLY's agreements.
 
 ### Assumptions this blueprint makes
 
@@ -1213,12 +1229,10 @@ Each item is in v1 because a check example fails or the handoff breaks without i
 
 ### What we need from the owner next
 
-1. Send the incentive list (OD-3) when ready; its spot is reserved.
-2. Decide OD-4 and OD-5.
-3. Approve the "Who sees your contacts" card wording in the new-rep walkthrough.
-4. Decide OD-6.
-5. Confirm OD-7 (Owner only) or name a delegate.
-6. Decide OD-8.
+1. Add the first incentives on the Incentives page once it is built.
+2. Approve the "Who sees your contacts" card wording in the new-rep walkthrough.
+3. Confirm that recording Paid stays with the owner, or name who else may.
+4. Put the leaving-rep rule in the written rep agreement (see OD-8).
 
 ---
 
@@ -1254,6 +1268,7 @@ The live RALLY sales app already uses the Outfit typeface (weights 400 to 900) w
 
 | Version | Date | Change |
 |---|---|---|
+| 0.5 | 2026-11-02 | Owner decisions recorded: an Incentives page (name, pictures, prize amount); leaders get their own login and approve rewards; a required spot-check at a walkthrough that starts with a "Congratulations!" screen; unpaid rewards of reps who leave or don't come out are not paid, internal only; RALLY 100 runs on the existing RALLY backend. Every open decision is now settled. |
 | 0.4 | 2026-11-02 | Owner decisions recorded: when two reps know the same person, the Referral Reward goes to whoever signs them first, meaning the first introduction recorded in the app; the duplicate rule for one rep's own list is confirmed. All open decisions that shape the product are now settled. |
 | 0.3 | 2026-11-01 | Owner revision: a contact marked Do not contact no longer counts toward 100, because RALLY cannot contact them (v0.2 had it counting). Not interested and Follow up later still count. |
 | 0.2 | 2026-11-01 | Owner decisions recorded: referral approval does not wait for the list; both reps count a shared person; outcomes still count toward 100; incentives keep a reserved spot; RALLY brand colors with green for wins, replacing the proposed blue. Added the brand and visual system and a plain-language duplicate example. |

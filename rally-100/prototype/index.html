@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RALLY 100 Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap">
+<style>
+/* RALLY 100 rep prototype. Layout: one phone-width column on a black field; RALLY black, white and gray, with RALLY green (#22B558, the Sold green of the RALLY sales app) used only for wins. */
+:root{
+  --bg:#0A0A0B; --surface:#131416; --surface2:#1B1C1F; --surface3:#26282C;
+  --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.22);
+  --fg:#F4F5F8; --muted:#A7ACB8; --dim:#7A7F8C;
+  --green:#22B558; --green-ink:#5BD98A; --green-soft:rgba(34,181,88,.16);
+  --draft:#3A3C40; --alert:#F5B301;
+  --ui:'Outfit','Helvetica Neue',Arial,sans-serif;
+  --r:16px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.app{max-width:480px;margin:0 auto;min-height:100%;position:relative}
+.screen{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:14px calc(110px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:16px}
+.screen.home{gap:12px}
+.screen.nonav{padding-block-end:calc(40px + env(safe-area-inset-bottom,0px))}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-weight:900;font-size:30px;line-height:1.08;letter-spacing:.01em}
+h2{font-weight:800;font-size:20px;line-height:1.2}
+p{margin:0}
+.muted{color:var(--muted)}
+.dim{color:var(--dim)}
+.small{font-size:13px}
+.caps{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted)}
+
+/* top bar */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(10,10,11,.94);border-bottom:1px solid var(--line)}
+.top-in{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{width:28px;height:28px;border-radius:50%;box-shadow:0 0 0 1.5px #fff;flex:none;object-fit:cover}
+.wm{font-weight:900;letter-spacing:.3em;font-size:15px;white-space:nowrap}
+.pill{border:1px solid var(--line2);background:transparent;border-radius:999px;padding:0 12px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted);min-height:36px}
+
+/* level line */
+.lv{display:flex;flex-direction:column;gap:6px}
+.lv-t{font-size:13px;color:var(--muted)}
+.lv-t b{color:var(--fg);font-weight:700}
+.xpbar{height:4px;background:var(--surface3);border-radius:4px;overflow:hidden}
+.xpbar i{display:block;height:100%;background:#fff;border-radius:4px}
+
+/* wall */
+.wall{position:relative;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;padding:10px;width:min(100%,max(200px,calc(100vh - 380px)));align-self:center;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);cursor:pointer}
+.wall.frame{border-color:var(--green)}
+.wall.dotgrid{background-image:radial-gradient(rgba(34,181,88,.24) 1px,transparent 1.3px);background-size:11px 11px}
+.wall .stamp10{position:absolute;left:-9px;top:-9px;width:28px;height:28px;border-radius:50%;box-shadow:0 0 0 2px var(--green);object-fit:cover}
+.t{aspect-ratio:1;border-radius:6px;border:1px solid rgba(255,255,255,.14);position:relative;overflow:hidden}
+.t.draft{background:var(--draft);border-color:var(--draft)}
+.t.held{background:repeating-linear-gradient(45deg,#44464c 0 3px,#24262A 3px 6px);border-color:#55575d}
+.t.done{background:var(--green);border-color:var(--green)}
+.t.ms::after{content:"";position:absolute;right:3px;top:3px;width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.35)}
+.t.ms-next{border-color:rgba(255,255,255,.75)}
+.t.ms-next::after{background:#fff}
+.t.sweep{background:var(--draft)}
+.t.sweep::before{content:"";position:absolute;inset:0;background:var(--green);transform-origin:left;animation:sweep .2s ease-out both}
+.t.popin{animation:popin .2s ease-out}
+@keyframes sweep{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes popin{from{transform:scale(.6);opacity:.2}to{transform:scale(1);opacity:1}}
+.wall-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.wall-legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block;border:1px solid rgba(255,255,255,.2)}
+.sw.done{background:var(--green);border-color:var(--green)}
+.sw.draft{background:var(--draft);border-color:var(--draft)}
+.sw.held{background:repeating-linear-gradient(45deg,#44464c 0 2px,#24262A 2px 4px)}
+
+/* counter */
+.big{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.big b{font-size:56px;font-weight:900;line-height:1;font-variant-numeric:tabular-nums}
+.big span{color:var(--muted);font-weight:600}
+.labels{font-size:14px;margin-top:6px}
+.sub{font-size:14px;color:var(--muted);margin-top:2px}
+
+/* buttons */
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line2);background:transparent;font-weight:700;font-size:16px;padding:0 18px;text-align:center}
+.btn.primary{background:#fff;color:#0A0A0B;border-color:#fff}
+.btn.primary[aria-disabled="true"]{opacity:.35}
+.btn.ghost{border-color:transparent;color:var(--muted);min-height:44px}
+.btn.danger{color:#ff8a8a;border-color:rgba(255,138,138,.35)}
+.btn.sm{min-height:44px;font-size:15px;border-radius:12px}
+.row{display:flex;gap:10px}
+.row>*{flex:1;min-width:0}
+.link{background:none;border:0;padding:0 2px;color:var(--fg);text-decoration:underline;text-underline-offset:3px;font-weight:600;min-height:44px}
+.pulse{animation:pulse 1s ease-in-out 1}
+@keyframes pulse{50%{box-shadow:0 0 0 6px rgba(255,255,255,.12)}}
+
+/* cards and chips */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:10px}
+.card.flat{background:transparent}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:12px;font-weight:700;letter-spacing:.04em;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.chip.win{border-color:var(--green);color:var(--green-ink)}
+.chip.draft{background:var(--draft);border-color:var(--draft);color:var(--fg)}
+.chip.held{border-style:dashed}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips.scroll{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chips.scroll::-webkit-scrollbar{display:none}
+.cbtn{border:1px solid var(--line2);background:var(--surface2);border-radius:999px;padding:0 14px;min-height:40px;font-size:14px;font-weight:600;white-space:nowrap}
+.cbtn.on{background:#fff;color:#0A0A0B;border-color:#fff}
+
+/* strip and rewards */
+.strip{border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;background:var(--surface2);display:flex;gap:12px;align-items:flex-start;font-size:15px}
+.strip.win{border-color:var(--green)}
+.stamp{width:44px;height:44px;border-radius:50%;box-shadow:0 0 0 2.5px var(--green);flex:none;object-fit:cover}
+.rw-row{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.rw-row:first-of-type{border-top:0;padding-top:0}
+.checks{display:flex;flex-direction:column;gap:6px;font-size:14px}
+.checks div{display:flex;gap:10px;align-items:center}
+.ck{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line2);display:inline-flex;align-items:center;justify-content:center;flex:none}
+.ck.on{background:var(--green);border-color:var(--green)}
+.ck svg{width:12px;height:12px}
+.totals{font-size:14px;color:var(--muted)}
+
+/* nav */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.nav-in{max-width:480px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+.nav button{background:none;border:0;min-height:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--dim)}
+.nav button.on{color:#fff}
+.nav svg{width:22px;height:22px}
+
+/* scenes */
+.scene-card{text-align:left;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:6px}
+.scene-card .nm{font-weight:800;font-size:18px}
+.scene-card.sm{padding:12px 14px}
+.scene-card.sm .nm{font-size:16px}
+.scene-card.locked{opacity:.5}
+.scene-card .ft{font-size:12px;color:var(--dim)}
+.cleared{color:var(--green-ink);font-weight:700}
+.pin-card{border-color:var(--line2);background:var(--surface2)}
+
+/* sprint */
+.sp-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sp-count{font-weight:700;font-variant-numeric:tabular-nums}
+.sp-line{font-size:20px;line-height:1.3;font-weight:600}
+.miniwall{display:flex;flex-wrap:wrap;gap:4px;min-height:22px}
+.miniwall .t{width:18px;height:18px;aspect-ratio:auto;border-radius:4px}
+.sp-form{display:flex;gap:8px}
+.sp-form input{flex:1;min-width:0;min-height:56px;border-radius:14px;border:1px solid var(--line2);background:var(--surface2);padding:0 16px;font-size:18px}
+.sp-form .btn{width:auto;flex:none;min-width:84px}
+.flash{box-shadow:0 0 0 2px var(--green) inset}
+.savedcheck{color:var(--green-ink);font-weight:700;font-size:14px;min-height:20px}
+.pinned{border:1px solid #fff;border-radius:12px;padding:10px 12px;display:flex;justify-content:space-between;gap:10px;align-items:center;font-weight:600}
+.cue{border:1px dashed var(--line2);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.lastnames{display:flex;gap:6px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.endsheet{border:1px solid var(--line2);border-radius:var(--r);background:var(--surface2);padding:16px;display:flex;flex-direction:column;gap:10px}
+
+/* forms */
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
+.field input,.field textarea{min-height:52px;border-radius:12px;border:1px solid var(--line2);background:var(--surface2);padding:12px 14px;font-size:17px;width:100%}
+.field textarea{min-height:84px;resize:vertical}
+.field.missing input{border-color:#fff}
+.field .err{font-size:13px;color:var(--alert);min-height:0}
+.hand{display:flex;gap:8px;align-items:center}
+.hand span{font-weight:700;color:var(--muted)}
+.collapsed{font-size:14px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.banner{border:1px solid var(--alert);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px;font-size:15px}
+.share{font-size:13px;color:var(--dim)}
+
+/* network */
+.search{min-height:48px;border-radius:12px;border:1px solid var(--line2);background:var(--surface2);padding:0 14px;font-size:16px;width:100%}
+.ncard{width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.ncard .top-row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.ncard .nm{font-weight:700;font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* overlays */
+.overlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.74);padding:24px}
+.cele{background:var(--surface);border:1px solid var(--green);border-radius:22px;padding:26px 22px;text-align:center;max-width:340px;width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;animation:celein .25s ease-out}
+.cele img{width:84px;height:84px;border-radius:50%;box-shadow:0 0 0 3px var(--green);object-fit:cover;animation:stampin .35s ease-out}
+.cele .ct{font-weight:900;font-size:24px}
+.cele .tap{font-size:12px;color:var(--dim)}
+.bigcheck{width:64px;height:64px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center}
+.bigcheck svg{width:34px;height:34px}
+@keyframes celein{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+@keyframes stampin{from{transform:scale(1.5);opacity:0}to{transform:scale(1);opacity:1}}
+.sheet-wrap{position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.62);display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:480px;max-height:88%;overflow:auto;background:var(--surface);border-radius:22px 22px 0 0;border:1px solid var(--line);padding-top:18px;padding-bottom:calc(18px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
+.toasts{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top,0px) + 64px);z-index:70;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.toast{background:var(--surface2);border:1px solid var(--line2);border-radius:999px;padding:8px 14px;font-weight:700;font-size:14px;animation:celein .2s ease-out}
+.toast.win{border-color:var(--green);color:var(--green-ink)}
+.shake{animation:shake .3s ease-in-out}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+
+/* onboarding */
+.ob{min-height:100%;display:flex;flex-direction:column;gap:18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px calc(28px + env(safe-area-inset-bottom,0px))}
+.ob .hero{display:flex;align-items:center;gap:12px}
+.ob .hero img{width:52px;height:52px;border-radius:50%;box-shadow:0 0 0 2px #fff;object-fit:cover}
+.dots{display:flex;gap:6px}
+.dots i{width:22px;height:4px;border-radius:4px;background:var(--surface3)}
+.dots i.on{background:#fff}
+.lines{display:flex;flex-direction:column;gap:10px;font-size:17px}
+.lines div{border-left:2px solid var(--line2);padding-left:12px}
+.ackrow{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line2);border-radius:14px;padding:14px;font-size:15px;cursor:pointer}
+.ackrow input{width:22px;height:22px;margin:2px 0 0;accent-color:#fff;flex:none}
+.proto-note{font-size:13px;color:var(--dim);border:1px dashed var(--line2);border-radius:12px;padding:10px 12px}
+
+/* congrats */
+.cg{display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px}
+.cg-wall{display:grid;grid-template-columns:repeat(10,1fr);gap:3px;width:100%;max-width:300px}
+.cg-wall i{aspect-ratio:1;border-radius:4px;background:var(--green);animation:ripple .35s ease-out both}
+@keyframes ripple{from{transform:scale(.4);opacity:.2}to{transform:scale(1);opacity:1}}
+.cg img{width:112px;height:112px;border-radius:50%;box-shadow:0 0 0 3px var(--green);object-fit:cover;margin-top:-56px;animation:stampin .4s ease-out .5s both}
+.ruled{display:flex;align-items:center;gap:12px;width:100%;font-weight:800;letter-spacing:.3em;font-size:15px}
+.ruled::before,.ruled::after{content:"";flex:1;height:1px;background:var(--line2)}
+.cg .msg{font-size:20px;font-weight:700;line-height:1.35}
+.facts{width:100%;text-align:left;font-size:15px}
+.facts div{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding:10px 0}
+
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+html.rm *{animation:none!important;transition:none!important}
+@media (min-width:700px){.app{border-left:1px solid var(--line);border-right:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script>
+(function(){
+'use strict';
+var PANTHER='data:image/jpeg;base64,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';
+var KEY='rally100_proto_v1';
+var LEVELS=[['Rookie',0],['Scout',150],['Connector',400],['Operator',800],['Prowler',1300],['Apex',2000]];
+var MS=[10,25,50,75,100];
+var MS_XP={10:50,25:100,50:200,75:300,100:500};
+var MS_TEXT={
+  10:['On the board','10/100. On the board. First row lit.'],
+  25:['First quarter','25 lit. Keep the run going.'],
+  50:['Half Wall','Half your Wall is lit. 50 to go. The $100 completion reward is for the full 100, no halfway cash.'],
+  75:['Home stretch','25 to go.']
+};
+var PLATFORMS=['Instagram','Snapchat','TikTok','Facebook','X','LinkedIn','Discord','Other'];
+var TAGS=['School','Sports','Work','Gym','Neighborhood','Family','Group chat','Hobbies/Clubs/Community','Lost touch','Other'];
+var SCENES=[
+ {id:'phone',name:'Phone Sweep',line:"Flip to your Phone app: Recents, then Contacts A to Z. Then your Instagram followers. Come back and type everyone you'd text back. The timer waits.",cues:['Your Recents, top to bottom.','Your pinned chats and favorites.'],chains:["Who's on your Snapchat best friends?","Which TikTok mutuals do you actually know?"],clears:5,tag:'Other',leave:true},
+ {id:'chats',name:'Group Chats',line:"Scroll your group chats oldest to newest. Who's in each one? The timer waits while you look.",cues:['The chat with the funny name.','The one that went quiet.'],chains:["Who's in a dead chat you never left?","Who's in your Discord servers or Instagram group DMs?"],clears:5,tag:'Group chat',leave:true},
+ {id:'shift',name:'Same Shift',line:"Clock in. Slow part of the shift. Who's on with you?",cues:['The schedule on the break room wall.','Who always swapped shifts with you.'],chains:['Who trained you on day one?','Who was on with you at your last job?'],clears:3,tag:'Work'},
+ {id:'lunch',name:'The Lunch Table',line:"Cafeteria, junior year. Find your table. Who's there? Now the next table.",cues:['Who saved you a seat.','The table next to yours.'],chains:['Who was in your homeroom?','Who did you ride to school with?'],clears:3,tag:'School'},
+ {id:'bus',name:'Team Bus',line:"After an away game, speaker on. Who's in the seats around you?",cues:['The back row.','Who controlled the music.'],chains:['Who was on the team the year before you?','Who was on your club or travel team?'],clears:3,tag:'Sports'},
+ {id:'gym',name:'The Gym',line:"The rack you always use. Who's there at the same time?",cues:['Your usual time slot.','Who you spot, and who spots you.'],chains:['Who do you play pickup, rec league or jiu-jitsu with?','Which trainers or front-desk people know your name?'],clears:3,tag:'Gym'},
+ {id:'street',name:'Home Street',line:'Stand in front of the house you grew up in. Look left, right, across.',cues:['The house with the hoop.','Who walked to the bus stop with you.'],chains:['Who did you bike with?','Who are your neighbors now?'],clears:3,tag:'Neighborhood'},
+ {id:'lost',name:'Lost Touch',line:"Who were you tight with two years ago and haven't texted since? Picture where you two used to hang out.",cues:['Old photos on your camera roll.','The friend group before this one.'],chains:['Who did they hang out with?','Who would you text if you ran into them?'],clears:3,tag:'Lost touch'},
+ {id:'family',name:'Family Table',line:'Last big family gathering. Go around the table.',cues:["The kids' table.",'Who always shows up late.'],chains:["Who are your parents' friends' kids?","Who are your siblings' friends?"],clears:3,tag:'Family'},
+ {id:'clubs',name:'Clubs, Church, Community',line:'Youth group, band, robotics, scouts, volunteer shifts. Who was in the room?',cues:['The sign-in sheet.','The trip you all went on.'],chains:['Who ran it?','Who was in your carpool?'],clears:3,tag:'Hobbies/Clubs/Community'},
+ {id:'roommates',name:'Roommates',line:'Dorm, apartment, barracks, mission companion, anyone you lived with. Who was down the hall?',cues:['The shared kitchen.','Move-in day.'],chains:["Who was always over but didn't live there?",'Who shared a lease or a Wi-Fi password with you?'],clears:3,tag:'Other',note:'Skip it if this one isn’t you.'},
+ {id:'bignight',name:'The Big Night',line:"Last party, wedding, concert, trip. Who did you go with? Who's in the photos?",cues:['The group photo.','Who drove.'],chains:['Who posted the photos?','Who did you leave with?'],clears:3,tag:'Other'},
+ {id:'plusone',name:'Plus-One Chain',line:'Pick someone already on your Wall. Who did they always bring?',cues:[],chains:['Who introduced you to them?','Who else was always with them?'],clears:3,tag:null,unlock:20},
+ {id:'mutual',name:'Mutual Friends',line:'Three people already on your Wall. Who were they always with?',cues:[],chains:['Who do these three have in common?','Who was in the same photos as them?'],clears:3,tag:null,unlock:20}
+];
+var BADGES=[['reader','Scene Reader','3 Scenes cleared'],['sprinter','Sprinter','10 names in one Sprint'],['chain','Chain Reaction','5 chain hits in one Scene'],['sweep','Clean Sweep','20 drafts finished in one Sweep'],['full','Full Wall','100 contacts complete']];
+var CHECK_NAMES=['Meeting completed','Commitment confirmed','Agreement signed','Start date and travel plans confirmed'];
+
+/* ---------- state ---------- */
+function fresh(){return {v:1,ack:false,entries:[],nextId:1,xp:0,xpKeys:{},ms:{},cos:{},scenes:{},lastScene:null,firstSprint:true,reward:{status:'progress',readyAt:null,approvedAt:null,paidAt:null},referrals:[],badges:{},rm:false,sample:false,levelName:'Rookie'};}
+function load(){try{var raw=localStorage.getItem(KEY);if(raw){var s=JSON.parse(raw);if(s&&s.v===1){var f=fresh();for(var k in f){if(!(k in s))s[k]=f[k];}return s;}}}catch(e){}return fresh();}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(st));}catch(e){}}
+var st=load();
+
+/* ---------- helpers ---------- */
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function normPhone(s){var d=String(s||'').replace(/\D/g,'');if(d.length===11&&d[0]==='1')d=d.slice(1);return d;}
+function phoneOk(d){return /^\d{10}$/.test(d||'');}
+function fmtPhone(d){return phoneOk(d)?'('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6):d;}
+function normHandle(s){return String(s||'').trim().toLowerCase().replace(/^https?:\/\/(www\.)?[^\/]+\//,'').replace(/^@/,'').replace(/[\/?#].*$/,'');}
+function fmtDate(ts){try{return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});}catch(e){return '';}}
+function byId(id){for(var i=0;i<st.entries.length;i++){if(st.entries[i].id===id)return st.entries[i];}return null;}
+function sceneById(id){for(var i=0;i<SCENES.length;i++){if(SCENES[i].id===id)return SCENES[i];}return null;}
+function fullName(e){return (e.first+(e.last?' '+e.last:'')).trim();}
+function missing(e){var m=[];if(!e.last)m.push('Last name');if(!phoneOk(e.phone))m.push('Phone');if(!e.handle||!e.platform||(e.platform==='Other'&&!e.otherApp))m.push('Social handle');return m;}
+function isComplete(e){return !!e.first&&missing(e).length===0;}
+function counted(e){return !e.removed&&!e.heldOf&&isComplete(e);}
+function live(){return st.entries.filter(function(e){return !e.removed;});}
+function count(){return st.entries.filter(counted).length;}
+function drafts(){return st.entries.filter(function(e){return !e.removed&&!e.heldOf&&!isComplete(e);});}
+function heldList(){return st.entries.filter(function(e){return !e.removed&&e.heldOf;});}
+function personKey(e){return e.xpKey||('p:'+e.phone);}
+function handleKey(e){return e.handle&&e.platform?e.platform+':'+(e.platform==='Other'?String(e.otherApp||'').toLowerCase()+':':'')+normHandle(e.handle):null;}
+function level(){var cur=LEVELS[0],nxt=LEVELS[1];for(var i=0;i<LEVELS.length;i++){if(st.xp>=LEVELS[i][1]){cur=LEVELS[i];nxt=LEVELS[i+1]||null;}}return {name:cur[0],min:cur[1],next:nxt};}
+function sceneStats(sid){var es=live().filter(function(e){return e.scene===sid;});var lit=es.filter(counted).length;var dr=es.filter(function(e){return !e.heldOf&&!isComplete(e);}).length;return {names:es.length,lit:lit,drafts:dr};}
+function nextMs(c){for(var i=0;i<MS.length;i++){if(MS[i]>c)return MS[i];}return null;}
+function plural(n,w,ws){return n+' '+(n===1?w:(ws||w+'s'));}
+var ICON={
+ home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>',
+ scenes:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8.5"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>',
+ network:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><circle cx="17.5" cy="9" r="2.6"/><path d="M17 14.6c2.3.2 4 1.8 4.6 4.6"/></svg>',
+ rewards:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="9" r="5.5"/><path d="M8.6 13.5L7 21l5-2.6 5 2.6-1.6-7.5"/></svg>',
+ check:'<svg viewBox="0 0 24 24" fill="none" stroke="#0A0A0B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+};
+
+/* ---------- rendering ---------- */
+var app=document.getElementById('app');
+var view={name:st.ack?'home':'onboarding',p:{step:0}};
+var fx={done:{},drafted:{}};
+var after={};
+function go(name,p){stopSprint();view={name:name,p:p||{}};render();try{window.scrollTo(0,0);}catch(e){}}
+function render(){document.documentElement.classList.toggle('rm',!!st.rm);app.innerHTML=(SCREENS[view.name]||SCREENS.home)(view.p);if(after[view.name])after[view.name](view.p);fx={done:{},drafted:{}};}
+function topbar(){return '<header class="top"><div class="top-in"><div class="brand"><img class="mark" src="'+PANTHER+'" alt="RALLY MKTG panther" width="28" height="28"><span class="wm">RALLY 100</span></div><button class="pill" data-a="proto" aria-label="Open prototype controls">Prototype</button></div></header>';}
+function nav(active){var items=[['home','Home'],['scenes','Scenes'],['network','Network'],['rewards','Rewards']];return '<nav class="nav" aria-label="Main"><div class="nav-in">'+items.map(function(it){var on=it[0]===active;return '<button data-a="tab" data-k="'+it[0]+'" class="'+(on?'on':'')+'"'+(on?' aria-current="page"':'')+'>'+ICON[it[0]]+'<span>'+it[1]+'</span></button>';}).join('')+'</div></nav>';}
+function stampImg(cls){return '<img class="'+(cls||'stamp')+'" src="'+PANTHER+'" alt="RALLY panther stamp">';}
+
+function wallHTML(){
+  var c=count();
+  var done=st.entries.filter(counted).sort(function(a,b){return a.completedAt-b.completedAt;});
+  var held=heldList(), dr=drafts().sort(function(a,b){return a.created-b.created;});
+  var order=done.map(function(e){return ['done',e];}).concat(held.map(function(e){return ['held',e];}),dr.map(function(e){return ['draft',e];})).slice(0,100);
+  var nm=nextMs(c),cells=[];
+  for(var i=0;i<100;i++){
+    var o=order[i],cls='t';
+    if(o){cls+=' '+o[0];if(o[0]==='done'&&fx.done[o[1].id])cls+=' sweep';if(o[0]==='draft'&&fx.drafted[o[1].id])cls+=' popin';}
+    else{if(i===9||i===24||i===49||i===74)cls+=' ms';if(nm&&i===nm-1)cls+=' ms-next';}
+    cells.push('<div class="'+cls+'"></div>');
+  }
+  var wcls='wall'+(st.cos[25]?' frame':'')+(st.cos[50]?' dotgrid':'');
+  return '<div class="'+wcls+'" data-a="wall" role="img" aria-label="Your Wall: '+Math.min(c,100)+' of 100 tiles lit">'+(st.cos[10]?'<img class="stamp10" src="'+PANTHER+'" alt="">':'')+cells.join('')+'</div>';
+}
+function legendHTML(){return '<div class="wall-legend" aria-hidden="true"><span><i class="sw done"></i>Complete, counts</span><span><i class="sw draft"></i>Draft, doesn’t count yet</span><span><i class="sw held"></i>Check: possible duplicate</span></div>';}
+function subline(c,ds){
+  if(st.reward.status==='ready'&&c<100)return c+'/100. List reward: Ready for review, on hold until you’re back at 100. Nothing was lost.';
+  if(c>=100)return 'Wall complete.';
+  if(c===0&&!ds.length)return 'Your Wall is dark. Enter a Scene: a short memory prompt from one part of your life.';
+  if(c===99)return '99/100, 1 more to complete your list.';
+  if(c>=75)return (100-c)+' to go.'+(ds.length?' Finish your '+plural(ds.length,'draft')+' and you’re at '+Math.min(100,c+ds.length)+'.':'');
+  var one=ds.filter(function(e){return missing(e).length===1;}).length,nm=nextMs(c),parts=[];
+  if(one)parts.push(one+(one===1?' draft is':' drafts are')+' one field away');
+  parts.push((nm-c)+' more until your next milestone ('+nm+')');
+  return parts.join(' | ');
+}
+function nextAction(){
+  var c=count(),ds=drafts();
+  if(c>=100&&st.reward.status==='ready')return {label:'Show your leader',a:'congrats'};
+  if(c>=100)return {label:'Introduce someone',a:'intro-stub'};
+  var one=ds.filter(function(e){return missing(e).length===1;}).length,nm=nextMs(c);
+  if(ds.length>=3||(one>0&&c+one>=nm)){var mins=Math.max(1,Math.round(ds.length*20/60));return {label:'Finish '+plural(ds.length,'draft')+' ('+mins+' min)',a:'sweep-all'};}
+  if(st.lastScene&&sceneStats(st.lastScene).names<5){var sc=sceneById(st.lastScene);return {label:'Continue: '+sc.name,a:'scene-open',sid:sc.id};}
+  return {label:'Enter a Scene',a:'tab',k:'scenes'};
+}
+function stripHTML(){
+  var c=count(),r=st.reward;
+  if(r.status==='paid')return '<div class="strip win">'+stampImg()+'<div><b>List reward: $100.</b> Pay issued '+fmtDate(r.paidAt)+'.</div></div>';
+  if(r.status==='approved')return '<div class="strip win">'+stampImg()+'<div><b>List reward: $100 · Pending pay.</b> Nothing needed from you. RALLY pays you directly and marks it Pay issued here.</div></div>';
+  if(r.status==='ready'&&c>=100)return '<div class="strip win"><div><b>100/100 complete.</b> Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!</div></div>';
+  if(r.status==='ready')return '<div class="strip"><div>'+c+'/100. List reward: Ready for review, on hold until you’re back at 100. Nothing was lost.</div></div>';
+  return '<div class="strip" data-a="tab" data-k="rewards"><div><div>List reward: In progress.</div><div class="muted">Complete your 100 list to qualify for the $100 completion reward.</div></div></div>';
+}
+function incentivesHTML(){return '<section class="card flat"><div class="caps">Incentives</div><p class="muted">Incentives from RALLY show up here, each with a picture, name and prize.</p></section>';}
+function badgesHTML(){return '<section class="card flat"><div class="caps">Badges · game only, never cash</div><div class="chips">'+BADGES.map(function(b){var on=!!st.badges[b[0]];return '<span class="chip'+(on?' win':'')+'" title="'+esc(b[2])+'">'+esc(b[1])+'</span>';}).join('')+'</div></section>';}
+
+var SCREENS={};
+
+/* onboarding */
+SCREENS.onboarding=function(p){
+  var step=p.step||0,dots='<div class="dots" aria-label="Card '+(step+1)+' of 4">'+[0,1,2,3].map(function(i){return '<i class="'+(i===step?'on':'')+'"></i>';}).join('')+'</div>';
+  var hero='<div class="hero"><img src="'+PANTHER+'" alt="RALLY MKTG panther"><span class="wm">RALLY 100</span></div>';
+  var body='';
+  if(step===0)body='<h1>Build your 100 list.</h1><p class="lines"><span>100 real people you know. Nobody has to want a job. You build it in Scenes: short memory prompts from one part of your life. Each person lights one tile on your Wall.</span></p><p class="proto-note">Prototype: everything you type stays on this phone. Nothing is sent to RALLY.</p>';
+  if(step===1)body='<h1>Your rewards</h1><div class="lines"><div>Finish all 100: $100. One time.</div><div>Each friend you introduce who gets all four checks: $100. Each friend counts once.</div><div>The four checks: Meeting completed, Commitment confirmed, Agreement signed, Start date and travel plans confirmed (where travel applies).</div><div>When you finish, you and your leader walk through your list and signed friends together. Your leader approves your prize, then RALLY records it as paid.</div></div>';
+  if(step===2)body='<h1>What counts</h1><div class="lines"><div>A contact counts with all four: first name, last name, one social handle with the app named, phone number.</div><div>Save names first, add details later. Drafts are kept but don’t count.</div></div>';
+  if(step===3)body='<h1>Who sees your contacts</h1><p class="lines"><span>Every contact you save, including drafts, is visible to your leader and the RALLY recruiting team the moment you save it, not at 100. The RALLY recruiting team may contact people you introduce. Other reps never see your list.</span></p><label class="ackrow" id="ackRow"><input type="checkbox" id="ackBox"'+(p.ack?' checked':'')+'><span>I understand my contacts are shared with the RALLY recruiting team.</span></label><p class="small muted" id="ackHint"></p><p class="proto-note">In this prototype nothing leaves your phone. In the real app, this is how sharing works.</p>';
+  var btns=step<3?'<div class="row">'+(step>0?'<button class="btn" data-a="ob-back">Back</button>':'')+'<button class="btn primary" data-a="ob-next">Next</button></div>':'<div class="row"><button class="btn" data-a="ob-back">Back</button><button class="btn primary" data-a="ob-go" id="obGo" aria-disabled="'+(p.ack?'false':'true')+'">Light the Wall</button></div>';
+  return '<main class="ob">'+hero+dots+body+'<div style="flex:1"></div>'+btns+'</main>';
+};
+after.onboarding=function(p){var b=document.getElementById('ackBox');if(b)b.addEventListener('change',function(){p.ack=b.checked;var g=document.getElementById('obGo');if(g)g.setAttribute('aria-disabled',b.checked?'false':'true');var h=document.getElementById('ackHint');if(h)h.textContent='';});};
+
+/* home */
+SCREENS.home=function(){
+  var c=count(),ds=drafts(),hd=heldList(),lv=level(),na=nextAction();
+  var span=lv.next?lv.next[1]-lv.min:1,pct=lv.next?Math.round((st.xp-lv.min)/span*100):100;
+  var labels=Math.min(c,100)+' lit'+(ds.length?' | '+plural(ds.length,'draft'):'')+(hd.length?' | '+hd.length+' to check':'');
+  var over=c>100?'<p class="small muted">Overflow +'+(c-100)+'. Extra contacts help you make more introductions. The list reward is one-time.</p>':'';
+  var ret='';
+  if(st.lastScene&&c<100){var s=sceneStats(st.lastScene),sc=sceneById(st.lastScene);ret='<p class="small muted">Last scene: '+esc(sc.name)+'. '+s.lit+' lit, '+plural(s.drafts,'draft')+' left. Pick up where you left off.</p>';}
+  var naAttr='data-a="'+na.a+'"'+(na.sid?' data-sid="'+na.sid+'"':'')+(na.k?' data-k="'+na.k+'"':'');
+  var lvl='<div class="lv"><div class="lv-t"><b>'+lv.name+'</b> \u00b7 '+st.xp+' XP'+(lv.next?' \u00b7 '+(lv.next[1]-st.xp)+' to '+lv.next[0]:'')+'</div><div class="xpbar"><i style="width:'+pct+'%"></i></div></div>';
+  return topbar()+'<main class="screen home">'+
+   wallHTML()+
+   '<div><div class="big"><b>'+Math.min(c,100)+'</b><span>/100 contacts complete</span></div><div class="labels">'+labels+(st.sample?' <span class="chip" style="margin-left:4px">Sample data</span>':'')+'</div><div class="sub">'+esc(subline(c,ds))+'</div>'+over+'</div>'+
+   '<button class="btn primary" '+naAttr+'>'+esc(na.label)+'</button>'+ret+lvl+legendHTML()+
+   stripHTML()+incentivesHTML()+badgesHTML()+
+  '</main>'+nav('home');
+};
+
+/* scenes */
+SCREENS.scenes=function(){
+  var c=count(),ds=drafts();
+  var pinned=ds.length>=5?'<button class="scene-card pin-card" data-a="sweep-all"><span class="nm">Light the Drafts</span><span class="muted">'+ds.length+' drafts, most missing one field. Knock them out.</span></button>':'';
+  function card(sc,small){
+    var s=sceneStats(sc.id),locked=sc.unlock&&c<sc.unlock;
+    var stat=locked?'Unlocks at '+sc.unlock+' complete contacts':(s.names?s.lit+' lit · '+plural(s.drafts,'draft'):'not started');
+    var cleared=st.scenes[sc.id]&&st.scenes[sc.id].cleared?' · <span class="cleared">Cleared</span>':'';
+    return '<button class="scene-card'+(small?' sm':'')+(locked?' locked':'')+'" data-a="'+(locked?'locked':'scene-open')+'" data-sid="'+sc.id+'"><span class="nm">'+esc(sc.name)+' <span class="dim small">· '+stat+'</span>'+cleared+'</span>'+(small?'':'<span class="muted">'+esc(sc.line)+'</span>')+'<span class="ft">'+sc.clears+' names clears this scene. No limit.'+(sc.note?' '+esc(sc.note):'')+'</span></button>';
+  }
+  return topbar()+'<main class="screen"><div><h1>Scenes</h1><p class="muted">Pick a scene. Skip any that aren’t you.</p><p class="small dim">'+Math.min(c,100)+'/100 · '+plural(ds.length,'draft')+'</p></div>'+pinned+
+   SCENES.slice(0,3).map(function(s){return card(s,false);}).join('')+'<div class="caps">All scenes</div>'+SCENES.slice(3).map(function(s){return card(s,true);}).join('')+'</main>'+nav('scenes');
+};
+
+/* drop-in */
+SCREENS.dropin=function(p){
+  var sc=sceneById(p.sid),first=st.firstSprint;
+  var b1='<button class="btn primary" data-a="sprint-start" data-sid="'+sc.id+'">Start a 60-second Sprint</button>',b2='<button class="btn" data-a="sprint-free" data-sid="'+sc.id+'">Just add names</button>';
+  if(sc.leave){b1='<button class="btn primary" data-a="sprint-free" data-sid="'+sc.id+'">Just add names</button>';b2='<button class="btn" data-a="sprint-start" data-sid="'+sc.id+'">Start a 60-second Sprint</button>';}
+  var extra='';
+  if(sc.id==='plusone'||sc.id==='mutual'){var lit=st.entries.filter(counted).slice(-12),picks=sc.id==='mutual'?lit.slice(0,3):lit.slice(0,6);extra='<div class="chips">'+picks.map(function(e){return '<span class="chip">'+esc(fullName(e))+'</span>';}).join('')+'</div>';}
+  return '<main class="screen nonav"><div class="sp-top"><button class="link" data-a="tab" data-k="scenes">Scenes</button><span></span></div><h1>'+esc(sc.name)+'</h1><p class="sp-line">'+esc(sc.line)+'</p>'+extra+
+   (sc.cues.length?'<div class="lines muted">'+sc.cues.map(function(q){return '<div>'+esc(q)+'</div>';}).join('')+'</div>':'')+
+   (first?'<p class="muted">Say first names as fast as they come. Nothing is graded, nothing is final. You can stop any time.</p>':'')+
+   b1+b2+'</main>';
+};
+
+/* sprint */
+var sp=null;
+function startSprint(sid,mode){go('sprint',{sid:sid,mode:mode});}
+function stopSprint(){if(sp&&sp.timer){clearInterval(sp.timer);sp.timer=null;}if(sp&&sp.idle){clearTimeout(sp.idle);}}
+SCREENS.sprint=function(p){
+  var sc=sceneById(p.sid);
+  return '<main class="screen nonav"><div class="sp-top"><span class="sp-count" id="spCount"></span><button class="link" data-a="sp-done">Done</button></div>'+
+   '<p class="sp-line" id="spLine">'+esc(sc.line)+'</p><div class="miniwall" id="miniWall" aria-hidden="true"></div><div class="lastnames" id="lastNames"></div>'+
+   '<div id="pinned"></div><div id="cueBox"></div><div class="chips scroll" id="chainChips"></div>'+
+   '<form class="sp-form" id="spForm" autocomplete="off"><label class="sr" for="spInput">First name</label><input id="spInput" placeholder="First name (nickname ok)" autocomplete="off" autocapitalize="words" enterkeyhint="done"><button class="btn primary" type="submit">Add</button></form>'+
+   '<div class="savedcheck" id="spSaved" aria-live="polite"></div><p class="small muted" id="spHint">Just names. Details later.</p>'+
+   '<button class="btn ghost" data-a="sp-dead" id="deadBtn">Dead end? Get a cue</button><div id="spSheet"></div></main>';
+};
+after.sprint=function(p){
+  var sc=sceneById(p.sid);
+  sp={sid:p.sid,mode:p.mode,left:p.mode==='timed'?60:null,names:[],timer:null,pinned:null,rung:0,chainHits:0,paused:false,idle:null,ended:false};
+  st.lastScene=p.sid;if(!st.scenes[p.sid])st.scenes[p.sid]={cleared:false,chainHits:0};save();
+  var input=document.getElementById('spInput');
+  document.getElementById('spForm').addEventListener('submit',function(ev){ev.preventDefault();addSprintName(input.value);input.value='';input.focus();});
+  spUpdate();spChips(null);armIdle();
+  if(sp.mode==='timed'){sp.timer=setInterval(tick,1000);}
+  try{input.focus();}catch(e){}
+};
+function tick(){if(!sp||sp.paused)return;if(sp.left>0){sp.left--;spUpdate();}if(sp.left===0&&!sp.ended){sp.ended=true;clearInterval(sp.timer);sp.timer=null;showEndSheet();}}
+function spUpdate(){
+  if(!sp)return;var sc=sceneById(sp.sid),el=document.getElementById('spCount');if(!el)return;
+  var t=sp.left==null?'':' · '+Math.floor(sp.left/60)+':'+String(sp.left%60).padStart(2,'0');
+  el.textContent=sc.name+' · '+plural(sp.names.length,'name')+t;
+  var mw=document.getElementById('miniWall');
+  mw.innerHTML=live().filter(function(e){return e.scene===sp.sid;}).slice(-30).map(function(e){return '<div class="t '+(counted(e)?'done':(e.heldOf?'held':'draft'))+(fx.drafted[e.id]?' popin':'')+'"></div>';}).join('');
+  fx.drafted={};
+  document.getElementById('lastNames').innerHTML=sp.names.slice(-3).map(function(n){return '<span class="chip">'+esc(n)+'</span>';}).join('');
+}
+function nameChips(n,sid){
+  var m={shift:['Who was on shift with '+n+'?','Who covered for '+n+'?'],lunch:['Who sat next to '+n+'?','Who did '+n+' always come with?'],bus:['Who sat next to '+n+'?','Who rode home with '+n+'?'],gym:['Who trains with '+n+'?','Who did '+n+' bring along?'],family:['Who did '+n+' bring?','Who sat next to '+n+'?']};
+  var base=m[sid]||['Who was always with '+n+'?','Who did '+n+' always bring?'];
+  return base.concat([n+'’s sibling or cousin?']);
+}
+function spChips(n){
+  var box=document.getElementById('chainChips');if(!box)return;var sc=sceneById(sp.sid);
+  var list=n?nameChips(n,sp.sid):sc.chains.slice();
+  box.innerHTML=list.map(function(q){return '<button class="cbtn" data-a="sp-chip" data-q="'+esc(q)+'">'+esc(q)+'</button>';}).join('');
+}
+function renderPinned(){var b=document.getElementById('pinned');if(!b)return;b.innerHTML=sp.pinned?'<div class="pinned"><span>'+esc(sp.pinned)+'</span><button class="link" data-a="sp-unpin" aria-label="Unpin prompt">Clear</button></div>':'';}
+function armIdle(){if(!sp)return;if(sp.idle)clearTimeout(sp.idle);sp.idle=setTimeout(function(){var d=document.getElementById('deadBtn');if(d){d.classList.remove('pulse');void d.offsetWidth;d.classList.add('pulse');}},20000);}
+function addSprintName(raw){
+  var v=String(raw||'').trim().replace(/\s+/g,' ');if(!v||!sp)return;
+  var parts=v.split(' '),first=parts.shift(),last=parts.join(' ');
+  var hint=document.getElementById('spHint');
+  var same=live().filter(function(e){return e.first.toLowerCase()===first.toLowerCase();}).length;
+  var e={id:st.nextId++,first:first,last:last,phone:'',handle:'',platform:'',otherApp:'',tags:sceneById(sp.sid).tag?[sceneById(sp.sid).tag]:[],notes:'',scene:sp.sid,created:Date.now(),completedAt:null,removed:false,heldOf:null,keptWith:[],chain:!!sp.pinned};
+  st.entries.push(e);sp.names.push(fullName(e));if(sp.pinned)sp.chainHits++;
+  fx.drafted[e.id]=true;st.firstSprint=false;save();
+  if(sp.names.length>=10&&!st.badges.sprinter){st.badges.sprinter=Date.now();save();toast('Badge: Sprinter','win');}
+  spUpdate();spChips(first);sp.pinned=null;renderPinned();
+  var s=document.getElementById('spSaved');if(s){s.textContent='✓ '+fullName(e)+' saved as a draft';var inp=document.getElementById('spInput');inp.classList.add('flash');setTimeout(function(){inp.classList.remove('flash');},150);}
+  hint.textContent=same?'You already have '+same+' '+first+' on your Wall. Just names. Details later.':'Just names. Details later.';
+  var sh=document.getElementById('spSheet');if(sh&&sh.innerHTML&&sp.ended){sh.innerHTML='';}
+  armIdle();
+}
+function showEndSheet(){
+  var sh=document.getElementById('spSheet');if(!sh)return;var n=sp.names.length;
+  sh.innerHTML='<div class="endsheet" role="status">'+(n?'<h2>You called '+plural(n,'name')+'.</h2><p class="muted">Add their details to light their tiles.</p><div class="row"><button class="btn primary sm" data-a="sp-light">Light them up</button><button class="btn sm" data-a="sp-more">'+(sp.mode==='timed'?'30 more seconds':'Keep adding')+'</button></div>':'<h2>No names yet. That’s fine.</h2><p class="muted">Try a cue, add 30 seconds or pick another scene.</p><div class="row"><button class="btn sm" data-a="sp-more">30 more seconds</button><button class="btn sm" data-a="tab" data-k="scenes">Other scenes</button></div>')+'</div>';
+}
+function deadEnd(){
+  var sc=sceneById(sp.sid),box=document.getElementById('cueBox'),c=count();sp.rung++;
+  var html='';
+  if(sp.rung===1)html='<div class="cue">Try this: '+esc(sc.chains[0])+'</div>';
+  else if(sp.rung===2)html='<div class="cue">Different angle: same place, a different year?</div>';
+  else if(sp.rung===3){var thin=SCENES.filter(function(s){return s.id!==sp.sid&&!(s.unlock&&c<s.unlock);}).sort(function(a,b){return sceneStats(a.id).names-sceneStats(b.id).names;})[0];html='<div class="cue"><span>Switch scenes? '+esc(thin.name)+' has '+plural(sceneStats(thin.id).names,'name')+'.</span><div class="row"><button class="btn sm" data-a="sp-switch" data-sid="'+thin.id+'">Switch</button><button class="btn sm ghost" data-a="sp-stay">Stay here</button></div></div>';}
+  else if(sp.rung===4)html='<div class="cue">Open your Phone app’s Recents. Say who’s there. Your sprint waits here.</div>';
+  else{var lit=st.entries.filter(counted);if(c>=20&&lit.length){var pick=lit[(sp.rung*7)%lit.length];html='<div class="cue">Pick someone on your Wall. Who did '+esc(pick.first)+' always bring?</div>';}else{html='<div class="cue">'+esc(sc.chains[sp.rung%sc.chains.length])+'</div>';}}
+  box.innerHTML=html;armIdle();try{document.getElementById('spInput').focus();}catch(e){}
+}
+document.addEventListener('visibilitychange',function(){
+  if(!sp||view.name!=='sprint'||sp.left==null||sp.ended)return;
+  if(document.hidden){sp.paused=true;}else if(sp.paused){sp.paused=false;var s=document.getElementById('spSaved');if(s)s.textContent='Timer paused while you were away';}
+});
+
+/* sweep and contact */
+function sweepIds(sid){return drafts().filter(function(e){return !sid||e.scene===sid;}).sort(function(a,b){return missing(a).length-missing(b).length||a.created-b.created;}).map(function(e){return e.id;});}
+SCREENS.sweep=function(p){
+  while(p.i<p.queue.length){var x=byId(p.queue[p.i]);if(x&&!x.removed&&!counted(x))break;p.i++;}
+  var id=p.queue[p.i],e=byId(id);
+  if(!e){var title=p.lit?'Done. '+plural(p.lit,'tile')+' lit.':'Done.';return '<main class="screen nonav"><h1>'+title+'</h1><p class="muted">'+Math.min(count(),100)+'/100 contacts complete.</p><button class="btn primary" data-a="tab" data-k="home">Back to your Wall</button><button class="btn" data-a="tab" data-k="scenes">Another scene</button></main>';}
+  var head=p.sid?'Light them up: '+plural(p.queue.length,'draft')+' from this scene.':'Finish your drafts: '+p.queue.length+' to go.';
+  return '<main class="screen nonav"><div class="sp-top"><button class="link" data-a="tab" data-k="home">Close</button><span class="small muted">'+(p.i+1)+' of '+p.queue.length+' · '+Math.min(count(),100)+'/100</span></div><p class="caps">'+esc(head)+'</p>'+formHTML(e,'sweep')+'</main>';
+};
+after.sweep=function(){bindForm();};
+SCREENS.contact=function(p){var e=p.id?byId(p.id):null;return '<main class="screen nonav"><div class="sp-top"><button class="link" data-a="back" data-to="'+(p.from||'network')+'">'+(p.from==='home'?'Home':'My Network')+'</button><span></span></div>'+formHTML(e,'contact')+'</main>';};
+after.contact=function(p){bindForm();if(!p.id){var f=document.getElementById('fFirst');if(f)try{f.focus();}catch(x){}}};
+function statusChip(e){if(e.removed)return '<span class="chip">Removed</span>';if(e.heldOf)return '<span class="chip held">Check</span>';if(isComplete(e))return '<span class="chip win"><i class="dot"></i>Complete</span>';return '<span class="chip draft">Draft · '+missing(e).length+' left</span>';}
+function dupBanner(e){
+  if(!e||!e.heldOf)return '';var o=byId(e.heldOf);if(!o)return '';
+  var byPhone=phoneOk(e.phone)&&e.phone===o.phone;
+  return '<div class="banner" role="alert"><div>Looks like <b>'+esc(fullName(o))+'</b> is already on your Wall (same '+(byPhone?'phone':'handle')+'). Same person?</div><div class="row"><button type="button" class="btn sm primary" data-a="dup-same" data-id="'+e.id+'">Same person</button>'+(byPhone?'<button type="button" class="btn sm" data-a="dup-diff" data-id="'+e.id+'">Different people</button>':'<button type="button" class="btn sm" data-a="dup-fix" data-id="'+e.id+'">Fix the handle</button>')+'</div><p class="small muted">Your first '+esc(o.first)+' still counts. This one won’t until you pick.</p></div>';
+}
+function formHTML(e,mode){
+  var isNew=!e,m=e?missing(e):['Last name','Phone','Social handle'],show=function(k){return mode!=='sweep'||m.indexOf(k)>=0;};
+  var plat=e?e.platform:'';
+  var title=isNew?'New contact':esc(fullName(e));
+  var filled=[];if(e&&mode==='sweep'){if(m.indexOf('Last name')<0&&e.last)filled.push(esc(e.last));if(m.indexOf('Phone')<0)filled.push(fmtPhone(e.phone));if(m.indexOf('Social handle')<0)filled.push('@'+esc(normHandle(e.handle))+' on '+esc(e.platform==='Other'?e.otherApp:e.platform));}
+  var h='<form id="cForm" data-mode="'+mode+'" data-id="'+(e?e.id:'')+'" data-platform="'+esc(plat)+'" class="card" autocomplete="off">';
+  h+='<div class="sp-top"><h2>'+title+'</h2>'+(e?statusChip(e):'<span class="chip draft">New</span>')+'</div><p class="share">This contact is shared with the RALLY recruiting team.</p>'+dupBanner(e);
+  if(mode!=='sweep')h+=fld('fFirst','First name','text',e?e.first:'','First name (nickname ok)',false);
+  if(show('Last name'))h+=fld('fLast','Last name','text',e?e.last:'','',m.indexOf('Last name')>=0);
+  if(show('Phone'))h+=fld('fPhone','Phone','tel',e?(e.phone?fmtPhone(e.phone):''):'','(555) 014-2233',m.indexOf('Phone')>=0);
+  if(show('Social handle')){
+    h+='<div class="field'+(m.indexOf('Social handle')>=0?' missing':'')+'"><label for="fHandle">Social handle</label><div class="hand"><span>@</span><input id="fHandle" value="'+esc(e?normHandle(e.handle):'')+'" placeholder="marcus.lee" autocapitalize="none" autocorrect="off" spellcheck="false"></div><div class="caps" style="margin-top:4px">Which app?</div><div class="chips">'+PLATFORMS.map(function(x){return '<button type="button" class="cbtn'+(plat===x?' on':'')+'" data-a="plat" data-v="'+x+'">'+x+'</button>';}).join('')+'</div>'+
+       '<div id="otherWrap"'+(plat==='Other'?'':' hidden')+'>'+fld('fOther','App name','text',e?e.otherApp:'','',false)+'</div><div class="err" id="eHandle"></div></div>';
+  }
+  if(filled.length)h+='<p class="collapsed">'+filled.join(' · ')+'</p>';
+  if(mode!=='sweep'){
+    h+='<details><summary class="caps" style="cursor:pointer;min-height:44px;display:flex;align-items:center">More (optional)</summary><div class="field" style="margin-top:8px"><label>Tags</label><div class="chips">'+TAGS.map(function(t){var on=e&&e.tags.indexOf(t)>=0;return '<button type="button" class="cbtn'+(on?' on':'')+'" data-a="tag" data-v="'+esc(t)+'">'+esc(t)+'</button>';}).join('')+'</div></div><div class="field" style="margin-top:10px"><label for="fNotes">Notes</label><textarea id="fNotes" placeholder="How you know them">'+esc(e?e.notes:'')+'</textarea><span class="small dim">Never type card or bank details here.</span></div></details>';
+  }
+  h+='<p class="small muted" id="leftLine" aria-live="polite"></p>';
+  if(mode==='sweep')h+='<div class="row"><button type="button" class="btn" data-a="sw-skip">Skip for now</button><button type="submit" class="btn primary">Save and next</button></div>';
+  else if(isNew)h+='<button type="submit" class="btn primary" data-another="1">Save and add another</button><button type="button" class="btn" data-a="c-save">Save and finish</button>';
+  else h+='<button type="submit" class="btn primary">Save</button>'+(e.removed?'<button type="button" class="btn" data-a="c-restore" data-id="'+e.id+'">Restore</button>':'<button type="button" class="btn danger" data-a="c-remove" data-id="'+e.id+'">Remove contact</button>');
+  return h+'</form>';
+}
+function fld(id,label,type,val,ph,miss){return '<div class="field'+(miss?' missing':'')+'"><label for="'+id+'">'+label+(miss?' <span class="dim">· Missing</span>':'')+'</label><input id="'+id+'" type="'+(type==='tel'?'tel':'text')+'"'+(type==='tel'?' inputmode="tel"':' autocapitalize="words"')+' value="'+esc(val)+'" placeholder="'+esc(ph)+'"><div class="err" id="e'+id.slice(1)+'"></div></div>';}
+function formVals(){
+  var f=document.getElementById('cForm');if(!f)return null;
+  function v(id){var el=document.getElementById(id);return el?el.value:null;}
+  return {first:v('fFirst'),last:v('fLast'),phoneRaw:v('fPhone'),handle:v('fHandle'),platform:f.dataset.platform||'',otherApp:v('fOther'),notes:v('fNotes'),tags:Array.prototype.map.call(f.querySelectorAll('[data-a="tag"].on'),function(b){return b.dataset.v;})};
+}
+function bindForm(){
+  var f=document.getElementById('cForm');if(!f)return;
+  f.addEventListener('submit',function(ev){ev.preventDefault();var another=ev.submitter&&ev.submitter.dataset&&ev.submitter.dataset.another;if(f.dataset.mode==='sweep')sweepSave();else contactSave(!!another);});
+  f.addEventListener('input',updateLeft);updateLeft();
+}
+function previewEntry(){var f=document.getElementById('cForm'),vals=formVals(),id=f.dataset.id?Number(f.dataset.id):null,e=id?byId(id):null;var t=e?JSON.parse(JSON.stringify(e)):{first:'',last:'',phone:'',handle:'',platform:'',otherApp:''};
+  if(vals.first!==null)t.first=vals.first.trim();if(vals.last!==null)t.last=vals.last.trim();if(vals.phoneRaw!==null)t.phone=normPhone(vals.phoneRaw);if(vals.handle!==null)t.handle=vals.handle.trim();t.platform=vals.platform;if(vals.otherApp!==null)t.otherApp=vals.otherApp.trim();return t;}
+function updateLeft(){var el=document.getElementById('leftLine');if(!el)return;var t=previewEntry(),m=missing(t);if(!t.first){el.textContent='Start with a first name.';return;}el.textContent=m.length?m.length+' left: '+m.join(', ')+'.':'Complete. Counts toward your 100.';}
+function validate(vals){
+  var ok=true;function err(id,msg){var el=document.getElementById(id);if(el)el.textContent=msg||'';if(msg)ok=false;}
+  if(vals.first!==null)err('eFirst',vals.first.trim()?'':'Add a first name.');
+  if(vals.phoneRaw!==null){var d=normPhone(vals.phoneRaw);err('ePhone',vals.phoneRaw.trim()&&!phoneOk(d)?'Needs 10 digits (area code first)':'');}
+  if(vals.handle!==null){err('eHandle',vals.handle.trim()&&!vals.platform?'Pick the app so we know where to find them.':(vals.platform==='Other'&&vals.handle.trim()&&!(vals.otherApp||'').trim()?'Name the app.':''));}
+  return ok;
+}
+function applyVals(e,vals){
+  if(vals.first!==null)e.first=vals.first.trim();if(vals.last!==null)e.last=vals.last.trim().replace(/\s+/g,' ');
+  if(vals.phoneRaw!==null)e.phone=normPhone(vals.phoneRaw);if(vals.handle!==null)e.handle=normHandle(vals.handle);
+  if(vals.handle!==null||vals.platform)e.platform=vals.platform||e.platform;if(vals.otherApp!==null)e.otherApp=(vals.otherApp||'').trim();
+  if(vals.notes!==null)e.notes=vals.notes;if(vals.tags&&document.querySelector('[data-a="tag"]'))e.tags=vals.tags;
+}
+function matches(a,b){var hk=handleKey(a);return (phoneOk(a.phone)&&a.phone===b.phone)||(hk&&hk===handleKey(b));}
+function findDup(e){for(var i=0;i<st.entries.length;i++){var o=st.entries[i];if(o.id===e.id||o.removed||o.heldOf||(e.keptWith||[]).indexOf(o.id)>=0)continue;if(matches(e,o))return o;}return null;}
+function commit(e){
+  var before=count(),wasCounted=e._wasCounted;
+  if(e.heldOf){var o0=byId(e.heldOf);if(!o0||o0.removed||!matches(e,o0))e.heldOf=null;}
+  if(!e.heldOf){var o=findDup(e);if(o){if(o.created<=e.created){e.heldOf=o.id;}else{o.heldOf=e.id;}}}
+  var now=counted(e);
+  if(now&&!e.completedAt)e.completedAt=Date.now();
+  if(now&&!wasCounted)onComplete(e,false);
+  afterCount(before);save();
+}
+function onComplete(e,merged){
+  fx.done[e.id]=true;try{if(navigator.vibrate)navigator.vibrate(12);}catch(x){}
+  if(merged){st.xpKeys['cc:'+personKey(e)]=1;return;}
+  addXP('cc:'+personKey(e),10);
+  if(e.chain)addXP('ch:'+personKey(e),3);
+  if(e.scene){var sc=sceneById(e.scene);if(sc&&!(st.scenes[sc.id]&&st.scenes[sc.id].cleared)&&sceneStats(sc.id).lit>=sc.clears){st.scenes[sc.id]=st.scenes[sc.id]||{};st.scenes[sc.id].cleared=true;addXP('sc:'+sc.id,15,true);queueCele({check:true,title:'Scene cleared',sub:sc.name+' · +15 XP'});
+    var n=Object.keys(st.scenes).filter(function(k){return st.scenes[k].cleared;}).length;if(n>=3&&!st.badges.reader){st.badges.reader=Date.now();toast('Badge: Scene Reader','win');}}}
+}
+function addXP(key,pts,quiet){if(st.xpKeys[key])return 0;st.xpKeys[key]=1;st.xp+=pts;if(!quiet)toast('+'+pts+' XP');return pts;}
+function afterCount(before){
+  var c=count();
+  for(var i=0;i<MS.length;i++){var m=MS[i];if(c>=m&&before<m&&!st.ms[m]){st.ms[m]=Date.now();addXP('ms:'+m,MS_XP[m],true);if(m<100){st.cos[m]=true;queueCele({stamp:m===10,title:MS_TEXT[m][0],sub:MS_TEXT[m][1]+' +'+MS_XP[m]+' XP'});}}}
+  if(c>=100&&st.reward.status==='progress'){st.reward.status='ready';st.reward.readyAt=Date.now();if(!st.badges.full)st.badges.full=Date.now();pendingCongrats=true;}
+  var lv=level().name;if(lv!==st.levelName){st.levelName=lv;queueCele({stamp:false,title:'Level up: '+lv,sub:st.xp+' XP'});}
+}
+var pendingCongrats=false;
+function maybeCongrats(){if(pendingCongrats){pendingCongrats=false;go('congrats',{fresh:true});return true;}return false;}
+function sweepSave(){
+  var p=view.p,e=byId(p.queue[p.i]),vals=formVals();if(!e||!validate(vals))return;
+  e._wasCounted=counted(e);applyVals(e,vals);commit(e);delete e._wasCounted;
+  if(counted(e)&&fx.done[e.id]){p.lit=(p.lit||0)+1;p.doneHere=(p.doneHere||0)+1;if(p.doneHere>=20&&!st.badges.sweep){st.badges.sweep=Date.now();save();toast('Badge: Clean Sweep','win');}}
+  if(e.heldOf){render();var b=document.querySelector('.banner');if(b)b.scrollIntoView({block:'center'});return;}
+  if(maybeCongrats())return;
+  p.i++;render();
+}
+function contactSave(another){
+  var f=document.getElementById('cForm'),vals=formVals();if(!validate(vals))return;
+  var id=f.dataset.id?Number(f.dataset.id):null,e=id?byId(id):null;
+  if(!e){e={id:st.nextId++,first:'',last:'',phone:'',handle:'',platform:'',otherApp:'',tags:[],notes:'',scene:null,created:Date.now(),completedAt:null,removed:false,heldOf:null,keptWith:[],chain:false};st.entries.push(e);}
+  e._wasCounted=counted(e);applyVals(e,vals);commit(e);delete e._wasCounted;
+  if(e.heldOf){go('contact',{id:e.id,from:view.p.from});return;}
+  if(maybeCongrats())return;
+  toast(isComplete(e)?fullName(e)+' counts':fullName(e)+' saved as a draft',isComplete(e)?'win':'');
+  if(another)go('contact',{id:null,from:view.p.from});else go(view.p.from||'network');
+}
+function resolveSame(id){
+  var e=byId(id),o=e&&byId(e.heldOf);if(!e||!o)return;var before=count(),was=counted(o);
+  if(!o.last&&e.last)o.last=e.last;if(!phoneOk(o.phone)&&phoneOk(e.phone))o.phone=e.phone;if((!o.handle||!o.platform)&&e.handle&&e.platform){o.handle=e.handle;o.platform=e.platform;o.otherApp=e.otherApp;}
+  e.tags.forEach(function(t){if(o.tags.indexOf(t)<0)o.tags.push(t);});if(e.notes)o.notes=(o.notes?o.notes+'\n':'')+e.notes;
+  e.removed=true;e.mergedInto=o.id;e.heldOf=null;
+  if(counted(o)&&!was){o.completedAt=o.completedAt||Date.now();onComplete(o,true);}
+  afterCount(before);save();toast('Merged. '+o.first+' counts once.','win');
+  if(maybeCongrats())return;
+  if(view.name==='sweep'){view.p.i++;render();}else go('contact',{id:o.id,from:view.p.from});
+}
+function openDiffSheet(id){openSheet('<h2>Different people?</h2><p class="muted">Tell your leader why, for example: brothers share a phone.</p><div class="field"><label for="fReason">Why two people?</label><input id="fReason" placeholder="e.g. brothers share a phone"></div><div class="err" id="eReason"></div><div class="row"><button class="btn" data-a="sheet-close">Cancel</button><button class="btn primary" data-a="dup-diff-ok" data-id="'+id+'">Keep both</button></div>');setTimeout(function(){try{document.getElementById('fReason').focus();}catch(e){}},50);}
+function resolveDiff(id){
+  var r=(document.getElementById('fReason')||{}).value||'';if(!r.trim()){document.getElementById('eReason').textContent='Add a reason so your leader understands.';return;}
+  var e=byId(id),o=e&&byId(e.heldOf);if(!e||!o)return;var before=count();
+  e.heldOf=null;e.keptWith=[o.id];e.keptReason=r.trim();e.xpKey='p:'+e.phone+'#'+e.id;o.keptWith=(o.keptWith||[]).concat([e.id]);
+  closeSheet();if(counted(e)){e.completedAt=e.completedAt||Date.now();onComplete(e,false);}
+  afterCount(before);save();toast('Kept both. Both count.','win');
+  if(maybeCongrats())return;
+  if(view.name==='sweep'){view.p.i++;render();}else render();
+}
+function removeEntry(id){var e=byId(id);if(!e)return;var before=count();e.removed=true;e.removedAt=Date.now();st.entries.forEach(function(x){if(x.heldOf===e.id){x._wasCounted=false;x.heldOf=null;commit(x);delete x._wasCounted;}});afterCount(before);save();closeSheet();toast('Removed. Your count is '+Math.min(count(),100)+'.');go('network');}
+function restoreEntry(id){var e=byId(id);if(!e)return;e.removed=false;e._wasCounted=false;commit(e);delete e._wasCounted;toast(e.heldOf?'Restored. Check: possible duplicate.':'Restored. No XP the second time.');render();}
+
+/* network */
+SCREENS.network=function(p){
+  var f=p.f||'all',all=live(),c=count(),ds=drafts(),hd=heldList(),removed=st.entries.filter(function(e){return e.removed&&!e.mergedInto;});
+  var filters=[['all','All'],['done','Complete'],['draft','Drafts'],['held','To check'],['removed','Removed']];
+  return topbar()+'<main class="screen"><div class="sp-top"><h1>My Network</h1><button class="btn sm" style="width:auto" data-a="net-add">+ Add</button></div>'+
+   '<p class="small muted">'+c+' complete · '+plural(ds.length,'draft')+' · '+hd.length+' to check</p>'+
+   '<label class="sr" for="netSearch">Search contacts</label><input class="search" id="netSearch" placeholder="Search by name, phone or handle" value="'+esc(p.q||'')+'">'+
+   '<div class="chips scroll">'+filters.map(function(x){return '<button class="cbtn'+(f===x[0]?' on':'')+'" data-a="net-filter" data-v="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</div><div id="netList" style="display:flex;flex-direction:column;gap:8px"></div></main>'+nav('network');
+};
+after.network=function(p){var s=document.getElementById('netSearch');s.addEventListener('input',function(){p.q=s.value;netList(p);});netList(p);};
+function netList(p){
+  var f=p.f||'all',q=(p.q||'').trim().toLowerCase(),qd=q.replace(/\D/g,'');
+  var list=(f==='removed'?st.entries.filter(function(e){return e.removed&&!e.mergedInto;}):live()).filter(function(e){
+    if(f==='done'&&!counted(e))return false;if(f==='draft'&&(e.heldOf||isComplete(e)))return false;if(f==='held'&&!e.heldOf)return false;
+    if(!q)return true;return fullName(e).toLowerCase().indexOf(q)>=0||(qd.length>=3&&e.phone.indexOf(qd)>=0)||normHandle(e.handle).indexOf(q.replace(/^@/,''))>=0;
+  }).sort(function(a,b){return b.created-a.created;});
+  var box=document.getElementById('netList');if(!box)return;
+  if(!list.length){box.innerHTML='<p class="muted">'+(live().length?'Nothing matches.':'No contacts yet. Enter a Scene to start your Wall.')+'</p>';return;}
+  box.innerHTML=list.slice(0,200).map(function(e){var sc=e.scene?sceneById(e.scene):null,o=e.heldOf?byId(e.heldOf):null;
+    var line=o?'Might be the same person as '+esc(fullName(o)):(isComplete(e)?(e.tags.length?esc(e.tags.join(', ')):(sc?esc(sc.name):'')):'Missing: '+missing(e).join(', '));
+    return '<button class="ncard" data-a="net-open" data-id="'+e.id+'"><span class="top-row"><span class="nm">'+esc(fullName(e))+'</span>'+statusChip(e)+'</span><span class="small muted">'+line+'</span><span class="small dim">Added '+fmtDate(e.created)+(e.keptWith&&e.keptWith.length?' · Kept both':'')+'</span></button>';}).join('');
+}
+
+/* rewards */
+SCREENS.rewards=function(){
+  var c=count(),r=st.reward,line='',chip='';
+  if(r.status==='paid'){chip='<span class="chip win">Pay issued</span>';line='List reward: $100. Pay issued '+fmtDate(r.paidAt)+'.';}
+  else if(r.status==='approved'){chip='<span class="chip win">Pending pay</span>';line='List reward: $100 · Pending pay. Nothing needed from you. RALLY pays you directly and marks it Pay issued here.';}
+  else if(r.status==='ready'&&c>=100){chip='<span class="chip">Ready for review</span>';line='100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!';}
+  else if(r.status==='ready'){chip='<span class="chip">On hold ('+c+'/100)</span>';line=c+'/100. List reward: Ready for review, on hold until you’re back at 100. Nothing was lost.';}
+  else{chip='<span class="chip">In progress</span>';line=Math.min(c,100)+'/100 contacts complete. Complete your 100 list to qualify for the $100 completion reward.';}
+  var stamped=r.status==='approved'||r.status==='paid';
+  var pend=0,paid=0;if(r.status==='approved')pend+=100;if(r.status==='paid')paid+=100;
+  st.referrals.forEach(function(x){if(x.status==='approved')pend+=100;if(x.status==='paid')paid+=100;});
+  var refs=st.referrals.length?st.referrals.map(refRow).join(''):'<p class="muted">Friends you introduce show up here once they’re on your Intro Board.</p>';
+  return topbar()+'<main class="screen"><h1>My Rewards</h1>'+
+   '<section class="card'+(stamped?' win':'')+'" style="'+(stamped?'border-color:var(--green)':'')+'"><div class="sp-top"><h2>List Completion Reward · $100</h2>'+chip+'</div><div style="display:flex;gap:12px;align-items:flex-start">'+(stamped?stampImg():'')+'<p>'+esc(line)+'</p></div>'+(r.status==='ready'&&c>=100?'<button class="btn primary" data-a="congrats">Show your leader</button>':'')+'</section>'+
+   '<section class="card"><div class="sp-top"><h2>Referral rewards</h2></div><p class="muted">Referral rewards: $100 per qualifying friend.</p>'+refs+'</section>'+
+   ((pend||paid)?'<p class="totals">Pending pay: $'+pend+' · Pay issued: $'+paid+'</p>':'')+
+   '<section class="card flat"><div class="caps">Incentives</div><p class="muted">Incentives from RALLY show up here, each with a picture, name and prize.</p></section>'+
+   '<p class="small dim">‘Pay issued’ means RALLY marked your pay as sent on that date. This app doesn’t send money. RALLY pays you directly.</p></main>'+nav('rewards');
+};
+function refRow(x){
+  var n=x.checks.filter(function(k){return k.on;}).length,still=CHECK_NAMES.filter(function(_,i){return !x.checks[i].on;}),txt;
+  if(x.status==='paid')txt=x.name+': $100. Pay issued '+fmtDate(x.paidAt)+'.';
+  else if(x.status==='approved')txt=x.name+': Referral reward $100 · Pending pay. Nothing needed from you.';
+  else if(n===4)txt=x.name+': 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!';
+  else txt=x.name+': '+n+' of 4 confirmed. Still needed: '+still.join(', ')+'. Next action: Leader Dana.';
+  var stamped=x.status==='approved'||x.status==='paid';
+  return '<div class="rw-row"><div style="display:flex;gap:12px;align-items:flex-start">'+(stamped?stampImg():'')+'<p>'+esc(txt)+'</p></div><div class="checks">'+x.checks.map(function(k,i){return '<div><span class="ck'+(k.on?' on':'')+'">'+(k.on?ICON.check:'')+'</span><span>'+CHECK_NAMES[i]+(k.on?' <span class="dim">· '+esc(k.by)+', '+fmtDate(k.at)+'</span>':' <span class="dim">· Not yet</span>')+'</span></div>';}).join('')+'</div></div>';
+}
+
+/* congrats */
+SCREENS.congrats=function(p){
+  var c=count(),signed=st.referrals.filter(function(x){return x.checks.every(function(k){return k.on;});});
+  var tiles='';for(var i=0;i<100;i++)tiles+='<i style="animation-delay:'+(p.fresh?i*7:0)+'ms"></i>';
+  return '<main class="screen nonav"><div class="cg"><div class="cg-wall" aria-hidden="true">'+tiles+'</div><img src="'+PANTHER+'" alt="RALLY panther stamp"><div class="ruled">WALL COMPLETE</div>'+
+   '<p class="msg">100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!</p>'+
+   '<div class="facts card"><div style="border-top:0"><span class="muted">Finished</span><span>'+fmtDate(st.reward.readyAt||Date.now())+'</span></div><div><span class="muted">Complete contacts</span><span>'+c+'</span></div><div><span class="muted">Signed friends</span><span>'+(signed.length?esc(signed.map(function(x){return x.name;}).join(', ')):'None yet')+'</span></div><div><span class="muted">List reward</span><span>'+(st.reward.status==='approved'?'Pending pay':st.reward.status==='paid'?'Pay issued':'Ready for review')+'</span></div></div>'+
+   '<button class="btn primary" data-a="tab" data-k="home">Done</button><p class="small dim">Prototype: use Prototype controls to play the leader approving and RALLY marking pay issued.</p></div></main>';
+};
+
+/* ---------- overlays ---------- */
+var celeQ=[],celeOn=false;
+function queueCele(c){celeQ.push(c);if(!celeOn){celeOn=true;setTimeout(nextCele,250);}}
+function nextCele(){
+  var c=celeQ.shift();if(!c){celeOn=false;return;}celeOn=true;
+  var el=document.createElement('div');el.className='overlay';el.setAttribute('role','status');
+  el.innerHTML='<div class="cele">'+(c.stamp?'<img src="'+PANTHER+'" alt="">':'')+(c.check?'<div class="bigcheck">'+ICON.check+'</div>':'')+'<div class="ct">'+esc(c.title)+'</div>'+(c.sub?'<p class="muted">'+esc(c.sub)+'</p>':'')+'<div class="tap">Tap to continue</div></div>';
+  var gone=false;function done(){if(gone)return;gone=true;el.remove();nextCele();}
+  el.addEventListener('click',done);document.body.appendChild(el);setTimeout(done,1450);
+}
+function toast(msg,kind){var box=document.getElementById('toasts'),t=document.createElement('div');t.className='toast'+(kind?' '+kind:'');t.textContent=msg;box.appendChild(t);setTimeout(function(){t.remove();},1800);}
+function openSheet(html){closeSheet();var w=document.createElement('div');w.className='sheet-wrap';w.id='sheetWrap';w.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';w.addEventListener('click',function(ev){if(ev.target===w)closeSheet();});document.body.appendChild(w);}
+function closeSheet(){var w=document.getElementById('sheetWrap');if(w)w.remove();}
+function openProto(){
+  var r=st.reward;
+  openSheet('<h2>Prototype controls</h2><p class="small muted">Not part of the real app. Everything here stays on this phone.</p>'+
+   '<button class="btn" data-a="p-sample">Load a sample list (42 contacts)</button>'+
+   '<button class="btn" data-a="p-jump">Jump to 99 contacts</button>'+
+   '<button class="btn" data-a="p-approve">Leader approves at the walkthrough</button>'+
+   '<button class="btn" data-a="p-pay">Owner marks pay issued</button>'+
+   (r.status!=='progress'?'<button class="btn" data-a="p-congrats">Show the congratulations screen</button>':'')+
+   '<button class="btn" data-a="p-rm">Reduce motion: '+(st.rm?'On':'Off (follows phone)')+'</button>'+
+   '<button class="btn danger" data-a="p-reset">Reset everything</button><button class="btn ghost" data-a="sheet-close">Close</button>');
+}
+
+/* ---------- sample data ---------- */
+var FN=['Marcus','Jordan','Priya','Kayla','Andre','Sofia','Devin','Maya','Luis','Hannah','Isaiah','Brooke','Mateo','Jasmine','Caleb','Aaliyah','Ethan','Nia','Gabe','Olivia','Trey','Camila','Noah','Zoe','Elijah','Ava','Xavier','Lily','Jalen','Grace','Diego','Emma','Malik','Chloe','Owen','Riley','Cole','Sara','Bryce','Leah','Jace','Mia','Aiden','Nora','Ryan','Ella','Kai','Ruby','Tyrese','Ivy'];
+var LN=['Lee','Shah','Lee','Nguyen','Walker','Castillo','Brooks','Patel','Rivera','Kim','Bennett','Hayes','Reed','Flores','Price','Cruz','Foster','Ward','Diaz','Grant','Hughes','Long','Ross','Perry','Powell','Russell','Jenkins','Barnes','Fisher','Simmons'];
+var SAMPLE_SCENES=['phone','chats','shift','lunch','bus','gym','street','family'];
+function mkEntry(i,complete,missingKind){
+  var special=[['Marcus','Lee'],['Jordan','Lee'],['Priya','Shah']],first=i<3?special[i][0]:FN[i%FN.length],last=i<3?special[i][1]:LN[i%LN.length],area=['312','773','630','847','708'][Math.floor(i/100)%5],phone=area+'55501'+String(i%100).padStart(2,'0');
+  var sc=SAMPLE_SCENES[i%SAMPLE_SCENES.length],t=sceneById(sc).tag;
+  var e={id:st.nextId++,first:first,last:last,phone:phone,handle:(first+'.'+last+(i>=30?i:'')).toLowerCase(),platform:PLATFORMS[i%7],otherApp:'',tags:t?[t]:[],notes:'',scene:sc,created:Date.now()-(200-i)*3600e3,completedAt:null,removed:false,heldOf:null,keptWith:[],chain:false,sample:true};
+  if(!complete){if(missingKind==='phone')e.phone='';else if(missingKind==='two'){e.phone='';e.last='';}else{e.handle='';e.platform='';}}
+  else e.completedAt=e.created+60e3;
+  return e;
+}
+function grantFor(e){st.xpKeys['cc:'+personKey(e)]=1;st.xp+=10;}
+function settleMilestones(){var c=count();for(var i=0;i<MS.length;i++){var m=MS[i];if(c>=m&&!st.ms[m]&&m<100){st.ms[m]=Date.now();st.xpKeys['ms:'+m]=1;st.xp+=MS_XP[m];st.cos[m]=true;}}st.levelName=level().name;}
+function loadSample(){
+  st=fresh();st.ack=true;st.sample=true;
+  for(var i=0;i<42;i++){var e=mkEntry(i,true);st.entries.push(e);grantFor(e);}
+  var kinds=['phone','phone','handle','phone','two','phone'];for(var j=0;j<6;j++)st.entries.push(mkEntry(42+j,false,kinds[j]));
+  var dup=mkEntry(1,true);dup.handle='jordan.lee.2';dup.platform='Snapchat';dup.created=Date.now()-3600e3;dup.completedAt=null;dup.heldOf=st.entries[1].id;st.entries.push(dup);
+  ['phone','chats','shift','lunch'].forEach(function(s){if(sceneStats(s).lit>=sceneById(s).clears){st.scenes[s]={cleared:true};st.xpKeys['sc:'+s]=1;st.xp+=15;}});
+  st.badges.reader=Date.now();st.lastScene='gym';
+  var d=function(n){return Date.now()-n*864e5;};
+  st.referrals=[
+   {id:'r1',name:'Marcus Lee',status:'progress',checks:[{on:true,by:'Dana',at:d(9)},{on:true,by:'Dana',at:d(6)},{on:false},{on:false}]},
+   {id:'r2',name:'Priya Shah',status:'ready',checks:[{on:true,by:'Dana',at:d(20)},{on:true,by:'Dana',at:d(16)},{on:true,by:'Dana',at:d(12)},{on:true,by:'Dana',at:d(8)}]}
+  ];
+  settleMilestones();save();closeSheet();toast('Sample list loaded','win');go('home');
+}
+function jumpTo99(){
+  if(!st.ack)st.ack=true;st.sample=true;
+  var i=500;while(count()<99){var e=mkEntry(i++,true);e.handle=(e.first+'.'+e.last+'.'+i).toLowerCase();e.created=Date.now()-(1000-i)*60e3;e.completedAt=e.created+30e3;st.entries.push(e);if(findDup(e)){e.phone=String(200+i)+'5550'+String(i%1000).padStart(3,'0');}grantFor(e);}
+  var hasOneAway=drafts().some(function(x){return missing(x).length===1&&missing(x)[0]==='Phone';});
+  if(!hasOneAway){var dft=mkEntry(i++,false,'phone');dft.first='Sofia';dft.last='Castillo';dft.handle='sofia.castillo.'+i;st.entries.push(dft);}
+  settleMilestones();save();closeSheet();toast('Jumped to 99. Finish one draft to hit 100.','win');go('home');
+}
+function demoApprove(){
+  var any=false;if(st.reward.status==='ready'&&count()>=100){st.reward.status='approved';st.reward.approvedAt=Date.now();any=true;}
+  st.referrals.forEach(function(x){if(x.status==='ready'||(x.status==='progress'&&x.checks.every(function(k){return k.on;}))){x.status='approved';x.approvedAt=Date.now();any=true;}});
+  save();closeSheet();
+  if(!any){toast('Nothing ready to approve. Reach 100 first, or load the sample list.');return;}
+  queueCele({stamp:true,title:'Approved by your leader',sub:'$100 · Pending pay'});go('rewards');
+}
+function demoPay(){
+  var any=false;if(st.reward.status==='approved'){st.reward.status='paid';st.reward.paidAt=Date.now();any=true;}
+  st.referrals.forEach(function(x){if(x.status==='approved'){x.status='paid';x.paidAt=Date.now();any=true;}});
+  save();closeSheet();
+  if(!any){toast('Nothing is pending pay yet.');return;}
+  queueCele({check:true,title:'Pay issued',sub:fmtDate(Date.now())});go('rewards');
+}
+
+/* ---------- actions ---------- */
+var A={
+ 'tab':function(b){go(b.dataset.k);},
+ 'back':function(b){go(b.dataset.to||'home');},
+ 'scene-open':function(b){go('dropin',{sid:b.dataset.sid});},
+ 'locked':function(){toast('Unlocks at 20 complete contacts');},
+ 'sprint-start':function(b){startSprint(b.dataset.sid,'timed');},
+ 'sprint-free':function(b){startSprint(b.dataset.sid,'free');},
+ 'sp-done':function(){if(!sp)return go('scenes');if(!sp.names.length){go('scenes');return;}if(sp.timer){clearInterval(sp.timer);sp.timer=null;}sp.ended=true;showEndSheet();},
+ 'sp-light':function(){var sid=sp.sid;go('sweep',{queue:sweepIds(sid),i:0,sid:sid});},
+ 'sp-more':function(){if(!sp)return;sp.ended=false;document.getElementById('spSheet').innerHTML='';if(sp.mode==='timed'){sp.left=(sp.left||0)+30;if(!sp.timer)sp.timer=setInterval(tick,1000);}spUpdate();try{document.getElementById('spInput').focus();}catch(e){}},
+ 'sp-chip':function(b){sp.pinned=b.dataset.q;renderPinned();try{document.getElementById('spInput').focus();}catch(e){}},
+ 'sp-unpin':function(){sp.pinned=null;renderPinned();},
+ 'sp-dead':function(){deadEnd();},
+ 'sp-switch':function(b){startSprint(b.dataset.sid,sp?sp.mode:'timed');},
+ 'sp-stay':function(){document.getElementById('cueBox').innerHTML='';try{document.getElementById('spInput').focus();}catch(e){}},
+ 'sweep-all':function(){go('sweep',{queue:sweepIds(null),i:0,sid:null});},
+ 'sw-skip':function(){view.p.i++;render();},
+ 'dup-same':function(b){resolveSame(Number(b.dataset.id));},
+ 'dup-diff':function(b){openDiffSheet(Number(b.dataset.id));},
+ 'dup-diff-ok':function(b){resolveDiff(Number(b.dataset.id));},
+ 'dup-fix':function(b){go('contact',{id:Number(b.dataset.id),from:'network'});},
+ 'plat':function(b){var f=document.getElementById('cForm');f.dataset.platform=b.dataset.v;Array.prototype.forEach.call(f.querySelectorAll('[data-a="plat"]'),function(x){x.classList.toggle('on',x===b);});var ow=document.getElementById('otherWrap');if(ow)ow.hidden=b.dataset.v!=='Other';var eh=document.getElementById('eHandle');if(eh)eh.textContent='';updateLeft();},
+ 'tag':function(b){b.classList.toggle('on');},
+ 'c-save':function(){contactSave(false);},
+ 'c-remove':function(b){var e=byId(Number(b.dataset.id));var n=counted(e)?count()-1:count();openSheet('<h2>Remove '+esc(fullName(e))+'?</h2><p class="muted">Your count will '+(counted(e)?'drop to '+Math.min(n,100):'stay at '+Math.min(n,100))+'. XP is never earned twice. The RALLY recruiting team keeps the record.</p><div class="row"><button class="btn" data-a="sheet-close">Keep</button><button class="btn danger" data-a="c-remove-ok" data-id="'+e.id+'">Remove</button></div>');},
+ 'c-remove-ok':function(b){removeEntry(Number(b.dataset.id));},
+ 'c-restore':function(b){restoreEntry(Number(b.dataset.id));},
+ 'net-filter':function(b){view.p.f=b.dataset.v;render();},
+ 'net-open':function(b){go('contact',{id:Number(b.dataset.id),from:'network'});},
+ 'net-add':function(){go('contact',{id:null,from:'network'});},
+ 'wall':function(){go('network');},
+ 'congrats':function(){go('congrats',{});},
+ 'intro-stub':function(){openSheet('<h2>Introductions</h2><p class="muted">Introductions come in the next build stage. In the real app this opens a search of your complete contacts so you can mark who you introduced.</p><button class="btn" data-a="sheet-close">Got it</button>');},
+ 'proto':function(){openProto();},
+ 'p-sample':function(){loadSample();},
+ 'p-jump':function(){jumpTo99();},
+ 'p-approve':function(){demoApprove();},
+ 'p-pay':function(){demoPay();},
+ 'p-congrats':function(){closeSheet();go('congrats',{});},
+ 'p-rm':function(){st.rm=!st.rm;save();render();openProto();},
+ 'p-reset':function(){openSheet('<h2>Reset everything?</h2><p class="muted">This clears the prototype on this phone, including the onboarding.</p><div class="row"><button class="btn" data-a="sheet-close">Cancel</button><button class="btn danger" data-a="p-reset-ok">Reset</button></div>');},
+ 'p-reset-ok':function(){st=fresh();save();closeSheet();go('onboarding',{step:0});},
+ 'sheet-close':function(){closeSheet();},
+ 'ob-next':function(){view.p.step=(view.p.step||0)+1;render();},
+ 'ob-back':function(){view.p.step=Math.max(0,(view.p.step||0)-1);render();},
+ 'ob-go':function(){if(!view.p.ack){var r=document.getElementById('ackRow');if(r){r.classList.remove('shake');void r.offsetWidth;r.classList.add('shake');}var h=document.getElementById('ackHint');if(h)h.textContent='Check the box to continue.';return;}st.ack=true;st.ackAt=Date.now();save();go('home');}
+};
+document.addEventListener('click',function(ev){var b=ev.target.closest('[data-a]');if(!b)return;var f=A[b.dataset.a];if(!f)return;ev.preventDefault();f(b,ev);});
+render();
+})();
+</script>
+</body>
+</html>

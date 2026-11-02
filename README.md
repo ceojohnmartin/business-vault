@@ -31,7 +31,7 @@ A premium door-to-door pest control sales app in [`meridian/`](meridian/): a dar
 
 ## 🐾 RALLY 100 — recruit the warm network
 
-Product blueprint (planning only, no code yet) for a gamified recruiting platform in [`rally-100/`](rally-100/): new reps light a 10×10 Wall by remembering 100 real people through short memory Scenes, every saved contact flows into a shared recruiting CRM, and the confirmed cash rewards ($100 for the complete list, $100 per qualifying referral) are tracked on an append-only ledger. Read [`rally-100/BLUEPRINT.md`](rally-100/BLUEPRINT.md).
+Product blueprint and a clickable rep-side prototype for a gamified recruiting platform in [`rally-100/`](rally-100/): new reps light a 10×10 Wall by remembering 100 real people through short memory Scenes, every saved contact flows into a shared recruiting CRM, and the confirmed cash rewards ($100 for the complete list, $100 per qualifying referral) are tracked on an append-only ledger. Read [`rally-100/BLUEPRINT.md`](rally-100/BLUEPRINT.md). The prototype in [`rally-100/prototype/`](rally-100/prototype/) runs on sample data with no backend; everything typed into it stays on the phone.
 
 ---
 

@@ -29,6 +29,10 @@ A premium door-to-door pest control sales app in [`meridian/`](meridian/): a dar
 
 **Open it:** https://ceojohnmartin.github.io/business-vault/meridian/ *(once this branch is merged)*
 
+## 🐾 RALLY 100 — recruit the warm network
+
+Product blueprint (planning only, no code yet) for a gamified recruiting platform in [`rally-100/`](rally-100/): new reps light a 10×10 Wall by remembering 100 real people through short memory Scenes, every saved contact flows into a shared recruiting CRM, and the confirmed cash rewards ($100 for the complete list, $100 per qualifying referral) are tracked on an append-only ledger. Read [`rally-100/BLUEPRINT.md`](rally-100/BLUEPRINT.md).
+
 ---
 
 *These apps install to your phone's home screen (Add to Home Screen) and work offline. Nothing here is legal, tax, accounting, lending or investment advice.*

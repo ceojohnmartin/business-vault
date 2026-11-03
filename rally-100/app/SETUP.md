@@ -22,7 +22,7 @@ These steps change the live database, so they are the owner's to approve and run
 - **Same accounts as RALLY.** Anyone with a RALLY login signs in to RALLY 100 with the same email and password.
 - **New reps** tap "Create account" in RALLY 100, confirm their email, and land on "Almost there". Your Owner Dashboard lists them under **New sign-ups waiting for a team**, with a Copy button for the one line that adds each person to your team. Paste that line in the Supabase SQL editor and run it. This keeps RALLY's rule that nobody can put themselves on a team.
 - **Leaders** are made the same way RALLY makes them: in the SQL editor, `update public.profiles set role = 'leader' where email = 'leader@example.com';`
-- **Reps who leave or don't come out:** on the Rewards page, use "Close unpaid rewards" on that rep. Rewards already marked Pay issued stay as they are. Turn off their login the same way RALLY does.
+- **Reps who leave or don't come out:** on the Rewards page, use "Close unpaid rewards" on that rep. Every reward of theirs that isn't paid yet is closed, and later awards, approvals and payments for them are refused until you tap "Reopen". Rewards already marked Pay issued stay as they are. The rep is never shown a reason. To turn off their login as well, the same way RALLY does: `update public.profiles set disabled = true where email = 'rep@example.com';`
 
 ## Taking it back out
 
@@ -31,4 +31,5 @@ These steps change the live database, so they are the owner's to approve and run
 ## For developers
 
 - The backend contract is `rally-100/app/API.md`; the database tests are `rally-100/db/test/run-tests.sh`.
+- Releasing a change to the app: bump the `?v=` numbers in `index.html` and `VERSION` (and the same `?v=` numbers) in `sw.js` together, or phones keep the old files.
 - `rally-100/app/dev/` has a local stand-in for Supabase so the whole app can be run and tested on a laptop with no access to the live project. See `rally-100/app/dev/README.md`.

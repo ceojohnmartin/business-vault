@@ -29,7 +29,7 @@ build() {
 --   2. Check: `select count(*) from pg_proc p join pg_namespace n
 --      on n.oid = p.pronamespace where n.nspname = 'rally100'
 --      and has_function_privilege('authenticated', p.oid, 'execute');`
---      must answer 39.
+--      must answer 40.
 -- TO UNDO: rally-100/db/ROLLBACK_rally100_v1.sql (removes RALLY 100 only).
 
 begin;

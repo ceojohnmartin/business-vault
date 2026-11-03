@@ -139,9 +139,9 @@ select t.ok((select array_agg(c.relname::text order by c.relname::text)
                from pg_class c join pg_namespace n on n.oid = c.relnamespace
               where n.nspname = 'rally100' and c.relkind = 'r')
   = (select array_agg(v order by v) from unnest(array['acks','audit','badges','entries','incentives','introductions',
-       'messages','notes','person_identifiers','persons','possible_matches','requirements','reward_events','rewards',
-       'spot_checks','xp_events']) v),
-  '1.01 rally100 holds exactly the sixteen contract tables');
+       'messages','notes','person_identifiers','persons','possible_matches','rep_closures','requirements',
+       'reward_events','rewards','spot_checks','spot_samples','xp_events']) v),
+  '1.01 rally100 holds exactly its eighteen tables');
 select t.ok(not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
                          where n.nspname = 'rally100' and c.relkind = 'r' and not c.relrowsecurity),
   '1.02 every rally100 table has RLS enabled');
@@ -168,8 +168,8 @@ select t.ok((select array_agg(p.proname::text order by p.proname::text)
        'set_outcome','set_interest','set_next_action','add_note','mark_messages_read','rep_list','record_spot_check',
        'review_reward','resolve_correction','link_persons','award_incentive',
        'owner_state','owner_contacts','owner_rewards','mark_pay_issued','reverse_reward','close_rep_unpaid',
-       'correct_credit','clear_dnc','incentive_save','incentive_status']) v),
-  '1.06 authenticated can execute exactly the 39 API functions of API.md section 6');
+       'reopen_rep','correct_credit','clear_dnc','incentive_save','incentive_status']) v),
+  '1.06 authenticated can execute exactly the 40 API functions of API.md section 6');
 select t.ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                          where n.nspname = 'rally100' and has_function_privilege('anon', p.oid, 'execute')),
   '1.07 anon can execute no rally100 function');
@@ -213,15 +213,15 @@ select t.ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p
   '1.15 no rally100 function contains dynamic SQL');
 select t.ok((select count(*) from pg_trigger tg join pg_class c on c.oid = tg.tgrelid
               join pg_namespace n on n.oid = c.relnamespace
-              where n.nspname = 'rally100' and not tg.tgisinternal) = 10,
-  '1.16 append-only triggers guard audit, reward_events, xp_events, notes and spot_checks (row and truncate)');
+              where n.nspname = 'rally100' and not tg.tgisinternal) = 12,
+  '1.16 append-only triggers guard audit, reward_events, xp_events, notes, spot_checks and spot_samples (row and truncate)');
 
 -- ================================================ 2. who may call at all
 set role anon;
 select set_config('request.jwt.claims', '', false);
 select t.ok((select count(*) from t.api_calls() c where t.err(c) not like '42501 %') = 0,
   '2.01 anon is refused every API function (42501)');
-select t.ok((select count(*) from t.api_calls()) = 39, '2.02 the API is thirty-nine functions');
+select t.ok((select count(*) from t.api_calls()) = 40, '2.02 the API is forty functions');
 call t.login(null);
 select t.ok((select count(*) from t.api_calls() c where t.err(c) <> '42501 rally100: not signed in') = 0,
   '2.03 every API function refuses a signed-out caller with 42501 "rally100: not signed in"');
@@ -679,8 +679,8 @@ select t.ok((select string_agg(action, ',' order by id) from rally100.reward_eve
 call t.login(:'R1');
 select rally100.rep_state() as s \gset
 select t.ok((select x from jsonb_array_elements(:'s'::jsonb -> 'referrals') x where x ->> 'name' = 'Marcus Lee')
-              = '{"credited":"other","name":"Marcus Lee"}',
-  '8.07 the rep NOT credited sees only credited:"other" and the name they typed');
+              = jsonb_build_object('credited', 'other', 'name', 'Marcus Lee', 'entry_id', t.e(1)),
+  '8.07 the rep NOT credited sees only credited:"other", the name they typed and their own entry id');
 select t.ok(position(:'R2' in :'s') = 0 and position('Sam' in :'s') = 0 and position(t.e(2001)::text in :'s') = 0
             and position('marcus_l' in :'s') = 0,
   '8.08 nothing in the other rep''s rep_state names, ids or quotes the credited rep');
@@ -878,7 +878,7 @@ select rally100.restore_entry(t.e(3099)) as r \gset
 select t.ok((:'r'::jsonb ->> 'count')::int = 100 and t.has_effect(:'r'::jsonb, '{"type":"list_ready"}')
             and t.has_effect(:'r'::jsonb, '{"type":"milestone","n":100}'),
   '10.02 restoring the 100th entry creates the list reward (list_ready) and fires the 100 milestone');
-select t.ok(rally100.rep_state() -> 'list_reward' = '{"status":"ready","hold":false,"amount_cents":10000,"approved_at":null,"paid_on":null,"reversed":false,"rep_reason":null}'
+select t.ok(rally100.rep_state() -> 'list_reward' = '{"status":"ready","hold":false,"amount_cents":10000,"approved_at":null,"paid_on":null,"reversed":false,"rep_reason":null,"correction_note":null}'
             and rally100.rep_state() -> 'badges' @> '["full"]',
   '10.03 the rep sees the list reward ready (no hold) and the full badge');
 reset role;
@@ -903,14 +903,21 @@ reset role;
 select t.ok((select count(*) from rally100.rewards where kind = 'list' and rep_id = :'R3') = 1,
   '10.08 crossing 100 a second time creates no second list reward');
 call t.login(:'L1');
-select t.ok(t.err(format('select rally100.review_reward(%L, %L, null)', :'rwl3', 'approve')) = '22023 rally100: spot_check_required',
-  '10.09 approval needs a recorded spot-check (spot_check_required)');
+select t.ok(t.err(format('select rally100.review_reward(%L, %L, null)', :'rwl3', 'approve')) = '22023 rally100: spot_check_required'
+            and t.err(format('select rally100.record_spot_check(%L, %L)', :'rwl3', '[]')) = '22023 rally100: no_sample',
+  '10.09 approval needs a recorded spot-check (spot_check_required), and a spot-check needs a drawn sample (no_sample)');
 select rally100.rep_list(:'R3') as rl \gset
+select rally100.rep_list(:'R3') as rl2 \gset
 select t.ok(jsonb_array_length(:'rl'::jsonb -> 'sample') = 5 and (:'rl'::jsonb ->> 'count')::int = 100
             and :'rl'::jsonb -> 'rep' = jsonb_build_object('id', :'R3', 'name', 'Jo Rep')
-            and rally100.rep_list(:'R3') -> 'sample' = :'rl'::jsonb -> 'sample'
+            and :'rl2'::jsonb -> 'sample' = :'rl'::jsonb -> 'sample'
             and (select bool_and((x ->> 'counted')::boolean) from jsonb_array_elements(:'rl'::jsonb -> 'sample') x),
-  '10.10 rep_list gives the walkthrough five counted entries, the same sample on every call that day');
+  '10.10 rep_list draws five counted entries for the walkthrough and shows the SAME sample on every call');
+reset role;
+select t.ok((select count(*) from rally100.spot_samples where reward_id = :'rwl3') = 1
+            and (select drawn_by from rally100.spot_samples where reward_id = :'rwl3') = :'L1'::uuid,
+  '10.10b the sample is drawn by the server once and kept (spot_samples), not recomputed per call');
+call t.login(:'L1');
 select t.ok(t.err(format('select rally100.record_spot_check(%L, %L)', :'rwl3',
               jsonb_build_array(jsonb_build_object('entry_id', :'rl'::jsonb -> 'sample' -> 0 ->> 'id', 'result', 'looks_real')))) = '22023 rally100: spot_check_size'
             and t.err(format('select rally100.record_spot_check(%L, %L)', :'rwl3',
@@ -930,6 +937,16 @@ select t.ok(t.err(format('select rally100.record_spot_check(%L, %L)', :'rwl3',
                                 jsonb_build_object('entry_id', :'rl'::jsonb -> 'sample' -> 0 ->> 'id', 'result', 'looks_real'),
                                 jsonb_build_object('entry_id', :'rl'::jsonb -> 'sample' -> 1 ->> 'id', 'result', 'looks_real')))) = '22023 rally100: spot_check_entry',
   '10.12 spot-check entries must be that rep''s counted entries, once each, with a valid result');
+select t.ok(t.err(format('select rally100.record_spot_check(%L, %L)', :'rwl3',
+              jsonb_build_array(jsonb_build_object('entry_id',
+                                  (select y ->> 'id' from jsonb_array_elements(:'rl'::jsonb -> 'entries') y
+                                    where (y ->> 'counted')::boolean
+                                      and not ((:'rl'::jsonb -> 'sample') @> jsonb_build_array(jsonb_build_object('id', y ->> 'id')))
+                                    limit 1), 'result', 'looks_real'),
+                                jsonb_build_object('entry_id', :'rl'::jsonb -> 'sample' -> 0 ->> 'id', 'result', 'looks_real'),
+                                jsonb_build_object('entry_id', :'rl'::jsonb -> 'sample' -> 1 ->> 'id', 'result', 'looks_real'))))
+              = '22023 rally100: spot_check_entry',
+  '10.12b a counted entry the server did NOT sample is refused: the rep cannot steer the spot-check');
 call t.login(:'LB');
 select t.ok(t.err(format('select rally100.record_spot_check(%L, %L)', :'rwl3', '[]')) = '42501 rally100: not_found'
             and t.err(format('select rally100.rep_list(%L)', :'R3')) = '42501 rally100: not_found',
@@ -946,8 +963,16 @@ reset role;
 select t.ok((select count(*) from rally100.entries where rep_id = :'R3' and verified_by = :'L1') = 2,
   '10.15 looks_real marks the entry verified; unclear does not');
 call t.login(:'L1');
+select rally100.rep_list(:'R3') as rl3 \gset
+reset role;
+select t.ok((select count(*) from rally100.spot_samples where reward_id = :'rwl3') = 2
+            and rally100._current_sample(:'rwl3'::uuid) is not null,
+  '10.15b recording a spot-check uses the sample up: the next walkthrough draws a fresh one');
+call t.login(:'L1');
 select rally100.review_reward(:'rwl3', 'approve', null) as r \gset
 select t.ok(:'r'::jsonb -> 'reward' ->> 'status' = 'approved', '10.16 count >= 100 plus a spot-check: approved');
+select t.ok(rally100.rep_list(:'R3') -> 'sample' = '[]',
+  '10.16b once the list reward is approved there is no sample to walk through');
 -- Sam jumps from 99 to 101 in ONE save
 reset role;
 call t.login(:'R2');
@@ -1005,7 +1030,7 @@ select t.ok(:'r'::jsonb -> 'incentive' @> '{"name":"Top rookie","prize_cents":50
   '11.03 a picture of exactly 400,000 characters is accepted; a new incentive starts as a draft');
 select (:'r'::jsonb -> 'incentive' ->> 'id') as inc \gset
 call t.login(:'L1');
-select t.ok(t.err(format('select rally100.award_incentive(%L, %L, %L)', :'inc', :'R1', 'x')) = '22023 rally100: not_published',
+select t.ok(t.err(format('select rally100.award_incentive(%L, %L, %L, %L)', :'inc', :'R1', 'x', gen_random_uuid())) = '22023 rally100: not_published',
   '11.04 a draft incentive cannot be awarded');
 call t.login(:'OWNER');
 select rally100.incentive_status(:'inc', 'published') as r \gset
@@ -1013,11 +1038,12 @@ call t.login(:'R1');
 select t.ok((select count(*) from jsonb_array_elements(rally100.rep_state() -> 'incentives') x where x ->> 'id' = :'inc') = 1,
   '11.05 reps see published incentives');
 call t.login(:'L1');
-select t.ok(t.err(format('select rally100.award_incentive(%L, %L, null)', :'inc', :'R1')) = '22023 rally100: note_required'
-            and t.err(format('select rally100.award_incentive(%L, %L, %L)', :'inc', :'L1', 'me')) = '42501 rally100: self_involved'
-            and t.err(format('select rally100.award_incentive(%L, %L, %L)', :'inc', :'RB', 'x')) = '42501 rally100: not_found',
-  '11.06 an award needs a note, never goes to yourself, and only to reps in scope');
-select rally100.award_incentive(:'inc', :'R1', 'best week') as r \gset
+select t.ok(t.err(format('select rally100.award_incentive(%L, %L, null, %L)', :'inc', :'R1', gen_random_uuid())) = '22023 rally100: note_required'
+            and t.err(format('select rally100.award_incentive(%L, %L, %L, %L)', :'inc', :'L1', 'me', gen_random_uuid())) = '42501 rally100: self_involved'
+            and t.err(format('select rally100.award_incentive(%L, %L, %L, %L)', :'inc', :'RB', 'x', gen_random_uuid())) = '42501 rally100: not_found'
+            and t.err(format('select rally100.award_incentive(%L, %L, %L, null)', :'inc', :'R1', 'x')) = '22023 rally100: request_required',
+  '11.06 an award needs a note and a request id, never goes to yourself, and only to reps in scope');
+select rally100.award_incentive(:'inc', :'R1', 'best week', 'a0000000-0000-4000-8000-000000000001') as r \gset
 select t.ok(:'r'::jsonb -> 'reward' @> '{"kind":"incentive","status":"approved","amount_cents":5000,"approved_by_name":"Dana Lead","incentive_name":"Top rookie"}',
   '11.07 award_incentive creates an approved incentive reward for the prize amount');
 call t.login(:'OWNER');
@@ -1037,8 +1063,8 @@ select t.ok((select count(*) from jsonb_array_elements(rally100.rep_state() -> '
 call t.login(:'OWNER');
 select rally100.incentive_status(:'inc', 'published') as r \gset
 call t.login(:'L1');
-select rally100.award_incentive(:'inc', :'R2', 'top seller') -> 'reward' ->> 'id' as aw_paid \gset
-select rally100.award_incentive(:'inc', :'R2', 'top recruiter') -> 'reward' ->> 'id' as aw_open \gset
+select rally100.award_incentive(:'inc', :'R2', 'top seller', gen_random_uuid()) -> 'reward' ->> 'id' as aw_paid \gset
+select rally100.award_incentive(:'inc', :'R2', 'top recruiter', gen_random_uuid()) -> 'reward' ->> 'id' as aw_open \gset
 call t.login(:'OWNER');
 select rally100.mark_pay_issued(:'aw_paid', '2026-04-01', 'payroll 4/1') as r \gset
 call t.login(:'L1');
@@ -1133,9 +1159,12 @@ select t.ok((select count(*) from rally100.rewards where kind = 'list' and rep_i
 call t.login(:'R1');
 select t.save(t.full(61, 'Hana', 'Ito')) as r \gset
 select r::jsonb -> 'entry' ->> 'person_id' as phana from (select :'r' as r) x \gset
+select t.ok(t.err(format('select rally100.set_follow_up(%L, %L)', t.e(61), '2026-01-01')) = '22023 rally100: intro_required',
+  '13.13b Follow up later belongs to the rep''s own introduction: none planned yet is intro_required');
+select rally100.plan_intro(t.e(61)) as r \gset
 select rally100.set_follow_up(t.e(61), '2026-01-01', 'after finals') -> 'intro' as r \gset
-select t.ok(:'r'::jsonb @> '{"outcome":"follow_up","outcome_date":"2026-01-01","stage":"added"}',
-  '13.14 a rep sets Follow up later on their own contact before handoff');
+select t.ok(:'r'::jsonb @> '{"outcome":"follow_up","outcome_date":"2026-01-01","stage":"intro_planned","next":null}',
+  '13.14 a rep sets Follow up later on their own planned introduction before handoff; the outcome clears the next step');
 call t.login(:'L1');
 select t.ok((select count(*) from jsonb_array_elements(rally100.team_state() -> 'queues' -> 'follow_ups') x
               where x ->> 'person_id' = :'phana') = 1,
@@ -1206,10 +1235,10 @@ select t.ok(t.err(format('select rally100.person_detail(%L)', :'pgus')) = '42501
 select rally100.person_detail(:'p1') as pd \gset
 select t.ok((select count(*) from jsonb_array_elements(:'pd'::jsonb -> 'entries') x where x = '{"rep_name":"A rep on another team"}') = 2
             and (select count(*) from jsonb_array_elements(:'pd'::jsonb -> 'entries') x where x ->> 'rep_name' = 'Max RepB') = 1
-            and :'pd'::jsonb -> 'reward' ->> 'rep_name' = 'A rep on another team' and :'pd'::jsonb -> 'reward' ->> 'rep_id' is null
+            and :'pd'::jsonb -> 'reward' = 'null'
             and position(:'R1' in :'pd') = 0 and position(:'R2' in :'pd') = 0 and position('Tyler' in :'pd') = 0
             and position('Sam Rep' in :'pd') = 0,
-  '15.07 on a shared Person a team B leader sees team A reps only as "A rep on another team": no name, id or date');
+  '15.07 on a shared Person a team B leader sees team A reps only as "A rep on another team" (no name, id or date) and not the reward credited to team A');
 call t.login(:'OWNER');
 select rally100.team_state() as ts \gset
 select t.ok((select count(*) from jsonb_array_elements(:'ts'::jsonb -> 'reps') x where x ->> 'name' in ('Tyler Rep', 'Max RepB')) = 2
@@ -1303,13 +1332,13 @@ select t.ok((select array_agg(a order by a) from (
                       'messages_read','spot_check','approve','needs_correction','resolve_correction','pay_issued',
                       'reverse','close_unpaid','correct_credit','award','incentive_created','incentive_updated',
                       'incentive_status','ack_accepted','badge','person_merged','match_dismissed','reward_created',
-                      'reward_ready')) x) =
+                      'reward_ready','follow_up','sample_drawn')) x) =
   (select array_agg(v order by v) from unnest(array['ack_accepted','approve','award','badge','close_unpaid','correct_credit','entry_created','entry_kept_both',
         'entry_merged','entry_removed','entry_restored','entry_updated','incentive_created','incentive_status',
         'incentive_updated','intro_planned','intro_recorded','intro_received','match_dismissed','meeting',
         'message','messages_read','needs_correction','next_action','note','outcome','pay_issued','person_created',
         'person_merged','requirement_confirmed','requirement_unticked','resolve_correction','reverse',
-        'reward_created','reward_ready','set_interest','spot_check','stage']) v),
+        'reward_created','reward_ready','set_interest','spot_check','stage','follow_up','sample_drawn']) v),
   '17.02 every kind of write left its audit row');
 select t.ok((select array_agg(distinct action order by action) from rally100.reward_events)
   = (select array_agg(v order by v) from unnest(array['approve','award','close_unpaid','correct_credit','create','credit',
@@ -1345,4 +1374,384 @@ select t.ok((select x @> '{"phone":"8015550101","stage":"introduced"}' from json
             and (select jsonb_array_length(x -> 'reps') from jsonb_array_elements(rally100.owner_contacts() -> 'rows') x
                   where x ->> 'person_id' = :'p1') = 3,
   '18.03 owner_contacts lists every Person with phone, stage and every rep who knows them');
+reset role;
+
+-- ============================== 19. the security review and integration fixes
+-- A shared Person, Xavi: Tyler (team A) has him complete, Max (team B) as a draft.
+\set CAP '00000000-0000-4000-8000-000000000012'
+call t.login(:'R1');
+select t.save(t.full(701, 'Xavi', 'Stone')) as r \gset
+call t.login(:'RB');
+select rally100.save_entry(jsonb_build_object('id', t.e(8701), 'first_name', 'Xavi', 'last_name', 'Stone',
+         'phone', t.ph(701))) as r \gset
+reset role;
+select t.person_of(t.e(701)) as px \gset
+select t.ok(t.person_of(t.e(8701)) = :'px', '19.00 (setup) Xavi is one Person on both teams'' lists');
+call t.login(:'R1');
+select rally100.plan_intro(t.e(701)) as r \gset
+call t.login(:'RB');
+select rally100.rep_state() -> 'intros' as i1 \gset
+call t.login(:'R1');
+select rally100.record_intro(t.e(701), 'text', 'in') as r \gset
+call t.login(:'RB');
+select t.ok(not (:'i1'::jsonb @> jsonb_build_array(jsonb_build_object('person_id', :'px')))
+            and not (rally100.rep_state() -> 'intros' @> jsonb_build_array(jsonb_build_object('person_id', :'px'))),
+  '19.01 [11] another team''s rep planning or recording an introduction never puts a card on this rep''s screen');
+call t.login(:'L1');
+select rally100.confirm_intro_received(:'px', :'R1') as r \gset
+call t.login(:'R1');
+select t.ok((select x -> 'next' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px')
+              = '{"who":"leader","name":"Dana Lead","text":"schedules the meeting"}',
+  '19.02 [17] received, nothing confirmed, no meeting yet: Next, Dana schedules the meeting');
+call t.login(:'L1');
+select rally100.schedule_meeting(:'px', '2026-11-20 17:00-06', 'video') as r \gset
+call t.login(:'R1');
+select t.ok((select x -> 'next' ->> 'text' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px')
+              = 'holds the meeting',
+  '19.03 [17] meeting scheduled, nothing confirmed: Dana holds the meeting');
+call t.login(:'L1');
+select rally100.set_requirement(:'px', 1, true) as r \gset
+call t.login(:'R1');
+select (select x -> 'next' ->> 'text' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px') as n1 \gset
+call t.login(:'L1');
+select rally100.set_requirement(:'px', 2, true) as r \gset
+call t.login(:'R1');
+select (select x -> 'next' ->> 'text' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px') as n2 \gset
+call t.login(:'L1');
+select rally100.set_requirement(:'px', 3, true) as r \gset
+call t.login(:'R1');
+select (select x -> 'next' ->> 'text' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px') as n3 \gset
+select t.ok(:'n1' = 'confirms the commitment' and :'n2' = 'confirms the agreement' and :'n3' = 'confirms start date and travel plans',
+  '19.04 [17] after the meeting the next step follows the first unconfirmed requirement');
+call t.login(:'L1');
+select rally100.set_outcome(:'px', 'follow_up', '2026-12-01', null) as r \gset
+call t.login(:'R1');
+select (select x -> 'next' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px') as nf \gset
+call t.login(:'L1');
+select rally100.set_outcome(:'px', null) as r \gset
+call t.login(:'R1');
+select t.ok(:'nf' = 'null'
+            and (select x -> 'next' ->> 'text' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px')
+                = 'confirms start date and travel plans',
+  '19.04b [17] an outcome clears the next step; clearing it brings the step back');
+call t.login(:'L1');
+select rally100.set_requirement(:'px', 4, true, null, null, '2027-02-01', null, true) as r \gset
+call t.login(:'R1');
+select rally100.rep_state() as s \gset
+select t.ok((select x -> 'next' from jsonb_array_elements(:'s'::jsonb -> 'intros') x where x ->> 'person_id' = :'px') = 'null'
+            and (select x -> 'requirements' -> 3 from jsonb_array_elements(:'s'::jsonb -> 'intros') x where x ->> 'person_id' = :'px')
+                @> '{"req":4,"confirmed":true,"travel_na":true}',
+  '19.05 [17][18b] all four confirmed: no next step; requirement 4 carries travel_na for "No travel needed"');
+select t.ok((select x from jsonb_array_elements(:'s'::jsonb -> 'referrals') x where x ->> 'person_id' = :'px')
+              @> jsonb_build_object('entry_id', t.e(701), 'credited', 'me', 'status', 'ready', 'amount_cents', 10000),
+  '19.06 [16][18c] the referral row carries the rep''s own entry_id and amount_cents');
+call t.login(:'L1');
+select rally100.set_next_action(:'px', 'Tyler brings him Thursday', :'R1', '2026-11-10') as r \gset
+call t.login(:'R1');
+select t.ok((select x -> 'next' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'px')
+              = '{"who":"you","name":"Tyler Rep","text":"Tyler brings him Thursday"}',
+  '19.07 [17] an explicit next action owned by the rep still wins');
+
+-- [1][2] what team B's leader can learn about the shared Person
+call t.login(:'LB');
+select rally100.person_detail(:'px') as pd \gset
+select t.ok((:'pd'::jsonb -> 'person') @> '{"next_action":"","next_action_owner":null,"next_action_owner_name":null,"next_action_date":null,"controls":false}'
+            and position(:'R1' in :'pd') = 0 and position('Tyler' in :'pd') = 0
+            and :'pd'::jsonb -> 'reward' = 'null'
+            and not exists (select 1 from jsonb_array_elements(:'pd'::jsonb -> 'history') x
+                             where x ->> 'action' in ('intro_planned', 'intro_recorded', 'person_created', 'reward_created')
+                                or (x ->> 'action' = 'next_action' and x -> 'detail' <> '{}')),
+  '19.08 [1][2] team B''s leader sees no next-action owner or text, no team A rep id or name, no reward and none of their actions');
+call t.login(:'L1');
+select t.ok(rally100.person_detail(:'px') -> 'person'
+              @> jsonb_build_object('next_action_owner', :'R1', 'next_action_owner_name', 'Tyler Rep', 'controls', true),
+  '19.09 [1] the team that runs the Person still sees who owns the next action');
+call t.login(:'R3');
+select rally100.save_entry(jsonb_build_object('id', t.e(3801), 'first_name', 'Xavi', 'last_name', 'Stone',
+         'phone', t.ph(701), 'handle', 'xavi.jo', 'platform', 'X')) as r \gset
+reset role;
+select (select id from t.referral_of(:'px')) as rwpx \gset
+call t.login(:'OWNER');
+select rally100.correct_credit(:'rwpx', :'R3', 'Tyler admitted Jo made the real intro') as r \gset
+call t.login(:'L1');
+select rally100.person_detail(:'px') as pd \gset
+select t.ok((select x -> 'detail' from jsonb_array_elements(:'pd'::jsonb -> 'history') x where x ->> 'action' = 'correct_credit')
+              = jsonb_build_object('from_rep', :'R1', 'to_rep', :'R3')
+            and position('admitted' in :'pd') = 0,
+  '19.10 [2] a leader sees whom a credit moved between (in scope) but never the owner''s internal reason');
+select rally100.review_reward(:'rwpx', 'needs_correction', 'start date is wrong') as r \gset
+call t.login(:'R3');
+select t.ok((select x ->> 'correction_note' from jsonb_array_elements(rally100.rep_state() -> 'referrals') x
+              where x ->> 'person_id' = :'px') = 'start date is wrong',
+  '19.11 [18a] the credited rep (credited by the owner, no introduction of their own) sees the reward and the leader''s correction note');
+call t.login(:'L1');
+select rally100.resolve_correction(:'rwpx', 'fixed') as r \gset
+select rally100.review_reward(:'rwpx', 'approve', null) as r \gset
+call t.login(:'OWNER');
+select rally100.mark_pay_issued(:'rwpx', '2026-11-03', 'Venmo @jo-22', 'txn Zulu') as r \gset
+select t.ok(:'r'::jsonb -> 'reward' @> '{"paid_method":"Venmo @jo-22","paid_reference":"txn Zulu"}',
+  '19.12 [2] the owner sees the payment method and reference');
+call t.login(:'L1');
+select rally100.person_detail(:'px') as pd \gset
+select t.ok(:'pd'::jsonb -> 'reward' @> '{"status":"paid","paid_method":null,"paid_reference":null}'
+            and (select x -> 'detail' from jsonb_array_elements(:'pd'::jsonb -> 'history') x where x ->> 'action' = 'pay_issued')
+                = '{"paid_on":"2026-11-03"}'
+            and position('Venmo' in :'pd') = 0 and position('Zulu' in :'pd') = 0,
+  '19.13 [2] payment method and reference are the owner''s alone: not in a leader''s reward or history');
+-- Kim (a team A leader) adds Xavi to her own list and records an introduction AS A REP
+call t.login(:'L2');
+select rally100.save_entry(jsonb_build_object('id', t.e(9701), 'first_name', 'Xavi', 'last_name', 'Stone',
+         'phone', t.ph(701), 'handle', 'xavi.kim', 'platform', 'X')) as r \gset
+select rally100.record_intro(t.e(9701), 'call', 'maybe') as r \gset
+call t.login(:'LB');
+select rally100.person_detail(:'px') as pd \gset
+select t.ok(not exists (select 1 from jsonb_array_elements(:'pd'::jsonb -> 'history') x
+                         where x ->> 'actor_name' = 'Kim Lead' and x ->> 'action' in ('intro_recorded', 'person_created'))
+            and position(:'R3' in :'pd') = 0 and position('Venmo' in :'pd') = 0 and position('admitted' in :'pd') = 0
+            and position('start date is wrong' in :'pd') = 0,
+  '19.14 [2] a leader acting as a rep is filtered by scope like any rep; the credited team''s reward facts stay hidden');
+-- [15] who may change a shared Person: the team of the credited rep
+select t.ok(t.err(format('select rally100.set_requirement(%L, 1, false, null, %L)', :'px', 'x')) = '42501 rally100: not_allowed'
+            and t.err(format('select rally100.set_stage(%L, %L)', :'px', 'arrived')) = '42501 rally100: not_allowed'
+            and t.err(format('select rally100.schedule_meeting(%L, %L)', :'px', '2026-12-01 10:00-06')) = '42501 rally100: not_allowed'
+            and t.err(format('select rally100.set_interest(%L, %L)', :'px', 'maybe')) = '42501 rally100: not_allowed'
+            and t.err(format('select rally100.set_next_action(%L, %L)', :'px', 'call him')) = '42501 rally100: not_allowed'
+            and t.err(format('select rally100.set_outcome(%L, %L, %L)', :'px', 'follow_up', '2026-12-01')) = '42501 rally100: not_allowed'
+            and t.err(format('select rally100.set_outcome(%L, null)', :'px')) = '42501 rally100: not_allowed',
+  '19.15 [15] another team''s leader with the Person in scope may not change its requirements, stage, meeting, interest, next action or outcome');
+select rally100.set_outcome(:'px', 'do_not_contact', null, null) as r \gset
+select t.ok(:'r'::jsonb -> 'person' @> '{"dnc":true,"next_action":"","next_action_owner":null}'
+            and position(:'R1' in :'r') = 0 and position('Tyler' in :'r') = 0,
+  '19.16 [15][1] but any leader in scope may set Do not contact, and the answer names nobody from the other team');
+call t.login(:'OWNER');
+select rally100.clear_dnc(:'px') as r \gset
+
+-- [15][9][11] Yara: shared, and nobody has introduced her yet
+call t.login(:'R1');
+select t.save(t.full(702, 'Yara', 'Holt')) as r \gset
+call t.login(:'RB');
+select rally100.save_entry(jsonb_build_object('id', t.e(8702), 'first_name', 'Yara', 'last_name', 'Holt',
+         'phone', t.ph(702))) as r \gset
+reset role;
+select t.person_of(t.e(702)) as py \gset
+call t.login(:'LB');
+select t.ok(t.err(format('select rally100.set_interest(%L, %L)', :'py', 'maybe')) = 'ok',
+  '19.17 [15] while nobody has introduced the Person, any leader in scope may work it');
+call t.login(:'RB');
+select t.ok(t.err(format('select rally100.set_follow_up(%L, %L)', t.e(8702), '2026-12-01')) = '22023 rally100: entry_not_complete',
+  '19.18 [9] a rep cannot set a follow-up from a draft');
+select rally100.save_entry(jsonb_build_object('id', t.e(8702), 'handle', 'yara.h', 'platform', 'Snapchat')) as r \gset
+call t.login(:'R1');
+select rally100.record_intro(t.e(702), 'in_person', 'in') as r \gset
+call t.login(:'RB');
+select rally100.plan_intro(t.e(8702)) as r \gset
+select t.ok(t.err(format('select rally100.set_follow_up(%L, %L)', t.e(8702), '2026-12-01')) = '22023 rally100: stage_locked',
+  '19.19 [9] once another rep has recorded an introduction, a rep without one of their own cannot park the Person');
+call t.login(:'LB');
+select t.ok(t.err(format('select rally100.set_interest(%L, %L)', :'py', 'maybe')) = '42501 rally100: not_allowed',
+  '19.20 [15] once team A''s rep has recorded an introduction, team B''s leader no longer runs the Person');
+call t.login(:'RB');
+select rally100.record_intro(t.e(8702), 'text', 'maybe') as r \gset
+call t.login(:'LB');
+select t.ok(t.err(format('select rally100.set_interest(%L, %L)', :'py', 'maybe')) = 'ok',
+  '19.21 [15] with introductions recorded on both teams and none received, both teams'' leaders may work it');
+call t.login(:'L1');
+select rally100.confirm_intro_received(:'py', :'R1') as r \gset
+call t.login(:'LB');
+select t.ok(t.err(format('select rally100.set_interest(%L, %L)', :'py', 'maybe')) = '42501 rally100: not_allowed',
+  '19.22 [15] a received introduction hands the Person to that rep''s team');
+call t.login(:'RB');
+select t.ok((select x ->> 'leader_name' from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'person_id' = :'py') = 'Bo LeadB'
+            and t.err(format('select rally100.set_follow_up(%L, %L)', t.e(8702), '2026-12-01')) = 'ok',
+  '19.23 [11][9] a rep''s card names their OWN team leader; with their own recorded introduction they may set a follow-up');
+call t.login(:'OWNER');
+select rally100.set_outcome(:'py', null) as r \gset
+
+-- [14] separation of duties
+call t.login(:'L1');
+select t.ok(t.err(format('select rally100.set_requirement(%L, 2, true)', :'plou')) = '42501 rally100: self_involved'
+            and t.err(format('select rally100.set_requirement(%L, 2, false, null, %L)', :'plou', 'x')) = '42501 rally100: self_involved',
+  '19.24 [14] a leader who recorded an introduction of the Person cannot confirm or untick its requirements');
+call t.login(:'OWNER');
+select t.ok(t.err(format('select rally100.set_requirement(%L, 1, true)', :'pora')) = '42501 rally100: self_involved',
+  '19.25 [14] nor can the owner, on a Person the owner introduced');
+call t.login(:'L2');
+select t.ok(t.err(format('select rally100.set_requirement(%L, 1, true)', :'px')) = '42501 rally100: self_involved',
+  '19.26 [14] Kim recorded an introduction of Xavi, so Xavi''s requirements are not hers to confirm');
+
+-- [10] identifier poisoning: another rep's bad data must not trap a real contact
+call t.login(:'R1');
+select rally100.save_entry(jsonb_build_object('id', t.e(710), 'first_name', 'Ann', 'last_name', 'Lee', 'phone', t.ph(710),
+         'handle', 'ann.lee', 'platform', 'Instagram')) as r \gset
+call t.login(:'RB');
+select rally100.save_entry(jsonb_build_object('id', t.e(8710), 'first_name', 'Ann', 'last_name', 'Lee', 'phone', t.ph(710),
+         'handle', 'bob.lee', 'platform', 'Instagram')) as r \gset
+call t.login(:'R1');
+select rally100.save_entry(jsonb_build_object('id', t.e(711), 'first_name', 'Bob', 'last_name', 'Lee', 'phone', t.ph(711),
+         'handle', 'bob.lee', 'platform', 'Instagram')) as r \gset
+select t.ok(:'r'::jsonb -> 'entry' ->> 'held_of' = t.e(710)::text
+            and t.has_effect(:'r'::jsonb, jsonb_build_object('type', 'held', 'older_id', t.e(710), 'older_name', 'Ann Lee', 'by', 'person')),
+  '19.27 [10] (setup) Bob is held "by person": another rep tied Bob''s handle to Ann''s Person');
+reset role;
+select t.person_of(t.e(710)) as pann \gset
+call t.login(:'R1');
+select t.ok(t.err(format('select rally100.resolve_duplicate(%L, %L, null)', t.e(711), 'different')) = '22023 rally100: reason_required',
+  '19.28 [10] "Different people" on a Person-only hold still needs a reason');
+select rally100.resolve_duplicate(t.e(711), 'different', 'Bob is Ann''s brother') as r \gset
+reset role;
+select t.ok((:'r'::jsonb -> 'entry' ->> 'counted')::boolean and :'r'::jsonb -> 'entry' ->> 'held_of' is null
+            and t.person_of(t.e(711)) <> :'pann' and t.person_of(t.e(711)) is not null
+            and not exists (select 1 from rally100.person_identifiers where person_id = :'pann' and value = t.ph(711))
+            and exists (select 1 from rally100.person_identifiers where person_id = :'pann' and value = 'Instagram:bob.lee'),
+  '19.29 [10] it is released onto a Person of its own, taking the identifiers only it carried (the other rep''s stay)');
+
+-- [4] award idempotency
+call t.login(:'L1');
+select rally100.award_incentive(:'inc', :'R1', 'won week 44', 'a0000000-0000-4000-8000-000000000044') -> 'reward' ->> 'id' as w1 \gset
+select rally100.award_incentive(:'inc', :'R1', 'won week 44', 'a0000000-0000-4000-8000-000000000044') -> 'reward' ->> 'id' as w2 \gset
+select rally100.award_incentive(:'inc', :'R1', 'won week 44', 'a0000000-0000-4000-8000-000000000044') -> 'reward' ->> 'id' as w3 \gset
+reset role;
+select t.ok(:'w1' = 'a0000000-0000-4000-8000-000000000044' and :'w2' = :'w1' and :'w3' = :'w1'
+            and (select count(*) from rally100.rewards where id = :'w1') = 1
+            and (select count(*) from rally100.reward_events where reward_id = :'w1' and action = 'award') = 1,
+  '19.30 [4] three tries of one award request make one award');
+call t.login(:'L1');
+select rally100.award_incentive(:'inc', :'R1', 'won week 45', 'a0000000-0000-4000-8000-000000000045') as r \gset
+select t.ok(:'r'::jsonb -> 'reward' ->> 'id' = 'a0000000-0000-4000-8000-000000000045'
+            and t.err(format('select rally100.award_incentive(%L, %L, %L, %L)', :'inc', :'R3', 'x', :'w1')) = '22023 rally100: request_reused'
+            and t.err(format('select rally100.award_incentive(%L, %L, %L, %L)', :'inc', :'R1', 'x', :'rwpx')) = '22023 rally100: request_reused',
+  '19.31 [4] a new request is a new award (weekly prizes); a request id already used for anything else is refused');
+
+-- [5] a closed rep (Sam was closed as a no-show in section 12)
+select t.ok(t.err(format('select rally100.award_incentive(%L, %L, %L, %L)', :'inc', :'R2', 'x', gen_random_uuid())) = '22023 rally100: rep_closed',
+  '19.32 [5] nothing is awarded to a closed rep');
+call t.login(:'R2');
+select t.save(t.full(2950, 'Cora', 'Lane')) as r \gset
+select rally100.record_intro(t.e(2950), 'text', 'in') as r \gset
+reset role;
+select t.person_of(t.e(2950)) as pcora \gset
+call t.login(:'L1');
+select rally100.confirm_intro_received(:'pcora', :'R2') as r \gset
+select rally100.set_requirement(:'pcora', 1, true) as r \gset
+select rally100.set_requirement(:'pcora', 2, true) as r \gset
+select rally100.set_requirement(:'pcora', 3, true) as r \gset
+select rally100.set_requirement(:'pcora', 4, true, null, null, '2027-01-04', null, true) -> 'reward' as rw \gset
+select t.ok(:'rw'::jsonb @> '{"status":"ready","rep_name":"Sam Rep","flags":["rep_closed"]}'
+            and (select x -> 'flags' from jsonb_array_elements(rally100.team_state() -> 'queues' -> 'reviews') x
+                  where x ->> 'reward_id' = :'rw'::jsonb ->> 'id') = '["rep_closed"]'
+            and (select (x ->> 'closed')::boolean from jsonb_array_elements(rally100.team_state() -> 'reps') x where x ->> 'id' = :'R2'),
+  '19.33 [5] a referral credited to a closed rep is created as usual but flagged rep_closed for leaders; the rep row reads closed');
+select t.ok(t.err(format('select rally100.review_reward(%L, %L)', :'rw'::jsonb ->> 'id', 'approve')) = '22023 rally100: rep_closed',
+  '19.34 [5] nothing is approved for a closed rep');
+call t.login(:'R2');
+select t.ok(position('rep_closed' in rally100.rep_state()::text) = 0 and position('closed' in (rally100.rep_state() -> 'referrals')::text) = 0,
+  '19.35 [5] the rep never sees the closure');
+call t.login(:'OWNER');
+select t.ok((select (x ->> 'closed')::boolean from jsonb_array_elements(rally100.owner_state() -> 'reps') x where x ->> 'id' = :'R2')
+            and (select x -> 'flags' from jsonb_array_elements(rally100.owner_rewards(null) -> 'rows') x
+                  where x ->> 'kind' = 'list' and x ->> 'rep_id' = :'R2') = '["rep_closed"]',
+  '19.36 [5] the owner sees the closure on the rep row and on every reward of theirs');
+call t.login(:'L1');
+select t.ok(t.err(format('select rally100.reopen_rep(%L)', :'R2')) = '42501 rally100: owner_only',
+  '19.37 [5] only the owner reopens a rep');
+call t.login(:'OWNER');
+select rally100.reopen_rep(:'R2') as r \gset
+call t.login(:'L1');
+select rally100.review_reward((:'rw'::jsonb ->> 'id')::uuid, 'approve') as r2 \gset
+reset role;
+select t.ok(:'r' = '{"ok": true}' and :'r2'::jsonb -> 'reward' ->> 'status' = 'approved'
+            and not rally100._rep_closed(:'R2')
+            and (select reversed_reason from rally100.rewards where kind = 'list' and rep_id = :'R2') = 'no_show'
+            and (select reopened_by from rally100.rep_closures where rep_id = :'R2') = :'OWNER'::uuid,
+  '19.38 [5] reopening ends the closure for the future (approval works again) and leaves past reversals as they were');
+
+-- [6][8] the reward lock and reversed records, deterministically
+select t.ok(t.err(format('select rally100._referral_untick(%L, %L, %L)', :'pcora', :'L1', 'x')) = '22023 rally100: locked_reward',
+  '19.39 [6] an untick that reaches an approved record raises locked_reward instead of passing silently');
+call t.login(:'L1');
+select rally100.set_requirement(:'py', 1, true) as r \gset
+select rally100.set_requirement(:'py', 2, true) as r \gset
+select rally100.set_requirement(:'py', 3, true) as r \gset
+select rally100.set_requirement(:'py', 4, true, null, null, '2027-03-01', 'flying in', null) -> 'reward' as rwy \gset
+reset role;
+update rally100.requirements set confirmed = false where person_id = :'py' and req = 2;
+call t.login(:'L1');
+select t.ok(:'rwy'::jsonb @> jsonb_build_object('status', 'ready', 'rep_id', :'R1')
+            and t.err(format('select rally100.review_reward(%L, %L)', :'rwy'::jsonb ->> 'id', 'approve')) = '22023 rally100: not_ready',
+  '19.40 [6] approval re-checks all four confirmations under the lock, whatever the status says');
+reset role;
+update rally100.requirements set confirmed = true where person_id = :'py' and req = 2;
+call t.login(:'L1');
+select rally100.review_reward((:'rwy'::jsonb ->> 'id')::uuid, 'needs_correction', 'check the flight') as r \gset
+call t.login(:'OWNER');
+select rally100.reverse_reward((:'rwy'::jsonb ->> 'id')::uuid, 'recruit withdrew', 'Yara withdrew') as r \gset
+call t.login(:'L1');
+select t.ok(t.err(format('select rally100.resolve_correction(%L)', :'rwy'::jsonb ->> 'id')) = '22023 rally100: reward_reversed',
+  '19.41 [8] a reversed record cannot be resolved back to ready');
+select rally100.set_requirement(:'py', 3, false, null, 'agreement voided') -> 'reward' as r \gset
+select t.ok(:'r'::jsonb @> jsonb_build_object('status', 'needs_correction', 'rep_id', :'R1', 'reversed', true),
+  '19.42 [8] unticking a requirement leaves a reversed record exactly where it was');
+reset role;
+select t.ok(not rally100._reverse(:'rwpx'::uuid, :'OWNER'::uuid, 'left', '', 'close_unpaid', true)
+            and (select reversed_at is null and status = 'paid' from rally100.rewards where id = :'rwpx'),
+  '19.43 [7] the leaving-rep reversal re-reads the row under its lock and leaves a paid record alone');
+
+-- [13] the spot-check obeys rule 12 too
+insert into rally100.rewards (kind, team_id, rep_id, amount_cents, status) values ('list', :'TA', :'L2', 10000, 'ready')
+returning id as rwl2 \gset
+insert into rally100.rewards (kind, team_id, rep_id, amount_cents, status) values ('list', :'TA', :'OWNER', 10000, 'ready')
+returning id as rwlo \gset
+call t.login(:'L2');
+select t.ok(t.err(format('select rally100.record_spot_check(%L, %L)', :'rwl2', '[]')) = '42501 rally100: self_involved',
+  '19.44 [13] a leader cannot spot-check their own list reward');
+call t.login(:'L1');
+select t.ok(t.err(format('select rally100.record_spot_check(%L, %L)', :'rwlo', '[]')) = '42501 rally100: owner_only',
+  '19.45 [13] a leader cannot spot-check the owner''s list reward');
+select rally100.review_reward(:'rwl2', 'needs_correction', 'two numbers look made up') as r \gset
+call t.login(:'L2');
+select t.ok(rally100.rep_state() -> 'list_reward' @> '{"status":"needs_correction","correction_note":"two numbers look made up"}',
+  '19.46 [18a] the rep sees the leader''s note on their list reward while it needs correction');
+
+-- [12] the list cap, and a save stays fast at the cap
+reset role;
+insert into auth.users (id, email, raw_user_meta_data) values (:'CAP', 'cap@a.test', '{"name":"Cap Rep"}');
+update public.profiles set team_id = :'TA' where id = :'CAP';
+insert into rally100.entries (id, team_id, rep_id, first_name, last_name, phone, handle, platform)
+select t.e(50000 + g), :'TA', :'CAP', 'C' || g, 'R' || g, t.ph(5000 + g), 'cap' || g, 'X' from generate_series(0, 498) g;
+select rally100._settle(:'CAP'::uuid, null, true, null) as r \gset
+call t.login(:'CAP');
+select clock_timestamp() as t0 \gset
+select t.save(t.full(5499, 'Last', 'Fits')) as r \gset
+select t.ok((:'r'::jsonb ->> 'count')::int = 500 and extract(epoch from clock_timestamp() - :'t0'::timestamptz) < 2,
+  '19.47 [12] the 500th live entry saves, in well under two seconds with 499 others to compare against');
+select t.ok(t.err(format('select rally100.save_entry(%L)', t.full(5500, 'One', 'Over'))) = '22023 rally100: list_full',
+  '19.48 [12] the 501st is refused: list_full');
+select rally100.remove_entry(t.e(5499)) as r \gset
+select t.save(t.full(5500, 'One', 'More')) as r \gset
+select t.ok(t.err(format('select rally100.restore_entry(%L)', t.e(5499))) = '22023 rally100: list_full',
+  '19.49 [12] restoring is refused too while 500 entries are live');
+reset role;
+insert into rally100.entries (id, team_id, rep_id, first_name, removed_at)
+select t.e(60000 + g), :'TA', :'CAP', 'Gone' || g, clock_timestamp() from generate_series(1, 1500) g;
+call t.login(:'CAP');
+select rally100.remove_entry(t.e(5500)) as r \gset
+select t.ok(t.err(format('select rally100.save_entry(%L)', t.full(5501, 'Churn', 'Limit'))) = '22023 rally100: list_full',
+  '19.50 [12] and a rep holding 2,000 entry rows, removed ones included, cannot add more');
+
+-- [19] the leader's rep row shows the list reward's pay facts
+call t.login(:'OWNER');
+select rally100.mark_pay_issued(:'rwl3', '2026-11-02', 'payroll 11/2') as r \gset
+call t.login(:'L1');
+select t.ok((select x -> 'list_reward' from jsonb_array_elements(rally100.team_state() -> 'reps') x where x ->> 'id' = :'R3')
+              @> '{"status":"paid","paid_on":"2026-11-02","amount_cents":10000}',
+  '19.51 [19] team_state.reps[].list_reward carries paid_on and amount_cents');
+
+-- [16] the uncredited rep's card for a Person credited to someone else
+call t.login(:'R1');
+select (select x from jsonb_array_elements(rally100.rep_state() -> 'intros') x where x ->> 'entry_id' = t.e(1)::text) as card \gset
+select t.ok(:'card'::jsonb @> '{"credited":"other","stage":"introduced","status":"introduced","channel":"in_person","said":"not_for_them"}'
+            and :'card'::jsonb -> 'requirements' = 'null' and :'card'::jsonb -> 'next' = 'null'
+            and :'card'::jsonb -> 'meeting_at' = 'null' and :'card'::jsonb -> 'interest' = 'null'
+            and :'card'::jsonb -> 'outcome' = 'null',
+  '19.52 [16] once credited to another rep, the card keeps only the rep''s own facts: no requirements, step, meeting, interest or later stage');
 reset role;

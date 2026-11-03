@@ -1,7 +1,7 @@
 -- RALLY 100 v1 — the recruiting app's backend, in a schema of its own.
 --
 -- WHAT THIS FILE IS. One migration that creates schema `rally100` and
--- everything RALLY 100 needs inside it: sixteen tables, the thirty-nine
+-- everything RALLY 100 needs inside it: eighteen tables, the forty
 -- functions a client may call (rally-100/app/API.md section 6) and the
 -- internal helpers they stand on. API.md is the contract; this file is that
 -- contract made executable, and rally-100/db/test/rally100-test.sql checks
@@ -350,6 +350,41 @@ create table rally100.audit (
 create index audit_entity_idx on rally100.audit (entity, entity_id, id);
 create index audit_actor_idx  on rally100.audit (actor, created_at);
 
+-- RULE 13 as a STATE, not only an act. close_rep_unpaid reverses what exists;
+-- an open closure also stops what comes later: while it is open nothing new
+-- is approved or awarded to that rep, and anything credited to them is
+-- flagged rep_closed for leaders and the owner. reopen_rep ends it for the
+-- future and leaves every past reversal exactly as it was.
+create table rally100.rep_closures (
+  id          uuid primary key default gen_random_uuid(),
+  rep_id      uuid not null,
+  reason      text not null check (reason in ('left', 'no_show')),
+  closed_at   timestamptz not null default clock_timestamp(),
+  closed_by   uuid not null,
+  reopened_at timestamptz,
+  reopened_by uuid,
+  check ((reopened_at is null) = (reopened_by is null))
+);
+-- at most one OPEN closure per rep
+create unique index rep_closures_open_idx on rally100.rep_closures (rep_id) where reopened_at is null;
+
+/* The walkthrough sample for a List Completion reward, drawn by the SERVER
+   with real randomness (gen_random_uuid ordering) and kept, so a rep cannot
+   steer which of their contacts get checked: entry ids are chosen on the
+   phone, so anything derived from them (a hash of id and date, say) could be
+   ground until the "real" contacts are the ones sampled. The current sample
+   is the newest one drawn after the last spot-check of that reward;
+   record_spot_check accepts only its entries. Append-only. */
+create table rally100.spot_samples (
+  id        uuid primary key default gen_random_uuid(),
+  reward_id uuid not null references rally100.rewards(id),
+  rep_id    uuid not null,
+  entry_ids uuid[] not null,
+  drawn_by  uuid not null,
+  drawn_at  timestamptz not null default clock_timestamp()
+);
+create index spot_samples_reward_idx on rally100.spot_samples (reward_id, drawn_at);
+
 -- ============================================ RLS: on, with no policies ===
 -- RLS with no policy reads and writes zero rows for every role that does not
 -- own the table. The only path in is a SECURITY DEFINER function, which runs
@@ -370,10 +405,12 @@ alter table rally100.rewards            enable row level security;
 alter table rally100.reward_events      enable row level security;
 alter table rally100.spot_checks        enable row level security;
 alter table rally100.audit              enable row level security;
+alter table rally100.rep_closures       enable row level security;
+alter table rally100.spot_samples       enable row level security;
 
 -- ================================================= append-only guard ===
-/* The ledger, the audit log, the XP keys, leader notes and spot-checks are
-   history. The functions only ever INSERT into them; this trigger makes
+/* The ledger, the audit log, the XP keys, leader notes, spot-checks and
+   spot-check samples are history. The functions only ever INSERT into them; this trigger makes
    that a property of the tables, so not even the owner (or a future
    function written in a hurry) can rewrite or erase a row. Corrections are
    new rows. */
@@ -407,6 +444,10 @@ create trigger notes_no_truncate before truncate on rally100.notes
 create trigger spot_checks_append_only before update or delete on rally100.spot_checks
   for each row execute function rally100._append_only();
 create trigger spot_checks_no_truncate before truncate on rally100.spot_checks
+  for each statement execute function rally100._append_only();
+create trigger spot_samples_append_only before update or delete on rally100.spot_samples
+  for each row execute function rally100._append_only();
+create trigger spot_samples_no_truncate before truncate on rally100.spot_samples
   for each statement execute function rally100._append_only();
 
 -- ========================================================== small helpers ===
@@ -627,6 +668,48 @@ as $$
     pg_catalog.hashtextextended('rally100.rep:' || p_rep::pg_catalog.text, 0))
 $$;
 
+/* The closure lock. close_rep_unpaid, reopen_rep, approving a reward,
+   awarding an incentive and marking pay issued all take it for the rep
+   concerned BEFORE they lock any reward row, so "close this rep" and "approve
+   or pay this rep" cannot interleave: whichever commits second sees the
+   other's result. */
+create function rally100._lock_close(p_rep uuid)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  select pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('rally100.close:' || p_rep::pg_catalog.text, 0))
+$$;
+
+create function rally100._rep_closed(p_rep uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from rally100.rep_closures c where c.rep_id = p_rep and c.reopened_at is null)
+$$;
+
+/* A LIST HAS A SIZE LIMIT. 500 live (not removed, not merged) entries per
+   rep is five full Walls, far past anything the game asks for, and it bounds
+   the work every save does over the rep's whole list. A rep may also hold at
+   most 2,000 entry rows in total, removed ones included, so add-remove churn
+   cannot grow a list without end either. Checked under the rep lock. */
+create function rally100._list_full(p_rep uuid, p_new_row boolean)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select (select pg_catalog.count(*) from rally100.entries e
+           where e.rep_id = p_rep and e.removed_at is null and e.merged_into is null) >= 500
+      or (p_new_row and (select pg_catalog.count(*) from rally100.entries e where e.rep_id = p_rep) >= 2000)
+$$;
+
 create function rally100._audit(p_actor uuid, p_team uuid, p_entity text, p_entity_id uuid,
                                 p_action text, p_detail jsonb)
 returns void
@@ -692,6 +775,38 @@ as $$
     from rally100.entries e
     left join rally100.persons p on p.id = e.person_id
    where e.rep_id = p_rep and e.removed_at is null and e.merged_into is null
+$$;
+
+create function rally100._is_counted(p_entry uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select e.is_complete and e.removed_at is null and e.held_of is null and e.merged_into is null
+            and coalesce(p.outcome, '') <> 'do_not_contact'
+       from rally100.entries e left join rally100.persons p on p.id = e.person_id
+      where e.id = p_entry), false)
+$$;
+
+/* The sample a leader is walking through for a List Completion reward: the
+   newest one drawn after that reward's last spot-check (none once a
+   spot-check has used it). */
+create function rally100._current_sample(p_reward uuid)
+returns rally100.spot_samples
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.* from rally100.spot_samples s
+   where s.reward_id = p_reward
+     and not exists (select 1 from rally100.spot_checks c
+                      where c.reward_id = p_reward and c.created_at >= s.drawn_at)
+   order by s.drawn_at desc, s.id desc
+   limit 1
 $$;
 
 create function rally100._confirmed_count(p_person uuid)
@@ -766,10 +881,12 @@ begin
   return exists (select 1 from rally100.entries e where e.person_id = p_person and e.rep_id = p_me.id);
 end $$;
 
-/* A reward is a leader's when its credited rep is on the leader's team; an
-   uncredited referral, when any rep who introduced the Person is (before the
-   credit is locked every candidate's leader may see it, afterwards only the
-   credited rep's). */
+/* A reward is a leader's when its credited rep is on the leader's team. An
+   uncredited referral is visible to the leaders of every rep who recorded or
+   planned an introduction of the Person (before the credit is locked every
+   candidate's leader may see it, afterwards only the credited rep's); while
+   nobody has introduced the Person at all, to any leader with the Person in
+   scope (a requirement confirmed early creates the record). */
 create function rally100._reward_in_scope(p_me public.profiles, p_reward rally100.rewards)
 returns boolean
 language plpgsql
@@ -785,8 +902,12 @@ begin
   elsif p_reward.rep_id is not null then
     return rally100._rep_in_scope(p_me, p_reward.rep_id);
   elsif p_me.role in ('leader', 'manager') and p_reward.kind = 'referral' then
-    return exists (select 1 from rally100.introductions i join public.profiles r on r.id = i.rep_id
-                    where i.person_id = p_reward.person_id and r.team_id = p_me.team_id);
+    if exists (select 1 from rally100.introductions i join public.profiles r on r.id = i.rep_id
+                where i.person_id = p_reward.person_id and r.team_id = p_me.team_id) then
+      return true;
+    end if;
+    return not exists (select 1 from rally100.introductions i where i.person_id = p_reward.person_id)
+           and rally100._person_in_scope(p_me, p_reward.person_id);
   end if;
   return false;
 end $$;
@@ -826,6 +947,64 @@ begin
     perform rally100._deny('not_found');
   end if;
   return v_p;
+end $$;
+
+/* WHO RUNS A SHARED PERSON. One Person can sit on several teams' lists, but
+   only one team's leaders run the recruiting record: the team of the rep who
+   holds the referral credit; before credit, the team(s) of reps whose
+   introduction was confirmed received; before that, of reps who recorded an
+   introduction. Null means nobody has introduced the Person yet, and any
+   leader in scope may act. Without this a leader could gain scope over
+   another team's Person simply by adding the same phone and last name to
+   their own list, then untick its requirements or move its stage. */
+create function rally100._control_teams(p_person uuid)
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (select array[pr.team_id] from rally100.rewards r join public.profiles pr on pr.id = r.rep_id
+      where r.kind = 'referral' and r.person_id = p_person and pr.team_id is not null),
+    (select pg_catalog.array_agg(distinct pr.team_id)
+       from rally100.introductions i join public.profiles pr on pr.id = i.rep_id
+      where i.person_id = p_person and i.received_at is not null and pr.team_id is not null),
+    (select pg_catalog.array_agg(distinct pr.team_id)
+       from rally100.introductions i join public.profiles pr on pr.id = i.rep_id
+      where i.person_id = p_person and i.status = 'introduced' and pr.team_id is not null))
+$$;
+
+create function rally100._controls(p_me public.profiles, p_person uuid)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v pg_catalog.uuid[];
+begin
+  if p_me.role = 'owner' then
+    return true;
+  end if;
+  v := rally100._control_teams(p_person);
+  return v is null or p_me.team_id = any (v);
+end $$;
+
+-- requirement, stage, meeting, interest, next action and non-DNC outcome
+-- changes: the controlling team's leaders (and the owner) only
+create function rally100._require_control(p_me public.profiles, p_person uuid)
+returns void
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not rally100._controls(p_me, p_person) then
+    perform rally100._deny('not_allowed');
+  end if;
 end $$;
 
 -- ===================================================== normalisation ===
@@ -1012,53 +1191,89 @@ as $$
              'confirmed', coalesce(r.confirmed, false),
              'by_name', case when r.confirmed then rally100._name(r.confirmed_by) end,
              'event_date', case when r.confirmed then r.event_date end)
+           -- requirement 4 reads "Start date confirmed. No travel needed." when travel does not apply
+           || case when g.n = 4 then pg_catalog.jsonb_build_object('travel_na', coalesce(p.travel_na, false))
+                   else '{}'::pg_catalog.jsonb end
            || case when p_with_note then pg_catalog.jsonb_build_object('note', coalesce(r.note, ''))
                    else '{}'::pg_catalog.jsonb end
            order by g.n)
     from pg_catalog.generate_series(1, 4) g(n)
     left join rally100.requirements r on r.person_id = p_person and r.req = g.n
+    left join rally100.persons p on p.id = p_person
 $$;
 
-create function rally100._person_json(p_person uuid)
+/* A Person as a leader or the owner sees it. The next action (text, owner,
+   date) belongs to the team that runs the Person (rally100._controls), and
+   its owner is named only when they are in the caller's scope: on a shared
+   Person, another team's leader must not learn which of this team's reps is
+   working it. `controls` tells the screen whether the caller may change the
+   record or only read it. */
+create function rally100._person_json(p_person uuid, p_me public.profiles)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_p   rally100.persons%rowtype;
+  v_ctl boolean;
+  v_own boolean;
+begin
+  select * into v_p from rally100.persons where id = p_person;
+  if not found then
+    return null;
+  end if;
+  v_ctl := rally100._controls(p_me, p_person);
+  v_own := v_ctl and v_p.next_action_owner is not null and rally100._rep_in_scope(p_me, v_p.next_action_owner);
+  return pg_catalog.jsonb_build_object(
+    'id', v_p.id,
+    'first_name', v_p.first_name,
+    'last_name', v_p.last_name,
+    'name', pg_catalog.btrim(v_p.first_name || ' ' || v_p.last_name),
+    'stage', v_p.stage,
+    'outcome', v_p.outcome,
+    'outcome_date', v_p.outcome_date,
+    'outcome_note', v_p.outcome_note,
+    'interest', v_p.interest,
+    'dnc', v_p.outcome is not distinct from 'do_not_contact',
+    'responsible_leader', v_p.responsible_leader,
+    'responsible_leader_name', case when v_p.responsible_leader is not null then rally100._name(v_p.responsible_leader) end,
+    'next_action', case when v_ctl then v_p.next_action else '' end,
+    'next_action_owner', case when v_own then v_p.next_action_owner end,
+    'next_action_owner_name', case when v_own then rally100._name(v_p.next_action_owner) end,
+    'next_action_date', case when v_ctl then v_p.next_action_date end,
+    'meeting_at', v_p.meeting_at,
+    'meeting_how', v_p.meeting_how,
+    'meeting_note', v_p.meeting_note,
+    'start_date', v_p.start_date,
+    'travel_note', v_p.travel_note,
+    'travel_na', v_p.travel_na,
+    'confirmed_count', rally100._confirmed_count(v_p.id),
+    'controls', v_ctl,
+    'merged_into', v_p.merged_into,
+    'created_at', v_p.created_at,
+    'updated_at', v_p.updated_at);
+end $$;
+
+-- the stored flags, plus rep_closed while the credited rep is closed (rule 13)
+create function rally100._reward_flags(p_r rally100.rewards)
 returns jsonb
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select pg_catalog.jsonb_build_object(
-    'id', p.id,
-    'first_name', p.first_name,
-    'last_name', p.last_name,
-    'name', pg_catalog.btrim(p.first_name || ' ' || p.last_name),
-    'stage', p.stage,
-    'outcome', p.outcome,
-    'outcome_date', p.outcome_date,
-    'outcome_note', p.outcome_note,
-    'interest', p.interest,
-    'dnc', p.outcome is not distinct from 'do_not_contact',
-    'responsible_leader', p.responsible_leader,
-    'responsible_leader_name', case when p.responsible_leader is not null then rally100._name(p.responsible_leader) end,
-    'next_action', p.next_action,
-    'next_action_owner', p.next_action_owner,
-    'next_action_owner_name', case when p.next_action_owner is not null then rally100._name(p.next_action_owner) end,
-    'next_action_date', p.next_action_date,
-    'meeting_at', p.meeting_at,
-    'meeting_how', p.meeting_how,
-    'meeting_note', p.meeting_note,
-    'start_date', p.start_date,
-    'travel_note', p.travel_note,
-    'travel_na', p.travel_na,
-    'confirmed_count', rally100._confirmed_count(p.id),
-    'merged_into', p.merged_into,
-    'created_at', p.created_at,
-    'updated_at', p.updated_at)
-  from rally100.persons p where p.id = p_person
+  select pg_catalog.to_jsonb(p_r.flags
+         || case when p_r.rep_id is not null and rally100._rep_closed(p_r.rep_id)
+                 then array['rep_closed']::pg_catalog.text[] else '{}'::pg_catalog.text[] end)
 $$;
 
-/* A reward as leaders and the owner see it. A credited rep outside the
-   caller's scope is named only as "A rep on another team"; the internal
-   reversal reason is the owner's alone. */
+/* A reward as leaders and the owner see it. A leader gets nothing for a
+   reward outside their scope (null), never a credited rep's identity outside
+   it, and never the owner-only facts: the internal reversal reason and the
+   payment method and reference. `flags` adds rep_closed while the credited
+   rep is closed. */
 create function rally100._reward_json(p_r rally100.rewards, p_me public.profiles)
 returns jsonb
 language plpgsql
@@ -1067,14 +1282,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_vis   boolean;
+  v_owner boolean := p_me.role = 'owner';
   v_count integer;
   v_sc    pg_catalog.jsonb;
 begin
-  if p_r.id is null then
+  if p_r.id is null or not (v_owner or rally100._reward_in_scope(p_me, p_r)) then
     return null;
   end if;
-  v_vis := p_r.rep_id is not null and rally100._rep_in_scope(p_me, p_r.rep_id);
   if p_r.kind = 'list' then
     select c.o_count into v_count from rally100._rep_counts(p_r.rep_id) c;
   end if;
@@ -1085,17 +1299,15 @@ begin
     'id', p_r.id,
     'kind', p_r.kind,
     'status', p_r.status,
-    'rep_id', case when v_vis then p_r.rep_id end,
-    'rep_name', case when p_r.rep_id is null then null
-                     when v_vis then rally100._name(p_r.rep_id)
-                     else 'A rep on another team' end,
+    'rep_id', p_r.rep_id,
+    'rep_name', case when p_r.rep_id is not null then rally100._name(p_r.rep_id) end,
     'person_id', p_r.person_id,
     'person_name', case when p_r.person_id is not null then rally100._person_name(p_r.person_id) end,
     'incentive_id', p_r.incentive_id,
     'incentive_name', (select i.name from rally100.incentives i where i.id = p_r.incentive_id),
     'amount_cents', p_r.amount_cents,
     'currency', p_r.currency,
-    'flags', pg_catalog.to_jsonb(p_r.flags),
+    'flags', rally100._reward_flags(p_r),
     'count', v_count,
     'hold', p_r.kind = 'list' and p_r.status = 'ready' and coalesce(v_count, 0) < 100,
     'spot_checked', p_r.spot_check_id is not null,
@@ -1103,12 +1315,12 @@ begin
     'approved_by_name', case when p_r.approved_by is not null then rally100._name(p_r.approved_by) end,
     'approved_at', p_r.approved_at,
     'paid_on', p_r.paid_on,
-    'paid_method', p_r.paid_method,
-    'paid_reference', p_r.paid_reference,
+    'paid_method', case when v_owner then p_r.paid_method end,
+    'paid_reference', case when v_owner then p_r.paid_reference end,
     'paid_by_name', case when p_r.paid_by is not null then rally100._name(p_r.paid_by) end,
     'reversed', p_r.reversed_at is not null,
     'reversed_at', p_r.reversed_at,
-    'reversed_reason', case when p_me.role = 'owner' then p_r.reversed_reason end,
+    'reversed_reason', case when v_owner then p_r.reversed_reason end,
     'rep_reason', p_r.rep_reason,
     'correction_note', p_r.correction_note,
     'correction_by_name', case when p_r.correction_by is not null then rally100._name(p_r.correction_by) end,
@@ -1117,7 +1329,7 @@ begin
 end $$;
 
 -- ======================================================= duplicates ===
-/* WITHIN-REP DUPLICATES (rule 4), recomputed for the whole list.
+/* WITHIN-REP DUPLICATES (rule 4), recomputed for the whole live list.
 
    Walk the rep's live entries oldest first. An entry is HELD when it shares
    a phone, a <platform>:<handle>, or a linked Person with an EARLIER entry
@@ -1135,7 +1347,15 @@ end $$;
 
    The Person signal is the third key because "one Person counts once per rep"
    is the owner's rule; it only fires when two of a rep's entries reached the
-   same Person by different routes (another rep's identifiers, or a merge). */
+   same Person by different routes (another rep's identifiers, or a merge).
+
+   COST. Every key shared by two or more live entries is listed ONCE, with its
+   members in walk order, in a read-only map built by one aggregate. The walk
+   then reads, for each key of an entry, that key's members from the front
+   and stops at the first one still unheld (normally the very first), so a
+   save does close to linear work even when hundreds of entries share a phone,
+   instead of comparing every pair. With the 500-entry cap in save_entry this
+   bounds every save. */
 create function rally100._dedupe(p_rep uuid)
 returns void
 language plpgsql
@@ -1143,56 +1363,64 @@ security definer
 set search_path = ''
 as $$
 declare
-  r      record;
-  v_seen pg_catalog.jsonb := '{}';   -- key -> ids of earlier unheld entries carrying it, oldest first
-  v_pos  pg_catalog.jsonb := '{}';   -- unheld entry id -> its position in the walk
-  v_keys pg_catalog.text[];
-  v_k    pg_catalog.text;
-  v_c    pg_catalog.text;
-  v_hold pg_catalog.uuid;
-  v_best integer;
-  v_n    integer := 0;
-  v_hkey pg_catalog.text;
+  r        record;
+  v_groups pg_catalog.jsonb;
+  v_ids    pg_catalog.uuid[] := '{}';
+  v_unheld boolean[] := '{}';
+  v_hold   integer;
+  v_k      pg_catalog.text;
+  v_m      integer;
+  v_to     pg_catalog.uuid;
 begin
-  for r in
-    select e.id, e.phone, e.platform, e.handle, e.other_app, e.person_id, e.kept_with, e.held_of
+  with live as (
+    select e.phone, e.person_id,
+           rally100._handle_key(e.platform, e.handle, e.other_app) as hkey,
+           (pg_catalog.row_number() over (order by e.created_at, e.id))::integer as ord
       from rally100.entries e
-     where e.rep_id = p_rep and e.removed_at is null and e.merged_into is null
-     order by e.created_at, e.id
+     where e.rep_id = p_rep and e.removed_at is null and e.merged_into is null),
+  keys as (
+    select ord, 'p:' || phone as k from live where phone <> ''
+    union all
+    select ord, 'h:' || hkey from live where hkey is not null
+    union all
+    select ord, 'o:' || person_id::pg_catalog.text from live where person_id is not null)
+  select coalesce(pg_catalog.jsonb_object_agg(g.k, g.members), '{}'::pg_catalog.jsonb) into v_groups
+    from (select k, pg_catalog.jsonb_agg(ord order by ord) as members
+            from keys group by k having pg_catalog.count(*) > 1) g;
+
+  for r in
+    with live as (
+      select e.id, e.held_of, e.kept_with, e.phone, e.person_id,
+             rally100._handle_key(e.platform, e.handle, e.other_app) as hkey,
+             (pg_catalog.row_number() over (order by e.created_at, e.id))::integer as ord
+        from rally100.entries e
+       where e.rep_id = p_rep and e.removed_at is null and e.merged_into is null)
+    select l.id, l.held_of, l.kept_with, l.ord,
+           pg_catalog.array_remove(array[
+             case when l.phone <> '' then 'p:' || l.phone end,
+             case when l.hkey is not null then 'h:' || l.hkey end,
+             case when l.person_id is not null then 'o:' || l.person_id::pg_catalog.text end
+           ]::pg_catalog.text[], null) as ks
+      from live l
+     order by l.ord
   loop
-    v_n := v_n + 1;
-    v_hkey := rally100._handle_key(r.platform, r.handle, r.other_app);
-    v_keys := pg_catalog.array_remove(array[
-                case when r.phone <> '' then 'p:' || r.phone end,
-                case when v_hkey is not null then 'h:' || v_hkey end,
-                case when r.person_id is not null then 'o:' || r.person_id::pg_catalog.text end
-              ]::pg_catalog.text[], null);
     v_hold := null;
-    v_best := null;
-    foreach v_k in array v_keys loop
-      for v_c in
-        select x from pg_catalog.jsonb_array_elements_text(coalesce(v_seen -> v_k, '[]'::pg_catalog.jsonb)) x
-      loop
-        if not (v_c::pg_catalog.uuid = any (r.kept_with)) then
-          if v_best is null or (v_pos ->> v_c)::integer < v_best then
-            v_best := (v_pos ->> v_c)::integer;
-            v_hold := v_c::pg_catalog.uuid;
+    foreach v_k in array r.ks loop
+      if v_groups ? v_k then
+        for v_m in select x::integer from pg_catalog.jsonb_array_elements_text(v_groups -> v_k) x loop
+          exit when v_m >= r.ord or (v_hold is not null and v_m >= v_hold);
+          if v_unheld[v_m] and not (v_ids[v_m] = any (r.kept_with)) then
+            v_hold := v_m;
+            exit;
           end if;
-          exit;
-        end if;
-      end loop;
+        end loop;
+      end if;
     end loop;
-
-    if v_hold is null then
-      v_pos := v_pos || pg_catalog.jsonb_build_object(r.id::pg_catalog.text, v_n);
-      foreach v_k in array v_keys loop
-        v_seen := pg_catalog.jsonb_set(v_seen, array[v_k],
-                    coalesce(v_seen -> v_k, '[]'::pg_catalog.jsonb) || pg_catalog.to_jsonb(r.id::pg_catalog.text));
-      end loop;
-    end if;
-
-    if r.held_of is distinct from v_hold then
-      update rally100.entries set held_of = v_hold, updated_at = pg_catalog.clock_timestamp()
+    v_ids := v_ids || r.id;
+    v_unheld := v_unheld || (v_hold is null);
+    v_to := case when v_hold is null then null else v_ids[v_hold] end;
+    if r.held_of is distinct from v_to then
+      update rally100.entries set held_of = v_to, updated_at = pg_catalog.clock_timestamp()
        where id = r.id;
     end if;
   end loop;
@@ -1410,8 +1638,11 @@ begin
                           pg_catalog.jsonb_build_object('rep_id', v_rep, 'basis', v_basis));
 end $$;
 
--- An untick before approval returns the record to In progress and clears the
--- credit, so the rule is applied afresh at the next fourth confirmation.
+/* An untick before approval returns the record to In progress and clears the
+   credit, so the rule is applied afresh at the next fourth confirmation. On
+   an approved or paid record it is refused (the caller already holds the
+   reward row lock, so an approval cannot slip in between the check and the
+   untick); a reversed record is history and does not move. */
 create function rally100._referral_untick(p_person uuid, p_actor uuid, p_note text)
 returns void
 language plpgsql
@@ -1423,8 +1654,11 @@ declare
 begin
   select * into v_r from rally100.rewards
    where kind = 'referral' and person_id = p_person for update;
-  if not found or v_r.status in ('approved', 'paid') then
+  if not found or v_r.reversed_at is not null then
     return;
+  end if;
+  if v_r.status in ('approved', 'paid') then
+    perform rally100._fail('locked_reward');
   end if;
   if v_r.status <> 'in_progress' or v_r.rep_id is not null then
     update rally100.rewards set status = 'in_progress', rep_id = null,
@@ -1434,10 +1668,13 @@ begin
   end if;
 end $$;
 
--- A reversal is a flag on the record, never a status, and never erases one.
+/* A reversal is a flag on the record, never a status, and never erases one.
+   The row is locked and re-read here, so a payment that committed a moment
+   earlier is seen: with p_unpaid_only a paid record is left alone (the
+   leaving-rep rule never touches pay already issued). True when it reversed. */
 create function rally100._reverse(p_reward uuid, p_actor uuid, p_reason text, p_rep_reason text,
-                                  p_action text)
-returns void
+                                  p_action text, p_unpaid_only boolean)
+returns boolean
 language plpgsql
 security definer
 set search_path = ''
@@ -1446,8 +1683,8 @@ declare
   v_r rally100.rewards%rowtype;
 begin
   select * into v_r from rally100.rewards where id = p_reward for update;
-  if not found or v_r.reversed_at is not null then
-    return;
+  if not found or v_r.reversed_at is not null or (p_unpaid_only and v_r.status = 'paid') then
+    return false;
   end if;
   update rally100.rewards
      set reversed_at = pg_catalog.clock_timestamp(), reversed_by = p_actor,
@@ -1455,6 +1692,7 @@ begin
          updated_at = pg_catalog.clock_timestamp()
    where id = p_reward;
   perform rally100._reward_event(p_reward, p_action, v_r.status, v_r.status, p_actor, p_reason);
+  return true;
 end $$;
 
 -- ================================================= settle (count effects) ===
@@ -1680,11 +1918,24 @@ end $$;
 
 -- ================================================== rep-facing read models ===
 
-/* A rep's view of one entry's recruiting progress. Before this rep has
-   recorded their OWN introduction they see Added (or Introduction planned)
-   whatever the true stage, no requirement block and no leader decisions:
-   another rep's introduction of the same Person is never visible to them.
-   Nothing here names another rep. */
+/* A rep's intro card for one of their entries. Cards come ONLY from the rep's
+   own "I'll introduce" / "I introduced" records: another rep's activity on a
+   shared Person never makes a card appear, never changes one, and never
+   names anyone from another team (leader_name is always the rep's own team
+   leader). What the card carries:
+     * the rep's own facts always: their entry, their own record's status,
+       channel, what the friend said, its date, whether it was received;
+     * once the referral is credited to ANOTHER rep (credited:'other'):
+       nothing more — no later stage, requirements, meeting, interest or next
+       step (blueprint: the uncredited rep never sees how far the Person went);
+     * before their own introduction is recorded: Introduction planned, and
+       the rep's own next step;
+     * after it: the Person's stage, outcome, interest, the four requirements
+       and the meeting, and the next step derived from PROGRESS — the leader's
+       explicit next action when it is owned by the rep or by a leader of the
+       rep's team; otherwise none while an outcome is set; otherwise "schedules
+       the meeting" / "holds the meeting" until anything is confirmed, then
+       the first unconfirmed requirement, and none once all four are. */
 create function rally100._intro_obj(p_entry uuid, p_rep uuid)
 returns jsonb
 language plpgsql
@@ -1696,95 +1947,112 @@ declare
   v_e      rally100.entries%rowtype;
   v_p      rally100.persons%rowtype;
   v_i      rally100.introductions%rowtype;
-  v_has_i  boolean;
-  v_own    boolean;
+  v_r      rally100.rewards%rowtype;
   v_team   pg_catalog.uuid;
   v_leader pg_catalog.uuid;
+  v_credit pg_catalog.text;
   v_ix     integer;
-  v_next1  integer;
-  v_who    pg_catalog.text;
-  v_wname  pg_catalog.text;
+  v_conf   integer;
+  v_first  integer;
+  v_next   pg_catalog.jsonb;
   v_text   pg_catalog.text;
-  v_owner_role pg_catalog.text;
+  v_base   pg_catalog.jsonb;
+  v_early  boolean;
 begin
   select * into v_e from rally100.entries where id = p_entry and rep_id = p_rep;
   if not found or v_e.person_id is null then
     return null;
   end if;
-  select * into v_p from rally100.persons where id = v_e.person_id;
   select * into v_i from rally100.introductions where person_id = v_e.person_id and rep_id = p_rep;
-  v_has_i := found;
-  v_own := v_has_i and v_i.status = 'introduced';
-  select team_id into v_team from public.profiles where id = p_rep;
-  v_leader := coalesce(v_p.responsible_leader, rally100._team_leader(v_team));
-  v_ix := rally100._stage_ix(v_p.stage);
-
-  if v_p.outcome = 'do_not_contact' then
-    v_who := 'leader'; v_text := 'nothing needed from you';
-  elsif not v_own then
-    v_who := 'you';
-    v_text := case when v_has_i then 'make the introduction' else 'introduce them' end;
-  elsif v_p.next_action <> '' and (v_p.next_action_owner is null or v_p.next_action_owner = p_rep
-        or exists (select 1 from public.profiles o where o.id = v_p.next_action_owner
-                    and o.role in ('leader', 'manager', 'owner'))) then
-    if v_p.next_action_owner = p_rep then
-      v_who := 'you';
-    else
-      v_who := 'leader';
-      v_leader := coalesce(v_p.next_action_owner, v_leader);
-    end if;
-    v_text := v_p.next_action;
-  elsif v_p.outcome = 'follow_up' then
-    v_who := case when v_ix <= rally100._stage_ix('introduced') then 'you' else 'leader' end;
-    v_text := 'follow up';
-  elsif v_p.outcome = 'not_interested' then
-    v_who := 'leader'; v_text := 'nothing needed from you';
-  elsif v_ix <= rally100._stage_ix('introduced') then
-    v_who := 'leader'; v_text := 'schedules the meeting';
-  elsif v_p.stage = 'meeting_scheduled' then
-    v_who := 'leader'; v_text := 'holds the meeting';
-  else
-    select pg_catalog.min(g.n) into v_next1
-      from pg_catalog.generate_series(1, 4) g(n)
-     where not exists (select 1 from rally100.requirements q
-                        where q.person_id = v_p.id and q.req = g.n and q.confirmed);
-    v_who := 'leader';
-    v_text := case v_next1
-                when 1 then 'confirms the meeting'
-                when 2 then 'confirms the commitment'
-                when 3 then 'confirms the agreement'
-                when 4 then 'confirms start date and travel plans'
-                else case when v_p.stage = 'arrived' then 'nothing needed from you'
-                          else 'reviews the referral reward' end
-              end;
+  if not found then
+    return null;
   end if;
-  v_wname := case when v_who = 'you' then rally100._name(p_rep)
-                  when v_leader is not null then rally100._name(v_leader) end;
+  select * into v_p from rally100.persons where id = v_e.person_id;
+  select * into v_r from rally100.rewards where kind = 'referral' and person_id = v_e.person_id;
+  v_credit := case when v_r.rep_id is null then null when v_r.rep_id = p_rep then 'me' else 'other' end;
+  select team_id into v_team from public.profiles where id = p_rep;
+  v_leader := rally100._team_leader(v_team);
+  v_ix := rally100._stage_ix(v_p.stage);
+  v_early := v_ix <= rally100._stage_ix('introduced');
 
-  return pg_catalog.jsonb_build_object(
+  v_base := pg_catalog.jsonb_build_object(
     'entry_id', v_e.id,
     'person_id', v_e.person_id,
     'name', pg_catalog.btrim(v_e.first_name || ' ' || v_e.last_name),
-    'status', case when v_has_i then v_i.status end,
-    'recorded_at', case when v_has_i then v_i.recorded_at end,
-    'received', v_has_i and v_i.received_at is not null,
-    'stage', case when v_own then v_p.stage
-                  when v_has_i then 'intro_planned' else 'added' end,
-    'outcome', case when v_own then v_p.outcome
-                    when v_p.outcome = 'do_not_contact' then v_p.outcome
-                    when v_p.outcome = 'follow_up' and v_ix <= rally100._stage_ix('introduced') then v_p.outcome
-                    end,
-    'outcome_date', case when v_own or v_p.outcome = 'do_not_contact'
-                              or (v_p.outcome = 'follow_up' and v_ix <= rally100._stage_ix('introduced'))
-                         then v_p.outcome_date end,
-    'interest', case when v_own then v_p.interest else 'unknown' end,
-    'requirements', case when v_own then rally100._reqs_json(v_p.id, false) end,
-    'next', pg_catalog.jsonb_build_object('who', v_who, 'name', v_wname, 'text', v_text),
-    'meeting_at', case when v_own then v_p.meeting_at end,
+    'status', v_i.status,
+    'recorded_at', v_i.recorded_at,
+    'received', v_i.received_at is not null,
+    'channel', v_i.channel,
+    'said', v_i.said,
+    'intro_date', v_i.intro_date,
+    'credited', v_credit,
     'leader_name', case when v_leader is not null then rally100._name(v_leader) end);
+
+  if v_credit = 'other' then
+    return v_base || pg_catalog.jsonb_build_object(
+      'stage', case when v_i.status = 'introduced' then 'introduced' else 'intro_planned' end,
+      'outcome', null, 'outcome_date', null, 'interest', null, 'requirements', null,
+      'next', null, 'meeting_at', null);
+  end if;
+
+  if v_i.status <> 'introduced' then
+    return v_base || pg_catalog.jsonb_build_object(
+      'stage', 'intro_planned',
+      'outcome', case when v_p.outcome = 'do_not_contact' or (v_p.outcome = 'follow_up' and v_early)
+                      then v_p.outcome end,
+      'outcome_date', case when v_p.outcome = 'do_not_contact' or (v_p.outcome = 'follow_up' and v_early)
+                           then v_p.outcome_date end,
+      'interest', 'unknown',
+      'requirements', null,
+      'next', case when v_p.outcome is null
+                   then pg_catalog.jsonb_build_object('who', 'you', 'name', rally100._name(p_rep),
+                                                      'text', 'make the introduction') end,
+      'meeting_at', null);
+  end if;
+
+  if v_p.next_action <> ''
+     and (v_p.next_action_owner = p_rep
+          or exists (select 1 from public.profiles o
+                      where o.id = v_p.next_action_owner and o.team_id = v_team
+                        and o.role in ('leader', 'manager', 'owner'))) then
+    v_next := pg_catalog.jsonb_build_object(
+      'who', case when v_p.next_action_owner = p_rep then 'you' else 'leader' end,
+      'name', rally100._name(v_p.next_action_owner),
+      'text', v_p.next_action);
+  elsif v_p.outcome is null then
+    v_conf := rally100._confirmed_count(v_p.id);
+    select pg_catalog.min(g.n) into v_first
+      from pg_catalog.generate_series(1, 4) g(n)
+     where not exists (select 1 from rally100.requirements q
+                        where q.person_id = v_p.id and q.req = g.n and q.confirmed);
+    v_text := case
+                when v_conf = 0 and v_ix < rally100._stage_ix('meeting_scheduled') then 'schedules the meeting'
+                when v_conf = 0 then 'holds the meeting'
+                when v_first = 1 then 'confirms the meeting'
+                when v_first = 2 then 'confirms the commitment'
+                when v_first = 3 then 'confirms the agreement'
+                when v_first = 4 then 'confirms start date and travel plans'
+              end;
+    if v_text is not null then
+      v_next := pg_catalog.jsonb_build_object(
+        'who', 'leader',
+        'name', case when v_leader is not null then rally100._name(v_leader) end,
+        'text', v_text);
+    end if;
+  end if;
+
+  return v_base || pg_catalog.jsonb_build_object(
+    'stage', v_p.stage,
+    'outcome', v_p.outcome,
+    'outcome_date', v_p.outcome_date,
+    'interest', v_p.interest,
+    'requirements', rally100._reqs_json(v_p.id, false),
+    'next', v_next,
+    'meeting_at', v_p.meeting_at);
 end $$;
 
--- the List Completion reward as the rep sees it; the internal reason never leaves
+-- the List Completion reward as the rep sees it; the internal reason never
+-- leaves, the leader's correction note does (the leader's sheet says so)
 create function rally100._list_reward_rep(p_rep uuid, p_count integer)
 returns jsonb
 language sql
@@ -1799,14 +2067,18 @@ as $$
     'approved_at', r.approved_at,
     'paid_on', r.paid_on,
     'reversed', r.reversed_at is not null,
-    'rep_reason', case when r.reversed_at is not null then coalesce(r.rep_reason, '') end)
+    'rep_reason', case when r.reversed_at is not null then coalesce(r.rep_reason, '') end,
+    'correction_note', case when r.status = 'needs_correction' then r.correction_note end)
     from rally100.rewards r
    where r.kind = 'list' and r.rep_id = p_rep
 $$;
 
-/* One row per Person this rep recorded an introduction of. When the record is
-   credited to another rep this rep learns only that, and the name THEY typed:
-   never who, never when, never how far the Person went. */
+/* One row per Person this rep recorded an introduction of, or whose referral
+   is credited to them (the owner can credit a rep by correct_credit), carrying
+   the id of the rep's own entry for that Person so the screen matches by id.
+   When the record is credited to another rep this rep learns only that,
+   their own entry id and the name THEY typed: never who, never when, never
+   how far the Person went. */
 create function rally100._referrals_rep(p_rep uuid)
 returns jsonb
 language sql
@@ -1814,38 +2086,54 @@ stable
 security definer
 set search_path = ''
 as $$
+  with mine as (
+    select i.person_id, i.recorded_at, i.entry_id
+      from rally100.introductions i
+     where i.rep_id = p_rep and i.status = 'introduced'
+    union all
+    select r.person_id, r.created_at, null::pg_catalog.uuid
+      from rally100.rewards r
+     where r.kind = 'referral' and r.rep_id = p_rep
+       and not exists (select 1 from rally100.introductions i
+                        where i.person_id = r.person_id and i.rep_id = p_rep and i.status = 'introduced'))
   select coalesce(pg_catalog.jsonb_agg(x.obj order by x.recorded_at, x.person_id), '[]'::pg_catalog.jsonb)
     from (
-      select i.person_id, i.recorded_at,
+      select m.person_id, m.recorded_at,
              case
                when r.rep_id is not null and r.rep_id <> p_rep then
-                 pg_catalog.jsonb_build_object('credited', 'other', 'name', n.name)
+                 pg_catalog.jsonb_build_object('credited', 'other', 'name', n.name, 'entry_id', n.entry_id)
                else pg_catalog.jsonb_build_object(
-                 'person_id', i.person_id,
+                 'person_id', m.person_id,
+                 'entry_id', n.entry_id,
                  'name', n.name,
                  'status', r.status,
                  'credited', case when r.rep_id = p_rep then 'me' end,
-                 'confirmed_count', rally100._confirmed_count(i.person_id),
-                 'requirements', rally100._reqs_json(i.person_id, false),
+                 'amount_cents', r.amount_cents,
+                 'confirmed_count', rally100._confirmed_count(m.person_id),
+                 'requirements', rally100._reqs_json(m.person_id, false),
                  'approved_at', r.approved_at,
                  'paid_on', r.paid_on,
                  'reversed', r.reversed_at is not null,
-                 'rep_reason', case when r.reversed_at is not null then coalesce(r.rep_reason, '') end)
+                 'rep_reason', case when r.reversed_at is not null then coalesce(r.rep_reason, '') end,
+                 'correction_note', case when r.status = 'needs_correction' and r.rep_id = p_rep
+                                         then r.correction_note end)
              end as obj
-        from rally100.introductions i
-        left join rally100.rewards r on r.kind = 'referral' and r.person_id = i.person_id
+        from mine m
+        left join rally100.rewards r on r.kind = 'referral' and r.person_id = m.person_id
         cross join lateral (
-          select coalesce(
-                   (select pg_catalog.btrim(e.first_name || ' ' || e.last_name) from rally100.entries e
-                     where e.rep_id = p_rep and e.person_id = i.person_id and e.merged_into is null
-                     order by (e.removed_at is not null), e.created_at limit 1),
-                   (select pg_catalog.btrim(e.first_name || ' ' || e.last_name) from rally100.entries e
-                     where e.id = i.entry_id),
-                   '') as name) n
-       where i.rep_id = p_rep and i.status = 'introduced') x
+          select coalesce(own.id, m.entry_id) as entry_id,
+                 coalesce(pg_catalog.btrim(own.first_name || ' ' || own.last_name),
+                          (select pg_catalog.btrim(e.first_name || ' ' || e.last_name)
+                             from rally100.entries e where e.id = m.entry_id), '') as name
+            from (select 1) one
+            left join lateral (
+              select e.id, e.first_name, e.last_name from rally100.entries e
+               where e.rep_id = p_rep and e.person_id = m.person_id and e.merged_into is null
+               order by (e.removed_at is not null), e.created_at limit 1) own on true) n) x
 $$;
 
--- one intro card per live, unheld entry with an introduction or a Person past Added
+-- one intro card per live, unheld entry the rep has planned or recorded an
+-- introduction for (their own records only; see _intro_obj)
 create function rally100._intros_rep(p_rep uuid)
 returns jsonb
 language sql
@@ -1856,10 +2144,9 @@ as $$
   select coalesce(pg_catalog.jsonb_agg(rally100._intro_obj(e.id, p_rep) order by e.created_at, e.id),
                   '[]'::pg_catalog.jsonb)
     from rally100.entries e
-    join rally100.persons p on p.id = e.person_id
    where e.rep_id = p_rep and e.removed_at is null and e.merged_into is null and e.held_of is null
-     and (p.stage <> 'added'
-          or exists (select 1 from rally100.introductions i where i.person_id = e.person_id and i.rep_id = p_rep))
+     and e.person_id is not null
+     and exists (select 1 from rally100.introductions i where i.person_id = e.person_id and i.rep_id = p_rep)
 $$;
 
 create function rally100._scenes_json(p_rep uuid)
@@ -1914,7 +2201,9 @@ as $$
     'reps', (select coalesce(pg_catalog.jsonb_agg(distinct rally100._name(e.rep_id)), '[]'::pg_catalog.jsonb)
                from rally100.entries e
               where e.person_id = p.id and e.merged_into is null and rally100._rep_in_scope(p_me, e.rep_id)),
-    'next_action', p.next_action,
+    -- the next action belongs to the team that runs the Person
+    'next_action', case when rally100._controls(p_me, p.id) then p.next_action else '' end,
+    'controls', rally100._controls(p_me, p.id),
     'confirmed_count', rally100._confirmed_count(p.id),
     'updated_at', p.updated_at)
     from rally100.persons p where p.id = p_person
@@ -1977,7 +2266,7 @@ begin
            'hold', r.kind = 'list' and r.status = 'ready'
                    and (select c.o_count from rally100._rep_counts(r.rep_id) c) < 100,
            'spot_checked', r.spot_check_id is not null,
-           'flags', pg_catalog.to_jsonb(r.flags)) order by r.created_at, r.id), '[]'::pg_catalog.jsonb)
+           'flags', rally100._reward_flags(r)) order by r.created_at, r.id), '[]'::pg_catalog.jsonb)
     into v_rev
     from rally100.rewards r
    where r.status in ('ready', 'needs_correction') and r.reversed_at is null and r.rep_id is not null
@@ -2012,7 +2301,8 @@ begin
     'reviews', v_rev, 'messages', v_msg, 'matches', v_pm);
 end $$;
 
--- one rep's line on the leader and owner screens
+-- one rep's line on the leader and owner screens; `closed` is the leaving-rep
+-- state (rule 13), which is leadership's information and never the rep's
 create function rally100._rep_row(p_uid uuid, p_with_team boolean)
 returns jsonb
 language sql
@@ -2026,6 +2316,7 @@ as $$
     'email', p.email,
     'role', p.role,
     'disabled', p.disabled,
+    'closed', rally100._rep_closed(p.id),
     'count', c.o_count,
     'drafts', c.o_drafts,
     'held', c.o_held,
@@ -2034,7 +2325,9 @@ as $$
                              'id', r.id, 'status', r.status,
                              'hold', r.status = 'ready' and c.o_count < 100,
                              'spot_checked', r.spot_check_id is not null,
-                             'reversed', r.reversed_at is not null)
+                             'reversed', r.reversed_at is not null,
+                             'amount_cents', r.amount_cents,
+                             'paid_on', r.paid_on)
                       from rally100.rewards r where r.kind = 'list' and r.rep_id = p.id),
     'intros_received', (select pg_catalog.count(*) from rally100.introductions i
                          where i.rep_id = p.id and i.received_at is not null),
@@ -2248,6 +2541,8 @@ begin
     if v_old.removed_at is not null or v_old.merged_into is not null then
       perform rally100._fail('entry_removed');
     end if;
+  elsif rally100._list_full(v_me.id, true) then
+    perform rally100._fail('list_full');
   end if;
 
   v_first := case when p ? 'first_name' then rally100._clean_name(p ->> 'first_name')
@@ -2338,10 +2633,12 @@ end $$;
      tags are united and notes appended; the newer is removed with
      merged_into. The merge earns nothing: if the older now counts for the
      first time its completion key is recorded at zero points.
-   different: only for a same-phone match — one handle cannot belong to two
-     humans, so a handle match is fixed or merged, never kept — and only with
-     a reason. Both entries record each other in kept_with and both count;
-     the newer's XP key becomes per-entry and it gets its own Person. */
+   different: for a same-phone match, or a hold that came only through a
+     shared Person (the two entries share neither phone nor handle) — never
+     when the handles match: one handle cannot belong to two humans, so a
+     handle match is fixed or merged, never kept — and only with a reason.
+     Both entries record each other in kept_with and both count; the newer's
+     XP key becomes per-entry and it gets its own Person. */
 create function rally100.resolve_duplicate(p_entry uuid, p_decision text, p_reason text default null)
 returns jsonb
 language plpgsql
@@ -2357,6 +2654,9 @@ declare
   v_held   pg_catalog.jsonb;
   v_hx     pg_catalog.text;
   v_ho     pg_catalog.text;
+  v_by_phone  boolean;
+  v_by_person boolean;
+  v_old_person pg_catalog.uuid;
 begin
   perform rally100._lock_rep(v_me.id);
   select * into v_x from rally100.entries where id = p_entry for update;
@@ -2403,12 +2703,34 @@ begin
 
   v_hx := rally100._handle_key(v_x.platform, v_x.handle, v_x.other_app);
   v_ho := rally100._handle_key(v_o.platform, v_o.handle, v_o.other_app);
-  if not (v_x.phone <> '' and v_x.phone = v_o.phone) or (v_hx is not null and v_hx = v_ho) then
+  v_by_phone := v_x.phone <> '' and v_x.phone = v_o.phone;
+  v_by_person := not v_by_phone and not (v_hx is not null and v_hx = v_ho);
+  if (v_hx is not null and v_hx = v_ho) or not (v_by_phone or v_by_person) then
     perform rally100._fail('handle_match_needs_fix');
   end if;
   v_reason := rally100._text(p_reason, 300);
   if v_reason = '' then
     perform rally100._fail('reason_required');
+  end if;
+  /* A hold "by Person" between two entries that share neither phone nor
+     handle can only come from the Person record: some other rep's identifiers
+     joined two different humans. The rep's answer stands: this entry leaves
+     that Person for a Person of its own (linked afresh by _settle, which never
+     offers a Person the rep has kept apart), taking with it any identifier
+     that no other entry on the old Person carries. */
+  if v_by_person and v_x.person_id is not null and v_x.person_id = v_o.person_id then
+    v_old_person := v_x.person_id;
+    update rally100.entries set person_id = null where id = v_x.id;
+    delete from rally100.person_identifiers i
+     where i.person_id = v_old_person
+       and ((i.kind = 'phone' and i.value = v_x.phone) or (i.kind = 'handle' and i.value = v_hx))
+       and not exists (select 1 from rally100.entries e
+                        where e.person_id = v_old_person and e.id <> v_x.id
+                          and ((i.kind = 'phone' and e.phone = i.value)
+                               or (i.kind = 'handle'
+                                   and rally100._handle_key(e.platform, e.handle, e.other_app) = i.value)));
+    perform rally100._audit(v_me.id, v_me.team_id, 'person', v_old_person, 'entry_unlinked',
+                            pg_catalog.jsonb_build_object('entry_id', v_x.id));
   end if;
   update rally100.entries
      set kept_with = case when v_o.id = any (kept_with) then kept_with else kept_with || v_o.id end,
@@ -2476,6 +2798,9 @@ begin
     perform rally100._deny('not_found');
   end if;
   if v_x.removed_at is not null then
+    if rally100._list_full(v_me.id, false) then
+      perform rally100._fail('list_full');
+    end if;
     update rally100.entries set removed_at = null, updated_at = pg_catalog.clock_timestamp()
      where id = p_entry;
     perform rally100._audit(v_me.id, v_me.team_id, 'entry', p_entry, 'entry_restored', '{}'::pg_catalog.jsonb);
@@ -2541,13 +2866,12 @@ begin
   values (v_x.person_id, v_me.id, v_x.id, 'planned')
   on conflict (person_id, rep_id) do nothing;
   if found then
-    perform rally100._audit(v_me.id, v_me.team_id, 'person', v_x.person_id, 'intro_planned', '{}'::pg_catalog.jsonb);
+    perform rally100._audit(v_me.id, v_me.team_id, 'person', v_x.person_id, 'intro_planned',
+                            pg_catalog.jsonb_build_object('from_stage', v_p.stage));
   end if;
   if v_p.stage = 'added' then
     update rally100.persons set stage = 'intro_planned', updated_at = pg_catalog.clock_timestamp()
      where id = v_p.id;
-    perform rally100._audit(v_me.id, v_me.team_id, 'person', v_p.id, 'stage',
-                            pg_catalog.jsonb_build_object('from', 'added', 'to', 'intro_planned'));
   end if;
   return pg_catalog.jsonb_build_object('intro', rally100._intro_obj(v_x.id, v_me.id));
 end $$;
@@ -2620,7 +2944,13 @@ begin
   return pg_catalog.jsonb_build_object('intro', rally100._intro_obj(v_x.id, v_me.id));
 end $$;
 
--- Follow up later, by the rep, only before the leader owns the stage.
+/* Follow up later, by the rep, on THEIR OWN introduction (planned or
+   recorded; blueprint: "on their own introductions before handoff"), so it
+   lives on their own intro card; only on a contact that is theirs to hand
+   over (complete and counted); and only before the leader owns the stage. On
+   a shared Person, once another rep has recorded an introduction the
+   follow-up is theirs and the leaders': a rep who has not recorded one of
+   their own cannot park a Person that another rep is working (stage_locked). */
 create function rally100.set_follow_up(p_entry uuid, p_date date, p_note text default null)
 returns jsonb
 language plpgsql
@@ -2633,25 +2963,23 @@ declare
   v_p    rally100.persons%rowtype;
   v_note pg_catalog.text;
 begin
-  select * into v_x from rally100.entries where id = p_entry;
-  if not found or v_x.rep_id <> v_me.id or v_x.merged_into is not null then
-    perform rally100._deny('not_found');
-  end if;
-  if v_x.removed_at is not null then
-    perform rally100._fail('entry_removed');
-  end if;
-  if v_x.person_id is null then
-    perform rally100._fail('entry_not_complete');
-  end if;
+  perform rally100._lock_rep(v_me.id);
+  v_x := rally100._intro_entry(v_me, p_entry);
   select * into v_p from rally100.persons where id = v_x.person_id for update;
-  if v_p.outcome = 'do_not_contact' then
-    perform rally100._fail('do_not_contact');
-  end if;
   if v_p.outcome = 'not_interested' then
     perform rally100._fail('outcome_locked');
   end if;
   if rally100._stage_ix(v_p.stage) > rally100._stage_ix('introduced') then
     perform rally100._fail('stage_locked');
+  end if;
+  if exists (select 1 from rally100.introductions i
+              where i.person_id = v_p.id and i.rep_id <> v_me.id and i.status = 'introduced')
+     and not exists (select 1 from rally100.introductions i
+                      where i.person_id = v_p.id and i.rep_id = v_me.id and i.status = 'introduced') then
+    perform rally100._fail('stage_locked');
+  end if;
+  if not exists (select 1 from rally100.introductions i where i.person_id = v_p.id and i.rep_id = v_me.id) then
+    perform rally100._fail('intro_required');
   end if;
   if p_date is null then
     perform rally100._fail('date_required');
@@ -2661,7 +2989,7 @@ begin
      set outcome = 'follow_up', outcome_date = p_date, outcome_note = v_note,
          updated_at = pg_catalog.clock_timestamp()
    where id = v_p.id;
-  perform rally100._audit(v_me.id, v_me.team_id, 'person', v_p.id, 'outcome',
+  perform rally100._audit(v_me.id, v_me.team_id, 'person', v_p.id, 'follow_up',
                           pg_catalog.jsonb_build_object('from', v_p.outcome, 'to', 'follow_up', 'date', p_date));
   return pg_catalog.jsonb_build_object('intro', rally100._intro_obj(v_x.id, v_me.id));
 end $$;
@@ -2753,10 +3081,97 @@ begin
       'matches', pg_catalog.jsonb_array_length(v_q -> 'matches')));
 end $$;
 
+/* Which audit rows a Person's history shows a leader. Things a REP does
+   (create the Person through their entry, plan or record an introduction,
+   message their leader, set a follow-up, leave a Person) are shown only when
+   that rep is in the caller's scope, WHATEVER the actor's role: a leader
+   building their own list is acting as a rep. Leadership actions are shown
+   with the leader's name; anything else by someone out of scope is not shown.
+   The owner sees every row. */
+create function rally100._history_visible(p_me public.profiles, p_actor uuid, p_action text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if p_me.role = 'owner' or p_actor is null or rally100._rep_in_scope(p_me, p_actor) then
+    return true;
+  end if;
+  if p_action in ('person_created', 'intro_planned', 'intro_recorded', 'message', 'follow_up',
+                  'entry_unlinked', 'reward_created') then
+    return false;
+  end if;
+  return exists (select 1 from public.profiles o
+                  where o.id = p_actor and o.role in ('leader', 'manager', 'owner'));
+end $$;
+
+/* What an audit row's detail shows a leader: an ALLOWLIST per action, so a
+   new detail key is hidden until someone decides it may be shown. Keys that
+   name a rep are kept only when that rep is in the caller's scope; the next
+   action's text only for the team that runs the Person; and the owner-only
+   facts (internal reversal and credit-correction reasons, payment method and
+   reference) never. The owner sees every row as written. */
+create function rally100._history_detail(p_me public.profiles, p_action text, p_detail jsonb, p_controls boolean)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_keys pg_catalog.text[];
+  v_out  pg_catalog.jsonb := '{}';
+  k      pg_catalog.text;
+begin
+  if p_me.role = 'owner' then
+    return coalesce(p_detail, '{}'::pg_catalog.jsonb);
+  end if;
+  v_keys := case p_action
+    when 'stage'                 then array['from', 'to', 'date', 'note']
+    when 'intro_planned'         then array['from_stage']
+    when 'intro_recorded'        then array['channel', 'said', 'from_stage']
+    when 'intro_received'        then array['rep_id']
+    when 'follow_up'             then array['from', 'to', 'date']
+    when 'outcome'               then array['from', 'to', 'date', 'note']
+    when 'meeting'               then array['at', 'how', 'from_stage']
+    when 'requirement_confirmed' then array['req', 'event_date', 'note']
+    when 'requirement_unticked'  then array['req', 'reason']
+    when 'set_interest'          then array['from', 'to']
+    when 'next_action'           then case when p_controls then array['text', 'date', 'owner'] end
+    when 'messages_read'         then array['count']
+    when 'person_merged'         then array['merged']
+    when 'reward_created'        then array['kind']
+    when 'reward_ready'          then array['rep_id']
+    when 'approve'               then array['note']
+    when 'needs_correction'      then array['note']
+    when 'resolve_correction'    then array['note']
+    when 'pay_issued'            then array['paid_on']
+    when 'reverse'               then array['rep_reason']
+    when 'correct_credit'        then array['from_rep', 'to_rep']
+  end::pg_catalog.text[];
+  foreach k in array coalesce(v_keys, '{}'::pg_catalog.text[]) loop
+    if p_detail ? k then
+      if k in ('rep_id', 'from_rep', 'to_rep', 'owner') then
+        if (p_detail ->> k) ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+           and rally100._rep_in_scope(p_me, (p_detail ->> k)::pg_catalog.uuid) then
+          v_out := v_out || pg_catalog.jsonb_build_object(k, p_detail -> k);
+        end if;
+      else
+        v_out := v_out || pg_catalog.jsonb_build_object(k, p_detail -> k);
+      end if;
+    end if;
+  end loop;
+  return v_out;
+end $$;
+
 /* Everything a leader's Person panel shows. A rep outside the caller's scope
-   is "A rep on another team": no name, no id, no tags, no dates. History is
+   is "A rep on another team": no name, no id, no tags, no dates. The reward
+   is null when it is not the caller's (rally100._reward_json). History is
    the audit trail of this Person (and of anything merged into it) and of its
-   referral record, newest first. */
+   referral record, newest first, filtered by rally100._history_visible and
+   cut to each action's allowlisted keys by rally100._history_detail. */
 create function rally100.person_detail(p_person uuid)
 returns jsonb
 language plpgsql
@@ -2768,15 +3183,19 @@ declare
   v_me  public.profiles := rally100._caller();
   v_fam pg_catalog.uuid[];
   v_rw  rally100.rewards%rowtype;
+  v_rws boolean;
+  v_ctl boolean;
 begin
   perform rally100._require_leader(v_me);
   if not rally100._person_in_scope(v_me, p_person) then
     perform rally100._deny('not_found');
   end if;
   v_fam := rally100._family(p_person);
+  v_ctl := rally100._controls(v_me, p_person);
   select * into v_rw from rally100.rewards r where r.kind = 'referral' and r.person_id = p_person;
+  v_rws := v_rw.id is not null and rally100._reward_in_scope(v_me, v_rw);
   return pg_catalog.jsonb_build_object(
-    'person', rally100._person_json(p_person),
+    'person', rally100._person_json(p_person, v_me),
     'entries', (select coalesce(pg_catalog.jsonb_agg(
                          case when rally100._rep_in_scope(v_me, e.rep_id) then
                            pg_catalog.jsonb_build_object(
@@ -2804,34 +3223,17 @@ begin
                           order by m.created_at desc, m.id), '[]'::pg_catalog.jsonb)
                    from rally100.messages m
                   where m.person_id = any (v_fam) and rally100._rep_in_scope(v_me, m.rep_id)),
-    /* A leader's history leaves out what reps on other teams did (the
-       blueprint's "no name, tags or date" for them), strips the id of an
-       out-of-scope credited rep from the server's own entries, and never
-       carries the owner's internal reversal reason. The owner sees every row
-       as written. */
     'history', (select coalesce(pg_catalog.jsonb_agg(h.obj order by h.id desc), '[]'::pg_catalog.jsonb)
                   from (select a.id, pg_catalog.jsonb_build_object(
                                  'at', a.created_at,
                                  'actor_name', case when a.actor is null then 'RALLY'
                                                     else rally100._name(a.actor) end,
                                  'action', a.action,
-                                 'detail', case
-                                   when v_me.role = 'owner' then a.detail
-                                   else (case
-                                           when a.detail ? 'rep_id'
-                                                and (a.detail ->> 'rep_id') ~ '^[0-9a-f-]{36}$'
-                                                and not rally100._rep_in_scope(v_me, (a.detail ->> 'rep_id')::pg_catalog.uuid)
-                                             then a.detail - 'rep_id' - 'basis'
-                                           else a.detail end)
-                                        - case when a.action in ('reverse', 'close_unpaid') then 'reason' else '' end
-                                   end) as obj
+                                 'detail', rally100._history_detail(v_me, a.action, a.detail, v_ctl)) as obj
                           from rally100.audit a
                          where ((a.entity = 'person' and a.entity_id = any (v_fam))
-                                or (a.entity = 'reward' and v_rw.id is not null and a.entity_id = v_rw.id))
-                           and (v_me.role = 'owner' or a.actor is null
-                                or rally100._rep_in_scope(v_me, a.actor)
-                                or exists (select 1 from public.profiles o where o.id = a.actor
-                                            and o.role in ('leader', 'manager', 'owner')))
+                                or (a.entity = 'reward' and v_rws and a.entity_id = v_rw.id))
+                           and rally100._history_visible(v_me, a.actor, a.action)
                          order by a.id desc
                          limit 100) h));
 end $$;
@@ -2913,6 +3315,7 @@ declare
 begin
   perform rally100._require_leader(v_me);
   v_p := rally100._person_for_write(v_me, p_person);
+  perform rally100._require_control(v_me, p_person);
   v_to := rally100._stage_ix(p_stage);
   if v_to is null then
     perform rally100._fail('invalid_stage');
@@ -2920,7 +3323,7 @@ begin
   v_note := rally100._text(p_note, 1000);
   v_from := rally100._stage_ix(v_p.stage);
   if v_to = v_from then
-    return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person));
+    return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person, v_me));
   end if;
   if v_to > v_from and v_to < rally100._stage_ix('meeting_scheduled') then
     perform rally100._fail('invalid_stage');
@@ -2931,7 +3334,7 @@ begin
   update rally100.persons set stage = p_stage, updated_at = pg_catalog.clock_timestamp() where id = p_person;
   perform rally100._audit(v_me.id, v_me.team_id, 'person', p_person, 'stage',
                           pg_catalog.jsonb_build_object('from', v_p.stage, 'to', p_stage, 'date', p_date, 'note', v_note));
-  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person));
+  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person, v_me));
 end $$;
 
 create function rally100.schedule_meeting(p_person uuid, p_at timestamptz, p_how text default null,
@@ -2949,6 +3352,7 @@ declare
 begin
   perform rally100._require_leader(v_me);
   v_p := rally100._person_for_write(v_me, p_person);
+  perform rally100._require_control(v_me, p_person);
   if p_at is null then
     perform rally100._fail('date_required');
   end if;
@@ -2962,7 +3366,7 @@ begin
    where id = p_person;
   perform rally100._audit(v_me.id, v_me.team_id, 'person', p_person, 'meeting',
                           pg_catalog.jsonb_build_object('at', p_at, 'how', v_how, 'from_stage', v_p.stage));
-  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person));
+  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person, v_me));
 end $$;
 
 /* RULES 9 AND 10. Each requirement is confirmed on its own, by a named
@@ -2972,7 +3376,16 @@ end $$;
    record then carries no_intro for the owner). Unticking needs a reason, is
    refused once the reward is approved or paid (only an owner reversal applies
    then), and otherwise returns the reward to In progress with the credit
-   cleared. */
+   cleared.
+
+   Only the team that runs the Person may change its requirements
+   (rally100._require_control), and never a leader who recorded an
+   introduction of this Person themselves: the person who stands to be
+   credited does not confirm their own referral (self_involved).
+
+   THE REWARD ROW IS LOCKED FIRST, before anything is read: an approval holds
+   the same lock, so an untick and an approval can never both pass their
+   checks against the same moment. */
 create function rally100.set_requirement(p_person uuid, p_req integer, p_confirmed boolean,
                                          p_event_date date default null, p_note text default null,
                                          p_start_date date default null, p_travel_note text default null,
@@ -2985,16 +3398,20 @@ as $$
 declare
   v_me     public.profiles := rally100._caller();
   v_p      rally100.persons%rowtype;
+  v_rw     rally100.rewards%rowtype;
   v_had    boolean;
-  v_status pg_catalog.text;
   v_note   pg_catalog.text;
   v_start  pg_catalog.date;
   v_travel pg_catalog.text;
   v_na     boolean;
-  v_rw     rally100.rewards%rowtype;
 begin
   perform rally100._require_leader(v_me);
   v_p := rally100._person_for_write(v_me, p_person);
+  perform rally100._require_control(v_me, p_person);
+  if exists (select 1 from rally100.introductions i
+              where i.person_id = p_person and i.rep_id = v_me.id and i.status = 'introduced') then
+    perform rally100._deny('self_involved');
+  end if;
   if p_req is null or p_req not between 1 and 4 then
     perform rally100._fail('invalid_req');
   end if;
@@ -3002,13 +3419,13 @@ begin
     perform rally100._fail('invalid_payload');
   end if;
   v_note := rally100._text(p_note, 1000);
+  select * into v_rw from rally100.rewards r where r.kind = 'referral' and r.person_id = p_person for update;
   select coalesce(r.confirmed, false) into v_had from rally100.requirements r
    where r.person_id = p_person and r.req = p_req for update;
   v_had := coalesce(v_had, false);
-  select r.status into v_status from rally100.rewards r where r.kind = 'referral' and r.person_id = p_person;
 
   if p_confirmed then
-    if v_had and v_status in ('approved', 'paid') then
+    if v_had and v_rw.status in ('approved', 'paid') then
       null;   -- already confirmed on a locked record: nothing to change
     else
       if p_req = 4 then
@@ -3039,7 +3456,7 @@ begin
       perform rally100._referral_eval(p_person, v_me.id);
     end if;
   elsif v_had then
-    if v_status in ('approved', 'paid') then
+    if v_rw.status in ('approved', 'paid') then
       perform rally100._fail('locked_reward');
     end if;
     if v_note = '' then
@@ -3056,16 +3473,18 @@ begin
 
   select * into v_rw from rally100.rewards r where r.kind = 'referral' and r.person_id = p_person;
   return pg_catalog.jsonb_build_object(
-    'person', rally100._person_json(p_person),
+    'person', rally100._person_json(p_person, v_me),
     'requirements', rally100._reqs_json(p_person, true),
     'reward', rally100._reward_json(v_rw, v_me));
 end $$;
 
 /* Outcomes sit beside the stage. Follow up later needs a date, Not interested
    a note (and records the interest), Do not contact nothing — honouring it
-   matters more than explaining it. Clearing (or replacing) Do not contact is
-   the owner's alone. Setting or clearing it moves the count of every rep who
-   has this Person, so their count-driven effects are settled here. */
+   matters more than explaining it, so ANY leader with the Person in scope may
+   set it. Every other outcome change belongs to the team that runs the
+   Person. Clearing (or replacing) Do not contact is the owner's alone.
+   Setting or clearing it moves the count of every rep who has this Person,
+   so their count-driven effects are settled here. */
 create function rally100.set_outcome(p_person uuid, p_outcome text, p_date date default null,
                                      p_note text default null)
 returns jsonb
@@ -3085,6 +3504,9 @@ begin
   end if;
   if v_p.outcome = 'do_not_contact' and p_outcome is distinct from 'do_not_contact' and v_me.role <> 'owner' then
     perform rally100._deny('owner_only');
+  end if;
+  if p_outcome is distinct from 'do_not_contact' then
+    perform rally100._require_control(v_me, p_person);
   end if;
   v_note := rally100._text(p_note, 1000);
   if p_outcome = 'follow_up' and p_date is null then
@@ -3111,7 +3533,7 @@ begin
   if (v_p.outcome = 'do_not_contact') is distinct from (p_outcome = 'do_not_contact') then
     perform rally100._settle_person_reps(p_person);
   end if;
-  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person));
+  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person, v_me));
 end $$;
 
 create function rally100.set_interest(p_person uuid, p_interest text)
@@ -3126,6 +3548,7 @@ declare
 begin
   perform rally100._require_leader(v_me);
   v_p := rally100._person_for_write(v_me, p_person);
+  perform rally100._require_control(v_me, p_person);
   if p_interest is null or p_interest not in ('unknown', 'interested', 'maybe', 'not_interested') then
     perform rally100._fail('invalid_interest');
   end if;
@@ -3150,6 +3573,7 @@ declare
 begin
   perform rally100._require_leader(v_me);
   v_p := rally100._person_for_write(v_me, p_person);
+  perform rally100._require_control(v_me, p_person);
   v_text := rally100._text(p_text, 200);
   if p_owner is not null and not rally100._rep_in_scope(v_me, p_owner) then
     perform rally100._deny('not_found');
@@ -3212,44 +3636,70 @@ begin
   return pg_catalog.jsonb_build_object('ok', true);
 end $$;
 
--- The walkthrough: the rep's whole list, and a sample of 3 to 5 counted
--- entries that stays the same all (org) day, so a refresh does not reshuffle
--- the leader's questions mid-conversation.
+/* The walkthrough: the rep's whole list, and — once their List Completion
+   reward is ready (or back from needs_correction) — the spot-check SAMPLE:
+   up to 5 counted entries drawn by the server with real randomness and kept
+   (rally100.spot_samples), so every call during one walkthrough shows the
+   same entries until a spot-check is recorded, and a rep cannot steer which
+   contacts are checked. A sample in which fewer than 3 entries still count is
+   redrawn. Without such a reward the sample is empty. This function writes
+   (the first draw), so it is VOLATILE. */
 create function rally100.rep_list(p_rep uuid)
 returns jsonb
 language plpgsql
-stable
 security definer
 set search_path = ''
 as $$
 declare
   v_me public.profiles := rally100._caller();
   v_c  record;
+  v_r  rally100.rewards%rowtype;
+  v_s  rally100.spot_samples%rowtype;
+  v_sample pg_catalog.jsonb := '[]';
 begin
   perform rally100._require_leader(v_me);
   if not rally100._rep_in_scope(v_me, p_rep) then
     perform rally100._deny('not_found');
+  end if;
+  select * into v_r from rally100.rewards r
+   where r.kind = 'list' and r.rep_id = p_rep and r.status in ('ready', 'needs_correction')
+     and r.reversed_at is null
+   for update;
+  if found then
+    v_s := rally100._current_sample(v_r.id);
+    if v_s.id is null
+       or (select pg_catalog.count(*) from pg_catalog.unnest(v_s.entry_ids) x where rally100._is_counted(x)) < 3 then
+      insert into rally100.spot_samples (reward_id, rep_id, entry_ids, drawn_by)
+      values (v_r.id, p_rep,
+              array(select e.id from rally100.entries e
+                     where e.rep_id = p_rep and rally100._is_counted(e.id)
+                     order by pg_catalog.gen_random_uuid()
+                     limit 5),
+              v_me.id)
+      returning * into v_s;
+      perform rally100._audit(v_me.id, v_me.team_id, 'reward', v_r.id, 'sample_drawn',
+                              pg_catalog.jsonb_build_object('sample_id', v_s.id, 'size',
+                                                            pg_catalog.cardinality(v_s.entry_ids)));
+    end if;
+    select coalesce(pg_catalog.jsonb_agg(rally100._entry_json(e)
+                                         order by pg_catalog.array_position(v_s.entry_ids, e.id)),
+                    '[]'::pg_catalog.jsonb)
+      into v_sample
+      from rally100.entries e where e.id = any (v_s.entry_ids);
   end if;
   select * into v_c from rally100._rep_counts(p_rep);
   return pg_catalog.jsonb_build_object(
     'rep', pg_catalog.jsonb_build_object('id', p_rep, 'name', rally100._name(p_rep)),
     'count', v_c.o_count,
     'entries', rally100._entries_json(p_rep),
-    'sample', (select coalesce(pg_catalog.jsonb_agg(rally100._entry_json(s.e) order by s.k), '[]'::pg_catalog.jsonb)
-                 from (select e, pg_catalog.md5(e.id::pg_catalog.text || rally100._today()::pg_catalog.text) as k
-                         from rally100.entries e
-                         left join rally100.persons p on p.id = e.person_id
-                        where e.rep_id = p_rep and e.is_complete and e.removed_at is null
-                          and e.held_of is null and e.merged_into is null
-                          and coalesce(p.outcome, '') <> 'do_not_contact'
-                        order by 2
-                        limit 5) s));
+    'sample', v_sample);
 end $$;
 
-/* The walkthrough spot-check, for a List Completion reward: 3 to 5 of that
-   rep's counted entries, each looks_real / unclear / not_real. looks_real
-   writes the entry's verified mark. The newest spot-check is the one the
-   reward points at; earlier ones stay in the table as history. */
+/* The walkthrough spot-check, for a List Completion reward: 3 to 5 entries
+   OF THE CURRENT SAMPLE (rep_list draws it; no_sample if none is open), each
+   still counted, each looks_real / unclear / not_real. looks_real writes the
+   entry's verified mark. Rule 12 applies as for any review action. The newest
+   spot-check is the one the reward points at; using a sample closes it. */
 create function rally100.record_spot_check(p_reward uuid, p_results jsonb, p_note text default null)
 returns jsonb
 language plpgsql
@@ -3259,6 +3709,7 @@ as $$
 declare
   v_me   public.profiles := rally100._caller();
   v_r    rally100.rewards%rowtype;
+  v_s    rally100.spot_samples%rowtype;
   v_note pg_catalog.text;
   v_res  pg_catalog.jsonb := '[]';
   v_seen pg_catalog.uuid[] := '{}';
@@ -3274,14 +3725,16 @@ begin
   if v_r.kind <> 'list' then
     perform rally100._fail('not_list_reward');
   end if;
-  if v_r.rep_id = v_me.id then
-    perform rally100._deny('self_involved');
-  end if;
+  perform rally100._review_guard(v_me, v_r);
   if v_r.reversed_at is not null then
     perform rally100._fail('reward_reversed');
   end if;
   if v_r.status not in ('ready', 'needs_correction') then
     perform rally100._fail('not_ready');
+  end if;
+  v_s := rally100._current_sample(v_r.id);
+  if v_s.id is null then
+    perform rally100._fail('no_sample');
   end if;
   v_note := rally100._text(p_note, 1000);
   if p_results is null or pg_catalog.jsonb_typeof(p_results) <> 'array'
@@ -3297,10 +3750,7 @@ begin
       perform rally100._fail('invalid_result');
     end if;
     v_eid := (x ->> 'entry_id')::pg_catalog.uuid;
-    if v_eid = any (v_seen) or not exists (
-         select 1 from rally100.entries e left join rally100.persons p on p.id = e.person_id
-          where e.id = v_eid and e.rep_id = v_r.rep_id and e.is_complete and e.removed_at is null
-            and e.held_of is null and e.merged_into is null and coalesce(p.outcome, '') <> 'do_not_contact') then
+    if v_eid = any (v_seen) or not (v_eid = any (v_s.entry_ids)) or not rally100._is_counted(v_eid) then
       perform rally100._fail('spot_check_entry');
     end if;
     v_seen := v_seen || v_eid;
@@ -3316,7 +3766,7 @@ begin
                    where y ->> 'result' = 'looks_real');
   perform rally100._reward_event(v_r.id, 'spot_check', v_r.status, v_r.status, v_me.id, v_note);
   perform rally100._audit(v_me.id, v_me.team_id, 'reward', v_r.id, 'spot_check',
-                          pg_catalog.jsonb_build_object('spot_check_id', v_sc, 'results', v_res));
+                          pg_catalog.jsonb_build_object('spot_check_id', v_sc, 'sample_id', v_s.id, 'results', v_res));
   select * into v_r from rally100.rewards where id = p_reward;
   return pg_catalog.jsonb_build_object('reward', rally100._reward_json(v_r, v_me));
 end $$;
@@ -3341,6 +3791,12 @@ begin
   end if;
 end $$;
 
+/* Approve or return a reward. Approval is the moment money is promised, so
+   every condition is re-asserted UNDER THE ROW LOCK (taken after the rep's
+   closure lock, the order close_rep_unpaid uses): a list reward needs a count
+   of 100 or more and a recorded spot-check; a referral needs its credited rep
+   AND all four requirements confirmed right now, whatever its status says;
+   and nothing is approved for a rep who has been closed (rep_closed). */
 create function rally100.review_reward(p_reward uuid, p_action text, p_note text default null)
 returns jsonb
 language plpgsql
@@ -3354,12 +3810,19 @@ declare
   v_count integer;
 begin
   perform rally100._require_leader(v_me);
-  select * into v_r from rally100.rewards where id = p_reward for update;
+  select * into v_r from rally100.rewards where id = p_reward;
   if not found or not rally100._reward_in_scope(v_me, v_r) then
     perform rally100._deny('not_found');
   end if;
   if p_action is null or p_action not in ('approve', 'needs_correction') then
     perform rally100._fail('invalid_action');
+  end if;
+  if v_r.rep_id is not null then
+    perform rally100._lock_close(v_r.rep_id);
+  end if;
+  select * into v_r from rally100.rewards where id = p_reward for update;
+  if not rally100._reward_in_scope(v_me, v_r) then
+    perform rally100._deny('not_found');
   end if;
   perform rally100._review_guard(v_me, v_r);
   if v_r.reversed_at is not null then
@@ -3374,6 +3837,9 @@ begin
     if v_r.status <> 'ready' then
       perform rally100._fail('not_ready');
     end if;
+    if rally100._rep_closed(v_r.rep_id) then
+      perform rally100._fail('rep_closed');
+    end if;
     if v_r.kind = 'list' then
       select c.o_count into v_count from rally100._rep_counts(v_r.rep_id) c;
       if v_count < 100 then
@@ -3383,8 +3849,13 @@ begin
         perform rally100._fail('spot_check_required');
       end if;
     end if;
-    if v_r.kind = 'referral' and v_r.rep_id is null then
-      perform rally100._fail('no_credited_rep');
+    if v_r.kind = 'referral' then
+      if v_r.rep_id is null then
+        perform rally100._fail('no_credited_rep');
+      end if;
+      if rally100._confirmed_count(v_r.person_id) < 4 then
+        perform rally100._fail('not_ready');
+      end if;
     end if;
     update rally100.rewards
        set status = 'approved', approved_by = v_me.id, approved_at = pg_catalog.clock_timestamp(),
@@ -3413,7 +3884,8 @@ begin
   return pg_catalog.jsonb_build_object('reward', rally100._reward_json(v_r, v_me));
 end $$;
 
--- needs_correction back to ready: by whoever raised it, or the owner
+-- needs_correction back to ready: by whoever raised it, or the owner; a
+-- reversed record is history and does not move
 create function rally100.resolve_correction(p_reward uuid, p_note text default null)
 returns jsonb
 language plpgsql
@@ -3429,6 +3901,9 @@ begin
   select * into v_r from rally100.rewards where id = p_reward for update;
   if not found or not rally100._reward_in_scope(v_me, v_r) then
     perform rally100._deny('not_found');
+  end if;
+  if v_r.reversed_at is not null then
+    perform rally100._fail('reward_reversed');
   end if;
   v_note := rally100._text(p_note, 1000);
   if v_r.status = 'ready' then
@@ -3620,10 +4095,16 @@ begin
   return pg_catalog.jsonb_build_object('ok', true);
 end $$;
 
-/* An incentive award is its own reward record, created already Approved
-   (the award IS the approval), for the incentive's prize amount at the
-   moment of the award. Rule 12 applies: nobody awards themselves. */
-create function rally100.award_incentive(p_incentive uuid, p_rep uuid, p_note text)
+/* An incentive award is its own reward record, created already Approved (the
+   award IS the approval), for the incentive's prize amount at the moment of
+   the award. Awarding the same incentive to the same rep again is allowed
+   (weekly prizes), so a retry cannot be told from a second award by its
+   content: the client sends p_request, a UUID it generates once per award,
+   which becomes the reward's id. A retry with the same p_request answers with
+   the award already made and creates nothing; a p_request already used for
+   anything else is refused (request_reused). Rule 12 applies, and nothing is
+   awarded to a closed rep (rep_closed). */
+create function rally100.award_incentive(p_incentive uuid, p_rep uuid, p_note text, p_request uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -3637,6 +4118,9 @@ declare
   v_r    rally100.rewards%rowtype;
 begin
   perform rally100._require_leader(v_me);
+  if p_request is null then
+    perform rally100._fail('request_required');
+  end if;
   select * into v_i from rally100.incentives where id = p_incentive;
   if not found then
     perform rally100._deny('not_found');
@@ -3654,6 +4138,18 @@ begin
   if v_me.role <> 'owner' and exists (select 1 from public.profiles o where o.id = p_rep and o.role = 'owner') then
     perform rally100._deny('owner_only');
   end if;
+
+  perform rally100._lock_close(p_rep);
+  select * into v_r from rally100.rewards where id = p_request;
+  if found then
+    if v_r.kind = 'incentive' and v_r.incentive_id = p_incentive and v_r.rep_id = p_rep then
+      return pg_catalog.jsonb_build_object('reward', rally100._reward_json(v_r, v_me));
+    end if;
+    perform rally100._fail('request_reused');
+  end if;
+  if rally100._rep_closed(p_rep) then
+    perform rally100._fail('rep_closed');
+  end if;
   if v_i.status <> 'published' then
     perform rally100._fail('not_published');
   end if;
@@ -3661,9 +4157,10 @@ begin
   if v_note = '' then
     perform rally100._fail('note_required');
   end if;
-  insert into rally100.rewards (kind, team_id, rep_id, incentive_id, amount_cents, status,
+  insert into rally100.rewards (id, kind, team_id, rep_id, incentive_id, amount_cents, status,
                                 approved_by, approved_at)
-  values ('incentive', v_team, p_rep, v_i.id, v_i.prize_cents, 'approved', v_me.id, pg_catalog.clock_timestamp())
+  values (p_request, 'incentive', v_team, p_rep, v_i.id, v_i.prize_cents, 'approved', v_me.id,
+          pg_catalog.clock_timestamp())
   returning * into v_r;
   perform rally100._reward_event(v_r.id, 'award', null, 'approved', v_me.id, v_note);
   perform rally100._audit(v_me.id, v_me.team_id, 'reward', v_r.id, 'award',
@@ -3805,7 +4302,9 @@ end $$;
 /* "Pay issued" is a bookkeeping fact the owner records after paying outside
    the app: only from Approved, once, with a date and a method note. A second
    call is refused with already_paid rather than silently accepted, so a
-   double tap can never look like a second payment. */
+   double tap can never look like a second payment. It takes the rep's closure
+   lock and then the row lock, so it cannot interleave with close_rep_unpaid:
+   whichever commits second sees the other's result. */
 create function rally100.mark_pay_issued(p_reward uuid, p_paid_on date, p_method text,
                                          p_reference text default null)
 returns jsonb
@@ -3820,10 +4319,14 @@ declare
   v_ref    pg_catalog.text;
 begin
   perform rally100._require_owner(v_me);
-  select * into v_r from rally100.rewards where id = p_reward for update;
+  select * into v_r from rally100.rewards where id = p_reward;
   if not found then
     perform rally100._deny('not_found');
   end if;
+  if v_r.rep_id is not null then
+    perform rally100._lock_close(v_r.rep_id);
+  end if;
+  select * into v_r from rally100.rewards where id = p_reward for update;
   if v_r.status = 'paid' then
     perform rally100._fail('already_paid');
   end if;
@@ -3832,6 +4335,9 @@ begin
   end if;
   if v_r.status <> 'approved' then
     perform rally100._fail('not_approved');
+  end if;
+  if rally100._rep_closed(v_r.rep_id) then
+    perform rally100._fail('rep_closed');
   end if;
   v_method := rally100._text(p_method, 200);
   if v_method = '' then
@@ -3872,8 +4378,7 @@ begin
     perform rally100._fail('reason_required');
   end if;
   v_rep := rally100._text(p_rep_reason, 300);
-  if v_r.reversed_at is null then
-    perform rally100._reverse(v_r.id, v_me.id, v_reason, v_rep, 'reverse');
+  if rally100._reverse(v_r.id, v_me.id, v_reason, v_rep, 'reverse', false) then
     perform rally100._audit(v_me.id, v_me.team_id, 'reward', v_r.id, 'reverse',
                             pg_catalog.jsonb_build_object('reason', v_reason, 'rep_reason', v_rep));
   end if;
@@ -3881,10 +4386,15 @@ begin
   return pg_catalog.jsonb_build_object('reward', rally100._reward_json(v_r, v_me));
 end $$;
 
-/* RULE 13 — a rep who left or did not come out. Every reward of theirs not
-   yet paid is reversed with the internal reason and NO rep-facing reason;
-   paid rewards are untouched. The answer is a number for the owner and
-   nothing else. */
+/* RULE 13 — a rep who left or did not come out. The closure is RECORDED
+   (rally100.rep_closures), so it also governs what comes later: while it is
+   open nothing new is approved or awarded to the rep, and anything credited
+   to them reads rep_closed for leaders and the owner. Every reward of theirs
+   not yet paid is reversed now with the internal reason and NO rep-facing
+   reason; paid rewards are untouched. Each row is locked and re-read before it
+   is reversed, after the rep's closure lock, so a payment or an approval in
+   flight is either finished first (and then seen) or waits and then finds the
+   record closed. The answer is a number for the owner and nothing else. */
 create function rally100.close_rep_unpaid(p_rep uuid, p_reason text)
 returns jsonb
 language plpgsql
@@ -3903,17 +4413,50 @@ begin
   if not exists (select 1 from public.profiles where id = p_rep) then
     perform rally100._deny('not_found');
   end if;
+  perform rally100._lock_close(p_rep);
+  insert into rally100.rep_closures (rep_id, reason, closed_by)
+  values (p_rep, p_reason, v_me.id)
+  on conflict (rep_id) where reopened_at is null do nothing;
   for r in
     select x.id from rally100.rewards x
      where x.rep_id = p_rep and x.status <> 'paid' and x.reversed_at is null
      order by x.created_at, x.id
+     for update
   loop
-    perform rally100._reverse(r.id, v_me.id, p_reason, '', 'close_unpaid');
-    v_n := v_n + 1;
+    if rally100._reverse(r.id, v_me.id, p_reason, '', 'close_unpaid', true) then
+      v_n := v_n + 1;
+    end if;
   end loop;
   perform rally100._audit(v_me.id, v_me.team_id, 'rep', p_rep, 'close_unpaid',
                           pg_catalog.jsonb_build_object('reason', p_reason, 'closed', v_n));
   return pg_catalog.jsonb_build_object('closed', v_n);
+end $$;
+
+/* End a rep's closure for the FUTURE: approvals and awards are possible again
+   and the rep_closed flag goes away. Every reversal close_rep_unpaid made
+   stays exactly as it was. Owner only; reopening a rep who is not closed is a
+   no-op. */
+create function rally100.reopen_rep(p_rep uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_me public.profiles := rally100._caller();
+begin
+  perform rally100._require_owner(v_me);
+  if not exists (select 1 from public.profiles where id = p_rep) then
+    perform rally100._deny('not_found');
+  end if;
+  perform rally100._lock_close(p_rep);
+  update rally100.rep_closures
+     set reopened_at = pg_catalog.clock_timestamp(), reopened_by = v_me.id
+   where rep_id = p_rep and reopened_at is null;
+  if found then
+    perform rally100._audit(v_me.id, v_me.team_id, 'rep', p_rep, 'reopen', '{}'::pg_catalog.jsonb);
+  end if;
+  return pg_catalog.jsonb_build_object('ok', true);
 end $$;
 
 /* The owner's correction when the introduction records were wrong: credit a
@@ -3987,7 +4530,7 @@ begin
                             pg_catalog.jsonb_build_object('from', 'do_not_contact', 'to', null));
     perform rally100._settle_person_reps(p_person);
   end if;
-  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person));
+  return pg_catalog.jsonb_build_object('person', rally100._person_json(p_person, v_me));
 end $$;
 
 /* Create (no id) or update (id) an incentive. Absent keys leave a field
@@ -4125,7 +4668,7 @@ revoke all on schema rally100 from public, anon, authenticated, service_role;
 -- name the functions. It grants no table, no data and no CREATE.
 grant usage on schema rally100 to authenticated;
 
--- The thirty-nine API functions of API.md section 6, and nothing else.
+-- The forty API functions of API.md section 6, and nothing else.
 -- Every helper whose name starts with _ stays executable by its owner only.
 grant execute on function rally100.whoami()                                    to authenticated;
 grant execute on function rally100.accept_ack(integer)                         to authenticated;
@@ -4155,13 +4698,14 @@ grant execute on function rally100.record_spot_check(uuid, jsonb, text)        t
 grant execute on function rally100.review_reward(uuid, text, text)             to authenticated;
 grant execute on function rally100.resolve_correction(uuid, text)              to authenticated;
 grant execute on function rally100.link_persons(uuid, text)                    to authenticated;
-grant execute on function rally100.award_incentive(uuid, uuid, text)           to authenticated;
+grant execute on function rally100.award_incentive(uuid, uuid, text, uuid)     to authenticated;
 grant execute on function rally100.owner_state()                               to authenticated;
 grant execute on function rally100.owner_contacts()                            to authenticated;
 grant execute on function rally100.owner_rewards(text)                         to authenticated;
 grant execute on function rally100.mark_pay_issued(uuid, date, text, text)     to authenticated;
 grant execute on function rally100.reverse_reward(uuid, text, text)            to authenticated;
 grant execute on function rally100.close_rep_unpaid(uuid, text)                to authenticated;
+grant execute on function rally100.reopen_rep(uuid)                            to authenticated;
 grant execute on function rally100.correct_credit(uuid, uuid, text)            to authenticated;
 grant execute on function rally100.clear_dnc(uuid)                             to authenticated;
 grant execute on function rally100.incentive_save(jsonb)                       to authenticated;

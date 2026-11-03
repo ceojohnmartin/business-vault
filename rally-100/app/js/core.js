@@ -130,7 +130,9 @@
     not_approved: 'Approve this reward before marking pay issued.', not_candidate: 'Pick a rep who has this person on their list.',
     invalid_version: 'RALLY 100 was updated. Reload the app and try again.',
     rep_closed: 'The owner closed this rep’s unpaid rewards. Ask the owner.',
-    list_full: 'Your list is full at 500 names. Remove a few you won’t use to add more.'
+    list_full: 'Your list is full at 500 names. Remove a few you won’t use to add more.',
+    no_sample: 'Open the rep’s list first so the spot-check sample is drawn.', intro_required: 'Plan or record your introduction first.',
+    request_reused: 'That was already saved. Reload to see it.'
   };
   R.say = function (code) { return SAY[code] || 'Something went wrong. Try again.'; };
 

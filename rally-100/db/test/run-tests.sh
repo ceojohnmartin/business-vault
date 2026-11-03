@@ -20,6 +20,8 @@
 #      authenticated and service_role before 1001 runs, so every revoke in
 #      the migration is proven to matter rather than passing vacuously.
 #   5. The temp-schema shadow test passes in a fresh session.
+#   6. The two-session races (race-test.sh): an untick and an approval, and a
+#      payment and a leaving-rep closure, can never both win.
 # Any failure exits non-zero.
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -101,8 +103,8 @@ echo "PASS: R.02 ROLLBACK_rally100_v1.sql removes rally100 entirely and leaves R
 $PSQL -d "$DB" -f "$R100/APPLY_rally100_v1.sql" >/dev/null
 F3="$(fp "$DB")"
 N="$($PSQL -At -d "$DB" -c "select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'rally100' and has_function_privilege('authenticated', p.oid, 'execute')")"
-[ "$F0" = "$F3" ] && [ "$N" = "39" ] || { echo "APPLY: FAILED (fingerprint or $N API functions)"; exit 1; }
-echo "PASS: R.03 APPLY_rally100_v1.sql installs the same 39 API functions and also leaves RALLY untouched"
+[ "$F0" = "$F3" ] && [ "$N" = "40" ] || { echo "APPLY: FAILED (fingerprint or $N API functions)"; exit 1; }
+echo "PASS: R.03 APPLY_rally100_v1.sql installs the same 40 API functions and also leaves RALLY untouched"
 if $PSQL -d "$DB" -f "$R100/APPLY_rally100_v1.sql" >/dev/null 2>&1; then
   echo "APPLY: FAILED — a second run should stop at create schema"; exit 1
 fi
@@ -133,7 +135,7 @@ DB=rally100_test
 fresh "$DB"
 # The worst project a migration could land in: every new object handed to
 # every client role by default. 1001 must still leave clients nothing but the
-# 39 doors.
+# 40 doors.
 $PSQL -d "$DB" >/dev/null <<'SQL'
 alter default privileges grant all on tables    to anon, authenticated, service_role;
 alter default privileges grant all on sequences to anon, authenticated, service_role;
@@ -154,6 +156,11 @@ OUT="$(psql -X -v ON_ERROR_STOP=1 -d "$DB" -f "$DIR/shadow-test.sql" 2>&1)" || {
 echo "$OUT" | grep -o "PASS: .*"
 SHADOW_N="$(echo "$OUT" | grep -c "PASS: ")"
 
-TOTAL=$((SUITE_N + SHADOW_N + 4))
-echo "RALLY 100: ALL GREEN ($TOTAL checks: $SUITE_N suite + $SHADOW_N shadow + 4 install/rollback)"
+# ----------------------------------------------- 6. the races
+OUT="$(sh "$DIR/race-test.sh" "$DB" 2>&1)" || { echo "$OUT" | tail -5; echo "RALLY 100 races: FAILED"; exit 1; }
+echo "$OUT" | grep -o "PASS: .*"
+RACE_N="$(echo "$OUT" | grep -c "PASS: ")"
+
+TOTAL=$((SUITE_N + SHADOW_N + RACE_N + 4))
+echo "RALLY 100: ALL GREEN ($TOTAL checks: $SUITE_N suite + $SHADOW_N shadow + $RACE_N race + 4 install/rollback)"
 echo "RALLY:     ALL GREEN ($RALLY_N rls-test.sql checks on the combined database)"

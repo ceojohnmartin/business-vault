@@ -1,1 +1,157 @@
-/* RALLY 100: leader and owner screen styles (owned by the leader and owner build). */
+/* RALLY 100: Leader Workspace and Owner Dashboard styles. Builds on app.css (tbl, stats, cols, queue, card,
+   chip, btn, field, sheet and the wide side rail). Same black field; RALLY green only for wins (confirmed
+   requirements, approved and paid rewards). Every state also reads as text. Classes used inside sheets are
+   unscoped because sheets attach to <body>, outside the screen. */
+
+/* frame: on wide screens the side rail must not cover the top bar (brand at top left); on phones the
+   owner's six tabs share the bottom bar without clipping the last one */
+@media (min-width:900px){body.wide .top{z-index:26}}
+@media (max-width:899px){
+  body.wide .nav-in{grid-auto-columns:minmax(0,1fr)}
+  body.wide .nav button{min-width:0;letter-spacing:.02em}
+  body.wide .nav button>span:not(.badge){max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  body.wide .nav-in:has(>button:nth-child(5)) button{text-transform:none;letter-spacing:0;font-size:10px;padding:0 2px}
+}
+
+/* screen frame */
+.lw{gap:18px}
+.lw .cols{grid-template-columns:minmax(0,1fr)}
+.lw .cols>*{min-width:0}
+@media (min-width:900px){.lw .cols.two{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}}
+.lw .between{flex-wrap:wrap}
+.lw h1{overflow-wrap:anywhere}
+.lw-col{gap:16px}
+.lw-wait{min-height:30vh}
+.lw-head{display:flex;flex-direction:column;gap:8px;min-width:0}
+.lw-back{margin:-6px 0 -10px}
+.lw-back .link{min-height:36px;color:var(--muted);text-decoration:none;font-size:14px;padding:0}
+.lw-back .link:hover{color:var(--fg)}
+.lw-empty{align-items:flex-start}
+.lw .stack>.btn.auto,.lw form>.btn.auto{align-self:flex-start}
+@media (max-width:599px){
+  .lw .stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .lw .stat{padding:10px 12px}
+  .lw .stat b{font-size:22px}
+  .lw .stat span{font-size:12px;line-height:1.25;display:block}
+}
+
+/* queue */
+.lw-top{display:flex;flex-direction:column;gap:10px}
+.lw-sum{font-size:17px;font-weight:600}
+.lw-next{position:sticky;bottom:calc(72px + env(safe-area-inset-bottom,0px));z-index:5}
+.lw-next .btn{display:block;line-height:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.55)}
+@media (min-width:900px){
+  .lw-top{order:-2}
+  .lw-next{position:static;order:-1;align-self:flex-start;max-width:100%}
+  .lw-next .btn{width:auto;box-shadow:none;padding:0 22px}
+}
+.lw .qitem .qtop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.lw .qitem .nm{font-weight:700;font-size:16px;overflow-wrap:anywhere;min-width:0}
+.lw .qitem .meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.lw .qitem .chips{gap:6px}
+.lw .qitem:hover{border-color:var(--line2)}
+.lw .qitem.static{cursor:default}
+.lw .qitem.static:hover{border-color:var(--line)}
+.lw .qitem .link,.lw-ent .link,.lw .tbl .link{min-height:0;padding:2px 0;text-align:left}
+.lw .qitem .lw-btns{margin-top:4px}
+
+/* shared blocks (also inside sheets) */
+.lw-msg{white-space:pre-wrap;overflow-wrap:anywhere}
+.lw-btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.lw-btns .btn{width:auto}
+.lw-btns.lw-nowrap{flex-wrap:nowrap}
+.lw-warn{color:var(--alert)}
+.lw-hint{color:var(--muted)}
+.lw-hint:empty{display:none}
+.lw-kv{display:grid;grid-template-columns:minmax(84px,max-content) minmax(0,1fr);gap:8px 14px;margin:0;font-size:15px}
+.lw-kv dt{color:var(--muted);font-size:13px;font-weight:700;padding-top:2px}
+.lw-kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.lw-radios{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;min-width:0}
+.lw-radios legend{padding:0;margin-bottom:6px}
+.lw-radios .lbl{font-size:13px;font-weight:700;letter-spacing:.04em;color:var(--muted)}
+
+/* person */
+.lw-req{display:flex;gap:12px;align-items:flex-start;border-top:1px solid var(--line);padding-top:12px}
+.lw-req .ck{margin-top:2px}
+.lw-req .btn{flex:none}
+.lw-rq{font-weight:700}
+.lw-note,.lw-ent{display:flex;flex-direction:column;gap:4px;border-top:1px solid var(--line);padding-top:10px;min-width:0}
+.lw-ent .lw-btns{margin-top:4px}
+.lw-paid{display:flex;gap:12px;align-items:center}
+.lw-hist summary{cursor:pointer;font-weight:800;font-size:17px;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:32px}
+.lw-hist summary::-webkit-details-marker{display:none}
+.lw-hist summary::after{content:"+";color:var(--muted);font-weight:700;font-size:20px}
+.lw-hist[open] summary::after{content:"\2013"}
+.lw-hist[open] summary{margin-bottom:6px}
+.lw-hrow{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding:8px 0}
+.lw-hrow b{color:var(--fg);font-weight:600}
+
+/* reps and the walkthrough */
+.lw-mini{display:block;width:72px;height:4px;margin-top:6px;border-radius:4px;background:var(--surface3);overflow:hidden}
+.lw-mini i{display:block;height:100%;background:#fff;border-radius:4px}
+.lw-th{background:none;border:0;padding:0;font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer;white-space:nowrap}
+.lw-th:hover{color:var(--fg)}
+.lw-sec{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.lw-sc{display:flex;flex-direction:column;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--surface2);min-width:0;overflow-wrap:anywhere}
+.lw-sc .cbtn{min-height:44px}
+.lw .tbl td .chips{gap:6px}
+.lw .tbl td{white-space:nowrap}
+.lw .tbl td.lw-wrap{white-space:normal;min-width:140px;max-width:280px;overflow-wrap:anywhere}
+.lw .tbl td .btn{white-space:nowrap}
+
+/* on phones the action tables (rewards, unpaid by rep) stack each row into a card, so status and the buttons
+   stay on screen instead of behind a sideways scroll */
+@media (max-width:699px){
+  .lw-stackwrap{overflow:visible;border:0;border-radius:0}
+  .tbl.lw-stack thead{display:none}
+  .tbl.lw-stack,.tbl.lw-stack tbody,.tbl.lw-stack tr{display:block;width:100%}
+  .tbl.lw-stack tr{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+  .tbl.lw-stack td{display:block;border:0;padding:3px 0;white-space:normal}
+  .tbl.lw-stack td[data-label]::before{content:attr(data-label) " ";color:var(--dim);font-size:12px;font-weight:700;letter-spacing:.04em}
+  .tbl.lw-stack td .lw-btns{margin-top:6px}
+  .tbl.lw-stack td .lw-btns.lw-nowrap{flex-wrap:wrap}
+  .lw .tbl.lw-stack td .btn{white-space:normal;max-width:100%;text-align:left;line-height:1.25;padding-block:6px}
+}
+
+/* dashboard */
+.lw-tiles .stat b{font-variant-numeric:normal;font-weight:800}
+.lw-rrows{display:flex;flex-direction:column}
+.lw-rrow{display:grid;grid-template-columns:minmax(0,1fr) 4ch minmax(0,1.1fr);gap:12px;align-items:center;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--line);padding:12px 6px;min-height:48px;border-radius:8px}
+.lw-rrow:first-child{border-top:0}
+.lw-rrow:hover{background:var(--surface2)}
+.lw-rrow .n{font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+.lw-rrow .amt{text-align:right;font-variant-numeric:tabular-nums;font-size:14px}
+.lw-funnel{display:flex;flex-direction:column;gap:8px}
+.lw-fr{display:grid;grid-template-columns:minmax(96px,36%) minmax(0,1fr) 5ch;gap:10px;align-items:center;font-size:14px}
+.lw-fr .lb{color:var(--muted);overflow-wrap:anywhere}
+.lw-fr .bar{display:block;height:14px;border-left:1px solid var(--line2)}
+.lw-fr .bar i{display:block;height:100%;background:#D9DCE3;border-radius:0 4px 4px 0}
+.lw-fr .n{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.lw-su{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:10px;min-width:0}
+.lw-su .between{align-items:flex-start;flex-wrap:nowrap}
+.lw-su .grow{overflow-wrap:anywhere}
+.lw-su .btn{flex:none}
+.lw-sql{display:block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;color:var(--muted);background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;overflow-wrap:anywhere;word-break:break-all;-webkit-user-select:all;user-select:all}
+
+/* contacts */
+.lw-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}
+.lw-filters .lw-fq{grid-column:1/-1}
+@media (min-width:900px){.lw-filters{grid-template-columns:minmax(0,2fr) repeat(4,minmax(0,1fr))}.lw-filters .lw-fq{grid-column:auto}}
+.lw-filters .field select{min-height:48px;font-size:15px;padding:10px 32px 10px 12px}
+
+/* incentives */
+.lw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px}
+.lw-inc{display:flex;gap:12px;align-items:center;min-width:0}
+.lw-inc img,.lw-inc .ph{width:64px;height:64px;border-radius:12px;object-fit:cover;flex:none;background:var(--surface2);border:1px solid var(--line)}
+.lw-inc .grow{min-width:0;overflow-wrap:anywhere}
+.lw-ed{max-width:640px;position:relative}
+.lw-file{width:1px;height:1px;min-height:0;padding:0;border:0;opacity:0;left:0;top:0;pointer-events:none}
+.lw-thumbs{display:flex;flex-wrap:wrap;gap:10px}
+.lw-thumb{position:relative;width:104px;height:104px;border-radius:12px;overflow:hidden;border:1px solid var(--line2);background:var(--surface2);flex:none}
+.lw-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.lw-tb{position:absolute;border:1px solid var(--line2);background:rgba(10,10,11,.82);color:var(--fg);font-weight:700;border-radius:999px}
+.lw-x{top:4px;right:4px;width:32px;height:32px;font-size:18px;line-height:1;padding:0}
+.lw-mk{left:4px;bottom:4px;font-size:11px;padding:4px 8px;letter-spacing:.04em}
+.lw-cover{position:absolute;left:4px;bottom:4px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;background:#fff;color:#0A0A0B;border-radius:999px;padding:3px 8px}
+.lw-add{display:flex;align-items:center;justify-content:center;padding:8px;color:var(--muted);font-weight:700;font-size:14px;border-style:dashed;text-align:center}
+.lw-add:hover{color:var(--fg);border-color:var(--fg)}

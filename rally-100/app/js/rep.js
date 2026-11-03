@@ -63,7 +63,7 @@
   function sentence(s) { s = trim(s); return s && !/[.!?]$/.test(s) ? s + '.' : s; }
   function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
   function setText(id, t) { var el = document.getElementById(id); if (el) el.textContent = t || ''; }
-  function amount(r) { return R.money(r && r.amount_cents != null ? r.amount_cents : 10000); }   /* list and referral rewards are $100 by rule */
+  function amount(r) { return r && r.amount_cents != null ? R.money(r.amount_cents) : ''; }   /* the server's figure, never a guess */
   function stampImg() { return '<img class="stamp" src="' + R.PANTHER + '" alt="RALLY panther stamp">'; }
   function coverOf(x) {
     var p = x && Array.isArray(x.pictures) ? x.pictures[0] : null;
@@ -73,12 +73,20 @@
   /* intros */
   function introList() { var d = D(); return ((d && d.intros) || []).filter(Boolean); }
   function introFor(id) { var a = introList(); for (var i = 0; i < a.length; i++) if (a[i].entry_id === id) return a[i]; return null; }
-  function introByPerson(pid) { var a = introList(); for (var i = 0; i < a.length; i++) if (pid && a[i].person_id === pid) return a[i]; return null; }
   function myIntro(i) { return !!(i && (i.status === 'planned' || i.status === 'introduced')); }
-  function onBoard(i) { return !!(i && (myIntro(i) || i.outcome)); }
-  /* on the board, the next move is the rep's, and a follow-up is due (Follow up later waits for its date) */
+  function onBoard(i) { return !!(i && (myIntro(i) || i.outcome)); }      /* intro cards are the rep's own introductions */
+  /* the referral went to another rep: the card carries only this rep's own facts (API 6.2) */
+  function elsewhere(i) { return !!(i && i.credited === 'other'); }
+  function early(i) { var s = i && i.stage; return !s || s === 'added' || s === 'intro_planned' || s === 'introduced'; }
+  /* a Follow up later the rep set on their own card is theirs again on its date */
+  function followUpDue(i) { return !!(i && !elsewhere(i) && i.outcome === 'follow_up' && early(i) && (!i.outcome_date || i.outcome_date <= R.today())); }
+  /* waiting on the rep: the server names them as the next step, or their own follow-up is due */
   function waiting() {
-    return introList().filter(function (i) { return onBoard(i) && i.next && i.next.who === 'you' && !(i.outcome === 'follow_up' && i.outcome_date && i.outcome_date > R.today()); });
+    return introList().filter(function (i) {
+      if (!onBoard(i) || elsewhere(i)) return false;
+      if (i.outcome === 'follow_up') return followUpDue(i);
+      return !!(i.next && i.next.who === 'you');
+    });
   }
   function readyList() {
     return live().filter(function (e) { return lit(e) && !e.dnc && !onBoard(introFor(e.id)); })
@@ -91,12 +99,7 @@
     return ((x && x.requirements) || []).filter(function (r) { return r.confirmed; }).length;
   }
   function hasReqs(i) { return !!(i && Array.isArray(i.requirements) && i.requirements.length); }
-  /* once the referral is credited to another rep, this rep sees that line only: never the Person's later
-     stage, checks or status (blueprint, "Who sees a referral row"); rep_state names such rows by name only */
-  function creditedElsewhere(i) {
-    var d = D(), n = trim(i && i.name).toLowerCase();
-    return !!(n && d && d.referrals.some(function (x) { return x && x.credited === 'other' && trim(x.name).toLowerCase() === n; }));
-  }
+  var OTHER_SHORT = 'The referral reward went to another rep who introduced them first.';
   function otherLine(i) { var f = firstOf(i); return 'Another rep who also knows ' + f + ' introduced them first, so the referral reward goes to them. ' + f + ' still counts toward your 100. Questions? Ask your leader.'; }
   function dncLine(f) { return 'Do not contact. The RALLY team won’t reach out to ' + f + ', so they no longer count toward your 100.'; }
 
@@ -191,12 +194,12 @@
       next[id] = r.status;
       var was = seen && seen[id];
       if (quiet) return;
-      if (r.status === 'approved' && was !== 'approved' && was !== 'paid') R.celebrate({ stamp: true, title: 'Approved by your leader', sub: label + ' · ' + amt + ' · Pending pay' });
+      if (r.status === 'approved' && was !== 'approved' && was !== 'paid') R.celebrate({ stamp: true, title: 'Approved by your leader', sub: label + (amt ? ' · ' + amt : '') + ' · Pending pay' });
       else if (r.status === 'paid' && was !== 'paid') R.celebrate({ check: true, title: 'Pay issued', sub: label + ' · ' + R.date(r.paid_on) });
     }
     look('list', d.list_reward, 'List reward', amount(d.list_reward));
     d.referrals.forEach(function (x) { if (x.credited === 'me') look('ref:' + x.person_id, x, trim(x.name) || 'Referral reward', amount(x)); });
-    d.awards.forEach(function (a) { look('award:' + a.id, a, trim(a.name) || 'Incentive', R.money(a.amount_cents)); });
+    d.awards.forEach(function (a) { look('award:' + a.id, a, trim(a.name) || 'Incentive', amount(a)); });
     R.store.set(k, next);
   }
   function noticeChanges(prev, d) {
@@ -321,10 +324,19 @@
     var d = D();
     if (loading) again = true;
     if (err) {
+      /* the core already said why (list_full: "Your list is full at 500 names..."); take back what the phone showed */
       if (d && p) {
         var e = byId(p.id);
-        if (e && e._local && !e._acked) d.entries.splice(d.entries.indexOf(e), 1);    /* the server never had it */
+        if (e && e._local && !e._acked) d.entries.splice(d.entries.indexOf(e), 1);    /* the server never had it: the tile goes */
         else if (e) e._pending = R.outbox.pending(e.id);
+      }
+      if (sp && p) {
+        var k = sp.ids.indexOf(p.id);
+        if (k >= 0) {
+          sp.ids.splice(k, 1); sp.names.splice(k, 1);
+          if (sp.savedId === p.id) { sp.saved = ''; sp.savedId = null; setText('spSaved', ''); }
+          if (err.code === 'list_full') { sp.hint = R.say('list_full'); setText('spHint', sp.hint); }
+        }
       }
       dirty = true; R.data.repAt = 0;
       refreshView();
@@ -439,9 +451,12 @@
   }
   function reqRows(list) {
     return '<div class="checks">' + [1, 2, 3, 4].map(function (n) {
-      var r = reqOf(list, n) || {}, on = !!r.confirmed;
-      return '<div><span class="ck' + (on ? ' on' : '') + '">' + (on ? R.ICON.check : '') + '</span><span>' + esc(R.REQ_LABEL[n]) +
-        (on ? ' <span class="dim">· Confirmed' + (r.by_name ? ' by ' + esc(r.by_name) : '') + (r.event_date ? ', ' + esc(R.date(r.event_date)) : '') + '</span>' : ' <span class="dim">· Not yet</span>') + '</span></div>';
+      var r = reqOf(list, n) || {}, on = !!r.confirmed, noTravel = on && n === 4 && r.travel_na === true;
+      var who = (r.by_name ? esc(r.by_name) : '') + (r.event_date ? (r.by_name ? ', ' : '') + esc(R.date(r.event_date)) : '');
+      return '<div><span class="ck' + (on ? ' on' : '') + '">' + (on ? R.ICON.check : '') + '</span><span>' +
+        (noTravel ? 'Start date confirmed. No travel needed.' + (who ? ' <span class="dim">· ' + who + '</span>' : '')
+          : esc(R.REQ_LABEL[n]) + (on ? ' <span class="dim">· Confirmed' + (r.by_name ? ' by ' + esc(r.by_name) : '') + (r.event_date ? ', ' + esc(R.date(r.event_date)) : '') + '</span>' : ' <span class="dim">· Not yet</span>')) +
+        '</span></div>';
     }).join('') + '</div>';
   }
   function stageChip(i) {
@@ -472,6 +487,30 @@
     var who = trim(n.name) || leaderName(i) || 'your leader';
     return sentence('Next: ' + who + (LEADER_PHRASES[t.toLowerCase()] ? ' ' : ', ') + t);
   }
+  /* the rep's own record: their date (as they gave it) and how they made the introduction */
+  var CHANNEL = { text: 'by text', call: 'by call', in_person: 'in person' };
+  var SAID_LABEL = {};
+  SAID.forEach(function (c) { SAID_LABEL[c[0]] = c[1]; });
+  function ownRecord(i) {
+    if (!i || i.status !== 'introduced') return 'Introduction planned.';
+    var when = i.intro_date || i.recorded_at;
+    return 'Introduced' + (when ? ' on ' + R.date(when) : '') + (CHANNEL[i.channel] ? ' ' + CHANNEL[i.channel] : '') + '.';
+  }
+  function saidLine(i, f) { return i && SAID_LABEL[i.said] ? 'What ' + f + ' said: ' + SAID_LABEL[i.said] + '.' : ''; }
+  /* one line for a card: never a later step than the server reports, and never a stale one */
+  function introLine(i) {
+    var f = firstOf(i);
+    if (elsewhere(i)) return OTHER_SHORT;
+    if (i.outcome === 'follow_up') return followUpDue(i) ? 'Next: you, check back with ' + f + '.' : introStatus(i, f);
+    if (i.outcome) return introStatus(i, f);
+    return nextLine(i) || 'Nothing needed from you.';
+  }
+  /* the card's status and its one line, without saying the same thing twice */
+  function introSummary(i) {
+    if (elsewhere(i)) return ownRecord(i) + ' ' + otherLine(i);
+    var st = introStatus(i, firstOf(i)), line = introLine(i);
+    return line === st ? st : st + ' ' + line;
+  }
   function introStatus(i, f) {
     var L = leaderName(i) || 'your leader';
     if (i.outcome === 'do_not_contact') return dncLine(f);
@@ -479,7 +518,7 @@
     if (i.outcome === 'follow_up') return 'Follow up with ' + f + (i.outcome_date ? ' on ' + R.date(i.outcome_date) : '') + '.';
     var s = i.stage === 'added' && i.status === 'planned' ? 'intro_planned' : i.stage;
     if (s === 'intro_planned') return 'Introduction planned.';
-    if (s === 'introduced') return 'Introduced' + (i.recorded_at ? ' on ' + R.date(i.recorded_at) : '') + '.' + (i.received ? ' ' + L + ' has it.' : ' Nothing needed from you right now.');
+    if (s === 'introduced') return ownRecord(i) + (i.received ? ' ' + L + ' has it.' : '');
     if (s === 'meeting_scheduled') return 'Meeting with ' + L + (i.meeting_at ? ': ' + R.dateTime(i.meeting_at) : '') + '.';
     return (R.STAGE_LABEL[s] || 'Added') + '.';
   }
@@ -547,9 +586,10 @@
     var c = d.count || 0, r = d.list_reward;
     if (!r) return Math.min(c, 100) + '/100 contacts complete. Complete your 100 list to qualify for the $100 completion reward.';
     if (r.reversed) return 'List reward: Reversed.' + (trim(r.rep_reason) ? ' Reason: ' + sentence(r.rep_reason) : '');
-    if (r.status === 'paid') return 'List reward: ' + amount(r) + '. Pay issued ' + R.date(r.paid_on) + '.';
-    if (r.status === 'approved') return 'List reward: ' + amount(r) + ' · Pending pay. Nothing needed from you. RALLY pays you directly and marks it Pay issued here.';
-    if (r.status === 'needs_correction') return 'List reward: Needs correction. Your leader will go over what to fix with you. Nothing was lost.';
+    var a = amount(r);
+    if (r.status === 'paid') return 'List reward: ' + (a ? a + '. ' : '') + 'Pay issued ' + R.date(r.paid_on) + '.';
+    if (r.status === 'approved') return 'List reward: ' + (a ? a + ' · ' : '') + 'Pending pay. Nothing needed from you. RALLY pays you directly and marks it Pay issued here.';
+    if (r.status === 'needs_correction') return 'List reward: Needs correction. ' + (trim(r.correction_note) ? sentence(r.correction_note) : 'Your leader will go over what to fix with you. Nothing was lost.');
     if (r.status === 'ready' && r.hold) return Math.min(c, 100) + '/100. List reward: Ready for review, on hold until you’re back at 100. Nothing was lost.';
     if (r.status === 'ready') return '100/100 complete. Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!';
     return Math.min(c, 100) + '/100 contacts complete. Complete your 100 list to qualify for the $100 completion reward.';
@@ -557,8 +597,9 @@
   function stripHTML(d) {
     var c = d.count || 0, r = d.list_reward, open = ' data-a="tab" data-k="rewards" role="button" tabindex="0"';
     if (r && r.reversed) return '<div class="strip"' + open + '><div>' + esc(listLine(d)) + '</div></div>';
-    if (r && r.status === 'paid') return '<div class="strip win"' + open + '>' + stampImg() + '<div><b>List reward: ' + esc(amount(r)) + '.</b> Pay issued ' + esc(R.date(r.paid_on)) + '.</div></div>';
-    if (r && r.status === 'approved') return '<div class="strip win"' + open + '>' + stampImg() + '<div><b>List reward: ' + esc(amount(r)) + ' · Pending pay.</b> Nothing needed from you. RALLY pays you directly and marks it Pay issued here.</div></div>';
+    var a = amount(r);
+    if (r && r.status === 'paid') return '<div class="strip win"' + open + '>' + stampImg() + '<div><b>List reward' + (a ? ': ' + esc(a) : '') + '.</b> Pay issued ' + esc(R.date(r.paid_on)) + '.</div></div>';
+    if (r && r.status === 'approved') return '<div class="strip win"' + open + '>' + stampImg() + '<div><b>List reward: ' + (a ? esc(a) + ' · ' : '') + 'Pending pay.</b> Nothing needed from you. RALLY pays you directly and marks it Pay issued here.</div></div>';
     if (r && r.status === 'ready' && !r.hold) return '<div class="strip win"' + open + '><div><b>100/100 complete.</b> Congratulations! Show this to your leader and walk through your list and signed friends together to confirm your prize!</div></div>';
     if (r && (r.status === 'ready' || r.status === 'needs_correction')) return '<div class="strip"' + open + '><div>' + esc(listLine(d)) + '</div></div>';
     var syncing = all().filter(function (e) { return e._pending && lit(e); }).length;
@@ -579,9 +620,8 @@
     if (!board.length) return '';
     var w = waiting();
     var rows = (w.length ? w : board).slice(0, 3).map(function (i) {
-      var other = creditedElsewhere(i);
-      return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i)) + '</span><span class="chip">' + esc(other ? 'Introduced' : stageChip(i)) + '</span></span>' +
-        '<span class="small muted">' + esc(other ? 'The referral reward went to another rep who introduced them first.' : (nextLine(i) || introStatus(i, firstOf(i)))) + '</span></button>';
+      return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i)) + '</span><span class="chip">' + esc(stageChip(i)) + '</span></span>' +
+        '<span class="small muted">' + esc(introLine(i)) + '</span></button>';
     }).join('');
     return '<section class="card flat"><div class="between"><span class="caps">Intro Board' + (w.length ? ' · ' + w.length + ' waiting on you' : '') + '</span><button class="link small" data-a="tab" data-k="intros">See all intros</button></div>' + rows + '</section>';
   }
@@ -762,7 +802,7 @@
       if (!D()) { R.data.rep = skeleton(); overlay(R.data.rep); ensure(); }
       if (!sp || sp.p !== p) {
         stopSprint();
-        sp = { p: p, sid: p.sid, mode: p.mode === 'free' ? 'free' : 'timed', left: p.mode === 'free' ? null : 60, names: [], timer: null, pinned: null, chips: null,
+        sp = { p: p, sid: p.sid, mode: p.mode === 'free' ? 'free' : 'timed', left: p.mode === 'free' ? null : 60, names: [], ids: [], timer: null, pinned: null, chips: null,
           rung: 0, cue: '', paused: false, idle: null, ended: false, sheetOpen: false, text: '', saved: '', hint: '' };
         R.store.set(key('last_scene'), p.sid);
         if (sp.mode === 'timed') sp.timer = setInterval(tick, 1000);
@@ -860,13 +900,13 @@
     localApply(p);
     fx.drafted[p.id] = true;
     R.outbox.add(p);
-    sp.names.push(v);
+    sp.names.push(v); sp.ids.push(p.id);
     R.store.set(key('sprinted'), true);
     if (sp.names.length >= 10) awardBadge('sprinter');
     sp.chips = nameChips(first, sp.sid);
     sp.pinned = null;
     spUpdate(); spChipsRender(); renderPinned();
-    sp.saved = '✓ ' + v + ' saved as a draft';
+    sp.saved = '✓ ' + v + ' saved as a draft'; sp.savedId = p.id;
     setText('spSaved', sp.saved);
     var inp = document.getElementById('spInput');
     if (inp) { inp.classList.add('flash'); setTimeout(function () { inp.classList.remove('flash'); }, 150); }
@@ -928,8 +968,8 @@
       '<input id="' + id + '" type="' + (type === 'tel' ? 'tel' : 'text') + '"' + (type === 'tel' ? ' inputmode="tel"' : ' autocapitalize="words"') + ' autocomplete="off" maxlength="' + (type === 'tel' ? 24 : (id === 'fOther' ? 40 : 60)) + '" value="' + esc(value) + '" placeholder="' + esc(ph) + '">' +
       (extra || '') + '<div class="err" id="e' + id.slice(1) + '" aria-live="polite"></div></div>';
   }
-  /* why an entry is held: 'phone' (only then can it be "Different people"), 'both', 'handle', or 'person'
-     (the server linked both entries to the same Person) */
+  /* why an entry is held: 'phone', 'both' (phone and handle), 'handle', or 'person' (another rep's identifiers
+     joined both entries to one Person). "Different people" works for 'phone' and 'person'; a handle match is fixed. */
   function heldBy(e) {
     var o = byId(e.held_of);
     if (!o) return e._heldBy || (R.phoneOk(e.phone) ? 'phone' : 'handle');
@@ -943,8 +983,8 @@
     var o = byId(e.held_of), on = e.held_of_name || (o ? nameOf(o) : 'This contact'), by = heldBy(e);
     return '<div class="banner" role="alert"><div>Looks like <b>' + esc(on) + '</b> is already on your Wall' + SAME[by] + '. Same person?</div>' +
       '<div class="row"><button type="button" class="btn sm primary" data-a="dup-same" data-id="' + esc(e.id) + '">Same person</button>' +
-      (by === 'phone' ? '<button type="button" class="btn sm" data-a="dup-diff" data-id="' + esc(e.id) + '">Different people</button>'
-        : '<button type="button" class="btn sm" data-a="dup-fix" data-id="' + esc(e.id) + '">' + (by === 'person' ? 'Fix the details' : 'Fix the handle') + '</button>') + '</div>' +
+      (by === 'phone' || by === 'person' ? '<button type="button" class="btn sm" data-a="dup-diff" data-id="' + esc(e.id) + '">Different people</button>'
+        : '<button type="button" class="btn sm" data-a="dup-fix" data-id="' + esc(e.id) + '">Fix the handle</button>') + '</div>' +
       '<p class="small muted">Your first ' + esc(trim(on).split(' ')[0]) + ' still counts. This one won’t until you pick.</p></div>';
   }
   function formHTML(e, mode, p) {
@@ -1115,7 +1155,7 @@
   function introSection(e) {
     if (gone(e) || e.dnc || held(e)) return '';
     var i = introFor(e.id), f = firstOf(e);
-    if (onBoard(i)) return '<section class="card flat"><div class="caps">Introduction</div><p>' + (creditedElsewhere(i) ? esc(otherLine(i)) : esc(introStatus(i, f)) + (nextLine(i) ? ' ' + esc(nextLine(i)) : '')) + '</p><button class="btn sm" data-a="intro-open" data-id="' + esc(e.id) + '">Open on your Intro Board</button></section>';
+    if (onBoard(i)) return '<section class="card flat"><div class="caps">Introduction</div><p>' + esc(introSummary(i)) + '</p><button class="btn sm" data-a="intro-open" data-id="' + esc(e.id) + '">Open on your Intro Board</button></section>';
     if (!lit(e)) return '<section class="card flat"><div class="caps">Introduction</div><p class="muted">Finish this contact to introduce them.</p></section>';
     return '<section class="card flat"><div class="caps">Introduction</div><p class="muted">You make the intro yourself: text, call or in person. RALLY only keeps track.</p><button class="btn sm" data-a="intro-open" data-id="' + esc(e.id) + '">Introduce ' + esc(f) + '</button></section>';
   }
@@ -1326,8 +1366,7 @@
     else if (lit(e)) line = (e.tags && e.tags.length ? e.tags.join(', ') : (sc ? sc.name : ''));
     else if (!e.removed) line = 'Missing: ' + missingOf(e).join(', ');
     else line = '';
-    var rec = !onBoard(i) ? '' : (creditedElsewhere(i) ? '<span class="small"><span class="chip">Introduced</span> The referral reward went to another rep who introduced them first.</span>'
-      : '<span class="small"><span class="chip">' + esc(stageChip(i)) + '</span> ' + esc(nextLine(i)) + '</span>');
+    var rec = onBoard(i) ? '<span class="small"><span class="chip">' + esc(stageChip(i)) + '</span> ' + esc(introLine(i)) + '</span>' : '';
     var sub = 'Added ' + R.date(e.created_at) + (e.kept_with && e.kept_with.length ? ' · Kept both' : '');
     return '<button class="ncard' + (e.dnc ? ' dnc' : '') + '" data-a="net-open" data-id="' + esc(e.id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(e)) + '</span>' + statusChip(e, true) + '</span>' +
       (line ? '<span class="small muted">' + esc(line) + '</span>' : '') + rec + '<span class="small dim">' + esc(sub) + '</span></button>';
@@ -1369,9 +1408,9 @@
 
   /* ============================================================ Introductions =========================== */
   function boardCard(i) {
-    var e = byId(i.entry_id), n = confirmedCount(i), other = creditedElsewhere(i);
-    return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i.name ? i : e)) + '</span><span class="chip">' + esc(other ? 'Introduced' : stageChip(i)) + '</span></span>' +
-      (hasReqs(i) && !other ? '<span class="small">' + n + ' of 4 confirmed</span>' : '') + '<span class="small muted">' + esc(other ? 'The referral reward went to another rep who introduced them first.' : (nextLine(i) || introStatus(i, firstOf(i.name ? i : e)))) + '</span>' +
+    var e = byId(i.entry_id), n = confirmedCount(i);
+    return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i.name ? i : e)) + '</span><span class="chip">' + esc(stageChip(i)) + '</span></span>' +
+      (hasReqs(i) && !elsewhere(i) ? '<span class="small">' + n + ' of 4 confirmed</span>' : '') + '<span class="small muted">' + esc(introLine(i)) + '</span>' +
       (e && e.removed ? '<span class="chips"><span class="chip">Removed from your Wall</span></span>' : '') + '</button>';
   }
   R.screens.intros = {
@@ -1382,7 +1421,7 @@
       if (d._skeleton) return '<main class="rep screen"><h1>Introductions</h1>' + offlineCard('Your Intro Board loads when you’re back online.') + '</main>';
       var board = introList().filter(onBoard), wait = waiting(), ready = readyList();
       var h = '<main class="rep screen"><div><h1>Introductions</h1><p class="muted">Available from your first contact. You don’t need 100 to introduce someone.</p></div>';
-      if (wait.length) h += '<button class="strip tapstrip" data-a="intro-open" data-id="' + esc(wait[0].entry_id) + '"><div><b>' + wait.length + ' waiting on you</b><div class="muted">' + esc(nameOf(wait[0]) + ': ' + (nextLine(wait[0]) || introStatus(wait[0], firstOf(wait[0])))) + '</div></div></button>';
+      if (wait.length) h += '<button class="strip tapstrip" data-a="intro-open" data-id="' + esc(wait[0].entry_id) + '"><div><b>' + wait.length + ' waiting on you</b><div class="muted">' + esc(nameOf(wait[0]) + ': ' + introLine(wait[0])) + '</div></div></button>';
       h += '<p class="small dim">You make the intro yourself: text, call or in person. RALLY only keeps track. Adding someone here never messages them.</p>';
       h += '<section class="stack"><div class="between"><span class="caps">Ready to introduce</span>' + (ready.length ? '<button class="link small" data-a="intro-pick">Search</button>' : '') + '</div>' +
         (ready.length ? '<div class="chips scroll">' + ready.slice(0, 15).map(function (e) { return '<button class="cbtn" data-a="intro-open" data-id="' + esc(e.id) + '">' + esc(nameOf(e)) + '</button>'; }).join('') + '</div>'
@@ -1401,10 +1440,13 @@
     },
     after: function () { ensure(); }
   };
+  /* Follow up later only where set_follow_up accepts it: a complete, counted entry; the rep's own planned or
+     recorded introduction (intro_required) whose referral did not go to another rep; no leader Not interested
+     or Do not contact (outcome_locked); the Person not past Introduced (stage_locked) */
   function canFollowUp(i, e) {
-    if (!e || gone(e) || e.dnc || !e.person_id || (i && (i.outcome === 'do_not_contact' || i.outcome === 'not_interested'))) return false;
-    var s = i && i.stage ? i.stage : 'added';
-    return !myIntro(i) ? lit(e) : (s === 'added' || s === 'intro_planned' || s === 'introduced');
+    if (!e || gone(e) || e.dnc || held(e) || !e.person_id || !lit(e)) return false;
+    if (!myIntro(i) || elsewhere(i) || i.outcome === 'do_not_contact' || i.outcome === 'not_interested') return false;
+    return early(i);
   }
   R.screens.intro = {
     mode: 'rep', nav: 'rep', tab: 'intros',
@@ -1414,13 +1456,14 @@
       var e = byId(p.id), i = introFor(p.id);
       var back = '<div class="between"><button class="link" data-a="tab" data-k="intros">Introductions</button></div>';
       if (!e && !i) return '<main class="rep screen">' + back + (d._skeleton ? offlineCard('This introduction loads when you’re back online.') : '<div class="card"><h2>That introduction isn’t available.</h2></div>') + '</main>';
-      var f = firstOf(e || i), L = leaderName(i), dnc = (e && e.dnc) || (i && i.outcome === 'do_not_contact'), other = !dnc && creditedElsewhere(i);
-      var h = '<main class="rep screen">' + back + '<div class="between"><h1 class="iname">' + esc(nameOf(i && i.name ? i : e)) + '</h1>' + (onBoard(i) ? '<span class="chip">' + esc(other ? 'Introduced' : stageChip(i)) + '</span>' : '') + '</div>';
+      var f = firstOf(e || i), L = leaderName(i), dnc = (e && e.dnc) || (i && i.outcome === 'do_not_contact'), other = !dnc && elsewhere(i);
+      var h = '<main class="rep screen">' + back + '<div class="between"><h1 class="iname">' + esc(nameOf(i && i.name ? i : e)) + '</h1>' + (onBoard(i) ? '<span class="chip">' + esc(stageChip(i)) + '</span>' : '') + '</div>';
       if (e && e.removed) h += '<div class="chips"><span class="chip">Removed from your Wall</span></div>';
       if (dnc) {
         h += '<div class="card"><p>' + esc(dncLine(f)) + '</p><p class="small muted">No introduction actions are available.</p></div>';
       } else if (other) {
-        h += '<div class="card"><p>' + esc(otherLine(i)) + '</p></div>';
+        /* only this rep's own facts: their entry and their introduction, then who got the reward */
+        h += '<div class="card"><p>' + esc(ownRecord(i)) + '</p>' + (saidLine(i, f) ? '<p class="small muted">' + esc(saidLine(i, f)) + '</p>' : '') + '<p>' + esc(otherLine(i)) + '</p></div>';
       } else if (e && held(e)) {
         h += '<div class="card"><p>Sort out the possible duplicate first.</p><button class="btn primary" data-a="net-open" data-id="' + esc(e.id) + '">Open ' + esc(f) + '</button></div>';
       } else if (!onBoard(i)) {
@@ -1431,14 +1474,17 @@
       } else {
         var status = introStatus(i, f), next = nextLine(i);
         if (i.status === 'planned' && i.next && i.next.who === 'you' && !i.outcome) next = 'Next: you, tell ' + f + ' about RALLY and that ' + (L || 'your leader') + ' will text them. Then come back and tap ‘I introduced ' + f + '’.';
-        h += '<div class="card"><p>' + esc(status) + '</p>' + (next ? '<p><b>' + esc(next) + '</b></p>' : '') +
+        if (!next && followUpDue(i)) next = 'Next: you, check back with ' + f + '.';
+        /* no next step from the server (all four confirmed, or an outcome): say so, never a stale step */
+        h += '<div class="card"><p>' + esc(status) + '</p>' + (next ? '<p><b>' + esc(next) + '</b></p>' : (i.outcome ? '' : '<p><b>Nothing needed from you.</b></p>')) +
+          (i.next && i.next.who === 'leader' ? '<p class="small muted">Nothing needed from you right now.</p>' : '') +
           (i.interest && i.interest !== 'unknown' && myIntro(i) ? '<p class="small muted">Interest: ' + esc(R.INTEREST_LABEL[i.interest] || i.interest) + '</p>' : '') +
           (R.STAGES.indexOf(i.stage) >= 3 ? '<p class="small muted">' + esc((L || 'Your leader') + ' runs this from here. You can still fix ' + f + '’s phone, handle, tags and your notes.') + '</p>' : '') + '</div>';
         if (i.status === 'planned' && e && !gone(e)) h += '<button class="btn primary" data-a="ri-open" data-id="' + esc(e.id) + '">I introduced ' + esc(f) + '</button><button class="btn" data-a="copy-msg" data-id="' + esc(p.id) + '">Copy a message</button>';
         if (hasReqs(i)) h += '<section class="card"><div class="caps">' + confirmedCount(i) + ' of 4 confirmed</div>' + reqRows(i.requirements) +
           '<p class="small dim">All 4 need ' + esc(L ? L + '’s' : 'your leader’s') + ' confirmation before your referral reward goes to review.</p></section>';
       }
-      if (!dnc && !other && canFollowUp(i, e)) h += '<button class="btn" data-a="fu-open" data-id="' + esc(p.id) + '">Follow up later</button>';
+      if (!dnc && canFollowUp(i, e)) h += '<button class="btn" data-a="fu-open" data-id="' + esc(p.id) + '">Follow up later</button>';
       if (e && !gone(e) && e.person_id) h += '<button class="btn ghost" data-a="tl-open" data-id="' + esc(p.id) + '">Something wrong? Tell ' + esc(L || 'your leader') + '</button>';
       if (e) h += '<button class="btn ghost" data-a="intro-edit" data-id="' + esc(e.id) + '">Edit ' + esc(f) + '’s contact</button>';
       return h + '</main>';
@@ -1547,12 +1593,13 @@
 
   /* ============================================================ My Rewards ============================== */
   function refRow(x, d) {
-    var name = trim(x.name) || 'Your friend', f = name.split(' ')[0], n = confirmedCount(x), i = introByPerson(x.person_id), L = leaderName(i), txt, stamped = false, checks = true;
-    if (x.credited === 'other') { txt = name + ': Another rep who also knows ' + f + ' introduced them first, so the referral reward goes to them. ' + f + ' still counts toward your 100. Questions? Ask your leader.'; checks = false; }
+    /* rows match the rep's own entry (and its intro card) by entry_id, never by name */
+    var name = trim(x.name) || 'Your friend', n = confirmedCount(x), i = x.entry_id ? introFor(x.entry_id) : null, L = leaderName(i), a = amount(x), txt, stamped = false, checks = true;
+    if (x.credited === 'other') { txt = name + ': ' + otherLine({ name: name }); checks = false; }
     else if (x.reversed) txt = name + ': Referral reward reversed.' + (trim(x.rep_reason) ? ' Reason: ' + sentence(x.rep_reason) : '');
-    else if (x.status === 'paid') { txt = name + ': ' + amount(x) + '. Pay issued ' + R.date(x.paid_on) + '.'; stamped = true; }
-    else if (x.status === 'approved') { txt = name + ': Referral reward ' + amount(x) + ' · Pending pay. Nothing needed from you.'; stamped = true; }
-    else if (x.status === 'needs_correction') txt = name + ': Needs correction. ' + (L ? 'Leader ' + L : 'Your leader') + ' is fixing it. Nothing needed from you.';
+    else if (x.status === 'paid') { txt = name + ': ' + (a ? a + '. ' : '') + 'Pay issued ' + R.date(x.paid_on) + '.'; stamped = true; }
+    else if (x.status === 'approved') { txt = name + ': Referral reward ' + (a ? a + ' · ' : '') + 'Pending pay. Nothing needed from you.'; stamped = true; }
+    else if (x.status === 'needs_correction') txt = name + ': Needs correction. ' + (trim(x.correction_note) ? sentence(x.correction_note) : (L ? 'Leader ' + L : 'Your leader') + ' is fixing it. Nothing needed from you.');
     else if (x.status === 'ready') txt = name + ': 4 of 4 confirmed. Congratulations! Show this to your leader to confirm your prize!';
     else if (i && (i.outcome === 'not_interested' || i.outcome === 'do_not_contact')) txt = name + ': Not moving forward. No referral reward.';
     else if (i && i.outcome === 'follow_up') txt = name + ': On hold. ' + n + ' of 4 confirmed.';
@@ -1571,17 +1618,21 @@
   function awardRow(a) {
     var name = trim(a.name) || 'Incentive', txt, stamped = false;
     if (a.reversed) txt = name + ': Reversed.' + (trim(a.rep_reason) ? ' Reason: ' + sentence(a.rep_reason) : '');
-    else if (a.status === 'paid') { txt = name + ': ' + R.money(a.amount_cents) + '. Pay issued ' + R.date(a.paid_on) + '.'; stamped = true; }
-    else if (a.status === 'approved') { txt = name + ': ' + R.money(a.amount_cents) + ' · Pending pay. Nothing needed from you.'; stamped = true; }
+    else if (a.status === 'paid') { txt = name + ': ' + (amount(a) ? amount(a) + '. ' : '') + 'Pay issued ' + R.date(a.paid_on) + '.'; stamped = true; }
+    else if (a.status === 'approved') { txt = name + ': ' + (amount(a) ? amount(a) + ' · ' : '') + 'Pending pay. Nothing needed from you.'; stamped = true; }
     else txt = name + ': ' + (R.STATUS_LABEL[a.status] || 'In progress') + '.';
     return '<div class="rw-row"><div class="rw-line">' + (stamped ? stampImg() : '') + '<p>' + esc(txt) + '</p></div></div>';
   }
   function totalsHTML(d) {
     var pend = 0, paid = 0;
-    function add(r, cents) { if (!r || r.reversed) return; if (r.status === 'approved') pend += cents; else if (r.status === 'paid') paid += cents; }
-    if (d.list_reward) add(d.list_reward, d.list_reward.amount_cents != null ? d.list_reward.amount_cents : 10000);
-    d.referrals.forEach(function (x) { if (x.credited !== 'other') add(x, x.amount_cents != null ? x.amount_cents : 10000); });
-    d.awards.forEach(function (a) { add(a, Number(a.amount_cents) || 0); });
+    function add(r) {
+      if (!r || r.reversed || r.amount_cents == null) return;
+      var c = Number(r.amount_cents) || 0;
+      if (r.status === 'approved') pend += c; else if (r.status === 'paid') paid += c;
+    }
+    add(d.list_reward);
+    d.referrals.forEach(function (x) { if (x.credited !== 'other') add(x); });
+    d.awards.forEach(add);
     return pend || paid ? '<p class="totals">Pending pay: ' + esc(R.money(pend)) + ' · Pay issued: ' + esc(R.money(paid)) + '</p>' : '';
   }
   R.screens.rewards = {

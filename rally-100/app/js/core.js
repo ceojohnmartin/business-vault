@@ -120,7 +120,15 @@
     note_required: 'Add a short note.', invalid_stage: 'That stage isn’t available.', not_allowed: 'You can’t do that here.',
     name_required: 'Add a name.', prize_required: 'Add the prize amount.', picture_required: 'Add at least one picture to publish.',
     too_many_pictures: 'Use up to 4 pictures.', picture_too_large: 'That picture is too large. Try a smaller one.',
-    not_published: 'That incentive isn’t published.', invalid_status: 'That status isn’t available.'
+    not_published: 'That incentive isn’t published.', invalid_status: 'That status isn’t available.',
+    too_long: 'That’s too long. Shorten it a little.', invalid_platform: 'Pick one of the apps on the list.',
+    not_held: 'That contact isn’t waiting on a duplicate check anymore.', stage_locked: 'Your leader is handling the next steps with this person now.',
+    outcome_locked: 'Your leader already updated this person. Ask your leader.', intro_not_recorded: 'The rep hasn’t recorded this introduction yet.',
+    spot_check_size: 'Mark every contact in the sample first.', spot_check_entry: 'That sample changed. Reload and try again.',
+    reward_reversed: 'This reward was reversed.', match_closed: 'That possible match was already handled.',
+    invalid_prize: 'Enter the prize in dollars, like 50 or 50.00.', invalid_picture: 'That picture couldn’t be used. Try another one.',
+    not_approved: 'Approve this reward before marking pay issued.', not_candidate: 'Pick a rep who has this person on their list.',
+    invalid_version: 'RALLY 100 was updated. Reload the app and try again.'
   };
   R.say = function (code) { return SAY[code] || 'Something went wrong. Try again.'; };
 

@@ -143,3 +143,49 @@ Every function returns `jsonb`. Times are ISO strings; dates `YYYY-MM-DD`; money
 - Wording follows the blueprint. Approved shows "Pending pay"; paid shows "Pay issued" with the date. Money is never shown as earned, partial or pending before approval. Requirement codes never appear on rep screens.
 - Rep writes go through an outbox: `save_entry` calls carry client-generated UUIDs and are replayed in order when the phone is back online. Until the server answers, a new tile shows the syncing state. Server counts always win.
 - The owner's "Mark pay issued" is the only control that moves a reward to Pay issued. Nothing about the leaving-rep rule appears anywhere a rep can see.
+
+## 8. Implementation notes
+
+Decisions taken where this contract was silent or ambiguous, each the reading most consistent with its rules. Implemented in `rally-100/db/migrations/1001_rally100_v1.sql`; tested by `rally-100/db/test/run-tests.sh`.
+
+**Errors.** Every message is exactly `rally100: <token>`. The three identity refusals keep their spelling (`not signed in`, `no team`, `disabled`; checked in that order, so a disabled account without a team hears `disabled`, from `whoami` too).
+- `42501` (authorization): `not signed in`, `no team`, `disabled`, `not_allowed` (a rep calling a leader function; a leader resolving a correction someone else raised), `owner_only` (owner functions; clearing or replacing Do not contact; a leader approving, returning or awarding to an owner), `self_involved`, `not_found`, `append_only`.
+- `not_found` is `42501`, following RALLY's turf functions: an id outside the caller's scope and an id that does not exist get the identical answer, so a guessed UUID learns nothing.
+- `22023` (validation): `invalid_payload`, `invalid_id`, `first_required`, `name_too_long` (first or last over 60, incentive name over 80), `too_long` (any other free text over its limit: notes 2000, handle 100, other_app 40, messages and notes 1000 or 2000, reasons 300 or 1000, method and reference 200, next action 200, meeting how 40), `invalid_phone`, `platform_required`, `invalid_platform`, `other_app_required`, `invalid_tag`, `invalid_scene`, `entry_removed`, `invalid_decision`, `not_held`, `handle_match_needs_fix`, `reason_required`, `note_required`, `date_required`, `entry_not_complete`, `held_duplicate`, `do_not_contact`, `invalid_channel`, `invalid_said`, `stage_locked`, `outcome_locked`, `invalid_badge`, `invalid_version`, `invalid_stage`, `invalid_req`, `start_date_required`, `travel_required`, `locked_reward`, `invalid_outcome`, `invalid_interest`, `intro_not_recorded`, `not_list_reward`, `spot_check_size`, `spot_check_entry`, `invalid_result`, `invalid_action`, `not_ready`, `count_below_100`, `spot_check_required`, `no_credited_rep`, `reward_reversed`, `match_closed`, `both_have_rewards`, `not_published`, `name_required`, `prize_required`, `invalid_prize`, `too_many_pictures`, `picture_too_large`, `invalid_picture`, `picture_required`, `invalid_status`, `not_approved` (mark_pay_issued before approval), `method_required`, `already_paid`, `invalid_reason`, `not_referral`, `not_candidate`.
+
+**Calling.** Trailing optional parameters have `DEFAULT NULL` (notes, dates, reasons, R4 fields, `p_reference`, `p_rep_reason`, `owner_rewards.p_status`), so a client may omit them; PostgREST matches a function by its parameter names, so a misspelled key is a 404. Read functions (`whoami`, `rep_state`, `team_state`, `person_detail`, `rep_list`, `owner_*`) are `STABLE`.
+
+**Entries and XP.**
+- `completed_at` is the first moment the entry COUNTED; it is never cleared. Completion XP (`cc:`, and `ch:` with it, never alone) is granted only then, so remove and restore, Do not contact and its clearing, and blanking then retyping a different phone earn nothing again. Keys stay as rule 7 spells them, so re-adding a removed contact as a new entry also earns nothing.
+- `scene` and `chain_hit` describe how a name was first added: taken on create, ignored on update (otherwise counted names could be walked from Scene to Scene for `sc:` XP).
+- Duplicates are recomputed over the rep's whole live list on every list write (oldest first; an entry is held of the earliest unheld earlier entry it matches), so the result never depends on save order: removing the older releases the newer, restoring it holds the newer again. A third signal is added to phone and handle: two of one rep's entries linked to the same Person (only possible via another rep's identifiers or `link_persons`), because one Person counts once per rep; its `held` effect has `by:'person'`, and "Different people" on it answers `handle_match_needs_fix`.
+- "Different people" needs the same phone AND different handles. The released entry gets its own Person (Persons of its kept-with entries are never link candidates).
+- "Same person": the merge records the survivor's `cc:` key at 0 points. Count-driven effects (milestones, `scene_cleared`, the reader and full badges, the list reward) are evaluated after EVERY write that can move a count, including merges, restores, Do not contact changes and Person merges, because they are keyed to the count, not to the action.
+- `missing` uses the client's labels: `First name`, `Last name`, `Phone`, `Social handle`.
+
+**Persons.** A last-name match needs a non-empty last name; both-signal matches win, then the oldest Person. A `possible_matches` row is written only when a new Person is created. A Person created from a nameless draft takes its name from the first entry that has one. Leaders see a possible match only when both Persons are in their scope; the owner sees all. `link_persons` merges B into A unless only B has a referral reward (the Person with a reward record survives); notes, messages and history stay on the record they were written to and are read through the merge family.
+
+**Scope.** Membership is read live from `profiles.team_id`; `entries.team_id` and `rewards.team_id` are snapshots for history. A leader's Person scope is any Person with an entry by a rep on their team. A leader's `person_detail` history omits other teams' reps' actions, strips an out-of-scope credited rep's id, and never shows the internal reversal reason; its `entries` list live (not removed, not merged) entries.
+
+**Introductions and referrals.**
+- `_intro_entry` order: `entry_not_complete`, then `held_duplicate`, then `do_not_contact`.
+- Before a rep's OWN introduction is recorded, their intro card shows stage `added` (or `intro_planned`), interest `unknown`, no requirements and no meeting; `next.text` is a short phrase (`introduce them`, `schedules the meeting`, `confirms the agreement`, ...), or the leader's next action when its owner is the rep or a leader.
+- "Interest set by a leader" means an audit row `set_interest` exists for the Person; `set_outcome('not_interested')` also sets interest and writes that row (blueprint: "The outcome Not interested also sets it").
+- A requirement confirmation creates the Person's referral record if none exists (blueprint), so a fully confirmed Person with no introduction reaches the owner flagged `no_intro`. `confirm_intro_received` re-applies rule 9 to an In progress record that already has all four confirmations (crediting it and clearing `no_intro`). A credit the owner set with `correct_credit` is kept at the fourth confirmation; any untick clears it.
+- Nobody confirms receipt of their own introduction (`self_involved`).
+- `set_stage`: a leader moves forward only to `meeting_scheduled` or later (`invalid_stage` otherwise), back to any stage with a reason; the same stage is a no-op; `p_date` and the note are kept in the audit row.
+- `set_follow_up` (rep) refuses `do_not_contact`, `outcome_locked` (a leader's Not interested) and `stage_locked` (past `introduced`).
+
+**Rewards.**
+- List and referral rewards are 10000 cents USD; an incentive award is its prize at award time. Totals in `owner_state.rewards` exclude reversed records; clients show money only for approved and paid.
+- Retried approve and needs_correction are no-ops; a reversed record cannot be approved, spot-checked or paid (`reward_reversed`). A spot-check is allowed at `ready` or `needs_correction`, never on your own reward; the newest one is the reward's `spot_check_id`.
+- Re-confirming an already confirmed requirement on an approved or paid reward is a no-op; unticking one is `locked_reward`. `correct_credit` is refused once approved or paid (`locked_reward`; reverse first) and needs a rep with an entry on the Person (`not_candidate`).
+- `mark_pay_issued` with no date records the org's today. `close_rep_unpaid` reverses with the internal reason and `rep_reason = ''`; the rep's read models show such a record as `reversed: true` with an empty reason and never the internal one.
+- `team_state.reps` lists every profile on the team (all roles, disabled ones too) and adds `disabled`; its `list_reward` adds `reversed`. For the owner, `team_state` covers every team. `signed` counts the rep's credited, unreversed referral rewards; `last_activity` is their latest audit row. Any outcome takes a Person out of `new_intros`, `meetings` and `confirmations`.
+- Incentive pictures must be `data:image/jpeg;base64,` strings (raster only); `prize_cents` must be a JSON integer.
+
+**One org day.** "Today" (follow-ups due, the day's stable spot-check sample, default dates) is the date in `America/Chicago`, set in one place, `rally100._today()`. The blueprint recommends an owner "Org timezone" setting; change that one function if the office is elsewhere.
+
+**History.** `audit`, `reward_events`, `xp_events`, `notes` and `spot_checks` refuse UPDATE, DELETE and TRUNCATE by trigger, even from the table owner.
+
+**Not implemented (not in this contract).** Verify flags, reward reinstatement, Person split, leader-to-rep assignment lists, CSV export auditing, proposed-correction handling of phone and handle edits after an introduction.

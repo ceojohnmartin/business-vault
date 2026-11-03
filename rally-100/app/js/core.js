@@ -238,6 +238,12 @@
     app.innerHTML = (scr.bare ? '' : topbar(scr)) + html + (scr.nav ? nav(scr.nav, R.view.name) : '');
     if (scr.after) { try { scr.after(R.view.p || {}); } catch (e) { console.error(e); } }
   };
+  /* Redraw just the top bar (offline and "N to sync" pills) without touching the screen under it. */
+  R.renderTop = function () {
+    var scr = R.screens[R.view.name], old = document.querySelector('#app > header.top');
+    if (!scr || scr.bare || !old) return;
+    var t = document.createElement('div'); t.innerHTML = topbar(scr); old.replaceWith(t.firstChild);
+  };
   R.homeFor = function () { var r = R.role(); return r === 'owner' ? 'own-dash' : (r === 'leader' || r === 'manager') ? 'lead-queue' : 'home'; };
 
   document.addEventListener('click', function (ev) {
@@ -274,16 +280,21 @@
      dead zone is never lost. Items replay in order; a newer save of the same entry folds into the older
      one. Network failures wait and retry; a server "no" drops the item and tells the rep why. */
   R.outbox = (function () {
-    var items = [], busy = false, timer = null, key = null, listeners = [];
-    function persist() { if (key) R.store.set(key, items); }
+    var items = [], busy = false, timer = null, key = null, listeners = [], inflight = null;
+    function persist() { if (key) R.store.set(key, items); R.renderTop(); }
     return {
       bind: function (uid) { key = 'r100_outbox_' + uid; items = R.store.get(key, []) || []; },
+      /* Sign-out: names still queued leave this phone with the account (the rep was warned first). */
+      forget: function () { if (key) { try { localStorage.removeItem(key); } catch (e) {} } items = []; key = null; },
+      items: function () { return items.map(function (it) { return { p: Object.assign({}, it.p), at: it.at }; }); },
       count: function () { return items.length; },
       pending: function (id) { for (var i = 0; i < items.length; i++) if (items[i].p.id === id) return true; return false; },
       onDone: function (fn) { listeners.push(fn); },
       add: function (p) {
+        /* Fold into a queued save of the same entry, but never into the one already on its way: that one
+           leaves the queue when it lands, and a newer edit folded into it would leave with it. */
         for (var i = 0; i < items.length; i++) {
-          if (items[i].p.id === p.id) { Object.assign(items[i].p, p); persist(); this.flush(); return; }
+          if (items[i] !== inflight && items[i].p.id === p.id) { Object.assign(items[i].p, p); persist(); this.flush(); return; }
         }
         items.push({ p: Object.assign({}, p), at: Date.now() }); persist(); this.flush();
       },
@@ -292,8 +303,10 @@
         try {
           while (items.length) {
             var it = items[0], res;
+            inflight = it;
             try { res = await R.cloud.rpc('save_entry', { p: it.p }); }
             catch (e) {
+              inflight = null;
               if (e.kind === 'net') { clearTimeout(timer); timer = setTimeout(function () { R.outbox.flush(); }, 15000); break; }
               /* An expired session is not a "no" about the name: keep it queued for after the rep signs in again. */
               if (e.kind === 'auth') { R.handleError(e); break; }
@@ -302,6 +315,7 @@
               listeners.forEach(function (fn) { try { fn(null, it.p, e); } catch (x) {} });
               continue;
             }
+            inflight = null;
             items.shift(); persist();
             listeners.forEach(function (fn) { try { fn(res, it.p, null); } catch (x) { console.error(x); } });
           }
@@ -309,8 +323,8 @@
       }
     };
   })();
-  window.addEventListener('online', function () { R.outbox.flush(); if (R.view.name) R.render(); });
-  window.addEventListener('offline', function () { if (R.view.name) R.render(); });
+  window.addEventListener('online', function () { R.outbox.flush(); R.renderTop(); });
+  window.addEventListener('offline', function () { R.renderTop(); });
 
   /* ------------------------------------------------------------ shared actions -------------------------- */
   R.actions.tab = function (b) { R.go(b.dataset.k); };
@@ -338,5 +352,13 @@
     }
     R.actions['sign-out-force']();
   };
-  R.actions['sign-out-force'] = async function () { R.closeSheet(); await R.cloud.signOut(); R.data = { me: null, rep: null, team: null, owner: null }; R.go('signin'); };
+  R.actions['sign-out-force'] = async function () {
+    R.closeSheet();
+    var s = R.cloud.session();
+    if (s && s.userId) { try { localStorage.removeItem('r100_me_' + s.userId); } catch (e) {} }
+    R.outbox.forget();
+    await R.cloud.signOut();
+    R.data = { me: null, rep: null, team: null, owner: null };
+    R.go('signin');
+  };
 })();

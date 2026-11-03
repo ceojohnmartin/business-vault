@@ -93,7 +93,8 @@ p{margin:0}
 .sub{font-size:14px;color:var(--muted);margin-top:2px}
 
 /* buttons */
-.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line2);background:transparent;font-weight:700;font-size:16px;padding:0 18px;text-align:center;text-decoration:none}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:52px;border-radius:14px;border:1px solid var(--line2);background:transparent;font-weight:700;font-size:16px;padding:0 18px;text-align:center;text-decoration:none;overflow-wrap:anywhere}
+[hidden]{display:none!important}
 .btn.primary{background:#fff;color:#0A0A0B;border-color:#fff}
 .btn.primary[aria-disabled="true"]{opacity:.35}
 .btn.ghost{border-color:transparent;color:var(--muted);min-height:44px}

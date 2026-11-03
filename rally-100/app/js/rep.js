@@ -91,6 +91,13 @@
     return ((x && x.requirements) || []).filter(function (r) { return r.confirmed; }).length;
   }
   function hasReqs(i) { return !!(i && Array.isArray(i.requirements) && i.requirements.length); }
+  /* once the referral is credited to another rep, this rep sees that line only: never the Person's later
+     stage, checks or status (blueprint, "Who sees a referral row"); rep_state names such rows by name only */
+  function creditedElsewhere(i) {
+    var d = D(), n = trim(i && i.name).toLowerCase();
+    return !!(n && d && d.referrals.some(function (x) { return x && x.credited === 'other' && trim(x.name).toLowerCase() === n; }));
+  }
+  function otherLine(i) { var f = firstOf(i); return 'Another rep who also knows ' + f + ' introduced them first, so the referral reward goes to them. ' + f + ' still counts toward your 100. Questions? Ask your leader.'; }
   function dncLine(f) { return 'Do not contact. The RALLY team won’t reach out to ' + f + ', so they no longer count toward your 100.'; }
 
   /* scene progress: the server's numbers, worked out from the entries only while this phone has changes the server
@@ -124,11 +131,7 @@
     return d;
   }
   /* names typed without signal wait in the outbox; show them on the Wall until the server has them */
-  function outboxItems() {
-    var s = R.cloud && R.cloud.session ? R.cloud.session() : null;
-    var list = s && s.userId ? R.store.get('r100_outbox_' + s.userId, []) : [];
-    return Array.isArray(list) ? list : [];
-  }
+  function outboxItems() { return R.outbox.items(); }
   function overlay(d) { outboxItems().forEach(function (it) { if (it && it.p && it.p.id) localApply(it.p, d); }); }
   function load() {
     if (loading) { again = true; return loading; }
@@ -335,6 +338,8 @@
     if (!R.outbox.count()) reloadSoon();
   });
   window.addEventListener('online', function () { if (repScreen() && !loading) ensure(true); badgeRetry(); });
+  window.addEventListener('online', syncNoteUpdate);
+  window.addEventListener('offline', syncNoteUpdate);
   document.addEventListener('visibilitychange', function () {
     if (sp && R.view.name === 'sprint' && sp.left != null && !sp.ended) {
       if (document.hidden) sp.paused = true;
@@ -574,8 +579,9 @@
     if (!board.length) return '';
     var w = waiting();
     var rows = (w.length ? w : board).slice(0, 3).map(function (i) {
-      return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i)) + '</span><span class="chip">' + esc(stageChip(i)) + '</span></span>' +
-        '<span class="small muted">' + esc(nextLine(i) || introStatus(i, firstOf(i))) + '</span></button>';
+      var other = creditedElsewhere(i);
+      return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i)) + '</span><span class="chip">' + esc(other ? 'Introduced' : stageChip(i)) + '</span></span>' +
+        '<span class="small muted">' + esc(other ? 'The referral reward went to another rep who introduced them first.' : (nextLine(i) || introStatus(i, firstOf(i)))) + '</span></button>';
     }).join('');
     return '<section class="card flat"><div class="between"><span class="caps">Intro Board' + (w.length ? ' · ' + w.length + ' waiting on you' : '') + '</span><button class="link small" data-a="tab" data-k="intros">See all intros</button></div>' + rows + '</section>';
   }
@@ -1109,7 +1115,7 @@
   function introSection(e) {
     if (gone(e) || e.dnc || held(e)) return '';
     var i = introFor(e.id), f = firstOf(e);
-    if (onBoard(i)) return '<section class="card flat"><div class="caps">Introduction</div><p>' + esc(introStatus(i, f)) + (nextLine(i) ? ' ' + esc(nextLine(i)) : '') + '</p><button class="btn sm" data-a="intro-open" data-id="' + esc(e.id) + '">Open on your Intro Board</button></section>';
+    if (onBoard(i)) return '<section class="card flat"><div class="caps">Introduction</div><p>' + (creditedElsewhere(i) ? esc(otherLine(i)) : esc(introStatus(i, f)) + (nextLine(i) ? ' ' + esc(nextLine(i)) : '')) + '</p><button class="btn sm" data-a="intro-open" data-id="' + esc(e.id) + '">Open on your Intro Board</button></section>';
     if (!lit(e)) return '<section class="card flat"><div class="caps">Introduction</div><p class="muted">Finish this contact to introduce them.</p></section>';
     return '<section class="card flat"><div class="caps">Introduction</div><p class="muted">You make the intro yourself: text, call or in person. RALLY only keeps track.</p><button class="btn sm" data-a="intro-open" data-id="' + esc(e.id) + '">Introduce ' + esc(f) + '</button></section>';
   }
@@ -1320,7 +1326,8 @@
     else if (lit(e)) line = (e.tags && e.tags.length ? e.tags.join(', ') : (sc ? sc.name : ''));
     else if (!e.removed) line = 'Missing: ' + missingOf(e).join(', ');
     else line = '';
-    var rec = onBoard(i) ? '<span class="small"><span class="chip">' + esc(stageChip(i)) + '</span> ' + esc(nextLine(i)) + '</span>' : '';
+    var rec = !onBoard(i) ? '' : (creditedElsewhere(i) ? '<span class="small"><span class="chip">Introduced</span> The referral reward went to another rep who introduced them first.</span>'
+      : '<span class="small"><span class="chip">' + esc(stageChip(i)) + '</span> ' + esc(nextLine(i)) + '</span>');
     var sub = 'Added ' + R.date(e.created_at) + (e.kept_with && e.kept_with.length ? ' · Kept both' : '');
     return '<button class="ncard' + (e.dnc ? ' dnc' : '') + '" data-a="net-open" data-id="' + esc(e.id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(e)) + '</span>' + statusChip(e, true) + '</span>' +
       (line ? '<span class="small muted">' + esc(line) + '</span>' : '') + rec + '<span class="small dim">' + esc(sub) + '</span></button>';
@@ -1362,9 +1369,9 @@
 
   /* ============================================================ Introductions =========================== */
   function boardCard(i) {
-    var e = byId(i.entry_id), n = confirmedCount(i);
-    return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i.name ? i : e)) + '</span><span class="chip">' + esc(stageChip(i)) + '</span></span>' +
-      (hasReqs(i) ? '<span class="small">' + n + ' of 4 confirmed</span>' : '') + '<span class="small muted">' + esc(nextLine(i) || introStatus(i, firstOf(i.name ? i : e))) + '</span>' +
+    var e = byId(i.entry_id), n = confirmedCount(i), other = creditedElsewhere(i);
+    return '<button class="ncard" data-a="intro-open" data-id="' + esc(i.entry_id) + '"><span class="top-row"><span class="nm">' + esc(nameOf(i.name ? i : e)) + '</span><span class="chip">' + esc(other ? 'Introduced' : stageChip(i)) + '</span></span>' +
+      (hasReqs(i) && !other ? '<span class="small">' + n + ' of 4 confirmed</span>' : '') + '<span class="small muted">' + esc(other ? 'The referral reward went to another rep who introduced them first.' : (nextLine(i) || introStatus(i, firstOf(i.name ? i : e)))) + '</span>' +
       (e && e.removed ? '<span class="chips"><span class="chip">Removed from your Wall</span></span>' : '') + '</button>';
   }
   R.screens.intros = {
@@ -1407,11 +1414,13 @@
       var e = byId(p.id), i = introFor(p.id);
       var back = '<div class="between"><button class="link" data-a="tab" data-k="intros">Introductions</button></div>';
       if (!e && !i) return '<main class="rep screen">' + back + (d._skeleton ? offlineCard('This introduction loads when you’re back online.') : '<div class="card"><h2>That introduction isn’t available.</h2></div>') + '</main>';
-      var f = firstOf(e || i), L = leaderName(i), dnc = (e && e.dnc) || (i && i.outcome === 'do_not_contact');
-      var h = '<main class="rep screen">' + back + '<div class="between"><h1 class="iname">' + esc(nameOf(i && i.name ? i : e)) + '</h1>' + (onBoard(i) ? '<span class="chip">' + esc(stageChip(i)) + '</span>' : '') + '</div>';
+      var f = firstOf(e || i), L = leaderName(i), dnc = (e && e.dnc) || (i && i.outcome === 'do_not_contact'), other = !dnc && creditedElsewhere(i);
+      var h = '<main class="rep screen">' + back + '<div class="between"><h1 class="iname">' + esc(nameOf(i && i.name ? i : e)) + '</h1>' + (onBoard(i) ? '<span class="chip">' + esc(other ? 'Introduced' : stageChip(i)) + '</span>' : '') + '</div>';
       if (e && e.removed) h += '<div class="chips"><span class="chip">Removed from your Wall</span></div>';
       if (dnc) {
         h += '<div class="card"><p>' + esc(dncLine(f)) + '</p><p class="small muted">No introduction actions are available.</p></div>';
+      } else if (other) {
+        h += '<div class="card"><p>' + esc(otherLine(i)) + '</p></div>';
       } else if (e && held(e)) {
         h += '<div class="card"><p>Sort out the possible duplicate first.</p><button class="btn primary" data-a="net-open" data-id="' + esc(e.id) + '">Open ' + esc(f) + '</button></div>';
       } else if (!onBoard(i)) {
@@ -1429,7 +1438,7 @@
         if (hasReqs(i)) h += '<section class="card"><div class="caps">' + confirmedCount(i) + ' of 4 confirmed</div>' + reqRows(i.requirements) +
           '<p class="small dim">All 4 need ' + esc(L ? L + '’s' : 'your leader’s') + ' confirmation before your referral reward goes to review.</p></section>';
       }
-      if (!dnc && canFollowUp(i, e)) h += '<button class="btn" data-a="fu-open" data-id="' + esc(p.id) + '">Follow up later</button>';
+      if (!dnc && !other && canFollowUp(i, e)) h += '<button class="btn" data-a="fu-open" data-id="' + esc(p.id) + '">Follow up later</button>';
       if (e && !gone(e) && e.person_id) h += '<button class="btn ghost" data-a="tl-open" data-id="' + esc(p.id) + '">Something wrong? Tell ' + esc(L || 'your leader') + '</button>';
       if (e) h += '<button class="btn ghost" data-a="intro-edit" data-id="' + esc(e.id) + '">Edit ' + esc(f) + '’s contact</button>';
       return h + '</main>';

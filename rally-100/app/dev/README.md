@@ -5,7 +5,7 @@ Everything in this folder is for a developer's machine and for browser tests. No
 | File | What it is |
 |---|---|
 | `server.mjs` | A zero-dependency Node 22 stand-in for the two parts of Supabase the app uses: email and password auth (`/auth/v1/...`) and the `rally100` functions (`/rest/v1/rpc/<name>`). It also serves `rally-100/app/` as static files. |
-| `setup-db.sh` | Builds the local database `rally100_dev`: RALLY's Supabase shim, every RALLY migration, the RALLY 100 migration and `seed.sql`. Drops and recreates it every run. |
+| `setup-db.sh` | Builds the local database `rally100_dev`: RALLY's Supabase shim (plus the `auth.users.email_confirmed_at` column Supabase has), every RALLY migration, RALLY 100 v1, `seed.sql`, then RALLY 100 v2 (automatic team joining). Drops and recreates it every run. |
 | `seed.sql` | Fictional fixtures: team "RALLY" (owner, leader, three reps) and team "RALLY B" (a leader and a rep). |
 | `users.json` | The dev accounts' passwords. Every account uses `rally100dev`. |
 | `smoke.mjs` | A short end-to-end check against a running server: prints PASS or FAIL. |
@@ -47,7 +47,7 @@ Open http://localhost:8100. On `localhost` the app's `js/config.js` talks to thi
 | leaderb@rally.test | leader | RALLY B |
 | repb@rally.test | rep | RALLY B |
 
-Password for all: `rally100dev`. `/auth/v1/signup` also works: it creates an `auth.users` row, so RALLY's signup trigger makes a rep with no team, exactly as in production. Place the account on a team with one `update public.profiles ...` (see `rally/db/seed.example.sql`).
+Password for all: `rally100dev`. `/auth/v1/signup` also works: it creates an `auth.users` row, so RALLY's signup trigger makes a rep with no team, exactly as in production, and marks the email confirmed at once (no mail is sent). v2 is applied after the seed, so it finds one owner team and automatic joining starts on: the app places a new sign-up on team RALLY as soon as it loads (`whoami` says `auto_join`, the app calls `join_team`). With the owner's switch off (Owner Dashboard, New sign-ups) a new account waits on "Almost there" until it is placed with one `update public.profiles ...` (see `rally/db/seed.example.sql`).
 
 Environment: `PGHOST` (a host name, or a socket directory starting with `/`), `PGPORT`, `PGDATABASE`, `PGUSER`, optional `PGPASSWORD` (trust, password, md5 and SCRAM-SHA-256 all work), and `PORT` for HTTP (default 8100). The server logs one line per request.
 
@@ -57,7 +57,7 @@ Environment: `PGHOST` (a host name, or a socket directory starting with `/`), `P
 node rally-100/app/dev/smoke.mjs http://localhost:8100
 ```
 
-It signs in as rep1, saves three contacts, reads `rep_state`, signs in as the leader, reads `team_state`, and checks the refusals (wrong password, missing token, a rep asking for leader data, a bad phone, an unknown function).
+It signs in as rep1, saves three contacts, reads `rep_state`, signs in as the leader, reads `team_state`, checks the refusals (wrong password, missing token, a rep asking for leader data, a bad phone, an unknown function), then signs up a new account and checks `whoami`'s `auto_join` flag and `join_team` (placed on team RALLY while automatic joining is on, `auto_join_off` while it is off). Each run leaves one more fictional rep on team RALLY.
 
 ## 5. The cross-role browser test
 
@@ -65,12 +65,12 @@ It signs in as rep1, saves three contacts, reads `rep_state`, signs in as the le
 PGHOST=127.0.0.1 PGPORT=5432 PGUSER=postgres sh rally-100/app/dev/e2e/run.sh
 ```
 
-It rebuilds `rally100_dev`, starts the server for the length of the run, and drives the real screens in Chromium (Playwright): a rep reaches 100 and introduces a friend; the leader confirms the introduction and the four requirements, runs the spot-check and approves both rewards; the owner publishes an incentive with a picture, awards it, marks pay issued, closes a leaving rep's unpaid rewards (and reopens them), and places a new sign-up on the team. It also checks phone widths for every role and fails on any console error. Screenshots go to `$SHOTS` (default: the system temp folder).
+It rebuilds `rally100_dev`, starts the server for the length of the run, and drives the real screens in Chromium (Playwright): a rep reaches 100 and introduces a friend; the leader confirms the introduction and the four requirements, runs the spot-check and approves both rewards; the owner publishes an incentive with a picture, awards it, marks pay issued, closes a leaving rep's unpaid rewards (and reopens them); a new sign-up joins the team automatically, and with the owner's switch off the next one waits and is placed by hand. It also checks phone widths for every role and fails on any console error. Screenshots go to `$SHOTS` (default: the system temp folder).
 
 ## How faithful it is
 
 * **The functions are the real ones.** Each RPC runs `rally100.<name>(...)` in Postgres the way PostgREST does: one transaction, `set local role authenticated`, `request.jwt.claims` set to `{"sub": <user id>, "role": "authenticated"}`. Every permission, scope check and error comes from the migration, not from this server.
 * **No SQL is built from a request.** Function and argument names and types are read once from `pg_catalog`; every value in the JSON body travels as a bound protocol parameter (`$1`, `$2`...). The server speaks the Postgres wire protocol itself because psql variables travel in argv, which caps one value at 128 KB, and an incentive picture can be 400,000 characters.
 * **Errors look like PostgREST's.** `{code, message, details, hint}`; 403 for `42501`, 400 for `22023` and other client errors, 409 for conflicts, 404 `PGRST202` for an unknown function or a parameter name that does not match (PostgREST matches functions by parameter names, so a misspelled key fails here exactly as it will in production), 401 `PGRST301` for a missing or expired token, 406 `PGRST106` without `Content-Profile: rally100`.
-* **Auth is a stand-in.** Tokens are opaque random strings held in memory for one hour, not JWTs; sign-ups made while it runs keep their password only until it stops. `/auth/v1/recover` answers 204 and sends nothing.
+* **Auth is a stand-in.** Tokens are opaque random strings held in memory for one hour, not JWTs; sign-ups made while it runs keep their password only until it stops, and their email counts as confirmed at once (`auth.users.email_confirmed_at = now()`; Supabase sets it when the confirmation link is followed). `/auth/v1/recover` answers 204 and sends nothing.
 * `/dev/` and dotfiles are never served, so `users.json` stays off the wire.

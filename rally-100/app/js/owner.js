@@ -54,14 +54,31 @@
     var outs = ['follow_up', 'not_interested', 'do_not_contact'].map(function (k) { return '<span class="chip">' + esc(R.OUTCOME_LABEL[k]) + ' ' + fmtN(o[k]) + '</span>'; }).join('');
     return '<section class="card"><h2>People by stage</h2><div class="lw-funnel" role="list">' + rows + '</div><div class="caps">Outcomes</div><div class="chips">' + outs + '</div></section>';
   }
+  /* New sign-ups. With auto-add on, a rep who confirms their email joins the owner's team on their next sign-in
+     (rally100.join_team); the switch is the owner's way to stop that at once if strangers start signing up. */
   function signupsCard(d) {
-    var su = arr(d.pending_signups); if (!su.length) return '';
-    return '<section class="card"><div class="between"><h2>New sign-ups waiting for a team</h2><span class="chip alert">' + su.length + '</span></div>' +
-      '<p class="small muted">Paste this in Supabase, SQL editor, to add them to your team.</p>' + su.map(function (s) {
-        var sub = [s.name ? s.email : '', s.created_at ? 'signed up ' + R.date(s.created_at) : ''].filter(Boolean).join(' · ');
-        return '<div class="lw-su"><div class="between"><div class="grow"><b>' + esc(s.name || s.email || 'New sign-up') + '</b>' + (sub ? '<div class="small muted">' + esc(sub) + '</div>' : '') + '</div>' +
-          '<button class="btn xs" data-a="own-copy-sql" data-email="' + esc(s.email || '') + '">Copy</button></div><code class="lw-sql">' + esc(sqlFor(s.email)) + '</code></div>';
-      }).join('') + '</section>';
+    var su = arr(d.pending_signups), aj = d.auto_join || null, on = !!(aj && aj.on);
+    if (!su.length && !aj) return '';
+    var sw = aj ? '<div class="lw-su"><div class="between"><div class="grow"><b>Add new sign-ups automatically: ' + (on ? 'On' : 'Off') + '</b>' +
+      '<div class="small muted">' + esc(on ? 'Anyone who creates an account and confirms their email joins ' + (aj.team_name || 'your team') + ' as a rep right away, and can see RALLY team data.' : 'New sign-ups wait here until you add them.') + '</div></div>' +
+      '<button class="btn xs' + (on ? ' danger' : '') + '" data-a="own-auto-join" data-on="' + (on ? '0' : '1') + '">' + (on ? 'Turn off' : 'Turn on') + '</button></div></div>' : '';
+    var list = su.map(function (s) {
+      var sub = [s.name ? s.email : '', s.created_at ? 'signed up ' + R.date(s.created_at) : ''].filter(Boolean).join(' · ');
+      return '<div class="lw-su"><div class="between"><div class="grow"><b>' + esc(s.name || s.email || 'New sign-up') + '</b>' + (sub ? '<div class="small muted">' + esc(sub) + '</div>' : '') + '</div>' +
+        '<button class="btn xs" data-a="own-copy-sql" data-email="' + esc(s.email || '') + '">Copy</button></div><code class="lw-sql">' + esc(sqlFor(s.email)) + '</code></div>';
+    }).join('');
+    return '<section class="card"><div class="between"><h2>New sign-ups</h2>' + (su.length ? '<span class="chip alert">' + su.length + ' waiting</span>' : '') + '</div>' + sw +
+      (su.length ? '<p class="small muted">' + (on ? 'These join on their next sign-in once their email is confirmed. To add one now, paste its line in Supabase, SQL editor.' : 'Paste this in Supabase, SQL editor, to add them to your team.') + '</p>' + list : '') + '</section>';
+  }
+  R.actions['own-auto-join'] = function (el) {
+    if (el.dataset.on !== '1') { setAutoJoin(false, el); return; }
+    R.sheet('<form data-form="own-auto-join" class="stack"><h2>Add new sign-ups automatically?</h2><p class="muted">Anyone who creates a RALLY 100 account and confirms their email joins your team as a rep right away. Team members can see RALLY team data: customers, pins and territories.</p>' +
+      '<p class="small dim">You can turn this off at any time. To shut one account out, in Supabase, SQL editor: update public.profiles set disabled = true where email = \'their@email.com\';</p>' + LW.sheetButtons('Turn on') + '</form>');
+  };
+  R.forms['own-auto-join'] = function (f) { return setAutoJoin(true, LW.submitBtn(f)); };
+  async function setAutoJoin(on, btn) {
+    var res = await R.call('set_auto_join', { p_on: on }, btn);
+    if (res) LW.done(on ? 'New sign-ups now join automatically' : 'Auto-add is off. New sign-ups wait for you.', on ? 'win' : null);
   }
   R.actions['own-copy-sql'] = function (el) { R.copy(sqlFor(el.dataset.email)); };
   function leadersCard(d) {

@@ -7,7 +7,9 @@
 //   node rally-100/app/dev/smoke.mjs http://localhost:8100
 //
 // Prints PASS or FAIL (and exits 0 or 1). Safe to run repeatedly: each run
-// adds three new fictional contacts (555-01xx numbers) to rep1's list.
+// adds three new fictional contacts (555-01xx numbers) to rep1's list and
+// one new fictional sign-up (smoke<hex>@rally.test), which joins team RALLY
+// while automatic joining is on.
 import crypto from 'node:crypto';
 
 const BASE = (process.argv[2] || process.env.RALLY100_URL || 'http://localhost:8100').replace(/\/+$/, '');
@@ -86,6 +88,23 @@ async function main() {
   const refreshed = await post('/auth/v1/token?grant_type=refresh_token', { refresh_token: lead.refresh_token });
   check(refreshed.status === 200 && refreshed.json.access_token && refreshed.json.access_token !== lead.access_token,
     'a refresh token returns a new session');
+
+  // A new sign-up: RALLY's trigger makes a rep with no team, and the dev server confirms the address at once.
+  const email = 'smoke' + crypto.randomBytes(4).toString('hex') + '@rally.test';
+  const su = await post('/auth/v1/signup', { email, password: PASSWORD, data: { name: 'Smoke Signup' } });
+  if (!su.json || !su.json.access_token) throw new Error('sign-up failed');
+  const nw = await rpc('whoami', {}, su.json.access_token);
+  check(nw.status === 200 && nw.json.no_team === true && typeof nw.json.auto_join === 'boolean',
+    'whoami answers a new sign-up with no_team and the auto_join flag');
+  const joined = await rpc('join_team', {}, su.json.access_token);
+  if (nw.json.auto_join) {
+    const st = await rpc('rep_state', {}, su.json.access_token);
+    check(joined.status === 200 && joined.json.joined === true && joined.json.team_name === 'RALLY' && st.status === 200 && st.json.count === 0,
+      'with automatic joining on, join_team places the sign-up on team RALLY and rep_state works at once');
+  } else {
+    check(joined.status === 403 && /rally100: auto_join_off/.test(joined.json.message),
+      'with automatic joining off, join_team is 403 auto_join_off');
+  }
 }
 
 main().then(() => {

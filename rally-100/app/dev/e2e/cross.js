@@ -231,26 +231,44 @@ function seedEntry(i) {
     const aw = ((await rpc(r2, 'rep_state', {})).awards || []).filter((a) => a.status === 'approved');
     ok(aw.length === 1, 'an award retried with the same request id exists once (' + aw.length + ')');
 
-    /* ---------------------------------------------------------------- 9. new sign-up → placed by the owner */
-    const np = await newPage(browser, 'phone'); pages.push(np);
-    const email = 'newrep' + Date.now() + '@rally.test';
-    await np.goto(BASE + '/'); await np.waitForSelector('#siEmail');
-    await np.click('[data-a="go-signup"]');
-    await np.fill('#suName', 'Jamie Newrep'); await np.fill('#suEmail', email); await np.fill('#suPass', 'rally100dev');
-    await np.click('#suBtn');
-    await waitScreen(np, 'noteam');
-    ok((await text(np)).includes('Almost there'), 'a new sign-up lands on "Almost there" (no team)');
-    await shot(np, '15-new-signup-noteam');
+    /* ---------------------------------------------------------------- 9. new sign-ups: auto-add on, then off */
+    async function signUp(name) {
+      const pg = await newPage(browser, 'phone'); pages.push(pg);
+      const em = name.toLowerCase().replace(/[^a-z]/g, '') + Date.now() + '@rally.test';
+      await pg.goto(BASE + '/'); await pg.waitForSelector('#siEmail');
+      await pg.click('[data-a="go-signup"]');
+      await pg.fill('#suName', name); await pg.fill('#suEmail', em); await pg.fill('#suPass', 'rally100dev');
+      await pg.click('#suBtn');
+      return { pg, em };
+    }
     await goScreen(op, 'own-dash'); await op.waitForTimeout(800);
-    const db = await body(op);
-    ok(db.includes(email), 'owner dashboard lists the new sign-up');
-    const line = await op.evaluate((em) => { const c = Array.from(document.querySelectorAll('code.lw-sql')).find((x) => x.textContent.includes(em)); return c && c.textContent; }, email);
+    ok((await body(op)).includes('Add new sign-ups automatically: On'), 'auto-add starts on (one owner team)');
+    const a = await signUp('Avery Autojoin');
+    await waitScreen(a.pg, 'onboarding');  /* not main.ob: the sign-up screen is a main.ob too */
     const teamId = PSQL("select team_id from public.profiles where email = 'owner@rally.test'");
-    ok(line === `update public.profiles set team_id = '${teamId}' where email = '${email}';`, 'the copy line is exactly the one-line team placement');
+    ok(PSQL(`select team_id from public.profiles where email = '${a.em}'`) === teamId && PSQL(`select role from public.profiles where email = '${a.em}'`) === 'rep',
+      'with auto-add on, a confirmed sign-up joins the owner\'s team as a rep and goes straight to onboarding');
+    await shot(a.pg, '15-new-signup-auto-joined');
+    /* owner turns auto-add off in the UI; the next sign-up waits and is placed with the copy line */
+    await goScreen(op, 'own-dash'); await op.waitForTimeout(600);
+    await op.click('[data-a="own-auto-join"][data-on="0"]'); await op.waitForTimeout(1000);
+    ok((await body(op)).includes('Add new sign-ups automatically: Off'), 'owner turned auto-add off');
+    const b = await signUp('Jamie Newrep');
+    await waitScreen(b.pg, 'noteam');
+    ok((await text(b.pg)).includes('Almost there'), 'with auto-add off, a new sign-up lands on "Almost there"');
+    await goScreen(op, 'own-dash'); await op.waitForTimeout(800);
+    ok((await body(op)).includes(b.em), 'owner dashboard lists the waiting sign-up');
+    const line = await op.evaluate((em) => { const c = Array.from(document.querySelectorAll('code.lw-sql')).find((x) => x.textContent.includes(em)); return c && c.textContent; }, b.em);
+    ok(line === `update public.profiles set team_id = '${teamId}' where email = '${b.em}';`, 'the copy line is exactly the one-line team placement');
     PSQL(line);
-    await np.click('[data-a="recheck"]');
-    await np.waitForSelector('main.ob', { timeout: 10000 });
+    await b.pg.click('[data-a="recheck"]');
+    await waitScreen(b.pg, 'onboarding');
     ok(true, 'after placement, "Check again" opens onboarding');
+    /* and back on, through the confirmation sheet */
+    await op.click('[data-a="own-auto-join"][data-on="1"]');
+    await op.waitForSelector('form[data-form="own-auto-join"]');
+    await op.click('form[data-form="own-auto-join"] button[type="submit"]'); await op.waitForTimeout(1000);
+    ok((await body(op)).includes('Add new sign-ups automatically: On'), 'owner turned auto-add back on');
 
     /* ---------------------------------------------------------------- 10. phone widths for leader and owner */
     const lpp = await newPage(browser, 'phone'); pages.push(lpp);

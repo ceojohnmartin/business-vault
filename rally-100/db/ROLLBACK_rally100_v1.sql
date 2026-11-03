@@ -6,7 +6,9 @@
 -- public schema points into it). Dropping the schema with cascade therefore
 -- removes every RALLY 100 table, row, function and grant, and touches no
 -- RALLY table, row, function, policy or grant. RALLY's users, profiles and
--- teams are untouched; RALLY 100 only ever read them.
+-- teams are untouched. With v2 installed it removes v2 as well (1002 also
+-- creates nothing outside rally100); people v2's join_team placed on a team
+-- stay on it, as ROLLBACK_rally100_v2.sql explains.
 --
 -- THIS DELETES RALLY 100's DATA: every contact, Person, introduction, XP
 -- event, reward record and audit row. Export first if any of it is needed.

@@ -1,5 +1,5 @@
--- RALLY 100 v1 — the temporary-schema shadow test. Run in FRESH sessions
--- (run-tests.sh starts a new psql, and part B reconnects) after
+-- RALLY 100 — the temporary-schema shadow test (v1 and v2). Run in FRESH
+-- sessions (run-tests.sh starts a new psql, and part B reconnects) after
 -- rally100-test.sql, so no rally100 function is compiled yet in the backend.
 --
 -- With search_path = '' PostgreSQL still searches the caller's temporary
@@ -29,6 +29,11 @@
 \o /dev/null
 
 -- ================================================================ PART A
+-- one more sign-up, confirmed and on no team, for join_team (S.15); made
+-- before anything is planted, as the table owner
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)
+values ('00000000-0000-4000-8000-000000009101', 'shadow.joiner@x.test', '{"name":"Shadow Joiner"}', pg_catalog.now());
+
 set role authenticated;
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-000000000004","role":"authenticated"}', false);
 
@@ -41,7 +46,7 @@ create temp table acks (id int);               create temp table incentives (id 
 create temp table rewards (id int);            create temp table reward_events (id int);
 create temp table spot_checks (id int);        create temp table audit (id int);
 create temp table profiles (id int);           create temp table teams (id int);
-create temp table users (id int);
+create temp table users (id int);              create temp table settings (id int);
 create type pg_temp.text as (x int);
 create type pg_temp.date as (x int);
 create type pg_temp.timestamptz as (x int);
@@ -79,6 +84,15 @@ select t.ok((rally100.owner_state() -> 'totals' ->> 'persons')::integer > 0
             and pg_catalog.jsonb_array_length(rally100.owner_contacts() -> 'rows') > 0
             and pg_catalog.jsonb_array_length(rally100.owner_rewards(null) -> 'rows') > 0,
   'S.09 owner_state, owner_contacts and owner_rewards run with shadows present');
+select t.ok((rally100.set_auto_join(true) ->> 'on')::boolean
+            and (rally100.owner_state() -> 'auto_join' ->> 'team_name') = 'Team A',
+  'S.14 set_auto_join and owner_state''s switch (v2) run with settings and teams planted');
+
+-- a sign-up with no team
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-000000009101","role":"authenticated"}', false);
+select t.ok((rally100.whoami() ->> 'auto_join')::boolean
+            and (rally100.join_team() ->> 'team_name') = 'Team A',
+  'S.15 whoami''s auto_join flag and join_team (v2) run with profiles, users, settings and teams planted');
 
 -- ================================================================ PART B
 \c
@@ -87,6 +101,7 @@ create temp table person_identifiers (id int); create temp table introductions (
 create temp table requirements (id int);       create temp table xp_events (id int);
 create temp table rewards (id int);            create temp table audit (id int);
 create temp table profiles (id int);           create temp table teams (id int);
+create temp table users (id int);              create temp table settings (id int);
 create type pg_temp.jsonb as (x int);
 create type pg_temp.uuid as (x int);
 create type pg_temp.text as (x int);
@@ -109,6 +124,12 @@ select t.ok(pg_catalog.jsonb_typeof(rally100._queues((select p from public.profi
                   where rally100._reward_json(r, (select p from public.profiles p
                           where p.id = '00000000-0000-4000-8000-000000000001'::pg_catalog.uuid)) ->> 'id' is null) = 0,
   'S.12 the leader queues and the reward read model compile and run with every shadow in place');
+select t.ok(rally100._join_refusal((select p from public.profiles p
+                                      where p.id = '00000000-0000-4000-8000-000000000010'::pg_catalog.uuid))
+              = 'email_not_confirmed'
+            and rally100._auto_join_team() = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::pg_catalog.uuid
+            and pg_catalog.jsonb_typeof(rally100._auto_join_json()) = 'object',
+  'S.16 the v2 switch helpers compile and run with every shadow in place');
 -- NEGATIVE CONTROL: the planted types really are found first. The same kind
 -- of function with ONE unqualified type name fails in this very session, so
 -- S.10 to S.12 passing is evidence, not luck.

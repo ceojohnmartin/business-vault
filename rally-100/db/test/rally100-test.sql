@@ -1,11 +1,13 @@
--- RALLY 100 v1 — the server suite. Runs after the Supabase shim, every RALLY
--- migration and 1001_rally100_v1.sql on a throwaway database (see
--- run-tests.sh). Every check prints PASS or aborts the whole run
--- (ON_ERROR_STOP), exactly like RALLY's own rls-test.sql.
+-- RALLY 100 — the server suite (v1 and v2). Runs after the Supabase shim
+-- (plus auth.users.email_confirmed_at, which run-tests.sh adds), every RALLY
+-- migration, 1001_rally100_v1.sql and 1002_rally100_auto_join.sql on a
+-- throwaway database (see run-tests.sh). Every check prints PASS or aborts
+-- the whole run (ON_ERROR_STOP), exactly like RALLY's own rls-test.sql.
 --
 -- Cast. Team A: an owner, two leaders (Dana created first, so she is the
 -- team's default leader), three reps and one disabled rep. Team B: a leader
--- and a rep. One brand-new signup on no team.
+-- and a rep. One brand-new signup on no team. Section 20 adds the sign-ups
+-- that automatic team joining (1002) places or refuses.
 --
 -- Test helpers live in their own schema `t`, so nothing here adds to
 -- RALLY's `public`.
@@ -140,8 +142,8 @@ select t.ok((select array_agg(c.relname::text order by c.relname::text)
               where n.nspname = 'rally100' and c.relkind = 'r')
   = (select array_agg(v order by v) from unnest(array['acks','audit','badges','entries','incentives','introductions',
        'messages','notes','person_identifiers','persons','possible_matches','rep_closures','requirements',
-       'reward_events','rewards','spot_checks','spot_samples','xp_events']) v),
-  '1.01 rally100 holds exactly its eighteen tables');
+       'reward_events','rewards','settings','spot_checks','spot_samples','xp_events']) v),
+  '1.01 rally100 holds exactly its nineteen tables (eighteen from v1, settings from v2)');
 select t.ok(not exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace
                          where n.nspname = 'rally100' and c.relkind = 'r' and not c.relrowsecurity),
   '1.02 every rally100 table has RLS enabled');
@@ -168,8 +170,9 @@ select t.ok((select array_agg(p.proname::text order by p.proname::text)
        'set_outcome','set_interest','set_next_action','add_note','mark_messages_read','rep_list','record_spot_check',
        'review_reward','resolve_correction','link_persons','award_incentive',
        'owner_state','owner_contacts','owner_rewards','mark_pay_issued','reverse_reward','close_rep_unpaid',
-       'reopen_rep','correct_credit','clear_dnc','incentive_save','incentive_status']) v),
-  '1.06 authenticated can execute exactly the 40 API functions of API.md section 6');
+       'reopen_rep','correct_credit','clear_dnc','incentive_save','incentive_status',
+       'join_team','set_auto_join']) v),
+  '1.06 authenticated can execute exactly the 42 API functions of API.md section 6');
 select t.ok(not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                          where n.nspname = 'rally100' and has_function_privilege('anon', p.oid, 'execute')),
   '1.07 anon can execute no rally100 function');
@@ -221,7 +224,7 @@ set role anon;
 select set_config('request.jwt.claims', '', false);
 select t.ok((select count(*) from t.api_calls() c where t.err(c) not like '42501 %') = 0,
   '2.01 anon is refused every API function (42501)');
-select t.ok((select count(*) from t.api_calls()) = 40, '2.02 the API is forty functions');
+select t.ok((select count(*) from t.api_calls()) = 42, '2.02 the API is forty-two functions');
 call t.login(null);
 select t.ok((select count(*) from t.api_calls() c where t.err(c) <> '42501 rally100: not signed in') = 0,
   '2.03 every API function refuses a signed-out caller with 42501 "rally100: not signed in"');
@@ -230,11 +233,14 @@ select t.ok((select count(*) from t.api_calls() c where t.err(c) <> '42501 rally
   '2.04 every API function, whoami included, refuses a disabled account with 42501 "rally100: disabled"');
 call t.login(:'NEWBIE');
 select t.ok((select count(*) from t.api_calls() c
-              where c <> 'select rally100.whoami()' and t.err(c) <> '42501 rally100: no team') = 0,
-  '2.05 every API function but whoami refuses an account with no team with 42501 "rally100: no team"');
-select t.ok(rally100.whoami() @> '{"no_team": true, "user": {"email": "newbie@x.test", "role": "rep"}}'
+              where c not in ('select rally100.whoami()', 'select rally100.join_team()')
+                and t.err(c) <> '42501 rally100: no team') = 0,
+  '2.05 every API function but whoami and join_team refuses an account with no team with 42501 "rally100: no team"');
+select t.ok(t.err('select rally100.join_team()') = '42501 rally100: auto_join_off',
+  '2.05b join_team answers a no-team account with its own refusal instead (here auto_join_off: the switch starts off, section 20)');
+select t.ok(rally100.whoami() @> '{"no_team": true, "auto_join": false, "user": {"email": "newbie@x.test", "role": "rep"}}'
             and not (rally100.whoami() ? 'ack_accepted'),
-  '2.06 whoami answers a no-team account with no_team:true instead of refusing');
+  '2.06 whoami answers a no-team account with no_team:true (and auto_join:false while the switch is off) instead of refusing');
 call t.login(:'R1');
 select t.ok(rally100.whoami() @> jsonb_build_object('user', jsonb_build_object(
               'id', :'R1', 'name', 'Tyler Rep', 'role', 'rep', 'team_id', :'TA', 'team_name', 'Team A'),
@@ -1754,4 +1760,207 @@ select t.ok(:'card'::jsonb @> '{"credited":"other","stage":"introduced","status"
             and :'card'::jsonb -> 'meeting_at' = 'null' and :'card'::jsonb -> 'interest' = 'null'
             and :'card'::jsonb -> 'outcome' = 'null',
   '19.52 [16] once credited to another rep, the card keeps only the rep''s own facts: no requirements, step, meeting, interest or later stage');
+reset role;
+
+-- ============================================ 20. automatic team joining (v2)
+-- 1002 ran before this suite's cast existed, so the switch starts off. The
+-- sign-ups below arrive through auth.users like everyone else; a confirmed
+-- address is auth.users.email_confirmed_at, as Supabase's auth sets it.
+\set J1 '00000000-0000-4000-8000-000000000013'
+\set J2 '00000000-0000-4000-8000-000000000014'
+\set J3 '00000000-0000-4000-8000-000000000015'
+\set J4 '00000000-0000-4000-8000-000000000016'
+\set J5 '00000000-0000-4000-8000-000000000017'
+\set J6 '00000000-0000-4000-8000-000000000018'
+\set J7 '00000000-0000-4000-8000-000000000019'
+\set TG 'dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+reset role;
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at) values
+  (:'J1', 'joiner1@x.test',     '{"name":"Jess Joiner"}',     now()),
+  (:'J2', 'unconfirmed@x.test', '{"name":"Uma Unconfirmed"}', null),
+  (:'J3', 'lead0@x.test',       '{"name":"Lee Leaderless"}',  now()),
+  (:'J4', 'owner0@x.test',      '{"name":"Odette Owner"}',    now()),
+  (:'J5', 'disabled0@x.test',   '{"name":"Dee Disabled"}',    now()),
+  (:'J6', 'joiner2@x.test',     '{"name":"Gus Joiner"}',      now()),
+  (:'J7', 'manager0@x.test',    '{"name":"Mia Manager"}',     now());
+update public.profiles set role = 'leader'  where id = :'J3';
+update public.profiles set role = 'owner'   where id = :'J4';
+update public.profiles set disabled = true  where id = :'J5';
+update public.profiles set role = 'manager' where id = :'J7';
+
+select t.ok((select string_agg(p.proname || ':' || p.provolatile::text, ',' order by p.proname)
+               from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'rally100' and p.proname in ('whoami', 'owner_state', 'join_team', 'set_auto_join'))
+  = 'join_team:v,owner_state:s,set_auto_join:v,whoami:s',
+  '20.00 whoami and owner_state are still STABLE after 1002 replaced them; join_team and set_auto_join write');
+select t.ok((select count(*) from rally100.settings) = 1
+            and (select auto_join_team is null and updated_by is null from rally100.settings)
+            and (select count(*) from rally100.audit where entity = 'settings') = 1
+            and exists (select 1 from rally100.audit
+                         where entity = 'settings' and action = 'auto_join_off' and actor is null
+                           and detail = '{"initial": true, "team_id": null}'),
+  '20.01 [step 2] with no owner on a team when 1002 ran, the switch starts off, and the audit log records the starting position');
+select t.ok(t.err('insert into rally100.settings (id) values (false)') like '23514 %'
+            and t.err('insert into rally100.settings (id) values (true)') like '23505 %',
+  '20.02 settings holds exactly one row by construction (a second is refused even to the table owner)');
+
+call t.login(:'R1');
+select t.err('select rally100.set_auto_join(true)') as e_rep \gset
+call t.login(:'L1');
+select t.err('select rally100.set_auto_join(true)') as e_lead \gset
+call t.login(:'J4');
+select t.err('select rally100.set_auto_join(true)') as e_noteam \gset
+call t.login(:'OWNER');
+select t.err('select rally100.set_auto_join(null)') as e_null \gset
+reset role;
+select t.ok(:'e_rep' = '42501 rally100: owner_only' and :'e_lead' = '42501 rally100: owner_only'
+            and :'e_noteam' = '42501 rally100: no team' and :'e_null' = '22023 rally100: invalid_payload'
+            and (select auto_join_team is null from rally100.settings)
+            and (select count(*) from rally100.audit where entity = 'settings') = 1,
+  '20.03 set_auto_join is the owner''s: a rep or leader gets owner_only, an owner with no team no team, a null switch invalid_payload; none changes it');
+
+call t.login(:'J1');
+select rally100.whoami() as w_off \gset
+select t.err('select rally100.join_team()') as e_off \gset
+reset role;
+select t.ok(:'w_off'::jsonb @> '{"no_team": true, "auto_join": false}' and :'e_off' = '42501 rally100: auto_join_off'
+            and (select team_id is null from public.profiles where id = :'J1')
+            and not exists (select 1 from rally100.audit where action = 'auto_joined'),
+  '20.04 while the switch is off, whoami tells a confirmed rep with no team auto_join:false and join_team refuses auto_join_off, changing nothing');
+
+call t.login(:'OWNER');
+select rally100.set_auto_join(true) as sw \gset
+select rally100.owner_state() -> 'auto_join' as osw \gset
+reset role;
+select t.ok(:'sw'::jsonb = jsonb_build_object('on', true, 'team_id', :'TA', 'team_name', 'Team A')
+            and :'osw'::jsonb = :'sw'::jsonb
+            and (select auto_join_team = :'TA' and updated_by = :'OWNER' from rally100.settings)
+            and (select count(*) from rally100.audit
+                  where entity = 'settings' and action = 'auto_join_on' and actor = :'OWNER' and team_id = :'TA'
+                    and detail = jsonb_build_object('team_id', :'TA', 'was_team_id', null)) = 1,
+  '20.05 the owner turns it on: it names the owner''s own team, owner_state.auto_join shows the same, and the change is audited with what it replaced');
+
+call t.login(:'J1');
+select rally100.whoami() ->> 'auto_join' as aj \gset
+select rally100.join_team() as jr \gset
+select rally100.rep_state() as rs \gset
+select rally100.whoami() as w2 \gset
+reset role;
+select t.ok(:'aj' = 'true' and :'jr'::jsonb = jsonb_build_object('joined', true, 'team_id', :'TA', 'team_name', 'Team A'),
+  '20.06 whoami says auto_join:true, and join_team places the confirmed rep on the owner''s team: {joined, team_id, team_name}');
+select t.ok((select team_id = :'TA' and role = 'rep' and not disabled from public.profiles where id = :'J1')
+            and (select count(*) from rally100.audit
+                  where action = 'auto_joined' and actor = :'J1' and entity = 'rep' and entity_id = :'J1'
+                    and team_id = :'TA' and detail = jsonb_build_object('team_id', :'TA')) = 1,
+  '20.07 only team_id changed (still a rep, still enabled), and the join is audited as auto_joined');
+select t.ok((:'rs'::jsonb ->> 'count')::int = 0 and :'rs'::jsonb -> 'entries' = '[]'
+            and :'w2'::jsonb @> jsonb_build_object('user', jsonb_build_object('team_id', :'TA', 'team_name', 'Team A'),
+                                                   'ack_version_required', 1, 'ack_accepted', false)
+            and not (:'w2'::jsonb ? 'no_team') and not (:'w2'::jsonb ? 'auto_join'),
+  '20.08 the placed rep can call rep_state at once, and whoami answers as a team member (no no_team, no auto_join)');
+
+select updated_at as u0 from public.profiles where id = :'J1' \gset
+select count(*) as a0 from rally100.audit \gset
+call t.login(:'J1');
+select rally100.join_team() as again \gset
+call t.login(:'RB');
+select rally100.join_team() as other \gset
+call t.login(:'L1');
+select rally100.join_team() as lead \gset
+reset role;
+select t.ok(:'again'::jsonb = jsonb_build_object('joined', false, 'already', true, 'team_id', :'TA')
+            and :'other'::jsonb = jsonb_build_object('joined', false, 'already', true, 'team_id', :'TB')
+            and :'lead'::jsonb = jsonb_build_object('joined', false, 'already', true, 'team_id', :'TA')
+            and (select updated_at from public.profiles where id = :'J1') = :'u0'::timestamptz
+            and (select team_id from public.profiles where id = :'RB') = :'TB'::uuid
+            and (select count(*) from rally100.audit) = :a0,
+  '20.09 on a team, join_team is a no-op answering already (a second call, a rep on another team who is NOT moved, a leader): no row, no audit');
+
+call t.login(:'J2');
+select rally100.whoami() ->> 'auto_join' as aj2 \gset
+select t.err('select rally100.join_team()') as e2 \gset
+call t.login(:'J3');
+select rally100.whoami() ->> 'auto_join' as aj3 \gset
+select t.err('select rally100.join_team()') as e3 \gset
+call t.login(:'J4');
+select t.err('select rally100.join_team()') as e4 \gset
+call t.login(:'J7');
+select t.err('select rally100.join_team()') as e7 \gset
+call t.login(:'J5');
+select t.err('select rally100.join_team()') as e5 \gset
+select t.err('select rally100.whoami()') as w5 \gset
+call t.login(:'BENCH');
+select t.err('select rally100.join_team()') as eb \gset
+call t.login(null);
+select t.err('select rally100.join_team()') as e0 \gset
+reset role;
+select t.ok(:'e2' = '42501 rally100: email_not_confirmed' and :'aj2' = 'false',
+  '20.10 a rep whose email is not confirmed is refused email_not_confirmed (whoami: auto_join:false)');
+select t.ok(:'e3' = '42501 rally100: not_allowed' and :'e4' = '42501 rally100: not_allowed'
+            and :'e7' = '42501 rally100: not_allowed' and :'aj3' = 'false',
+  '20.11 a leader, owner or manager with no team is never placed automatically: not_allowed (whoami: auto_join:false)');
+select t.ok(:'e5' = '42501 rally100: disabled' and :'w5' = '42501 rally100: disabled'
+            and :'eb' = '42501 rally100: disabled' and :'e0' = '42501 rally100: not signed in',
+  '20.12 a disabled account hears disabled, with or without a team, and a signed-out caller not signed in');
+select t.ok((select count(*) from public.profiles where id in (:'J2', :'J3', :'J4', :'J5', :'J7') and team_id is null) = 5
+            and (select string_agg(role || ':' || disabled, ',' order by id) from public.profiles
+                  where id in (:'J2', :'J3', :'J4', :'J5', :'J7'))
+                = 'rep:false,leader:false,owner:false,rep:true,manager:false'
+            and (select count(*) from rally100.audit where action = 'auto_joined') = 1,
+  '20.13 no refusal changes anything: still no team, the same role and disabled flag, no join in the audit log');
+
+insert into public.teams (id, name) values (:'TG', 'Team Gone');
+update rally100.settings set auto_join_team = :'TG';
+delete from public.teams where id = :'TG';
+call t.login(:'J6');
+select rally100.whoami() ->> 'auto_join' as aj6 \gset
+select t.err('select rally100.join_team()') as e6 \gset
+call t.login(:'OWNER');
+select rally100.owner_state() -> 'auto_join' as osg \gset
+reset role;
+select t.ok(:'aj6' = 'false' and :'e6' = '42501 rally100: auto_join_off'
+            and :'osg'::jsonb = '{"on": false, "team_id": null, "team_name": null}'
+            and (select team_id is null from public.profiles where id = :'J6'),
+  '20.14 a switch naming a team that no longer exists counts as off: whoami false, join_team auto_join_off, owner_state on:false');
+
+call t.login(:'OWNER');
+select rally100.set_auto_join(true) as on2 \gset
+call t.login(:'J6');
+select rally100.whoami() ->> 'auto_join' as aj_on \gset
+call t.login(:'OWNER');
+select rally100.set_auto_join(false) as sw_off \gset
+call t.login(:'J6');
+select rally100.whoami() ->> 'auto_join' as aj_off \gset
+select t.err('select rally100.join_team()') as e_sw_off \gset
+reset role;
+select t.ok(:'aj_on' = 'true' and :'sw_off'::jsonb = '{"on": false, "team_id": null, "team_name": null}'
+            and :'aj_off' = 'false' and :'e_sw_off' = '42501 rally100: auto_join_off'
+            and (select auto_join_team is null and updated_by = :'OWNER' from rally100.settings)
+            and (select team_id is null from public.profiles where id = :'J6')
+            and (select count(*) from rally100.audit
+                  where action = 'auto_join_off' and actor = :'OWNER'
+                    and detail = jsonb_build_object('team_id', null, 'was_team_id', :'TA')) = 1,
+  '20.15 turning the switch off: whoami goes from auto_join:true to false, join_team refuses auto_join_off, and the change is audited');
+
+call t.login(:'OWNER2');
+select rally100.set_auto_join(true) as sw2 \gset
+call t.login(:'J6');
+select rally100.join_team() as j6 \gset
+call t.login(:'OWNER');
+select rally100.set_auto_join(true) as sw3 \gset
+reset role;
+select t.ok(:'sw2'::jsonb = jsonb_build_object('on', true, 'team_id', :'TB', 'team_name', 'Team B')
+            and :'j6'::jsonb = jsonb_build_object('joined', true, 'team_id', :'TB', 'team_name', 'Team B')
+            and (select team_id from public.profiles where id = :'J6') = :'TB'::uuid
+            and :'sw3'::jsonb ->> 'team_id' = :'TA',
+  '20.16 "on" always names the caller''s own team: Team B''s owner switching it on places the next sign-up on Team B');
+select t.ok((select count(*) from rally100.audit where entity = 'settings' and action = 'auto_join_on' and actor is not null) = 4
+            and (select count(*) from rally100.audit where entity = 'settings' and action = 'auto_join_off' and actor is not null) = 1
+            and (select array_agg(actor order by id) from rally100.audit where action = 'auto_joined') = array[:'J1', :'J6']::uuid[],
+  '20.17 the audit log holds every change of the switch (four on, one off) and exactly one auto_joined row per placed rep');
+
+call t.login(:'OWNER');
+select t.ok((select array_agg(k order by k) from jsonb_object_keys(rally100.owner_state()) k)
+  = array['auto_join','funnel','incentives','leaders','outcomes','payments','pending_signups','reps','rewards','totals'],
+  '20.18 owner_state keeps every v1 key and adds only auto_join');
 reset role;

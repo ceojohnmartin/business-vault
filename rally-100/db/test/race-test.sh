@@ -1,7 +1,8 @@
 #!/bin/sh
-# RALLY 100 v1 — two-session race proofs (review items 6 and 7). Concurrency
-# cannot be tested from one session, so each race holds one transaction open
-# with pg_sleep while a second session runs the conflicting operation.
+# RALLY 100 — two-session race proofs: v1 review items 6 and 7, and v2's
+# automatic team joining. Concurrency cannot be tested from one session, so
+# each race holds one transaction open with pg_sleep while a second session
+# runs the conflicting operation.
 #
 #   sh rally-100/db/test/race-test.sh rally100_test
 #
@@ -15,6 +16,7 @@ OWNER=00000000-0000-4000-8000-000000000001
 L1=00000000-0000-4000-8000-000000000002
 R1=00000000-0000-4000-8000-000000000004
 R3=00000000-0000-4000-8000-000000000006
+TA=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
 N=0
 pass() { echo "PASS: $1"; N=$((N + 1)); }
 fail() { echo "FAIL: $1"; exit 1; }
@@ -89,5 +91,52 @@ FINAL="$($P -c "select status || ' ' || (reversed_at is not null) from rally100.
 echo "$OUT" | grep -Eq "rally100: (reward_reversed|rep_closed)" && [ "$FINAL" = "ready true" ] \
   || fail "race C: an approval racing close_rep_unpaid (got '$OUT', final '$FINAL')"
 pass "race C [5][6] an approval that waits for a closure in flight is refused; the reward stays unapproved and reversed"
+
+# ------------------------------------- v2: automatic team joining
+signup() {  # $1 = uid, $2 = email: a confirmed sign-up with no team, and the switch on
+  $P -v ON_ERROR_STOP=1 >/dev/null <<SQL
+insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)
+values ('$1', '$2', '{"name":"Race Joiner"}', now());
+call t.login('$OWNER');
+select rally100.set_auto_join(true);
+reset role;
+SQL
+}
+
+# ------------------------------------------------ RACE D: two joins by one person
+JD=00000000-0000-4000-8000-000000009201
+signup $JD race.join.d@x.test
+( { as $JD; echo "select rally100.join_team() ->> 'joined'; select pg_sleep(2); commit;"; } | $P -v ON_ERROR_STOP=1 >/dev/null ) &
+sleep 0.7
+OUT="$( { as $JD; echo "select rally100.join_team()::text; commit;"; } | $P 2>&1 || true)"
+wait
+FINAL="$($P -c "select (select team_id from public.profiles where id = '$JD') || ' ' || (select count(*) from rally100.audit where action = 'auto_joined' and actor = '$JD')")"
+echo "$OUT" | grep -q '"already": true' && [ "$FINAL" = "$TA 1" ] \
+  || fail "race D: two joins by one person (got '$OUT', final '$FINAL')"
+pass "race D [v2] a second join_team waiting on a first one in flight answers already: placed once, one auto_joined row"
+
+# ------------------------------------------------ RACE E: the owner's "off", then a join
+JE=00000000-0000-4000-8000-000000009202
+signup $JE race.join.e@x.test
+( { as $OWNER; echo "select rally100.set_auto_join(false) ->> 'on'; select pg_sleep(2); commit;"; } | $P -v ON_ERROR_STOP=1 >/dev/null ) &
+sleep 0.7
+OUT="$( { as $JE; echo "select rally100.join_team()::text; commit;"; } | $P 2>&1 || true)"
+wait
+FINAL="$($P -c "select coalesce((select team_id::text from public.profiles where id = '$JE'), 'none') || ' ' || coalesce((select auto_join_team::text from rally100.settings), 'off')")"
+echo "$OUT" | grep -q "rally100: auto_join_off" && [ "$FINAL" = "none off" ] \
+  || fail "race E: a join racing the owner's off (got '$OUT', final '$FINAL')"
+pass "race E [v2] a join that waits for the owner's \"off\" in flight is refused auto_join_off: nobody is placed once it is off"
+
+# ------------------------------------------------ RACE E2: a join, then the owner's "off"
+JF=00000000-0000-4000-8000-000000009203
+signup $JF race.join.f@x.test
+( { as $JF; echo "select rally100.join_team() ->> 'joined'; select pg_sleep(2); commit;"; } | $P -v ON_ERROR_STOP=1 >/dev/null ) &
+sleep 0.7
+OUT="$( { as $OWNER; echo "select rally100.set_auto_join(false)::text; commit;"; } | $P 2>&1 || true)"
+wait
+FINAL="$($P -c "select (select team_id from public.profiles where id = '$JF') || ' ' || coalesce((select auto_join_team::text from rally100.settings), 'off') || ' ' || ((select max(created_at) from rally100.audit where action = 'auto_join_off' and actor = '$OWNER') - (select created_at from rally100.audit where action = 'auto_joined' and actor = '$JF') > interval '1.5 seconds')")"
+echo "$OUT" | grep -q '"on": false' && [ "$FINAL" = "$TA off true" ] \
+  || fail "race E2: the owner's off racing a join (got '$OUT', final '$FINAL')"
+pass "race E2 [v2] the owner's \"off\" waits for a join already in flight: that rep is placed, and the switch is off after it"
 
 echo "RACES: ALL GREEN ($N checks)"

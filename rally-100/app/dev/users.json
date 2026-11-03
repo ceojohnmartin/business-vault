@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "DEV ONLY. Sign-in accounts for app/dev/server.mjs, the local stand-in for Supabase.",
+    "These are fictional fixtures created by app/dev/seed.sql; they exist on no real project.",
+    "The user ids live in the database (auth.users); the server looks them up by email.",
+    "Never copy a real person's email or a real password here."
+  ],
+  "users": [
+    { "email": "owner@rally.test",   "password": "rally100dev" },
+    { "email": "leader@rally.test",  "password": "rally100dev" },
+    { "email": "rep1@rally.test",    "password": "rally100dev" },
+    { "email": "rep2@rally.test",    "password": "rally100dev" },
+    { "email": "rep3@rally.test",    "password": "rally100dev" },
+    { "email": "leaderb@rally.test", "password": "rally100dev" },
+    { "email": "repb@rally.test",    "password": "rally100dev" }
+  ]
+}

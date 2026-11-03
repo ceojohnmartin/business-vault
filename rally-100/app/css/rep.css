@@ -1,0 +1,57 @@
+/* RALLY 100: rep screen styles, on top of app.css. Green stays for wins only; buttons stay white with black text. */
+
+/* onboarding */
+.ob .pv{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;width:160px;padding:8px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.ob .pv i{aspect-ratio:1;border-radius:3px;border:1px solid rgba(255,255,255,.14)}
+.ob .pv i.on{background:var(--green);border-color:var(--green);animation:popin .3s ease-out .5s both}
+.ob .ob-rules{align-self:flex-start}
+.ob .ob-cta{text-align:center;margin-top:-10px}
+
+/* home */
+.home .count-block{min-width:0}
+.big .syncing{font-size:13px;font-weight:600;color:var(--dim)}
+.wall:focus-visible,[role="button"].strip:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+[role="button"].strip{cursor:pointer}
+.tapstrip{width:100%;text-align:left;color:inherit;font:inherit}
+.inc-row{display:flex;gap:10px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.inc-row::-webkit-scrollbar{display:none}
+.inc-mini{flex:none;width:136px;display:flex;flex-direction:column;gap:6px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px}
+.inc-mini img,.inc-mini .ph{display:block;width:100%;aspect-ratio:4/3;height:auto;border-radius:10px;object-fit:cover;background:var(--surface2)}
+.inc-mini .nm{font-weight:700;font-size:14px;line-height:1.25;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+
+/* headers, sync note, small helpers */
+.syncnote{display:inline-flex;gap:8px;align-items:center}
+.syncnote:empty{display:none}
+.row-end{display:inline-flex;gap:12px;align-items:center;flex:none}
+.dot.white{background:#fff}
+.hint{font-size:13px;color:var(--dim)}
+.which{margin-top:4px}
+.sum{cursor:pointer;min-height:44px;display:flex;align-items:center;list-style:none}
+.sum::-webkit-details-marker{display:none}
+.sum::after{content:"+";margin-left:8px;font-size:16px;letter-spacing:0}
+details[open]>.sum::after{content:"\2013"}
+.stack.tight{gap:4px;min-width:0}
+.rules-link{align-self:flex-start}
+
+/* rewards rows */
+.rw-head{align-items:flex-start}
+.rw-line{display:flex;gap:12px;align-items:flex-start;min-width:0}
+.rw-line p{min-width:0}
+.inc-card{align-items:flex-start}
+.inc-card .ph{width:72px;height:72px;border-radius:12px;background:var(--surface2);flex:none}
+
+/* lists */
+.ncard.dnc{opacity:.62}
+.ncard .small{overflow-wrap:anywhere}
+.ncard>.small .chip{margin-right:4px}
+.pk-list{max-height:50vh;overflow:auto}
+
+/* long names, handles and notes never push the page sideways (rep screens and rep sheets carry .rep;
+   leader and owner tables are left alone) */
+.rep{overflow-wrap:anywhere}
+.rep .cname,.rep .iname,.rep .pinned span,.rep .rw-line p{min-width:0}
+.iname{font-size:28px}
+.rep .lastnames .chip,.rep .chips .chip{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.rep .facts span:first-child{flex:none;overflow-wrap:normal}
+.rep .facts span:last-child{min-width:0;text-align:right}
+.toast{overflow-wrap:anywhere}

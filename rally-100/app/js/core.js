@@ -19,7 +19,7 @@
    - Rep list writes (save_entry) go through R100.outbox so names typed without signal are kept. */
 (function () {
   var R = window.R100 = window.R100 || {};
-  R.version = '1.0.0';
+  R.version = '1.0.1';
 
   /* ------------------------------------------------------------ fixed values ---------------------------- */
   R.PLATFORMS = ['Instagram', 'Snapchat', 'TikTok', 'Facebook', 'X', 'LinkedIn', 'Discord', 'Other'];
@@ -132,7 +132,8 @@
     rep_closed: 'The owner closed this rep’s unpaid rewards. Ask the owner.',
     list_full: 'Your list is full at 500 names. Remove a few you won’t use to add more.',
     no_sample: 'Open the rep’s list first so the spot-check sample is drawn.', intro_required: 'Plan or record your introduction first.',
-    request_reused: 'That was already saved. Reload to see it.'
+    request_reused: 'That was already saved. Reload to see it.',
+    auto_join_off: 'New sign-ups are added by the owner right now. Ask your leader to add you.'
   };
   R.say = function (code) { return SAY[code] || 'Something went wrong. Try again.'; };
 

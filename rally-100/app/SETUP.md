@@ -1,13 +1,13 @@
 # RALLY 100: switching it on
 
-RALLY 100 runs on the same Supabase project as the RALLY sales app. Everything it adds lives in its own database section, `rally100`; nothing in RALLY's tables, rules or tests changes. Until the steps below are done, the app opens and shows "Not switched on yet".
+RALLY 100 runs on the same Supabase project as the RALLY sales app. Everything it adds lives in its own database section, `rally100`; nothing in RALLY's tables or tests changes. One RALLY rule does change once v2 is applied, by the owner's choice: new sign-ups can be placed on the owner's team automatically (see "People and accounts"). Until the steps below are done, the app opens and shows "Not switched on yet".
 
 These steps change the live database, so they are the owner's to approve and run. Each one is reversible (see the end).
 
 ## One-time steps
 
 1. **Read what will change.** `rally-100/db/migrations/1001_rally100_v1.sql` creates the `rally100` section: the tables for lists, people, introductions, requirements, rewards, incentives and the history log, and the server functions the app calls. Browsers get no direct access to any table; every action goes through a function that checks who is asking.
-2. **Apply it.** Supabase, then SQL editor, then paste all of `rally-100/db/APPLY_rally100_v1.sql`, then Run. It is one all-or-nothing transaction: it either finishes completely or changes nothing.
+2. **Apply it.** Supabase, then SQL editor, then paste all of `rally-100/db/APPLY_rally100_v1.sql`, then Run. It is one all-or-nothing transaction: it either finishes completely or changes nothing. Then do the same with `rally-100/db/APPLY_rally100_v2.sql` (automatic team joining for new sign-ups). If v1 is already installed, run only v2.
 3. **Expose the section to the app.** Supabase, then Project Settings, then Data API (called API in older dashboards), then **Exposed schemas**: add `rally100`, then Save.
 4. **Let emails come back to the app.** Supabase, then Authentication, then URL Configuration, then **Redirect URLs**: add `https://ceojohnmartin.github.io/business-vault/rally-100/app/` and Save. Confirmation and password-reset emails then open RALLY 100.
 5. **Publish the app.** Merge the `claude/rally-100-blueprint` branch into `main`. GitHub Pages then serves the app at:
@@ -20,13 +20,14 @@ These steps change the live database, so they are the owner's to approve and run
 ## People and accounts
 
 - **Same accounts as RALLY.** Anyone with a RALLY login signs in to RALLY 100 with the same email and password.
-- **New reps** tap "Create account" in RALLY 100, confirm their email, and land on "Almost there". Your Owner Dashboard lists them under **New sign-ups waiting for a team**, with a Copy button for the one line that adds each person to your team. Paste that line in the Supabase SQL editor and run it. This keeps RALLY's rule that nobody can put themselves on a team.
+- **New reps** tap "Create account" in RALLY 100 and confirm their email. With **Add new sign-ups automatically** on (the Owner Dashboard switch, on by default after v2), they join your team as reps the next time they open RALLY 100, with nothing for you to do. Joining the team also lets them see RALLY team data (customers, pins, territories), so anyone who finds the link and confirms an email gets in; watch the Reps list, and turn the switch off if strangers sign up.
+- **With the switch off**, new sign-ups land on "Almost there" and your Owner Dashboard lists them under **New sign-ups**, with a Copy button for the one line that adds each person to your team. Paste that line in the Supabase SQL editor and run it.
 - **Leaders** are made the same way RALLY makes them: in the SQL editor, `update public.profiles set role = 'leader' where email = 'leader@example.com';`
 - **Reps who leave or don't come out:** on the Rewards page, use "Close unpaid rewards" on that rep. Every reward of theirs that isn't paid yet is closed, and later awards, approvals and payments for them are refused until you tap "Reopen". Rewards already marked Pay issued stay as they are. The rep is never shown a reason. To turn off their login as well, the same way RALLY does: `update public.profiles set disabled = true where email = 'rep@example.com';`
 
 ## Taking it back out
 
-`rally-100/db/ROLLBACK_rally100_v1.sql` removes the whole `rally100` section in one transaction and touches nothing in RALLY. Remove `rally100` from Exposed schemas afterwards. The app then shows "Not switched on yet" again.
+`rally-100/db/ROLLBACK_rally100_v2.sql` removes only automatic joining (people it already placed stay on the team). `rally-100/db/ROLLBACK_rally100_v1.sql` removes the whole `rally100` section in one transaction and touches nothing in RALLY. Remove `rally100` from Exposed schemas afterwards. The app then shows "Not switched on yet" again.
 
 ## For developers
 

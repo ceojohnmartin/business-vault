@@ -116,9 +116,9 @@
   R.actions['go-signup'] = function () { R.go('signup'); };
   R.actions['go-forgot'] = function () { R.go('forgot'); };
   R.actions['go-signin'] = function () { R.go('signin', {}); };
-  R.actions.recheck = function () { boot(); };
+  R.actions.recheck = function () { joinTried = false; boot(); };
 
-  var linkChecked = false;
+  var linkChecked = false, joinTried = false;
   async function boot() {
     if (!R.cloud.enabled()) { R.go('setup', {}); return; }
     if (!linkChecked) {
@@ -142,6 +142,12 @@
       }
       if (e.code === 'disabled') { R.go('setup', { msg: R.say('disabled') }); return; }
       R.go('signin', { msg: R.say(e.code) }); return;
+    }
+    /* Auto-add (owner's switch): a confirmed rep with no team joins the owner's team here, then loads as usual. */
+    if (me.no_team && me.auto_join && !joinTried) {
+      joinTried = true;
+      try { await R.cloud.rpc('join_team', {}); return boot(); }
+      catch (e) { if (e.kind === 'auth') { R.go('signin', { msg: R.say('expired') }); return; } }
     }
     R.data.me = me;
     if (me.no_team) { R.go('noteam'); return; }

@@ -9,6 +9,7 @@ Everything in this folder is for a developer's machine and for browser tests. No
 | `seed.sql` | Fictional fixtures: team "RALLY" (owner, leader, three reps) and team "RALLY B" (a leader and a rep). |
 | `users.json` | The dev accounts' passwords. Every account uses `rally100dev`. |
 | `smoke.mjs` | A short end-to-end check against a running server: prints PASS or FAIL. |
+| `e2e/` | The cross-role browser test (`run.sh`, `cross.js`, `lib.js`). |
 
 ## 1. A local Postgres
 
@@ -57,6 +58,14 @@ node rally-100/app/dev/smoke.mjs http://localhost:8100
 ```
 
 It signs in as rep1, saves three contacts, reads `rep_state`, signs in as the leader, reads `team_state`, and checks the refusals (wrong password, missing token, a rep asking for leader data, a bad phone, an unknown function).
+
+## 5. The cross-role browser test
+
+```sh
+PGHOST=127.0.0.1 PGPORT=5432 PGUSER=postgres sh rally-100/app/dev/e2e/run.sh
+```
+
+It rebuilds `rally100_dev`, starts the server for the length of the run, and drives the real screens in Chromium (Playwright): a rep reaches 100 and introduces a friend; the leader confirms the introduction and the four requirements, runs the spot-check and approves both rewards; the owner publishes an incentive with a picture, awards it, marks pay issued, closes a leaving rep's unpaid rewards (and reopens them), and places a new sign-up on the team. It also checks phone widths for every role and fails on any console error. Screenshots go to `$SHOTS` (default: the system temp folder).
 
 ## How faithful it is
 

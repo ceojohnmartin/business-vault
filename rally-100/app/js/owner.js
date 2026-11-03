@@ -178,7 +178,10 @@
      ====================================================================================================== */
   var RF = [['all', 'All'], ['ready', 'Ready for review'], ['needs_correction', 'Needs correction'], ['approved', 'Pending pay'], ['paid', 'Pay issued'], ['in_progress', 'In progress']];
   function rwStatus(p) { var s = (p && p.status) || LW.cache().f.rw || 'all'; return RF.some(function (x) { return x[0] === s; }) ? s : 'all'; }
-  function loadRewards(p) { var s = rwStatus(p); return R.cloud.rpc('owner_rewards', { p_status: s === 'all' ? null : s }).then(function (d) { LW.cache().rewards[s] = arr(d && d.rows); }); }
+  function loadRewards(p) {
+    var s = rwStatus(p);
+    return Promise.all([R.cloud.rpc('owner_rewards', { p_status: s === 'all' ? null : s }).then(function (d) { LW.cache().rewards[s] = arr(d && d.rows); }), loadOwner()]);
+  }
   function findReward(id) {
     var C = LW.cache(), keys = Object.keys(C.rewards);
     for (var i = 0; i < keys.length; i++) { var x = arr(C.rewards[keys[i]]).filter(function (r) { return LW.rid(r) === id; })[0]; if (x) return x; }
@@ -199,24 +202,24 @@
     return out.map(esc).join('<br>');
   }
   function rowActions(r) {
-    var rev = LW.reversed(r), at = LW.rattrs(r), b = '';
-    if (!rev && r.status === 'ready') b += '<button class="btn xs win" data-a="lead-approve"' + at + '>Approve</button>';
-    if (!rev && r.status === 'approved') b += '<button class="btn xs" data-a="own-pay"' + at + '>Mark pay issued</button>';
+    var rev = LW.reversed(r), at = LW.rattrs(r), b = '', closed = LW.repClosed(r);
+    if (!rev && !closed && r.status === 'ready') b += '<button class="btn xs win" data-a="lead-approve"' + at + '>Approve</button>';
+    if (!rev && !closed && r.status === 'approved') b += '<button class="btn xs" data-a="own-pay"' + at + '>Mark pay issued</button>';
     return '<div class="lw-btns lw-nowrap">' + b + '<button class="btn xs" data-a="own-reward" data-id="' + esc(LW.rid(r)) + '">More</button></div>';
   }
   function unpaidByRep(rows, s) {
     if (s !== 'all') return '';
     var by = {}, order = [];
-    rows.forEach(function (r) {
-      if (!r.rep_id || LW.reversed(r) || r.status === 'paid') return;
-      if (!by[r.rep_id]) { by[r.rep_id] = { name: r.rep_name || 'Rep', n: 0 }; order.push(r.rep_id); }
-      by[r.rep_id].n++;
-    });
+    function add(id, name) { if (!by[id]) { by[id] = { name: name || 'Rep', n: 0, closed: false }; order.push(id); } return by[id]; }
+    rows.forEach(function (r) { if (r.rep_id && !LW.reversed(r) && r.status !== 'paid') add(r.rep_id, r.rep_name).n++; });
+    arr(R.data.owner && R.data.owner.reps).forEach(function (r) { if (r.closed) add(r.id, r.name).closed = true; });
     if (!order.length) return '';
-    return '<section class="card"><h2>Reps with unpaid rewards</h2><p class="small muted">If a rep left or didn’t come out, close their unpaid rewards as not paid. Pay already issued stays. Internal only: the rep is shown no reason.</p>' +
+    return '<section class="card"><h2>Unpaid rewards by rep</h2><p class="small muted">If a rep left or didn’t come out, close their unpaid rewards as not paid. Pay already issued stays. While a rep is closed nothing new is approved, awarded or paid for them. Internal only: the rep is shown no reason.</p>' +
       '<div class="tbl-wrap lw-stackwrap"><table class="tbl lw-stack"><thead><tr><th>Rep</th><th>Unpaid</th><th></th></tr></thead><tbody>' + order.map(function (id) {
         var x = by[id];
-        return '<tr><td><button class="link" data-a="lead-open-rep" data-id="' + esc(id) + '">' + esc(x.name) + '</button></td><td data-label="Unpaid">' + x.n + '</td><td><button class="btn xs danger" data-a="own-close-unpaid" data-rep="' + esc(id) + '" data-name="' + esc(x.name) + '">Close unpaid rewards (rep left or didn’t come out)</button></td></tr>';
+        return '<tr><td><button class="link" data-a="lead-open-rep" data-id="' + esc(id) + '">' + esc(x.name) + '</button>' + (x.closed ? ' <span class="chip">Closed</span>' : '') + '</td><td data-label="Unpaid">' + x.n + '</td>' +
+          '<td><div class="lw-btns"><button class="btn xs danger" data-a="own-close-unpaid" data-rep="' + esc(id) + '" data-name="' + esc(x.name) + '">Close unpaid rewards (rep left or didn’t come out)</button>' +
+          (x.closed ? '<button class="btn xs" data-a="own-reopen" data-rep="' + esc(id) + '" data-name="' + esc(x.name) + '">Reopen</button>' : '') + '</div></td></tr>';
       }).join('') + '</tbody></table></div></section>';
   }
   function renderRewards(p) {
@@ -260,9 +263,12 @@
     if (arr(r.flags).length) h += kv('Flags', esc(arr(r.flags).map(function (f) { return f === 'no_intro' ? 'No introduction recorded' : f; }).join(', ')));
     h += kv('Reward ID', '<span class="small dim">' + esc(LW.rid(r)) + '</span>');
     var b = '';
-    if (!rev && r.status === 'ready') b += '<button class="btn sm win" data-a="lead-approve"' + at + '>Approve</button><button class="btn sm" data-a="lead-correct"' + at + '>Needs correction</button>';
+    var closed = LW.repClosed(r);
+    if (closed && !rev) h += kv('Rep closed', esc('Nothing is approved or paid for ' + (r.rep_name || 'this rep') + ' until you reopen them.'));
+    if (!rev && r.status === 'ready') b += (closed ? '' : '<button class="btn sm win" data-a="lead-approve"' + at + '>Approve</button>') + '<button class="btn sm" data-a="lead-correct"' + at + '>Needs correction</button>';
     if (!rev && r.status === 'needs_correction') b += '<button class="btn sm" data-a="lead-resolve"' + at + '>Correction resolved</button>';
-    if (!rev && r.status === 'approved') b += '<button class="btn sm" data-a="own-pay"' + at + '>Mark pay issued</button>';
+    if (!rev && !closed && r.status === 'approved') b += '<button class="btn sm" data-a="own-pay"' + at + '>Mark pay issued</button>';
+    if (closed && r.rep_id) b += '<button class="btn sm" data-a="own-reopen" data-rep="' + esc(r.rep_id) + '" data-name="' + esc(r.rep_name || '') + '">Reopen ' + esc(r.rep_name || 'rep') + '</button>';
     if (!rev && r.kind === 'referral' && ['in_progress', 'ready', 'needs_correction'].indexOf(r.status) >= 0) b += '<button class="btn sm" data-a="own-credit"' + at + '>Correct credit</button>';
     if (!rev) b += '<button class="btn sm danger" data-a="own-reverse"' + at + '>Reverse</button>';
     var links = (r.person_id ? '<button class="btn sm" data-a="own-open" data-k="person" data-id="' + esc(r.person_id) + '">Open person</button>' : '') +
@@ -332,6 +338,15 @@
     if (!pick) { LW.setErr(f, 'Pick why.'); return; }
     var res = await R.call('close_rep_unpaid', { p_rep: f.dataset.rep, p_reason: pick.value }, LW.submitBtn(f));
     if (res) LW.done('Closed ' + R.plural(Number(res.closed) || 0, 'unpaid reward'));
+  };
+  R.actions['own-reopen'] = function (el) {
+    var ds = el.dataset, nm = ds.name || 'this rep';
+    R.sheet('<form data-form="own-reopen" data-rep="' + esc(ds.rep) + '" class="stack"><h2>Reopen ' + esc(nm) + '?</h2>' +
+      '<p class="muted">This ends the closure for future rewards: they can be approved, awarded and paid for again. It does not undo past closures; rewards already closed stay reversed.</p>' + LW.sheetButtons('Reopen') + '</form>');
+  };
+  R.forms['own-reopen'] = async function (f) {
+    var res = await R.call('reopen_rep', { p_rep: f.dataset.rep }, LW.submitBtn(f));
+    if (res) LW.done('Reopened. Past closures stay as they were.');
   };
   R.actions['own-clear-dnc'] = function (el) {
     R.sheet('<form data-form="own-clear-dnc" data-id="' + esc(el.dataset.id) + '" class="stack"><h2>Clear Do not contact?</h2><p class="muted">' + esc(el.dataset.name || 'This person') +
@@ -479,9 +494,9 @@
   };
   R.actions['own-inc-award'] = function (el) {
     var i = arr(R.data.owner && R.data.owner.incentives).filter(function (x) { return x.id === el.dataset.id; })[0]; if (!i) return;
-    var reps = arr(R.data.owner && R.data.owner.reps).filter(function (r) { return r.id !== LW.me().id && !r.disabled; }).sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
+    var reps = arr(R.data.owner && R.data.owner.reps).filter(function (r) { return r.id !== LW.me().id && !r.disabled && !r.closed; }).sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
     if (!reps.length) { R.toast('No reps to award yet.'); return; }
-    R.sheet('<form data-form="own-inc-award" data-id="' + esc(i.id) + '" class="stack"><h2>Award “' + esc(i.name || 'incentive') + '”</h2><p class="muted">' + esc(R.money(i.prize_cents)) + '. It is recorded as approved and shows as Pending pay until you mark pay issued.</p>' +
+    R.sheet('<form data-form="own-inc-award" data-id="' + esc(i.id) + '" data-request="' + esc(R.uuid()) + '" class="stack"><h2>Award “' + esc(i.name || 'incentive') + '”</h2><p class="muted">' + esc(R.money(i.prize_cents)) + '. It is recorded as approved and shows as Pending pay until you mark pay issued.</p>' +
       '<div class="field"><label for="oaR">Rep</label><select id="oaR" name="rep">' + reps.map(function (r) { return '<option value="' + esc(r.id) + '">' + esc((r.name || r.email || 'Rep') + (r.team_name ? ' · ' + r.team_name : '')) + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label for="oaN">Why it was earned</label><textarea id="oaN" name="note" maxlength="1000"></textarea></div>' +
       '<p class="small dim">Awarding the same incentive again makes a second award.</p>' + LW.sheetButtons('Award', 'win') + '</form>');
@@ -489,7 +504,7 @@
   R.forms['own-inc-award'] = async function (f) {
     var note = LW.val(f, 'note');
     if (!note) { LW.setErr(f, R.say('note_required')); return; }
-    var res = await R.call('award_incentive', { p_incentive: f.dataset.id, p_rep: LW.val(f, 'rep'), p_note: note }, LW.submitBtn(f));
+    var res = await R.call('award_incentive', { p_incentive: f.dataset.id, p_rep: LW.val(f, 'rep'), p_note: note, p_request: f.dataset.request }, LW.submitBtn(f));
     if (res) LW.done('Awarded. It shows as Pending pay.', 'win');
   };
 })();

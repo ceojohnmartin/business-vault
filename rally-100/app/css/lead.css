@@ -44,6 +44,8 @@
 .lw .qitem.static:hover{border-color:var(--line)}
 .lw .qitem .link,.lw-ent .link,.lw .tbl .link{min-height:0;padding:2px 0;text-align:left}
 .lw .qitem .lw-btns{margin-top:4px}
+.lw .qitem.lw-ro{border-style:dashed}
+.lw .qitem.lw-ro .nm{color:var(--muted)}
 
 /* shared blocks (also inside sheets) */
 .lw-msg{white-space:pre-wrap;overflow-wrap:anywhere}

@@ -113,7 +113,7 @@
     do_not_contact: 'This person asked not to be contacted by RALLY.', locked_reward: 'This reward is already approved. Ask the owner.',
     count_below_100: 'The list is below 100. Approval opens at 100.', spot_check_required: 'Do the spot-check first.',
     no_credited_rep: 'No introduction is on record yet.', not_ready: 'This reward isn’t ready for review.',
-    self_involved: 'You can’t approve a reward that’s yours.', owner_only: 'Only the owner can do that.',
+    self_involved: 'That one involves you, so another leader or the owner does it.', owner_only: 'Only the owner can do that.',
     method_required: 'Add how it was paid.', already_paid: 'Pay was already issued for this reward.',
     both_have_rewards: 'Both people already have a referral reward. Ask the owner.', date_required: 'Pick a date.',
     start_date_required: 'Add the start date.', travel_required: 'Add the travel plan or mark it not needed.',

@@ -71,10 +71,11 @@
   LW.stale = function () { var c = R.view.lwErr; return c ? '<div class="banner"><span>Couldn’t refresh. ' + esc(R.say(c)) + '</span><button class="btn xs" data-a="lead-retry">Try again</button></div>' : ''; };
   R.actions['lead-retry'] = function () { var v = R.view; v.lwLoaded = false; v.lwErr = null; R.render(); };
 
+  function actionable(x) { return !x || x.controls !== false; }
   function loadTeam() {
     return R.load('team').then(function (d) {
       var q = (d && d.queues) || {}, n = 0;
-      ['new_intros', 'meetings', 'follow_ups', 'confirmations', 'reviews', 'messages', 'matches'].forEach(function (k) { n += arr(q[k]).length; });
+      ['new_intros', 'meetings', 'follow_ups', 'confirmations', 'reviews', 'messages', 'matches'].forEach(function (k) { n += arr(q[k]).filter(actionable).length; });
       R.navBadges['lead-queue'] = n > 99 ? '99+' : n;
       return d;
     });
@@ -87,6 +88,10 @@
   LW.rid = function (r) { return r && (r.id || r.reward_id); };
   LW.reversed = function (r) { return !!(r && (r.reversed || r.reversed_at)); };
   LW.amt = function (r) { return r && r.amount_cents != null ? R.money(r.amount_cents) : ''; };
+  function hasFlag(r, f) { return arr(r && r.flags).indexOf(f) >= 0; }
+  /* rep_closed: the owner closed the credited rep's unpaid rewards (a leaving rep). Internal to leaders and the
+     owner: nothing is approved, awarded or paid for that rep until the owner reopens them. */
+  LW.repClosed = function (r) { return hasFlag(r, 'rep_closed'); };
   LW.statusText = function (r) {
     if (!r || !r.status) return '';
     if (r.status === 'paid') return 'Pay issued' + (r.paid_on ? ' ' + R.date(r.paid_on) : '');
@@ -98,6 +103,7 @@
     var h = '<span class="chip' + cls + '">' + esc(LW.statusText(r)) + '</span>';
     if (LW.reversed(r)) h += '<span class="chip alert">Reversed' + (r.reversed_at ? ' ' + esc(R.date(r.reversed_at)) : '') + '</span>';
     if (r.hold) h += '<span class="chip held">On hold: under 100</span>';
+    if (hasFlag(r, 'rep_closed')) h += '<span class="chip">Rep closed</span>';
     return h;
   };
   LW.subject = function (r) {
@@ -209,7 +215,7 @@
     return out;
   }
   function personItem(q, kind) {
-    var meta = [], chips = '', reps = arr(q.reps).join(', ');
+    var meta = [], chips = '', reps = arr(q.reps).join(', '), ro = q.controls === false;
     if (kind === 'new') { meta.push(reps ? 'Introduced by ' + reps : 'Introduced'); if (q.updated_at) meta.push(R.date(q.updated_at)); }
     else if (kind === 'meet') {
       meta.push(q.meeting_at ? 'Meeting ' + (isToday(q.meeting_at) ? 'today ' + clock(q.meeting_at) : R.dateTime(q.meeting_at)) : 'Meeting scheduled');
@@ -223,8 +229,9 @@
       meta.push((q.confirmed_count || 0) + ' of 4 confirmed');
       if (reps) meta.push(reps);
     }
-    return '<button class="qitem" data-a="lead-open-person" data-id="' + esc(q.person_id) + '"><span class="qtop"><span class="nm">' + esc(q.name || 'Unnamed') + '</span>' + chips + '</span>' +
-      '<span class="meta">' + esc(meta.filter(Boolean).join(' · ')) + '</span>' + (q.next_action ? '<span class="meta">Next: ' + esc(q.next_action) + '</span>' : '') + '</button>';
+    if (ro) chips = '<span class="chip">Another team runs this</span>';
+    return '<button class="qitem' + (ro ? ' lw-ro' : '') + '" data-a="lead-open-person" data-id="' + esc(q.person_id) + '"><span class="qtop"><span class="nm">' + esc(q.name || 'Unnamed') + '</span>' + chips + '</span>' +
+      '<span class="meta">' + esc(meta.filter(Boolean).join(' · ')) + '</span>' + (!ro && q.next_action ? '<span class="meta">Next: ' + esc(q.next_action) + '</span>' : '') + '</button>';
   }
   function reviewItem(r) {
     var list = r.kind === 'list';
@@ -248,7 +255,8 @@
       '<button class="btn xs" data-a="lead-match-dismiss" data-id="' + esc(pm.id) + '">Different people</button></span></div>';
   }
   function itemFor(s, x) { return s.kind === 'rev' ? reviewItem(x) : s.kind === 'msg' ? msgItem(x) : s.kind === 'dup' ? matchItem(x) : personItem(x, s.kind); }
-  function nextUp(L) {
+  function nextUp(L0) {
+    var L = {}; Object.keys(L0).forEach(function (k) { L[k] = L0[k].filter(actionable); });
     var m = L.meetings[0]; if (m) return { a: 'lead-open-person', id: m.person_id, text: m.name + ' · meeting ' + (isToday(m.meeting_at) ? 'today ' + clock(m.meeting_at) : R.dateTime(m.meeting_at)) };
     var n = L.new_intros[0]; if (n) return { a: 'lead-open-person', id: n.person_id, text: n.name + ' · new introduction' };
     var f = L.follow_ups[0]; if (f) return { a: 'lead-open-person', id: f.person_id, text: f.name + ' · follow-up due' };
@@ -260,14 +268,18 @@
     var d = R.data.team, team = R.isOwner() ? 'All teams' : (me().team_name || '');
     var top = '<div class="lw-top"><div class="between"><h1>Queue</h1>' + (team ? '<span class="small dim">' + esc(team) + '</span>' : '') + '</div>';
     if (!d) return LW.wait(top + '</div>');
-    var L = queueLists(d), parts = [], chips = '', sections = { a: '', b: '' };
+    var L = queueLists(d), parts = [], chips = '', sections = { a: '', b: '' }, any = false;
     QS.forEach(function (s, i) {
-      var list = L[s.key], n = list.length; if (!n) return;
-      parts.push(n + ' ' + (n === 1 ? s.one : s.many) + '.');
-      chips += '<button class="cbtn" data-a="lead-jump" data-k="' + s.id + '">' + esc(s.chip) + ' ' + n + '</button>';
-      sections[i < 4 ? 'a' : 'b'] += '<section class="card lw-q" id="' + s.id + '"><div class="between"><h2>' + esc(s.title) + '</h2><span class="chip">' + n + '</span></div><div class="queue">' + list.map(function (x) { return itemFor(s, x); }).join('') + '</div></section>';
+      var list = L[s.key], n = list.filter(actionable).length; if (!list.length) return;
+      any = true;
+      if (n) {
+        parts.push(n + ' ' + (n === 1 ? s.one : s.many) + '.');
+        chips += '<button class="cbtn" data-a="lead-jump" data-k="' + s.id + '">' + esc(s.chip) + ' ' + n + '</button>';
+      }
+      sections[i < 4 ? 'a' : 'b'] += '<section class="card lw-q" id="' + s.id + '"><div class="between"><h2>' + esc(s.title) + '</h2><span class="chip">' + list.length + '</span></div><div class="queue">' + list.map(function (x) { return itemFor(s, x); }).join('') + '</div></section>';
     });
-    if (!parts.length) return LW.shell(top + '</div>' + LW.stale() + '<div class="card lw-empty"><h2>Nothing waiting. Nice.</h2><p class="muted">New introductions, meetings, follow-ups, confirmations and reviews land here.</p></div>');
+    if (!any) return LW.shell(top + '</div>' + LW.stale() + '<div class="card lw-empty"><h2>Nothing waiting. Nice.</h2><p class="muted">New introductions, meetings, follow-ups, confirmations and reviews land here.</p></div>');
+    if (!parts.length) parts.push('Nothing waiting. Nice.');
     var nx = nextUp(L);
     var body = sections.a && sections.b ? '<div class="cols two"><div class="stack lw-col">' + sections.a + '</div><div class="stack lw-col">' + sections.b + '</div></div>' : '<div class="stack lw-col">' + sections.a + sections.b + '</div>';
     return LW.shell(top + '<p class="lw-sum">' + esc(parts.join(' ')) + '</p><div class="chips">' + chips + '</div></div>' + LW.stale() + body +
@@ -319,7 +331,7 @@
     var t = R.data.team && arr(R.data.team.reps).filter(function (x) { return x.id === uid; })[0]; if (t) return t.name;
     return '';
   }
-  function identityCard(d, P, id) {
+  function identityCard(d, P, id, ctl) {
     var phones = [], handles = [];
     arr(d.identifiers).forEach(function (x) { var i = LW.ident(x); if (i.text) (i.kind === 'phone' ? phones : handles).push(i); });
     var h = kv('Phone', phones.length ? phones.map(function (i) { return R.phoneOk(i.value) ? '<a href="tel:' + i.value + '">' + esc(i.text) + '</a>' : esc(i.text); }).join('<br>') : '<span class="dim">None yet</span>');
@@ -328,6 +340,7 @@
     if (P.responsible_leader_name) h += kv('Leader', esc(P.responsible_leader_name));
     h += kv('Person ID', '<span class="dim small">' + esc(id) + '</span>');
     var cur = P.interest || 'unknown';
+    if (!ctl) return '<section class="card"><h2>Contact</h2><dl class="lw-kv">' + h + kv('Interest', esc(R.INTEREST_LABEL[cur] || 'Unknown')) + '</dl></section>';
     var chips = ['unknown', 'interested', 'maybe', 'not_interested'].map(function (k) {
       return '<button type="button" class="cbtn' + (k === cur ? ' on' : '') + '" aria-pressed="' + (k === cur) + '" data-a="lead-interest" data-id="' + esc(id) + '" data-v="' + k + '">' + esc(R.INTEREST_LABEL[k]) + '</button>';
     }).join('');
@@ -341,7 +354,7 @@
       (line ? '<p class="lw-msg">' + esc(line) + '</p>' : '<p class="muted">No next action yet.</p>') +
       (need ? '<p class="small lw-warn">Say what happens next and who does it.</p>' : '') + '</section>';
   }
-  function stageCard(d, P, id, reqs) {
+  function stageCard(d, P, id, reqs, ctl) {
     var st = P.stage || 'added', i = idx(st), ents = arr(d.entries);
     var received = ents.some(function (e) { return e.received_at; });
     var rec = ents.map(function (e) { return e.recorded_at; }).filter(Boolean).sort()[0];
@@ -351,12 +364,13 @@
     if (P.start_date) h += '<p class="small muted">Start date ' + esc(R.dateLong(P.start_date)) + '</p>';
     var implied = Math.min(4, i - idx('meeting_completed') + 1), gaps = [];
     for (var k = 1; k <= implied; k++) if (!reqs[k - 1].confirmed) gaps.push(R.REQ_LABEL[k]);
-    if (gaps.length) h += '<p class="small lw-warn">Stage is ' + esc(R.STAGE_LABEL[st]) + ', but ' + esc(gaps.join(', ')) + (gaps.length === 1 ? ' is' : ' are') + ' not confirmed. Confirm ' + (gaps.length === 1 ? 'it' : 'them') + ' under Requirements or move the stage back.</p>';
+    if (gaps.length && ctl) h += '<p class="small lw-warn">Stage is ' + esc(R.STAGE_LABEL[st]) + ', but ' + esc(gaps.join(', ')) + (gaps.length === 1 ? ' is' : ' are') + ' not confirmed. Confirm ' + (gaps.length === 1 ? 'it' : 'them') + ' under Requirements or move the stage back.</p>';
+    if (!ctl) return h + '</section>';
     return h + '<p class="small dim">Changing the stage does not tick a requirement.</p><div class="lw-btns"><button class="btn sm" data-a="lead-stage" data-id="' + esc(id) + '">Change stage</button>' +
       '<button class="btn sm" data-a="lead-meet" data-id="' + esc(id) + '">' + (P.meeting_at ? 'Change meeting' : 'Schedule meeting') + '</button></div></section>';
   }
-  function reqCard(P, id, reqs, rw) {
-    var locked = rw && (rw.status === 'approved' || rw.status === 'paid') && !LW.reversed(rw);
+  function reqCard(P, id, reqs, rw, ctl, selfIntro) {
+    var locked = rw && (rw.status === 'approved' || rw.status === 'paid') && !LW.reversed(rw), can = ctl && !selfIntro;
     var n = reqs.filter(function (r) { return r.confirmed; }).length;
     var rows = reqs.map(function (r) {
       var label = R.REQ_LABEL[r.req];
@@ -365,22 +379,24 @@
       var extra = [];
       if (r.req === 4 && r.confirmed) { if (P.start_date) extra.push('Start date ' + R.dateLong(P.start_date)); if (!P.travel_na && P.travel_note) extra.push('Travel: ' + P.travel_note); }
       if (r.note) extra.push(r.note);
-      var btn = r.confirmed ? (locked ? '' : '<button class="btn xs" data-a="lead-req" data-id="' + esc(id) + '" data-req="' + r.req + '" data-on="0">Untick</button>')
+      var btn = !can ? '' : r.confirmed ? (locked ? '' : '<button class="btn xs" data-a="lead-req" data-id="' + esc(id) + '" data-req="' + r.req + '" data-on="0">Untick</button>')
         : '<button class="btn xs" data-a="lead-req" data-id="' + esc(id) + '" data-req="' + r.req + '" data-on="1">Confirm</button>';
       return '<div class="lw-req"><span class="ck' + (r.confirmed ? ' on' : '') + '" aria-hidden="true">' + (r.confirmed ? R.ICON.check : '') + '</span><div class="grow"><div class="lw-rq">' + esc(label) + '</div>' +
         '<div class="small ' + (r.confirmed ? 'win-ink' : 'muted') + '">' + esc(meta) + '</div>' + extra.map(function (x) { return '<div class="small muted lw-msg">' + esc(x) + '</div>'; }).join('') + '</div>' + btn + '</div>';
     }).join('');
     return '<section class="card"><div class="between"><h2>Requirements</h2><span class="chip' + (n === 4 ? ' win' : '') + '">' + n + ' of 4 confirmed</span></div>' + rows +
-      (locked ? '<p class="small muted">' + esc(R.say('locked_reward')) + '</p>' : '<p class="small dim">Each one is confirmed on its own, with a date. A stage change never ticks one.</p>') + '</section>';
+      (!ctl ? '<p class="small muted">The team that runs this person confirms these.</p>'
+        : selfIntro ? '<p class="small muted">You introduced this person, so another leader or the owner confirms these.</p>'
+        : locked ? '<p class="small muted">' + esc(R.say('locked_reward')) + '</p>' : '<p class="small dim">Each one is confirmed on its own, with a date. A stage change never ticks one.</p>') + '</section>';
   }
-  function outcomeCard(P, id, owner, dnc) {
+  function outcomeCard(P, id, owner, dnc, ctl) {
     var oc = P.outcome, h = '<section class="card"><h2>Outcome</h2>';
     if (!oc) h += '<p class="muted">No outcome. Follow up later and Not interested still count on the rep’s list.</p>';
     else h += '<p><b>' + esc(R.OUTCOME_LABEL[oc] || oc) + '</b>' + (oc === 'follow_up' && P.outcome_date ? ' · ' + esc(R.date(P.outcome_date)) : '') + '</p>' + (P.outcome_note ? '<p class="small muted lw-msg">' + esc(P.outcome_note) + '</p>' : '');
     if (dnc) h += owner ? '<div class="lw-btns"><button class="btn sm" data-a="own-clear-dnc" data-id="' + esc(id) + '" data-name="' + esc(LW.personName(P)) + '">Clear Do not contact</button></div>' : '<p class="small muted">Only the owner can clear Do not contact.</p>';
-    else h += '<div class="lw-btns">' + ['follow_up', 'not_interested', 'do_not_contact'].map(function (k) {
+    else h += '<div class="lw-btns">' + (ctl ? ['follow_up', 'not_interested', 'do_not_contact'] : ['do_not_contact']).map(function (k) {
       return '<button class="btn xs' + (k === 'do_not_contact' ? ' danger' : '') + '" data-a="lead-outcome" data-id="' + esc(id) + '" data-v="' + k + '">' + esc(R.OUTCOME_LABEL[k]) + '</button>';
-    }).join('') + (oc ? '<button class="btn xs" data-a="lead-outcome-clear" data-id="' + esc(id) + '">Clear outcome</button>' : '') + '</div>';
+    }).join('') + (oc && ctl ? '<button class="btn xs" data-a="lead-outcome-clear" data-id="' + esc(id) + '">Clear outcome</button>' : '') + '</div>';
     return h + '</section>';
   }
   function notesCard(d, id) {
@@ -432,14 +448,15 @@
     if (s === 'in_progress' && !rev) h += '<p class="small muted">' + n + ' of 4 confirmed. It goes to review when all four are confirmed.</p>';
     if (s === 'needs_correction' && rw.correction_note) h += '<p class="small lw-msg">Needs correction: ' + esc(rw.correction_note) + '</p>';
     if (rev) h += '<p class="small muted">' + esc('Reversed' + (rw.reversed_at ? ' ' + R.date(rw.reversed_at) : '') + '.' + (owner && rw.reversed_reason ? ' Internal reason: ' + rw.reversed_reason : '')) + '</p>';
-    var b = '', at = LW.rattrs(rw);
+    var b = '', at = LW.rattrs(rw), closed = LW.repClosed(rw);
+    if (closed && !rev) h += '<p class="small muted">Rep closed: nothing is approved or paid for this rep until the owner reopens them.</p>';
     if (!rev && s === 'ready') {
       if (self) h += '<p class="small muted">' + esc(R.say('self_involved')) + '</p>';
-      else b += '<button class="btn sm win" data-a="lead-approve"' + at + '>Approve</button><button class="btn sm" data-a="lead-correct"' + at + '>Needs correction</button>';
+      else b += (closed ? '' : '<button class="btn sm win" data-a="lead-approve"' + at + '>Approve</button>') + '<button class="btn sm" data-a="lead-correct"' + at + '>Needs correction</button>';
     }
     if (!rev && s === 'needs_correction') b += '<button class="btn sm" data-a="lead-resolve"' + at + '>Correction resolved</button>';
     if (owner && !rev) {
-      if (s === 'approved') b += '<button class="btn sm" data-a="own-pay"' + at + '>Mark pay issued</button>';
+      if (s === 'approved' && !closed) b += '<button class="btn sm" data-a="own-pay"' + at + '>Mark pay issued</button>';
       if (s === 'in_progress' || s === 'ready' || s === 'needs_correction') b += '<button class="btn sm" data-a="own-credit"' + at + '>Correct credit</button>';
       b += '<button class="btn sm danger" data-a="own-reverse"' + at + '>Reverse</button>';
     }
@@ -460,11 +477,13 @@
     var rw = d.reward ? Object.assign({ kind: 'referral', person_name: nm, person_id: id }, d.reward) : null;
     var dnc = P.outcome === 'do_not_contact' || P.dnc === true;
     var unread = arr(d.messages).some(function (m) { return !m.read_at; });
+    var ctl = P.controls !== false, selfIntro = arr(d.entries).some(function (e) { return e.rep_id && e.rep_id === me().id && (e.introduced || e.recorded_at); });
     var chips = '<span class="chip">' + esc(R.STAGE_LABEL[P.stage] || P.stage || 'Added') + '</span>' +
       (P.outcome ? '<span class="chip' + (dnc ? ' alert' : '') + '">' + esc(R.OUTCOME_LABEL[P.outcome] || P.outcome) + '</span>' : '') +
       '<span class="chip">Interest: ' + esc(R.INTEREST_LABEL[P.interest] || 'Unknown') + '</span>';
     var banner = dnc ? '<div class="banner"><span><b>Do not contact.</b> This person asked not to be contacted by RALLY. They don’t count toward any rep’s 100 and are out of every queue.' + (owner ? '' : ' Only the owner can clear it.') + '</span></div>' : '';
-    var left = (unread ? messagesCard(d, id) : '') + identityCard(d, P, id) + nextCard(d, P, id) + stageCard(d, P, id, reqs) + reqCard(P, id, reqs, rw) + outcomeCard(P, id, owner, dnc) + notesCard(d, id);
+    if (!ctl) banner += '<div class="strip"><span>Another team runs this person. You can view it, add notes and set Do not contact.</span></div>';
+    var left = (unread ? messagesCard(d, id) : '') + identityCard(d, P, id, ctl) + (ctl ? nextCard(d, P, id) : '') + stageCard(d, P, id, reqs, ctl) + reqCard(P, id, reqs, rw, ctl, selfIntro) + outcomeCard(P, id, owner, dnc, ctl) + notesCard(d, id);
     var right = (rw ? rewardCard(rw, n) : '') + knownCard(d, id, rw) + (unread ? '' : messagesCard(d, id)) + historyCard(d);
     return LW.shell(head + LW.stale() + '<div class="lw-head"><h1>' + esc(nm) + '</h1><div class="chips">' + chips + '</div></div>' + banner +
       '<div class="cols two"><div class="stack lw-col">' + left + '</div><div class="stack lw-col">' + right + '</div></div>');
@@ -695,7 +714,7 @@
     return reps.map(function (r) {
       var c = r.count || 0, pct = Math.max(0, Math.min(100, c));
       return '<tr class="tap" data-a="lead-open-rep" data-id="' + esc(r.id) + '"><td><button class="link" data-a="lead-open-rep" data-id="' + esc(r.id) + '">' + esc(r.name || r.email || 'Rep') + '</button>' +
-        (r.role && r.role !== 'rep' ? ' <span class="chip">' + esc(r.role === 'owner' ? 'Owner' : 'Leader') + '</span>' : '') + (r.disabled ? ' <span class="chip">Account off</span>' : '') + '</td>' +
+        (r.role && r.role !== 'rep' ? ' <span class="chip">' + esc(r.role === 'owner' ? 'Owner' : 'Leader') + '</span>' : '') + (r.disabled ? ' <span class="chip">Account off</span>' : '') + (r.closed ? ' <span class="chip">Closed</span>' : '') + '</td>' +
         (team ? '<td>' + esc(r.team_name || '') + '</td>' : '') +
         '<td class="nowrap"><b>' + c + '/100</b><span class="lw-mini" aria-hidden="true"><i style="width:' + pct + '%"></i></span></td>' +
         '<td>' + (r.drafts || 0) + '</td><td>' + (r.held || 0) + '</td><td class="nowrap">' + esc(r.last_activity ? R.date(r.last_activity) : '—') + '</td>' +
@@ -774,8 +793,11 @@
       held: function (e) { return !!e.held_of && !e.removed; }, removed: function (e) { return !!e.removed; }
     }[k] || function () { return true; };
   }
+  /* The server draws the walkthrough sample once and keeps it until a spot-check uses it; only entries of
+     that sample that still count can be recorded. */
+  function sampleOf(L) { return arr(L && L.sample).filter(function (e) { return e && e.counted !== false; }); }
   function spotCard(lr, L, rep) {
-    var sample = arr(L.sample), picks = LW.cache().sc[lr.id] || {}, who = firstName(rep.name) || 'the rep';
+    var sample = sampleOf(L), picks = LW.cache().sc[lr.id] || {}, who = firstName(rep.name) || 'the rep';
     var h = '<div class="lw-sec"><div class="between"><h3>Spot-check</h3><span class="chip">Spot-check: ' + (lr.spot_checked ? 'done' : 'not done') + '</span></div>' +
       '<p class="small muted">Together, in person: pick each contact below and ask ' + esc(who) + ' “How do you know them?”. Looks real marks the contact verified.</p>';
     if (!sample.length) return h + '<p class="empty">No complete contacts to sample yet.</p></div>';
@@ -795,9 +817,10 @@
     var h = '<section class="card"><div class="between"><h2>List Completion Reward</h2>' + (lr ? '<span class="chips">' + LW.statusChips(lr) + '</span>' : '') + '</div>';
     if (!lr) return h + '<p>' + esc(count + '/100 contacts complete.') + '</p><p class="small muted">The reward opens for review the first time the list reaches 100. Then you walk through the list and signed friends together, spot-check it here and approve.</p></section>';
     var s = lr.status, rev = LW.reversed(lr), r = Object.assign({ kind: 'list', rep_id: rep.id, rep_name: rep.name, count: count }, lr);
+    if (rep.closed && arr(r.flags).indexOf('rep_closed') < 0) r.flags = arr(r.flags).concat('rep_closed');
     if ((s === 'approved' || s === 'paid') && !rev) {
       return h + '<div class="lw-paid"><img class="stamp" src="' + R.PANTHER + '" alt="Confirmed by RALLY"><div><b>' + esc((LW.amt(r) ? LW.amt(r) + ' · ' : '') + LW.statusText(r)) + '</b><div class="small muted">' + esc(count + '/100 contacts complete.') + '</div></div></div>' +
-        (R.isOwner() && s === 'approved' ? '<div class="lw-btns"><button class="btn sm" data-a="own-pay"' + LW.rattrs(r) + '>Mark pay issued</button></div>' : '') + '</section>';
+        (R.isOwner() && s === 'approved' && !rep.closed ? '<div class="lw-btns"><button class="btn sm" data-a="own-pay"' + LW.rattrs(r) + '>Mark pay issued</button></div>' : '') + '</section>';
     }
     if (rev) return h + '<p class="small muted">Reversed. Nothing more to do here.</p></section>';
     h += '<p>' + esc(count + '/100 contacts complete.') + (s === 'ready' ? ' Walk through ' + (firstName(rep.name) || 'the rep') + '’s list and signed friends together. Spot-check 3 to 5 contacts, then approve.' : '') + '</p>';
@@ -805,9 +828,10 @@
     if (s === 'needs_correction' && lr.correction_note) h += '<p class="small lw-msg">Needs correction: ' + esc(lr.correction_note) + '</p>';
     if (!self) h += spotCard(lr, L, rep);
     var b = '';
+    if (rep.closed) h += '<p class="small muted">Rep closed: nothing is approved or paid for this rep until the owner reopens them.</p>';
     if (s === 'ready') {
       if (self) h += '<p class="small muted">' + esc(R.say('self_involved')) + '</p>';
-      else b = '<button class="btn sm win" data-a="lead-approve"' + LW.rattrs(r) + '>Approve</button><button class="btn sm" data-a="lead-correct"' + LW.rattrs(r) + '>Needs correction</button>';
+      else b = (rep.closed ? '' : '<button class="btn sm win" data-a="lead-approve"' + LW.rattrs(r) + '>Approve</button>') + '<button class="btn sm" data-a="lead-correct"' + LW.rattrs(r) + '>Needs correction</button>';
     }
     if (s === 'needs_correction') b = '<button class="btn sm" data-a="lead-resolve"' + LW.rattrs(r) + '>Correction resolved</button>';
     return h + (b ? '<div class="lw-btns">' + b + '</div>' : '') + '</section>';
@@ -822,13 +846,17 @@
     var reviews = arr(R.data.team && R.data.team.queues && R.data.team.queues.reviews).filter(function (r) { return r.rep_id === rep.id && r.kind !== 'list'; });
     var incs = LW.incentives(), award = '';
     if (self) award = '<p class="small muted">You can’t award an incentive to yourself.</p>';
+    else if (rep.closed) award = '<p class="small muted">Rep closed: no new awards until the owner reopens this rep.</p>';
     else if (incs === null) award = '<p class="small muted">Published incentives aren’t available here yet.</p>';
     else if (!incs.length) award = '<p class="small muted">No incentives are published.' + (R.isOwner() ? ' Add one under Incentives.' : '') + '</p>';
     else award = '<p class="small muted">' + esc(R.plural(incs.length, 'published incentive')) + '. The award is recorded as Pending pay until the owner marks pay issued.</p><div class="lw-btns"><button class="btn sm" data-a="lead-award" data-rep="' + esc(rep.id) + '" data-name="' + esc(rep.name || '') + '">Award an incentive</button></div>';
     var right = (reviews.length ? '<section class="card"><h2>Rewards waiting for review</h2><div class="queue">' + reviews.map(reviewItem).join('') + '</div></section>' : '') +
       '<section class="card"><h2>Award an incentive</h2>' + award + '</section>' +
-      (R.isOwner() && !self ? '<section class="card"><h2>Rep left or didn’t come out</h2><p class="small muted">Closes every reward of this rep that isn’t paid yet as not paid. Pay already issued stays. Internal only.</p>' +
-        '<div class="lw-btns"><button class="btn sm danger" data-a="own-close-unpaid" data-rep="' + esc(rep.id) + '" data-name="' + esc(rep.name || '') + '">Close unpaid rewards (rep left or didn’t come out)</button></div></section>' : '');
+      (R.isOwner() && !self ? '<section class="card"><div class="between"><h2>Rep left or didn’t come out</h2>' + (rep.closed ? '<span class="chip">Closed</span>' : '') + '</div>' +
+        '<p class="small muted">' + (rep.closed ? 'This rep is closed: nothing new is approved, awarded or paid for them. Reopening ends that for the future; it does not undo past closures.'
+          : 'Closes every reward of this rep that isn’t paid yet as not paid. Pay already issued stays. Internal only.') + '</p>' +
+        '<div class="lw-btns"><button class="btn sm danger" data-a="own-close-unpaid" data-rep="' + esc(rep.id) + '" data-name="' + esc(rep.name || '') + '">Close unpaid rewards (rep left or didn’t come out)</button>' +
+        (rep.closed ? '<button class="btn sm" data-a="own-reopen" data-rep="' + esc(rep.id) + '" data-name="' + esc(rep.name || '') + '">Reopen</button>' : '') + '</div></section>' : '');
     var f = C.f.listF || 'all', shown = ents.filter(entryFilter(f)).sort(function (a, b) { return R.fullName(a).localeCompare(R.fullName(b)); });
     var tabs = LF.map(function (t) { var n = ents.filter(entryFilter(t[0])).length; return '<button class="cbtn' + (t[0] === f ? ' on' : '') + '" aria-pressed="' + (t[0] === f) + '" data-a="lead-list-f" data-k="' + t[0] + '">' + t[1] + ' ' + n + '</button>'; }).join('');
     var rows = shown.length ? shown.map(function (e) {
@@ -837,7 +865,7 @@
         '<td class="nowrap">' + esc(R.fmtPhone(e.phone) || '—') + '</td><td>' + esc(LW.entryHandle(e) || '—') + '</td><td>' + esc(arr(e.tags).join(', ')) + '</td><td>' + entryState(e) + '</td><td class="nowrap">' + esc(R.date(e.created_at)) + '</td></tr>';
     }).join('') : '<tr><td colspan="6" class="muted">Nothing here.</td></tr>';
     var sub = [count + '/100 contacts complete', R.plural(rep.drafts || 0, 'draft'), (rep.held || 0) + ' to check', rep.last_activity ? 'last activity ' + R.date(rep.last_activity) : ''].filter(Boolean).join(' · ');
-    return LW.shell(head + LW.stale() + '<div class="lw-head"><h1>' + esc(rep.name || 'Rep') + '</h1><p class="muted">' + esc(sub) + '</p></div>' +
+    return LW.shell(head + LW.stale() + '<div class="lw-head"><h1>' + esc(rep.name || 'Rep') + '</h1>' + (rep.closed ? '<div class="chips"><span class="chip">Closed</span></div>' : '') + '<p class="muted">' + esc(sub) + '</p></div>' +
       '<div class="stats">' + stats.map(function (s) { return '<div class="stat"><b>' + esc(s[1]) + '</b><span>' + esc(s[0]) + '</span></div>'; }).join('') + '</div>' +
       '<div class="cols two"><div class="stack lw-col">' + listRewardCard(rep, L) + '</div><div class="stack lw-col">' + right + '</div></div>' +
       '<section class="card"><div class="between"><h2>' + esc((firstName(rep.name) || 'Rep') + '’s list') + '</h2></div><div class="chips">' + tabs + '</div>' +
@@ -860,7 +888,7 @@
   };
   R.actions['lead-sc-save'] = async function (el) {
     var C = LW.cache(), rid = el.dataset.r, L = C.reps[el.dataset.rep] || {}, picks = C.sc[rid] || {}, err = document.getElementById('lwScErr');
-    var sample = arr(L.sample), missing = sample.filter(function (e) { return !picks[e.id]; });
+    var sample = sampleOf(L), missing = sample.filter(function (e) { return !picks[e.id]; });
     if (!sample.length) return;
     if (missing.length) { if (err) err.textContent = 'Mark every contact: Looks real, Unclear or Not real.'; return; }
     var note = (document.getElementById('lwScN') || {}).value || '';
@@ -873,7 +901,7 @@
     var incs = LW.incentives() || [];
     if (!incs.length) return;
     var opts = incs.map(function (i) { return '<option value="' + esc(i.id) + '">' + esc((i.name || 'Incentive') + ' · ' + R.money(i.prize_cents)) + '</option>'; }).join('');
-    R.sheet('<form data-form="lead-award" data-rep="' + esc(el.dataset.rep) + '" class="stack"><h2>Award an incentive</h2><p class="muted">To ' + esc(el.dataset.name || 'this rep') + '. It is recorded as approved and shows as Pending pay until the owner marks pay issued.</p>' +
+    R.sheet('<form data-form="lead-award" data-rep="' + esc(el.dataset.rep) + '" data-request="' + esc(R.uuid()) + '" class="stack"><h2>Award an incentive</h2><p class="muted">To ' + esc(el.dataset.name || 'this rep') + '. It is recorded as approved and shows as Pending pay until the owner marks pay issued.</p>' +
       '<div class="field"><label for="lwAi">Incentive</label><select id="lwAi" name="inc">' + opts + '</select></div>' +
       '<div class="field"><label for="lwAn">Why it was earned</label><textarea id="lwAn" name="note" maxlength="1000"></textarea></div>' +
       '<p class="small dim">Awarding the same incentive again makes a second award.</p>' + sheetButtons('Award', 'win') + '</form>');
@@ -881,7 +909,7 @@
   R.forms['lead-award'] = async function (f) {
     var note = val(f, 'note');
     if (!note) { setErr(f, R.say('note_required')); return; }
-    var res = await R.call('award_incentive', { p_incentive: val(f, 'inc'), p_rep: f.dataset.rep, p_note: note }, submitBtn(f));
+    var res = await R.call('award_incentive', { p_incentive: val(f, 'inc'), p_rep: f.dataset.rep, p_note: note, p_request: f.dataset.request }, submitBtn(f));
     if (res) LW.done('Awarded. It shows as Pending pay.', 'win');
   };
 })();

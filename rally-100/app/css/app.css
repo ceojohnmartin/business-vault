@@ -53,6 +53,7 @@ p{margin:0}
 .mark{width:28px;height:28px;border-radius:50%;box-shadow:0 0 0 1.5px #fff;flex:none;object-fit:cover}
 .wm{font-weight:900;letter-spacing:.3em;font-size:15px;white-space:nowrap}
 .pill{border:1px solid var(--line2);background:transparent;border-radius:999px;padding:0 12px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;color:var(--muted);min-height:36px;white-space:nowrap}
+.top .row>.pill,.top .row>.offline{flex:none} /* top-bar pills keep their natural width */
 .offline{font-size:12px;color:var(--alert);font-weight:700;white-space:nowrap}
 
 /* level line */

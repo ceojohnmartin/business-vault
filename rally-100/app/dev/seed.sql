@@ -1,7 +1,8 @@
 -- RALLY 100 — DEV fixtures for the local stand-in (app/dev/server.mjs). LOCAL
 -- DATABASES ONLY: app/dev/setup-db.sh applies it to rally100_dev after the
--- Supabase shim, every RALLY migration and 1001. Never run it on a real
--- project. Every name and email here is fictional.
+-- Supabase shim, every RALLY migration and 1001, and before 1002 (which then
+-- finds the one owner team and starts automatic joining on). Never run it on
+-- a real project. Every name and email here is fictional.
 --
 -- Accounts arrive through auth.users exactly as GoTrue inserts them, so
 -- RALLY's signup trigger gives each one the least-authority profile (role

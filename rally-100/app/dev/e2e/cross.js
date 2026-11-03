@@ -244,7 +244,7 @@ function seedEntry(i) {
     await goScreen(op, 'own-dash'); await op.waitForTimeout(800);
     ok((await body(op)).includes('Add new sign-ups automatically: On'), 'auto-add starts on (one owner team)');
     const a = await signUp('Avery Autojoin');
-    await a.pg.waitForSelector('main.ob', { timeout: 15000 });
+    await waitScreen(a.pg, 'onboarding');  /* not main.ob: the sign-up screen is a main.ob too */
     const teamId = PSQL("select team_id from public.profiles where email = 'owner@rally.test'");
     ok(PSQL(`select team_id from public.profiles where email = '${a.em}'`) === teamId && PSQL(`select role from public.profiles where email = '${a.em}'`) === 'rep',
       'with auto-add on, a confirmed sign-up joins the owner\'s team as a rep and goes straight to onboarding');
@@ -262,7 +262,7 @@ function seedEntry(i) {
     ok(line === `update public.profiles set team_id = '${teamId}' where email = '${b.em}';`, 'the copy line is exactly the one-line team placement');
     PSQL(line);
     await b.pg.click('[data-a="recheck"]');
-    await b.pg.waitForSelector('main.ob', { timeout: 10000 });
+    await waitScreen(b.pg, 'onboarding');
     ok(true, 'after placement, "Check again" opens onboarding');
     /* and back on, through the confirmation sheet */
     await op.click('[data-a="own-auto-join"][data-on="1"]');

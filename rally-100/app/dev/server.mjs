@@ -8,7 +8,8 @@
 // It serves rally-100/app/ as static files (index.html at /, no caching) and
 // answers the three things the app asks Supabase for:
 //   * /auth/v1/...            email + password sessions (accounts in users.json,
-//                             plus any made through /auth/v1/signup while it runs)
+//                             plus any made through /auth/v1/signup while it runs,
+//                             which are email-confirmed at once: no mail is sent)
 //   * /rest/v1/rpc/<name>     with Content-Profile: rally100 — runs the REAL
 //                             rally100.<name>() in Postgres exactly as PostgREST
 //                             would: ONE transaction, `set local role authenticated`,
@@ -318,6 +319,26 @@ async function userIdFor(email) {
 }
 const authError = (error, description, status = 400) => [status, { error, error_description: description, error_code: error, msg: description }];
 
+// DEV AUTO-CONFIRM. Supabase marks an address confirmed (auth.users.
+// email_confirmed_at) when its confirmation link is followed, and RALLY 100
+// v2 places only confirmed sign-ups. This stand-in sends no mail, so a
+// sign-up is confirmed at once, when the dev database has that column
+// (setup-db.sh adds it; RALLY's test shim leaves it out). Checked once.
+let confirmColumn = null;
+async function hasConfirmColumn() {
+  if (confirmColumn === null) {
+    const r = await withConn((c) => c.query(
+      "select exists (select 1 from pg_catalog.pg_attribute where attrelid = 'auth.users'::pg_catalog.regclass" +
+      " and attname = 'email_confirmed_at' and not attisdropped)::text"));
+    if (r.error) throw new Error(r.error.message);
+    confirmColumn = r.rows[0][0] === 'true';
+  }
+  return confirmColumn;
+}
+const SIGNUP_SQL = "insert into auth.users (id, email, raw_user_meta_data) values ($1::uuid, $2, pg_catalog.jsonb_build_object('name', $3::text))";
+const SIGNUP_CONFIRMED_SQL = "insert into auth.users (id, email, raw_user_meta_data, email_confirmed_at)" +
+  " values ($1::uuid, $2, pg_catalog.jsonb_build_object('name', $3::text), pg_catalog.now())";
+
 async function handleAuth(req, url, body) {
   const route = url.pathname.replace(/^\/auth\/v1\//, '');
   if (route === 'token' && req.method === 'POST') {
@@ -354,9 +375,8 @@ async function handleAuth(req, url, body) {
     const name = String((body.data && body.data.name) || '').slice(0, 120);
     const uid = crypto.randomUUID();
     // the RALLY signup trigger makes the least-authority profile: role rep, no team
-    const r = await withConn((c) => c.query(
-      "insert into auth.users (id, email, raw_user_meta_data) values ($1::uuid, $2, pg_catalog.jsonb_build_object('name', $3::text))",
-      [uid, email, name]));
+    const sql = (await hasConfirmColumn()) ? SIGNUP_CONFIRMED_SQL : SIGNUP_SQL;
+    const r = await withConn((c) => c.query(sql, [uid, email, name]));
     if (r.error) return authError('unexpected_failure', r.error.message, 500);
     passwords.set(email, password);
     return [200, session(uid, email)];
